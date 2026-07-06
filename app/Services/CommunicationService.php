@@ -1,0 +1,154 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\EmailLog;
+use App\Models\SmsLog;
+use App\Models\Setting;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Http;
+
+// ════════════════════════════════════════════════════════════
+//  خدمات الاتصال: البريد الإلكتروني والرسائل النصية
+// ════════════════════════════════════════════════════════════
+
+class CommunicationService
+{
+    // ════════════════ البريد الإلكتروني ════════════════
+
+    // ── إرسال دعوة بالبريد ──
+    public function sendInvitationEmail(
+        int $candidateId,
+        string $toEmail,
+        ?string $toName,
+        array $data,
+        ?int $createdBy
+    ): bool {
+        // جلب القالب من الإعدادات
+        $subject = Setting::find('email.invitation.subject')?->value ?? 'دعوة لجلسة تقييم';
+        $template = Setting::find('email.invitation.template')?->value
+            ?? "التاريخ: {date}\nالوقت: {time}\nالمكان: {location}\nالمطلوب: {requirements}";
+
+        // استبدال المتغيّرات
+        $body = strtr($template, [
+            '{newline}' => "\n",
+            '{date}' => $data['date'] ?? '',
+            '{time}' => $data['time'] ?? '',
+            '{location}' => $data['location'] ?? '',
+            '{requirements}' => $data['requirements'] ?? '',
+        ]);
+
+        return $this->sendEmail($toEmail, $toName, $subject, $body, 'invitation', $candidateId, $createdBy);
+    }
+
+    // ── إرسال بريد عام ──
+    public function sendEmail(
+        string $toEmail,
+        ?string $toName,
+        string $subject,
+        string $body,
+        string $emailType,
+        ?int $candidateId,
+        ?int $createdBy
+    ): bool {
+        // تسجيل في السجل أولاً
+        $log = EmailLog::create([
+            'to_email' => $toEmail,
+            'to_name' => $toName,
+            'subject' => $subject,
+            'body' => $body,
+            'email_type' => $emailType,
+            'candidate_id' => $candidateId,
+            'status' => 'pending',
+            'created_by' => $createdBy,
+        ]);
+
+        try {
+            // إرسال فعلي عبر Laravel Mail
+            Mail::raw($body, function ($message) use ($toEmail, $toName, $subject) {
+                $message->to($toEmail, $toName)->subject($subject);
+            });
+
+            $log->update(['status' => 'sent', 'sent_at' => now()]);
+            return true;
+        } catch (\Exception $e) {
+            $log->update(['status' => 'failed', 'error_message' => $e->getMessage()]);
+            return false;
+        }
+    }
+
+    // ════════════════ الرسائل النصية ════════════════
+
+    // ── إرسال دعوة برسالة نصية ──
+    public function sendInvitationSms(int $candidateId, string $toMobile, array $data, ?int $createdBy): bool
+    {
+        $template = Setting::find('sms.invitation.template')?->value
+            ?? 'لديك جلسة تقييم بتاريخ {date} الساعة {time}';
+        $phone = config('services.sms.support_phone', '');
+
+        $message = strtr($template, [
+            '{date}' => $data['date'] ?? '',
+            '{time}' => $data['time'] ?? '',
+            '{location}' => $data['location'] ?? '',
+            '{phone}' => $phone,
+        ]);
+
+        return $this->sendSms($toMobile, $message, 'invitation', $candidateId, $createdBy);
+    }
+
+    // ── إرسال رسالة نصية عامة ──
+    public function sendSms(
+        string $toMobile,
+        string $message,
+        string $smsType,
+        ?int $candidateId,
+        ?int $createdBy
+    ): bool {
+        $log = SmsLog::create([
+            'to_mobile' => $toMobile,
+            'message' => $message,
+            'sms_type' => $smsType,
+            'candidate_id' => $candidateId,
+            'status' => 'pending',
+            'created_by' => $createdBy,
+        ]);
+
+        try {
+            $apiUrl = config('services.sms.url');
+            $apiKey = config('services.sms.key');
+
+            if (empty($apiUrl) || empty($apiKey)) {
+                // وضع التطوير: لا مزوّد مُعدّ
+                $log->update([
+                    'status' => 'sent',
+                    'sent_at' => now(),
+                    'error_message' => '(وضع التطوير: لم تُرسل فعلياً - أعدّ مزوّد الرسائل)',
+                ]);
+                return true;
+            }
+
+            // الاتصال بمزوّد الرسائل (مثال عام يصلح لمعظم المزوّدين مثل Unifonic)
+            $response = Http::asJson()->post($apiUrl, [
+                'appSid' => $apiKey,
+                'sender' => config('services.sms.sender_id', 'Kafaat'),
+                'recipient' => $toMobile,
+                'body' => $message,
+            ]);
+
+            if ($response->successful()) {
+                $log->update([
+                    'status' => 'sent',
+                    'sent_at' => now(),
+                    'provider_ref' => mb_substr($response->body(), 0, 100),
+                ]);
+                return true;
+            }
+
+            $log->update(['status' => 'failed', 'error_message' => 'HTTP ' . $response->status()]);
+            return false;
+        } catch (\Exception $e) {
+            $log->update(['status' => 'failed', 'error_message' => $e->getMessage()]);
+            return false;
+        }
+    }
+}
