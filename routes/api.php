@@ -14,6 +14,7 @@ use App\Http\Controllers\ChatController;
 use App\Http\Controllers\CommunicationController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\SectorController;
+use App\Http\Controllers\ActivityCompetencyController;
 
 // ════════════════════════════════════════════════════════════
 //  مسارات الـ API — كلها تحت البادئة /api
@@ -57,6 +58,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ═══ التقييم ═══
     Route::get('/competencies', [EvaluationController::class, 'competencies']);
+    Route::get('/activity-competencies', [ActivityCompetencyController::class, 'index']);
+    Route::put('/activity-competencies/{activity}', [ActivityCompetencyController::class, 'update']);
     Route::post('/evaluations/start', [EvaluationController::class, 'start']);
     Route::get('/evaluations', [EvaluationController::class, 'index']);
     Route::get('/evaluations/{id}', [EvaluationController::class, 'show']);
