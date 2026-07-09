@@ -23,7 +23,8 @@ class CandidateController extends Controller
         $query->whereIn('classification', $this->allowedClassifications($request));
 
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            // يدعم قيمة واحدة أو عدّة حالات مفصولة بفواصل (مثل: scheduled,assessed)
+            $query->whereIn('status', explode(',', $request->status));
         }
         if ($request->filled('sectorId')) {
             $query->where('sector_id', $request->sectorId);
