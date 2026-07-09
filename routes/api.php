@@ -58,6 +58,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ═══ التقييم ═══
     Route::get('/competencies', [EvaluationController::class, 'competencies']);
     Route::post('/evaluations/start', [EvaluationController::class, 'start']);
+    Route::get('/evaluations', [EvaluationController::class, 'index']);
     Route::get('/evaluations/{id}', [EvaluationController::class, 'show']);
     Route::post('/evaluations/{id}/scores', [EvaluationController::class, 'saveScores']);
     Route::post('/evaluations/{id}/submit', [EvaluationController::class, 'submit']);

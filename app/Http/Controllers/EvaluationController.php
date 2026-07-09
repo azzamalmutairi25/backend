@@ -62,6 +62,41 @@ class EvaluationController extends Controller
         return response()->json(['competencies' => $list]);
     }
 
+    // قائمة تقييمات المُقيّم الحالي (تُستخدم لاستكمال المسودات) — تدعم ?status=draft
+    public function index(Request $request)
+    {
+        if (!$request->user()->hasPermission(Permissions::EVALUATION_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض التقييمات'], 403);
+        }
+
+        $validated = $request->validate([
+            'status' => 'nullable|in:draft,submitted,approved',
+        ]);
+
+        $allowed = $this->allowedClassifications($request);
+
+        $query = Evaluation::with('candidate')
+            ->withCount('scores')
+            ->where('evaluator_id', $request->user()->id);
+
+        if (!empty($validated['status'])) {
+            $query->where('status', $validated['status']);
+        }
+
+        $evaluations = $query->latest('updated_at')->get()
+            ->filter(fn ($e) => in_array($e->candidate->classification, $allowed))
+            ->map(fn ($e) => [
+                'id' => $e->id,
+                'candidateCode' => $e->candidate->participant_code,
+                'activity' => $e->activity,
+                'status' => $e->status,
+                'scoredCount' => $e->scores_count,
+                'updatedAt' => $e->updated_at,
+            ])->values();
+
+        return response()->json(['evaluations' => $evaluations]);
+    }
+
     public function start(Request $request)
     {
         if (!$request->user()->hasPermission(Permissions::EVALUATION_INPUT)) {
