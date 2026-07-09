@@ -119,6 +119,21 @@ class EvaluationController extends Controller
             return response()->json(['error' => 'لا يمكن تقييم مرشح غير معتمد للتقييم'], 422);
         }
 
+        // منع تكرار التقييم لنفس (المرشح + النشاط)
+        $existing = Evaluation::where('candidate_id', $validated['candidateId'])
+            ->where('activity', $validated['activity'])
+            ->first();
+        if ($existing) {
+            $msg = $existing->status === 'draft'
+                ? 'توجد مسودة تقييم لهذا المرشح في هذا النشاط — استكملها بدل بدء جلسة جديدة'
+                : 'تم تقييم هذا المرشح في هذا النشاط مسبقاً';
+            return response()->json([
+                'error' => $msg,
+                'existingEvaluationId' => $existing->id,
+                'existingStatus' => $existing->status,
+            ], 422);
+        }
+
         $evaluation = Evaluation::create([
             'candidate_id' => $validated['candidateId'],
             'evaluator_id' => $request->user()->id,
@@ -282,6 +297,11 @@ class EvaluationController extends Controller
             'status' => 'submitted',
             'submitted_at' => now(),
         ]);
+
+        // المرشح: scheduled -> assessed (تمّ تقييمه)
+        if ($evaluation->candidate->status === 'scheduled') {
+            $evaluation->candidate->update(['status' => 'assessed']);
+        }
 
         $this->notify->notifyRole('ASSESS_MANAGER', 'approval',
             'تقييم بانتظار الاعتماد',
