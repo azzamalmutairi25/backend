@@ -54,6 +54,18 @@ class ActivityCompetencyController extends Controller
         ]);
 
         $ids = $validated['competencyIds'];
+        $previous = Competency::idsForActivity($activity);
+
+        // منع تفريغ كفاءات نشاط له تقييمات نشطة (يكسر إرسال تلك التقييمات لاحقًا)
+        if (empty($ids)) {
+            $hasActive = \App\Models\Evaluation::where('activity', $activity)
+                ->whereIn('status', ['draft', 'submitted'])->exists();
+            if ($hasActive) {
+                return response()->json([
+                    'error' => 'لا يمكن تفريغ كفاءات نشاط له تقييمات نشطة قيد التنفيذ',
+                ], 422);
+            }
+        }
 
         DB::transaction(function () use ($activity, $ids) {
             DB::table('activity_competency')->where('activity', $activity)->delete();
@@ -68,9 +80,11 @@ class ActivityCompetencyController extends Controller
             }
         });
 
+        // تدقيق يوثّق التغيير الفعلي (قبل/بعد) بدل قائمة مبهمة
         $this->log($request, 'UPDATE_ACTIVITY_COMPETENCIES', 0, [
             'activity' => $activity,
-            'competencyIds' => $ids,
+            'from' => $previous,
+            'to' => $ids,
         ]);
 
         return response()->json([
