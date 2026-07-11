@@ -13,6 +13,7 @@ class Candidate extends Model
         'participant_code', 'national_id_enc', 'national_id_hash',
         'full_name_enc', 'mobile_enc', 'email_enc',
         'sector_id', 'rank_label', 'tier', 'assessment_type', 'status',
+        'classification',
     ];
 
     protected $hidden = [

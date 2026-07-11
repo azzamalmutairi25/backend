@@ -52,6 +52,20 @@ class AuditController extends Controller
 
     public function candidateHistory(Request $request, int $id)
     {
+        $user = $request->user();
+        if (!$user->hasPermission(Permissions::CANDIDATE_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض سجل المرشح'], 403);
+        }
+        // احترام تصنيف المرشح — لا تكشف سجل مرشح مصنّف لمن لا يملك التصريح
+        $candidate = \App\Models\Candidate::find($id);
+        if ($candidate) {
+            $allowed = $user->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)
+                ? ['normal', 'secret', 'top_secret'] : ['normal'];
+            if (!in_array($candidate->classification, $allowed)) {
+                return response()->json(['error' => 'هذا المرشح مصنّف، وليس لديك صلاحية'], 403);
+            }
+        }
+
         $logs = AuditLog::where('entity_type', 'candidate')
             ->where('entity_id', (string) $id)
             ->orderBy('created_at', 'desc')

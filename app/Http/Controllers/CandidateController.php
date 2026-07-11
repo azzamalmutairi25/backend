@@ -19,6 +19,10 @@ class CandidateController extends Controller
 
     public function index(Request $request)
     {
+        if (!$request->user()->hasPermission(Permissions::CANDIDATE_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض المرشحين'], 403);
+        }
+
         $query = Candidate::with('sector');
         $query->whereIn('classification', $this->allowedClassifications($request));
 
@@ -59,6 +63,9 @@ class CandidateController extends Controller
     public function show(Request $request, int $id)
     {
         $user = $request->user();
+        if (!$user->hasPermission(Permissions::CANDIDATE_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض المرشحين'], 403);
+        }
         $candidate = Candidate::with('sector')->findOrFail($id);
 
         if (!in_array($candidate->classification, $this->allowedClassifications($request))) {
@@ -127,7 +134,12 @@ class CandidateController extends Controller
         $candidate->tier = $tier;
         $candidate->assessment_type = $validated['assessmentType'] ?? 'comprehensive';
         $candidate->status = 'draft';
-        $candidate->classification = $validated['classification'] ?? 'normal';
+        // تعيين تصنيف أمني (سرّي/سرّي للغاية) يتطلب صلاحية VIEW_CLASSIFIED — منع التصعيد
+        $requestedClass = $validated['classification'] ?? 'normal';
+        if ($requestedClass !== 'normal' && !$request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
+            return response()->json(['error' => 'ليس لديك صلاحية تعيين تصنيف أمني'], 403);
+        }
+        $candidate->classification = $requestedClass;
         $candidate->save();
 
         $this->log($request, 'CREATE_CANDIDATE', $candidate->id, ['code' => $code]);
@@ -177,12 +189,24 @@ class CandidateController extends Controller
         $candidate->rank_label = $validated['rankLabel'];
         $candidate->tier = $tier;
         $candidate->assessment_type = $validated['assessmentType'] ?? 'comprehensive';
-        if (isset($validated['classification'])) {
+        // تغيير التصنيف الأمني حوكمة حسّاسة — يتطلب صلاحية VIEW_CLASSIFIED (كما في reclassify) ويُسجَّل
+        $classChanged = false;
+        $oldClass = $candidate->classification;
+        if (isset($validated['classification']) && $validated['classification'] !== $candidate->classification) {
+            if (!$request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
+                return response()->json(['error' => 'ليس لديك صلاحية تغيير التصنيف الأمني'], 403);
+            }
             $candidate->classification = $validated['classification'];
+            $classChanged = true;
         }
         $candidate->save();
 
         $this->log($request, 'UPDATE_CANDIDATE', $candidate->id, ['code' => $candidate->participant_code]);
+        if ($classChanged) {
+            $this->log($request, 'RECLASSIFY_CANDIDATE', $candidate->id, [
+                'code' => $candidate->participant_code, 'from' => $oldClass, 'to' => $candidate->classification,
+            ]);
+        }
 
         return response()->json(['message' => 'تم تحديث بيانات المرشح', 'tier' => $tier]);
     }
@@ -261,6 +285,9 @@ class CandidateController extends Controller
 
     public function stats(Request $request)
     {
+        if (!$request->user()->hasPermission(Permissions::CANDIDATE_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض المرشحين'], 403);
+        }
         $allowed = $this->allowedClassifications($request);
         $base = Candidate::whereIn('classification', $allowed);
 
@@ -293,6 +320,9 @@ class CandidateController extends Controller
     public function export(Request $request)
     {
         $user = $request->user();
+        if (!$user->hasPermission(Permissions::CANDIDATE_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية تصدير المرشحين'], 403);
+        }
         $canSeeNames = $user->hasPermission(Permissions::CANDIDATE_VIEW_NAMES);
         $allowed = $this->allowedClassifications($request);
 
