@@ -111,9 +111,10 @@ class ChatController extends Controller
 
         $senderName = $request->user()->full_name;
         foreach ($others as $pid) {
+            // لا ننسخ نص الرسالة في الإشعار (لقطة مجمّدة قد تتجاوز التصنيف لاحقًا) — إشعار عام فقط
             $this->notify->notify($pid, 'info',
                 "رسالة جديدة من {$senderName}",
-                mb_substr($validated['message'], 0, 80),
+                'لديك رسالة جديدة في محادثة — افتحها للاطّلاع',
                 $thread->entity_type, (string) $thread->entity_id, $userId);
         }
 
