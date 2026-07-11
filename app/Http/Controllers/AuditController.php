@@ -95,39 +95,53 @@ class AuditController extends Controller
             return response()->json(['error' => 'ليس لديك صلاحية عرض سجل التدقيق'], 403);
         }
 
-        $query = AuditLog::query();
+        // تحقّق من فلاتر الإدخال (مدخلات محمية — لا تُمرَّر خامًا)
+        $request->validate([
+            'action' => 'nullable|string|max:64',
+            'userId' => 'nullable|integer|exists:users,id',
+            'dateFrom' => 'nullable|date',
+            'dateTo' => 'nullable|date|after_or_equal:dateFrom',
+        ]);
 
-        if ($request->filled('action')) {
-            $query->where('action', $request->action);
-        }
-        if ($request->filled('userId')) {
-            $query->where('user_id', $request->userId);
-        }
-        if ($request->filled('dateFrom')) {
-            $query->whereDate('created_at', '>=', $request->dateFrom);
-        }
-        if ($request->filled('dateTo')) {
-            $query->whereDate('created_at', '<=', $request->dateTo);
-        }
+        $query = AuditLog::query();
+        if ($request->filled('action'))   { $query->where('action', $request->action); }
+        if ($request->filled('userId'))   { $query->where('user_id', $request->userId); }
+        if ($request->filled('dateFrom')) { $query->whereDate('created_at', '>=', $request->dateFrom); }
+        if ($request->filled('dateTo'))   { $query->whereDate('created_at', '<=', $request->dateTo); }
 
         $logs = $query->orderBy('created_at', 'desc')->limit(200)->get();
 
         $userIds = $logs->pluck('user_id')->unique()->filter();
         $users = User::whereIn('id', $userIds)->get()->keyBy('id');
 
-        $entries = $logs->map(function ($log) use ($users) {
+        // إخفاء تفاصيل المرشحين المصنّفين عمّن لا يملك التصريح (منع تسريب التصنيف عبر السجل)
+        $canSeeClassified = $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED);
+        $classifiedIds = [];
+        if (!$canSeeClassified) {
+            $candIds = $logs->where('entity_type', 'candidate')->pluck('entity_id')->unique()->filter();
+            $classifiedIds = \App\Models\Candidate::whereIn('id', $candIds)
+                ->where('classification', '!=', 'normal')
+                ->pluck('id')->map(fn ($i) => (string) $i)->all();
+        }
+
+        $sensitive = ['VIEW_CANDIDATE_PII', 'RECLASSIFY_CANDIDATE', 'DELETE_CANDIDATE',
+            'EXPORT_CANDIDATES', 'RESET_PASSWORD', 'DISABLE_USER'];
+
+        $entries = $logs->map(function ($log) use ($users, $classifiedIds, $sensitive) {
             $user = $users->get($log->user_id);
+            $redact = $log->entity_type === 'candidate' && in_array((string) $log->entity_id, $classifiedIds, true);
             return [
                 'id' => $log->id,
                 'action' => $this->label($log->action),
                 'actionCode' => $log->action,
                 'userName' => $user ? $user->full_name : 'مستخدم محذوف',
                 'entityType' => $log->entity_type,
-                'entityId' => $log->entity_id,
-                'details' => $log->details,
+                'entityId' => $redact ? null : $log->entity_id,
+                'details' => $redact ? null : $log->details,
+                'redacted' => $redact,
                 'ipAddress' => $log->ip_address,
                 'createdAt' => $log->created_at,
-                'isSensitive' => $log->action === 'VIEW_CANDIDATE_PII',
+                'isSensitive' => in_array($log->action, $sensitive, true) || str_starts_with($log->action, 'DENIED_'),
             ];
         });
 
