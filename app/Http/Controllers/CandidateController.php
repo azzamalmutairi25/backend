@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Candidate;
+use App\Models\Assessment;
 use App\Models\Sector;
 use App\Models\AuditLog;
 use App\Security\Permissions;
 use App\Rules\SaudiNationalId;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class CandidateController extends Controller
 {
@@ -115,39 +117,73 @@ class CandidateController extends Controller
             'classification' => 'nullable|in:normal,secret,top_secret',
         ]);
 
-        if (Candidate::nationalIdExists($validated['nationalId'])) {
-            return response()->json(['error' => 'رقم الهوية مسجّل مسبقاً لمرشح آخر'], 422);
-        }
-
         $sector = Sector::findOrFail($validated['sectorId']);
         $tier = Candidate::classifyTier($validated['rankLabel'], $sector->is_military);
-        $code = Candidate::generateParticipantCode($sector);
+        $assessmentType = $validated['assessmentType'] ?? 'comprehensive';
 
-        $candidate = new Candidate();
-        $candidate->participant_code = $code;
-        $candidate->national_id = $validated['nationalId'];
-        $candidate->full_name = $validated['fullName'];
-        $candidate->mobile = $validated['mobile'] ?? null;
-        $candidate->email = $validated['email'] ?? null;
-        $candidate->sector_id = $sector->id;
-        $candidate->rank_label = $validated['rankLabel'];
-        $candidate->tier = $tier;
-        $candidate->assessment_type = $validated['assessmentType'] ?? 'comprehensive';
-        $candidate->status = 'draft';
-        // تعيين تصنيف أمني (سرّي/سرّي للغاية) يتطلب صلاحية VIEW_CLASSIFIED — منع التصعيد
-        $requestedClass = $validated['classification'] ?? 'normal';
-        if ($requestedClass !== 'normal' && !$request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
-            return response()->json(['error' => 'ليس لديك صلاحية تعيين تصنيف أمني'], 403);
+        // ديدَاب الشخص بالهوية — شخص واحد ← عدة دورات/رموز
+        $candidate = Candidate::where('national_id_hash', hash('sha256', $validated['nationalId']))->first();
+        $isReturning = (bool) $candidate;
+
+        if ($candidate) {
+            // امنع دورة جديدة إن كانت له دورة نشطة (لم تكتمل) — «كل رمز له تقييم»
+            $active = $candidate->assessments()->where('status', '!=', 'completed')->orderByDesc('id')->first();
+            if ($active) {
+                return response()->json([
+                    'error' => "لدى المرشح دورة تقييم نشطة ({$active->participant_code}) — يجب إكمالها قبل إنشاء دورة جديدة",
+                    'participantCode' => $active->participant_code,
+                ], 422);
+            }
+            // تحديث بيانات الشخص للأحدث (قد يكون تغيّر قطاعه/رتبته). التصنيف يُدار عبر reclassify فقط.
+            $candidate->full_name = $validated['fullName'];
+            $candidate->mobile = $validated['mobile'] ?? null;
+            $candidate->email = $validated['email'] ?? null;
+            $candidate->sector_id = $sector->id;
+            $candidate->rank_label = $validated['rankLabel'];
+            $candidate->tier = $tier;
+        } else {
+            // شخص جديد
+            $candidate = new Candidate();
+            $candidate->national_id = $validated['nationalId']; // mutator: تشفير + hash
+            $candidate->full_name = $validated['fullName'];
+            $candidate->mobile = $validated['mobile'] ?? null;
+            $candidate->email = $validated['email'] ?? null;
+            $candidate->sector_id = $sector->id;
+            $candidate->rank_label = $validated['rankLabel'];
+            $candidate->tier = $tier;
+            // تعيين تصنيف أمني يتطلب صلاحية VIEW_CLASSIFIED — منع التصعيد
+            $requestedClass = $validated['classification'] ?? 'normal';
+            if ($requestedClass !== 'normal' && !$request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
+                return response()->json(['error' => 'ليس لديك صلاحية تعيين تصنيف أمني'], 403);
+            }
+            $candidate->classification = $requestedClass;
         }
-        $candidate->classification = $requestedClass;
-        $candidate->save();
 
-        $this->log($request, 'CREATE_CANDIDATE', $candidate->id, ['code' => $code]);
+        // دورة تقييم جديدة برمز فريد + مزامنة الحقول «الحالية» على سجل الشخص
+        $code = Assessment::generateParticipantCode($sector);
+        $candidate->participant_code = $code;
+        $candidate->status = 'draft';
+        $candidate->assessment_type = $assessmentType;
+
+        $assessment = DB::transaction(function () use ($candidate, $code, $assessmentType, $request) {
+            $candidate->save();
+            return Assessment::create([
+                'candidate_id' => $candidate->id,
+                'participant_code' => $code,
+                'assessment_type' => $assessmentType,
+                'status' => 'draft',
+                'created_by' => $request->user()->id,
+            ]);
+        });
+
+        $this->log($request, $isReturning ? 'REASSESS_CANDIDATE' : 'CREATE_CANDIDATE', $candidate->id, ['code' => $code]);
 
         return response()->json([
-            'message' => 'تمت إضافة المرشح',
+            'message' => $isReturning ? 'تمّت إضافة دورة تقييم جديدة لمرشح موجود' : 'تمت إضافة المرشح',
             'participantCode' => $code,
             'tier' => $tier,
+            'isReturning' => $isReturning,
+            'assessmentId' => $assessment->id,
         ], 201);
     }
 
@@ -254,7 +290,7 @@ class CandidateController extends Controller
         }
 
         $candidate = Candidate::findOrFail($id);
-        $candidate->update(['status' => 'scheduled']);
+        $candidate->setStatus('scheduled'); // يزامن الدورة الحالية
         $this->log($request, 'APPROVE_CANDIDATE', $id, ['code' => $candidate->participant_code]);
 
         return response()->json(['message' => 'تم اعتماد المرشح']);

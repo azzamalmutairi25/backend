@@ -68,6 +68,17 @@ class Candidate extends Model
         return $this->hasMany(Assessment::class);
     }
 
+    // تحديث حالة الشخص + مزامنتها على دورته الحالية (الأحدث)
+    public function setStatus(string $status): void
+    {
+        $this->status = $status;
+        $this->save();
+        $latest = $this->assessments()->latest('id')->first();
+        if ($latest && $latest->status !== $status) {
+            $latest->update(['status' => $status]);
+        }
+    }
+
     public static function nationalIdExists(string $nationalId, ?int $exceptId = null): bool
     {
         $q = self::where('national_id_hash', hash('sha256', $nationalId));
