@@ -14,13 +14,21 @@ class NotificationController extends Controller
     // ── إشعاراتي ──
     public function index(Request $request)
     {
+        $request->validate([
+            'unreadOnly' => 'nullable|boolean',
+            'perPage' => 'nullable|integer|min:1|max:100',
+            'page' => 'nullable|integer|min:1',
+        ]);
+
         $userId = $request->user()->id;
         $query = Notification::where('recipient_id', $userId);
         if ($request->boolean('unreadOnly')) {
             $query->where('is_read', false);
         }
 
-        $list = $query->orderByDesc('created_at')->limit(50)->get()->map(fn ($n) => [
+        $paginated = $query->orderByDesc('created_at')->paginate((int) $request->input('perPage', 50));
+
+        $list = collect($paginated->items())->map(fn ($n) => [
             'id' => $n->id,
             'type' => $n->type,
             'title' => $n->title,
@@ -33,7 +41,13 @@ class NotificationController extends Controller
 
         $unreadCount = Notification::where('recipient_id', $userId)->where('is_read', false)->count();
 
-        return response()->json(['notifications' => $list, 'unreadCount' => $unreadCount]);
+        return response()->json([
+            'notifications' => $list,
+            'unreadCount' => $unreadCount,
+            'total' => $paginated->total(),
+            'page' => $paginated->currentPage(),
+            'lastPage' => $paginated->lastPage(),
+        ]);
     }
 
     // ── عدد غير المقروء ──
