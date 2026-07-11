@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\ChatThread;
 use App\Models\ChatMessage;
+use App\Models\FinalReport;
+use App\Security\Permissions;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
 
@@ -15,9 +17,40 @@ class ChatController extends Controller
 {
     public function __construct(private NotificationService $notify) {}
 
+    private function allowedClassifications(Request $request): array
+    {
+        return $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)
+            ? ['normal', 'secret', 'top_secret'] : ['normal'];
+    }
+
+    // يتحقق أن للمستخدم صلاحية الوصول لكيان المحادثة (نفس بوابة الكيان الأصلي)
+    private function authorizeEntity(Request $request, string $entityType, int $entityId)
+    {
+        if ($entityType === 'report') {
+            if (!$request->user()->hasPermission(Permissions::REPORT_VIEW)) {
+                return response()->json(['error' => 'ليس لديك صلاحية الوصول لهذه المحادثة'], 403);
+            }
+            $report = FinalReport::with('candidate')->find($entityId);
+            if (!$report) {
+                return response()->json(['error' => 'المحادثة غير موجودة'], 404);
+            }
+            if ($report->candidate && !in_array($report->candidate->classification, $this->allowedClassifications($request))) {
+                return response()->json(['error' => 'هذه المحادثة لمرشح مصنّف'], 403);
+            }
+            return null;
+        }
+
+        // أنواع كيانات غير مدعومة — منع إنشاء محادثات يتيمة لمدخلات عشوائية
+        return response()->json(['error' => 'نوع محادثة غير مدعوم'], 422);
+    }
+
     // ── جلب محادثة كيان ──
     public function thread(Request $request, string $entityType, int $entityId)
     {
+        if ($resp = $this->authorizeEntity($request, $entityType, $entityId)) {
+            return $resp;
+        }
+
         $thread = ChatThread::firstOrCreate(
             ['entity_type' => $entityType, 'entity_id' => $entityId],
             ['title' => 'محادثة']
@@ -49,23 +82,26 @@ class ChatController extends Controller
     public function send(Request $request, int $threadId)
     {
         $validated = $request->validate([
-            'message' => 'required|string',
-            'messageType' => 'nullable|string',
-            'actionType' => 'nullable|string',
+            'message' => 'required|string|max:2000',
         ]);
 
         $thread = ChatThread::findOrFail($threadId);
+
+        if ($resp = $this->authorizeEntity($request, $thread->entity_type, $thread->entity_id)) {
+            return $resp;
+        }
         if ($thread->is_closed) {
             return response()->json(['error' => 'المحادثة مغلقة'], 400);
         }
 
         $userId = $request->user()->id;
+        // رسائل المستخدمين دائمًا من نوع 'comment' — منع انتحال رسائل النظام/الإجراءات
         $msg = ChatMessage::create([
             'thread_id' => $threadId,
             'sender_id' => $userId,
             'message' => $validated['message'],
-            'message_type' => $validated['messageType'] ?? 'comment',
-            'action_type' => $validated['actionType'] ?? null,
+            'message_type' => 'comment',
+            'action_type' => null,
         ]);
 
         // إشعار بقية المشاركين
