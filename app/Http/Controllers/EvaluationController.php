@@ -136,6 +136,7 @@ class EvaluationController extends Controller
 
         $evaluation = Evaluation::create([
             'candidate_id' => $validated['candidateId'],
+            'assessment_id' => $candidate->assessments()->latest('id')->value('id'),
             'evaluator_id' => $request->user()->id,
             'activity' => $validated['activity'],
             'status' => 'draft',
@@ -300,7 +301,7 @@ class EvaluationController extends Controller
 
         // المرشح: scheduled -> assessed (تمّ تقييمه)
         if ($evaluation->candidate->status === 'scheduled') {
-            $evaluation->candidate->update(['status' => 'assessed']);
+            $evaluation->candidate->setStatus('assessed');
         }
 
         $this->notify->notifyRole('ASSESS_MANAGER', 'approval',

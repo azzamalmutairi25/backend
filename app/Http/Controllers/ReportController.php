@@ -98,7 +98,7 @@ class ReportController extends Controller
         }
 
         $report->update(['status' => 'approved']);
-        $report->candidate->update(['status' => 'completed']);
+        $report->candidate->setStatus('completed'); // يزامن حالة الدورة → تُتاح إعادة التقييم بدورة جديدة
 
         $this->log($request, 'APPROVE_REPORT', $id, ['candidate' => $report->candidate->participant_code]);
 
