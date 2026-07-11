@@ -72,15 +72,19 @@ class ActiveDirectoryService
         ldap_set_option($conn, LDAP_OPT_NETWORK_TIMEOUT, 5);
 
         $bound = @ldap_bind($conn);
+        $errno = $bound ? 0 : @ldap_errno($conn);
         @ldap_close($conn);
 
         if ($bound) {
             return ['success' => true, 'message' => 'الاتصال بالخادم ناجح'];
         }
 
-        return [
-            'success' => true,
-            'message' => 'الخادم واصل (رفض الربط المجهول أمر طبيعي في AD). جرّب دخول مستخدم داخلي للتأكد الكامل.',
-        ];
+        // 48/49 = الخادم واصل لكنه رفض الربط المجهول (طبيعي في AD)
+        if (in_array($errno, [48, 49], true)) {
+            return ['success' => true, 'message' => 'الخادم واصل (رفض الربط المجهول طبيعي في AD). جرّب دخول مستخدم داخلي للتأكد الكامل.'];
+        }
+
+        // خلاف ذلك: الخادم غير قابل للوصول (متوقّف/عنوان أو منفذ خاطئ)
+        return ['success' => false, 'message' => "تعذّر الوصول لخادم AD — تأكد من العنوان والمنفذ (رمز {$errno})"];
     }
 }

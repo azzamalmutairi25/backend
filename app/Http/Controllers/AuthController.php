@@ -33,7 +33,23 @@ class AuthController extends Controller
             ]);
         }
 
-        if (!$user || !Hash::check($request->password, $user->password)) {
+        // التحقق من كلمة المرور: مستخدم داخلي عبر Active Directory، وإلا محليًا
+        $passwordOk = false;
+        if ($user) {
+            if ($user->user_type === 'internal') {
+                $adResult = ActiveDirectoryService::authenticate((string) $user->ad_username, $request->password);
+                if ($adResult === null) {
+                    throw ValidationException::withMessages([
+                        'username' => ['مصادقة الدليل (AD) غير مُهيّأة — راجع الإعدادات أو تواصل مع المشرف'],
+                    ]);
+                }
+                $passwordOk = $adResult === true;
+            } else {
+                $passwordOk = Hash::check($request->password, $user->password);
+            }
+        }
+
+        if (!$user || !$passwordOk) {
             if ($user) {
                 $user->increment('failed_attempts');
                 if ($user->failed_attempts >= 5) {
