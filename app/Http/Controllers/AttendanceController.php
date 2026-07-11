@@ -38,12 +38,12 @@ class AttendanceController extends Controller
         $today = now()->toDateString();
         $allowed = $this->allowedClassifications($request);
 
-        $rows = Schedule::with(['candidate.sector', 'candidate'])
+        $rows = Schedule::with(['candidate.sector', 'attendance'])
             ->whereDate('schedule_date', $today)
             ->whereHas('candidate', fn ($q) => $q->whereIn('classification', $allowed))
             ->get()
             ->map(function ($sch) {
-                $att = Attendance::where('schedule_id', $sch->id)->first();
+                $att = $sch->attendance; // eager-loaded — لا N+1
                 return [
                     'id' => $sch->id,
                     'participantCode' => $sch->candidate->participant_code,
@@ -97,14 +97,19 @@ class AttendanceController extends Controller
             return response()->json(['error' => 'هذا المرشح مصنّف، وليس لديك صلاحية'], 403);
         }
 
-        Attendance::updateOrCreate(
-            ['schedule_id' => $scheduleId],
-            [
-                'status' => 'present',
-                'check_in_time' => now(),
-                'recorded_by' => $request->user()->id,
-            ]
-        );
+        if ($schedule->schedule_date->toDateString() !== now()->toDateString()) {
+            return response()->json(['error' => 'لا يمكن تسجيل الحضور إلا لجلسات اليوم'], 422);
+        }
+        if (Attendance::where('schedule_id', $scheduleId)->exists()) {
+            return response()->json(['error' => 'تم تسجيل حالة هذه الجلسة مسبقاً'], 422);
+        }
+
+        Attendance::create([
+            'schedule_id' => $scheduleId,
+            'status' => 'present',
+            'check_in_time' => now(),
+            'recorded_by' => $request->user()->id,
+        ]);
 
         $this->log($request, 'RECORD_ATTENDANCE', $scheduleId, [
             'candidate' => $schedule->candidate->participant_code,
@@ -129,19 +134,24 @@ class AttendanceController extends Controller
             return response()->json(['error' => 'هذا المرشح مصنّف، وليس لديك صلاحية'], 403);
         }
 
+        if ($schedule->schedule_date->toDateString() !== now()->toDateString()) {
+            return response()->json(['error' => 'لا يمكن تسجيل الغياب إلا لجلسات اليوم'], 422);
+        }
+        if (Attendance::where('schedule_id', $scheduleId)->exists()) {
+            return response()->json(['error' => 'تم تسجيل حالة هذه الجلسة مسبقاً'], 422);
+        }
+
         $validated = $request->validate([
             'excused' => 'required|boolean',
-            'reason' => 'nullable|string',
+            'reason' => 'nullable|string|max:500',
         ]);
 
-        Attendance::updateOrCreate(
-            ['schedule_id' => $scheduleId],
-            [
-                'status' => $validated['excused'] ? 'absent_excused' : 'absent_unexcused',
-                'absence_reason' => $validated['reason'] ?? null,
-                'recorded_by' => $request->user()->id,
-            ]
-        );
+        Attendance::create([
+            'schedule_id' => $scheduleId,
+            'status' => $validated['excused'] ? 'absent_excused' : 'absent_unexcused',
+            'absence_reason' => $validated['reason'] ?? null,
+            'recorded_by' => $request->user()->id,
+        ]);
 
         $this->log($request, 'RECORD_ABSENCE', $scheduleId, [
             'candidate' => $schedule->candidate->participant_code,
