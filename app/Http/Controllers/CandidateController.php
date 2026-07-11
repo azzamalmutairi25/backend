@@ -319,6 +319,94 @@ class CandidateController extends Controller
         return response()->json(['message' => 'تم تحديث التصنيف']);
     }
 
+    // سجل دورات المرشح مع تقييماتها وتفاصيلها (لعرض التاريخ + التقييم السابق)
+    public function assessments(Request $request, int $id)
+    {
+        $user = $request->user();
+        if (!$user->hasPermission(Permissions::CANDIDATE_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض المرشح'], 403);
+        }
+        $candidate = Candidate::find($id);
+        if (!$candidate) {
+            return response()->json(['error' => 'المرشح غير موجود'], 404);
+        }
+        if (!in_array($candidate->classification, $this->allowedClassifications($request))) {
+            return response()->json(['error' => 'هذا المرشح مصنّف، وليس لديك صلاحية'], 403);
+        }
+
+        $assessments = $candidate->assessments()
+            ->with(['evaluations.scores.competency', 'evaluations.evaluator', 'report'])
+            ->orderByDesc('id')
+            ->get()
+            ->map(fn ($a) => [
+                'id' => $a->id,
+                'code' => $a->participant_code,
+                'status' => $a->status,
+                'assessmentType' => $a->assessment_type,
+                'createdAt' => $a->created_at,
+                'evaluations' => $a->evaluations->map(fn ($e) => [
+                    'id' => $e->id,
+                    'activity' => $e->activity,
+                    'status' => $e->status,
+                    'submittedAt' => $e->submitted_at,
+                    'evaluatorName' => optional($e->evaluator)->full_name,
+                    'notes' => $e->notes,
+                    'scores' => $e->scores->map(fn ($s) => [
+                        'competency' => optional($s->competency)->name_ar,
+                        'score' => $s->score,
+                    ])->values(),
+                ])->values(),
+                'report' => $a->report ? [
+                    'status' => $a->report->status,
+                    'recommendation' => $a->report->recommendation,
+                    'behavioralFit' => $a->report->behavioral_fit,
+                    'technicalFit' => $a->report->technical_fit,
+                ] : null,
+            ]);
+
+        return response()->json(['assessments' => $assessments]);
+    }
+
+    // إنشاء دورة تقييم جديدة لمرشح موجود (زر «تقييم جديد»)
+    public function reassess(Request $request, int $id)
+    {
+        if (!$request->user()->hasPermission(Permissions::CANDIDATE_CREATE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية إنشاء تقييم'], 403);
+        }
+        $candidate = Candidate::with('sector')->find($id);
+        if (!$candidate) {
+            return response()->json(['error' => 'المرشح غير موجود'], 404);
+        }
+        if (!in_array($candidate->classification, $this->allowedClassifications($request))) {
+            return response()->json(['error' => 'هذا المرشح مصنّف، وليس لديك صلاحية'], 403);
+        }
+
+        $active = $candidate->assessments()->where('status', '!=', 'completed')->orderByDesc('id')->first();
+        if ($active) {
+            return response()->json([
+                'error' => "لدى المرشح دورة نشطة ({$active->participant_code}) — يجب إكمالها أولاً",
+                'participantCode' => $active->participant_code,
+            ], 422);
+        }
+
+        $code = Assessment::generateParticipantCode($candidate->sector);
+        DB::transaction(function () use ($candidate, $code, $request) {
+            $candidate->participant_code = $code;
+            $candidate->status = 'draft';
+            $candidate->save();
+            Assessment::create([
+                'candidate_id' => $candidate->id,
+                'participant_code' => $code,
+                'assessment_type' => $candidate->assessment_type ?? 'comprehensive',
+                'status' => 'draft',
+                'created_by' => $request->user()->id,
+            ]);
+        });
+
+        $this->log($request, 'REASSESS_CANDIDATE', $candidate->id, ['code' => $code]);
+        return response()->json(['message' => 'تمّت إضافة دورة تقييم جديدة', 'participantCode' => $code], 201);
+    }
+
     public function stats(Request $request)
     {
         if (!$request->user()->hasPermission(Permissions::CANDIDATE_VIEW)) {
