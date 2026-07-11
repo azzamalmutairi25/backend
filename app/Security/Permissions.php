@@ -102,7 +102,7 @@ class Permissions
 
             // إدارة تطوير الكفاءات — الاعتماد النهائي
             'DEV_MANAGER' => [
-                self::CANDIDATE_VIEW, self::EVALUATION_VIEW, self::MEASUREMENT_VIEW,
+                self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_CLASSIFIED, self::EVALUATION_VIEW, self::MEASUREMENT_VIEW,
                 self::REPORT_VIEW, self::REPORT_APPROVE, self::REPORT_RETURN,
                 self::REPORT_EXPORT, self::COMPETENCY_VIEW, self::COMPETENCY_MANAGE,
             ],
