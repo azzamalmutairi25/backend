@@ -110,25 +110,39 @@ class UserController extends Controller
             return response()->json(['error' => 'ليس لديك صلاحية إضافة مستخدم'], 403);
         }
 
-        $validated = $request->validate([
+        $userType = $request->input('userType') === 'internal' ? 'internal' : 'external';
+        $rules = [
             'username' => 'required|string|max:80|unique:users,username',
             'fullName' => 'required|string|max:200',
             'email' => 'nullable|email',
-            'password' => ['required', 'string', new StrongPassword()],
             'roleId' => 'required|exists:roles,id',
-        ], [
+        ];
+        if ($userType === 'internal') {
+            // مستخدم داخلي: يُصادَق عبر AD — لا كلمة مرور محلية، بل معرّف AD
+            $rules['adUsername'] = 'required|string|max:120';
+        } else {
+            $rules['password'] = ['required', 'string', new StrongPassword()];
+        }
+        $validated = $request->validate($rules, [
             'username.unique' => 'اسم المستخدم مسجّل مسبقاً',
-            'password.min' => 'كلمة المرور يجب أن تكون ٨ أحرف على الأقل',
         ]);
 
         $user = new User();
         $user->username = $validated['username'];
         $user->full_name = $validated['fullName'];
         $user->email = $validated['email'] ?? null;
-        $user->password = $validated['password'];
         $user->role_id = $validated['roleId'];
+        $user->user_type = $userType;
         $user->is_active = true;
-        $user->must_change_password = true;
+        if ($userType === 'internal') {
+            $user->ad_username = $validated['adUsername'];
+            $user->password = \Illuminate\Support\Str::random(40); // غير مستخدمة — الدخول عبر AD
+            $user->must_change_password = false;
+        } else {
+            $user->ad_username = null;
+            $user->password = $validated['password'];
+            $user->must_change_password = true;
+        }
         $user->save();
 
         $this->log($request, 'CREATE_USER', $user->id, ['username' => $user->username]);
@@ -154,10 +168,16 @@ class UserController extends Controller
             return response()->json(['error' => 'لا يمكنك تغيير دورك الخاص'], 422);
         }
 
+        $roleChanged = $user->role_id != $validated['roleId'];
         $user->full_name = $validated['fullName'];
         $user->email = $validated['email'] ?? null;
         $user->role_id = $validated['roleId'];
         $user->save();
+
+        // تغيير الدور يغيّر الصلاحيات — أبطل جلسات المستخدم ليعيد الدخول بصلاحياته الجديدة
+        if ($roleChanged) {
+            $user->tokens()->delete();
+        }
 
         $this->log($request, 'UPDATE_USER', $user->id, ['username' => $user->username]);
 
@@ -178,6 +198,11 @@ class UserController extends Controller
 
         $user->is_active = !$user->is_active;
         $user->save();
+
+        // تعطيل الحساب يُنهي جلساته فورًا (لا يبقى token فعّالًا لموظف مُوقَف)
+        if (!$user->is_active) {
+            $user->tokens()->delete();
+        }
 
         $action = $user->is_active ? 'ENABLE_USER' : 'DISABLE_USER';
         $this->log($request, $action, $user->id, ['username' => $user->username]);
@@ -204,6 +229,9 @@ class UserController extends Controller
         $user->password = $validated['password'];
         $user->must_change_password = true;
         $user->save();
+
+        // إعادة تعيين كلمة المرور تُبطل كل الجلسات القائمة (طرد أي مُخترِق محتمل)
+        $user->tokens()->delete();
 
         $this->log($request, 'RESET_PASSWORD', $user->id, ['username' => $user->username]);
 
