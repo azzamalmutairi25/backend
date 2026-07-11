@@ -10,6 +10,7 @@ use App\Models\AuditLog;
 use App\Security\Permissions;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class EvaluationController extends Controller
 {
@@ -119,8 +120,9 @@ class EvaluationController extends Controller
             return response()->json(['error' => 'لا يمكن تقييم مرشح غير معتمد للتقييم'], 422);
         }
 
-        // منع تكرار التقييم لنفس (المرشح + النشاط)
-        $existing = Evaluation::where('candidate_id', $validated['candidateId'])
+        // الدورة الحالية — التكرار يُمنع داخل الدورة نفسها (يُسمح بتقييم النشاط في دورة جديدة)
+        $assessmentId = $candidate->assessments()->latest('id')->value('id');
+        $existing = Evaluation::where('assessment_id', $assessmentId)
             ->where('activity', $validated['activity'])
             ->first();
         if ($existing) {
@@ -136,7 +138,7 @@ class EvaluationController extends Controller
 
         $evaluation = Evaluation::create([
             'candidate_id' => $validated['candidateId'],
-            'assessment_id' => $candidate->assessments()->latest('id')->value('id'),
+            'assessment_id' => $assessmentId,
             'evaluator_id' => $request->user()->id,
             'activity' => $validated['activity'],
             'status' => 'draft',
@@ -231,20 +233,21 @@ class EvaluationController extends Controller
         $oldScores = EvaluationScore::where('evaluation_id', $id)->get()
             ->map(fn ($s) => ['c' => $s->competency_id, 'v' => $s->score])->toArray();
 
-        EvaluationScore::where('evaluation_id', $id)->delete();
-
-        foreach ($validated['scores'] as $s) {
-            EvaluationScore::create([
-                'evaluation_id' => $id,
-                'competency_id' => $s['competencyId'],
-                'score' => $s['score'],
-                'note' => $s['note'] ?? null,
-            ]);
-        }
-
-        if (isset($validated['notes'])) {
-            $evaluation->update(['notes' => $validated['notes']]);
-        }
+        // استبدال ذرّي — إمّا كل الدرجات الجديدة أو لا شيء (لا فقدان درجات عند فشل جزئي)
+        DB::transaction(function () use ($id, $validated, $evaluation) {
+            EvaluationScore::where('evaluation_id', $id)->delete();
+            foreach ($validated['scores'] as $s) {
+                EvaluationScore::create([
+                    'evaluation_id' => $id,
+                    'competency_id' => $s['competencyId'],
+                    'score' => $s['score'],
+                    'note' => $s['note'] ?? null,
+                ]);
+            }
+            if (isset($validated['notes'])) {
+                $evaluation->update(['notes' => $validated['notes']]);
+            }
+        });
 
         $this->log($request, 'SAVE_SCORES', $id, [
             'count' => count($validated['scores']),
