@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Support\Facades\Crypt;
 
@@ -59,6 +60,12 @@ class Candidate extends Model
     public function sector(): BelongsTo
     {
         return $this->belongsTo(Sector::class);
+    }
+
+    // دورات التقييم لهذا الشخص (شخص واحد ← عدة دورات/رموز)
+    public function assessments(): HasMany
+    {
+        return $this->hasMany(Assessment::class);
     }
 
     public static function nationalIdExists(string $nationalId, ?int $exceptId = null): bool
