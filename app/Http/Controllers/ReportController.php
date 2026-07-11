@@ -124,6 +124,11 @@ class ReportController extends Controller
             return response()->json(['error' => 'هذا التقرير لمرشح مصنّف'], 403);
         }
 
+        // لا يُرجَع إلا تقرير مُرسل للاعتماد (منع إرجاع معتمد/مسودة → إفساد حالة المرشح)
+        if ($report->status !== 'pending_dev_approval') {
+            return response()->json(['error' => 'لا يمكن إرجاع تقرير غير مُرسل للاعتماد'], 422);
+        }
+
         $report->update([
             'status' => 'returned',
             'return_reason' => $validated['reason'],
