@@ -125,8 +125,9 @@ class ReportController extends Controller
             return response()->json(['error' => 'ليس لديك صلاحية عرض التقرير'], 403);
         }
         $r = FinalReport::with('candidate.sector')->findOrFail($id);
+        // مصنّف خارج صلاحية المستخدم يُعامَل كـ«غير موجود» (لا نكشف وجوده)
         if (!in_array($r->candidate->classification, $this->allowedClassifications($request))) {
-            return response()->json(['error' => 'هذا التقرير لمرشح مصنّف'], 403);
+            return response()->json(['error' => 'التقرير غير موجود'], 404);
         }
         return response()->json(['report' => [
             'id' => $r->id,
@@ -174,34 +175,45 @@ class ReportController extends Controller
             return response()->json(['error' => 'ليس لديك صلاحية إنشاء تقرير'], 403);
         }
         $validated = $request->validate($this->reportRules() + [
-            'candidateId' => 'required|integer|exists:candidates,id',
+            'candidateId' => 'required|integer',
         ]);
 
-        $candidate = Candidate::find($validated['candidateId']);
-        if (!in_array($candidate->classification, $this->allowedClassifications($request))) {
-            return response()->json(['error' => 'هذا المرشح مصنّف، وليس لديك صلاحية'], 403);
+        // حلّ المرشح ضمن صلاحية التصنيف فقط — نفس ردّ «غير موجود» للمصنّف وغير الموجود (لا كشف وجود)
+        $candidate = Candidate::whereIn('classification', $this->allowedClassifications($request))
+            ->find($validated['candidateId']);
+        if (!$candidate) {
+            return response()->json(['error' => 'المرشح غير موجود'], 404);
         }
         $assessment = $candidate->assessments()->orderByDesc('id')->first();
         if (!$assessment) {
             return response()->json(['error' => 'لا توجد دورة تقييم لهذا المرشح'], 422);
+        }
+        // لا يُكتب تقرير قبل انتهاء التقييم فعلاً — منع تجاوز مسار التقييم بأكمله
+        if ($candidate->status !== 'assessed' || $assessment->status !== 'assessed') {
+            return response()->json(['error' => 'لا يمكن إنشاء تقرير قبل انتهاء تقييم المرشح'], 422);
         }
         if (FinalReport::where('assessment_id', $assessment->id)->exists()) {
             return response()->json(['error' => 'يوجد تقرير لهذه الدورة — استخدم التعديل'], 422);
         }
 
         $submit = (bool) ($validated['submit'] ?? false);
-        $report = FinalReport::create([
-            'candidate_id' => $candidate->id,
-            'assessment_id' => $assessment->id,
-            'behavioral_fit' => $validated['behavioralFit'] ?? null,
-            'technical_fit' => $validated['technicalFit'] ?? null,
-            'recommendation' => $validated['recommendation'],
-            'overview_text' => $validated['overviewText'] ?? null,
-            'strengths' => $this->toList($validated['strengths'] ?? []),
-            'development_areas' => $this->toList($validated['developmentAreas'] ?? []),
-            'status' => $submit ? 'pending_dev_approval' : 'draft',
-            'created_by' => $request->user()->id,
-        ]);
+        try {
+            $report = FinalReport::create([
+                'candidate_id' => $candidate->id,
+                'assessment_id' => $assessment->id,
+                'behavioral_fit' => $validated['behavioralFit'] ?? null,
+                'technical_fit' => $validated['technicalFit'] ?? null,
+                'recommendation' => $validated['recommendation'],
+                'overview_text' => $validated['overviewText'] ?? null,
+                'strengths' => $this->toList($validated['strengths'] ?? []),
+                'development_areas' => $this->toList($validated['developmentAreas'] ?? []),
+                'status' => $submit ? 'pending_dev_approval' : 'draft',
+                'created_by' => $request->user()->id,
+            ]);
+        } catch (\Illuminate\Database\QueryException $e) {
+            // الفهرس الفريد حسم سباقاً متزامناً: أُنشئ تقرير للتوّ لهذه الدورة
+            return response()->json(['error' => 'يوجد تقرير لهذه الدورة بالفعل'], 422);
+        }
 
         if ($submit) {
             $this->notify->notifyRole('DEV_MANAGER', 'approval',
@@ -226,7 +238,7 @@ class ReportController extends Controller
         }
         $report = FinalReport::with('candidate', 'assessment')->findOrFail($id);
         if (!in_array($report->candidate->classification, $this->allowedClassifications($request))) {
-            return response()->json(['error' => 'هذا التقرير لمرشح مصنّف'], 403);
+            return response()->json(['error' => 'التقرير غير موجود'], 404);
         }
         if (!in_array($report->status, ['draft', 'returned'])) {
             return response()->json(['error' => 'لا يمكن تعديل تقرير في هذه الحالة'], 422);
@@ -347,7 +359,11 @@ class ReportController extends Controller
             return response()->json(['error' => 'ليس لديك صلاحية إعادة الإرسال'], 403);
         }
 
-        $report = FinalReport::findOrFail($id);
+        $report = FinalReport::with('candidate')->findOrFail($id);
+        // نفس بوابة التصنيف في بقية الإجراءات — كانت مفقودة هنا (مصنّف → «غير موجود»)
+        if (!in_array($report->candidate->classification, $this->allowedClassifications($request))) {
+            return response()->json(['error' => 'التقرير غير موجود'], 404);
+        }
         if ($report->status !== 'returned') {
             return response()->json(['error' => 'التقرير ليس في حالة إرجاع'], 400);
         }
