@@ -34,6 +34,7 @@ class Permissions
 
     const REPORT_VIEW = 'report.view';
     const REPORT_CREATE = 'report.create';
+    const REPORT_EDIT_ANY = 'report.edit_any';   // تعديل تقرير أنشأه غيره (مدير التقييم)
     const REPORT_APPROVE = 'report.approve';
     const REPORT_RETURN = 'report.return';
     const REPORT_EXPORT = 'report.export';
@@ -82,7 +83,7 @@ class Permissions
                 self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_NAMES, self::CANDIDATE_VIEW_CLASSIFIED, self::CANDIDATE_JOURNEY, self::SCHEDULE_VIEW,
                 self::ATTENDANCE_VIEW, self::EVALUATION_VIEW, self::EVALUATION_APPROVE,
                 self::MEASUREMENT_VIEW, self::REPORT_VIEW, self::REPORT_CREATE,
-                self::REPORT_EXPORT, self::COMPETENCY_VIEW,
+                self::REPORT_EDIT_ANY, self::REPORT_EXPORT, self::COMPETENCY_VIEW,
             ],
 
             // مستشار المقابلة
