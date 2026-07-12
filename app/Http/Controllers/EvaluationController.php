@@ -381,15 +381,18 @@ class EvaluationController extends Controller
             'submitted_at' => null,
         ]);
 
-        // إرجاع التقييم يُبطل حالة «assessed» إن لم يبقَ للدورة أي تقييم مُرسل/معتمد آخر —
-        // وإلا بقيت الدورة «assessed» فمرّت بوابة التقرير على تقييم مُرجَع (مسودة) واعتُمد مرشح بلا تقييم صالح
-        $stillAssessed = Evaluation::where('assessment_id', $evaluation->assessment_id)
-            ->whereIn('status', ['submitted', 'approved'])
-            ->where('id', '!=', $evaluation->id)
-            ->exists();
-        if (!$stillAssessed) {
-            $candidate = $evaluation->candidate;
-            if ($candidate && $candidate->status === 'assessed') {
+        // إرجاع التقييم يُبطل حالة «assessed» — لكن فقط على الدورة «الحالية» (الأحدث) للمرشح.
+        // إن كان التقييم من دورة أقدم/منتهية فإنّ setStatus يزامن الأحدث، فيُفسد دورةً حيّة صالحة — لذا لا نمسّ الحالة.
+        $candidate = $evaluation->candidate;
+        $assessment = $evaluation->assessment;
+        $isCurrentCycle = $candidate && $assessment
+            && $assessment->id === $candidate->assessments()->max('id');
+        if ($isCurrentCycle && $assessment->status === 'assessed' && $candidate->status === 'assessed') {
+            $stillAssessed = Evaluation::where('assessment_id', $evaluation->assessment_id)
+                ->whereIn('status', ['submitted', 'approved'])
+                ->where('id', '!=', $evaluation->id)
+                ->exists();
+            if (!$stillAssessed) {
                 $candidate->setStatus('scheduled'); // يزامن الدورة الحالية للخلف
             }
         }
