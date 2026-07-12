@@ -74,7 +74,7 @@ class CandidateController extends Controller
 
         if (!in_array($candidate->classification, $this->allowedClassifications($request))) {
             $this->log($request, 'DENIED_CLASSIFIED_ACCESS', $id, ['code' => $candidate->participant_code]);
-            return response()->json(['error' => 'هذا المرشح مصنّف، وليس لديك صلاحية الوصول'], 403);
+            return response()->json(['error' => 'المرشح غير موجود'], 404);
         }
 
         $canSeeNames = $user->hasPermission(Permissions::CANDIDATE_VIEW_NAMES);
@@ -126,6 +126,11 @@ class CandidateController extends Controller
         // ديدَاب الشخص بالهوية — شخص واحد ← عدة دورات/رموز
         $candidate = Candidate::where('national_id_hash', hash('sha256', $validated['nationalId']))->first();
         $isReturning = (bool) $candidate;
+
+        // لا يُكشف/يُكتب سجلّ مصنّف لمن لا يملك صلاحيته — نُعامله كأنه غير موجود (منع كشف وجود + طمس بيانات مصنّفة)
+        if ($candidate && !in_array($candidate->classification, $this->allowedClassifications($request))) {
+            return response()->json(['error' => 'تعذّرت المعالجة'], 422);
+        }
 
         if ($candidate) {
             // امنع دورة جديدة إن كانت له دورة نشطة (لم تكتمل) — «كل رمز له تقييم»
@@ -226,7 +231,7 @@ class CandidateController extends Controller
         $candidate = Candidate::findOrFail($id);
 
         if (!in_array($candidate->classification, $this->allowedClassifications($request))) {
-            return response()->json(['error' => 'هذا المرشح مصنّف، وليس لديك صلاحية'], 403);
+            return response()->json(['error' => 'المرشح غير موجود'], 404);
         }
 
         $validated = $request->validate([
@@ -293,7 +298,7 @@ class CandidateController extends Controller
         $candidate = Candidate::findOrFail($id);
 
         if (!in_array($candidate->classification, $this->allowedClassifications($request))) {
-            return response()->json(['error' => 'هذا المرشح مصنّف، وليس لديك صلاحية'], 403);
+            return response()->json(['error' => 'المرشح غير موجود'], 404);
         }
 
         if (!in_array($candidate->status, ['draft', 'scheduled'])) {
@@ -320,6 +325,10 @@ class CandidateController extends Controller
         }
 
         $candidate = Candidate::findOrFail($id);
+        // بوابة التصنيف كبقية الإجراءات — مصنّف خارج الصلاحية يُعامَل كـ«غير موجود»
+        if (!in_array($candidate->classification, $this->allowedClassifications($request))) {
+            return response()->json(['error' => 'المرشح غير موجود'], 404);
+        }
         $candidate->setStatus('scheduled'); // يزامن الدورة الحالية
         $this->log($request, 'APPROVE_CANDIDATE', $id, ['code' => $candidate->participant_code]);
 
@@ -361,7 +370,7 @@ class CandidateController extends Controller
             return response()->json(['error' => 'المرشح غير موجود'], 404);
         }
         if (!in_array($candidate->classification, $this->allowedClassifications($request))) {
-            return response()->json(['error' => 'هذا المرشح مصنّف، وليس لديك صلاحية'], 403);
+            return response()->json(['error' => 'المرشح غير موجود'], 404);
         }
 
         $assessments = $candidate->assessments()
@@ -408,7 +417,7 @@ class CandidateController extends Controller
             return response()->json(['error' => 'المرشح غير موجود'], 404);
         }
         if (!in_array($candidate->classification, $this->allowedClassifications($request))) {
-            return response()->json(['error' => 'هذا المرشح مصنّف، وليس لديك صلاحية'], 403);
+            return response()->json(['error' => 'المرشح غير موجود'], 404);
         }
 
         $active = $candidate->assessments()->where('status', '!=', 'completed')->orderByDesc('id')->first();
@@ -450,7 +459,7 @@ class CandidateController extends Controller
             return response()->json(['error' => 'المرشح غير موجود'], 404);
         }
         if (!in_array($candidate->classification, $this->allowedClassifications($request))) {
-            return response()->json(['error' => 'هذا المرشح مصنّف، وليس لديك صلاحية'], 403);
+            return response()->json(['error' => 'المرشح غير موجود'], 404);
         }
 
         $assessments = $candidate->assessments()

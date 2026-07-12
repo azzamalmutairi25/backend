@@ -87,10 +87,22 @@ class SettingsController extends Controller
             return response()->json(['error' => 'ليس لديك صلاحية'], 403);
         }
 
+        // منفذ محصور بمنافذ LDAP القياسية — يمنع استخدام الاختبار كماسح منافذ (SSRF)
         $validated = $request->validate([
-            'host' => 'required|string',
-            'port' => 'required|integer',
+            'host' => 'required|string|max:255',
+            'port' => 'required|integer|in:389,636,3268,3269',
             'useSsl' => 'boolean',
+        ], [
+            'port.in' => 'المنفذ يجب أن يكون أحد منافذ LDAP القياسية (389/636/3268/3269)',
+        ]);
+
+        // تدقيق كل محاولة اختبار (من، وإلى أي خادم)
+        \App\Models\AuditLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'TEST_LDAP',
+            'details' => ['host' => $validated['host'], 'port' => (int) $validated['port']],
+            'ip_address' => $request->ip(),
+            'created_at' => now(),
         ]);
 
         $result = ActiveDirectoryService::testConnection(

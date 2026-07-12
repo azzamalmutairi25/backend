@@ -94,7 +94,7 @@ class AttendanceController extends Controller
 
         if (!in_array($schedule->candidate->classification, $this->allowedClassifications($request))) {
             $this->log($request, 'DENIED_ATTENDANCE_CLASSIFIED', $scheduleId);
-            return response()->json(['error' => 'هذا المرشح مصنّف، وليس لديك صلاحية'], 403);
+            return response()->json(['error' => 'الجدول غير موجود'], 404);
         }
 
         if ($schedule->schedule_date->toDateString() !== now()->toDateString()) {
@@ -104,12 +104,17 @@ class AttendanceController extends Controller
             return response()->json(['error' => 'تم تسجيل حالة هذه الجلسة مسبقاً'], 422);
         }
 
-        Attendance::create([
-            'schedule_id' => $scheduleId,
-            'status' => 'present',
-            'check_in_time' => now(),
-            'recorded_by' => $request->user()->id,
-        ]);
+        try {
+            Attendance::create([
+                'schedule_id' => $scheduleId,
+                'status' => 'present',
+                'check_in_time' => now(),
+                'recorded_by' => $request->user()->id,
+            ]);
+        } catch (\Illuminate\Database\QueryException $e) {
+            // الفهرس الفريد يحسم سباقاً متزامناً (قاعدة المرّة الواحدة)
+            return response()->json(['error' => 'تم تسجيل حالة هذه الجلسة مسبقاً'], 422);
+        }
 
         $this->log($request, 'RECORD_ATTENDANCE', $scheduleId, [
             'candidate' => $schedule->candidate->participant_code,
@@ -131,7 +136,7 @@ class AttendanceController extends Controller
 
         if (!in_array($schedule->candidate->classification, $this->allowedClassifications($request))) {
             $this->log($request, 'DENIED_ATTENDANCE_CLASSIFIED', $scheduleId);
-            return response()->json(['error' => 'هذا المرشح مصنّف، وليس لديك صلاحية'], 403);
+            return response()->json(['error' => 'الجدول غير موجود'], 404);
         }
 
         if ($schedule->schedule_date->toDateString() !== now()->toDateString()) {
@@ -146,12 +151,16 @@ class AttendanceController extends Controller
             'reason' => 'nullable|string|max:500',
         ]);
 
-        Attendance::create([
-            'schedule_id' => $scheduleId,
-            'status' => $validated['excused'] ? 'absent_excused' : 'absent_unexcused',
-            'absence_reason' => $validated['reason'] ?? null,
-            'recorded_by' => $request->user()->id,
-        ]);
+        try {
+            Attendance::create([
+                'schedule_id' => $scheduleId,
+                'status' => $validated['excused'] ? 'absent_excused' : 'absent_unexcused',
+                'absence_reason' => $validated['reason'] ?? null,
+                'recorded_by' => $request->user()->id,
+            ]);
+        } catch (\Illuminate\Database\QueryException $e) {
+            return response()->json(['error' => 'تم تسجيل حالة هذه الجلسة مسبقاً'], 422);
+        }
 
         $this->log($request, 'RECORD_ABSENCE', $scheduleId, [
             'candidate' => $schedule->candidate->participant_code,

@@ -22,7 +22,8 @@ use App\Http\Controllers\PublicAssessmentController;
 // ════════════════════════════════════════════════════════════
 
 // ── عام (بدون مصادقة) ──
-Route::post('/login', [AuthController::class, 'login']);
+// تقييد بمعدّل حسب IP ضدّ رشّ كلمات المرور والتعداد (بالإضافة لقفل الحساب)
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 
 // ── بوابة المرشح العامة (رمز فريد في الرسالة النصية) — مقيّدة بالمعدل ضد التخمين ──
 // لا تُكشف أي بيانات إلا بعد /verify بمطابقة رقم الهوية (بوابة العامل الثاني)

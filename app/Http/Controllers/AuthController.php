@@ -40,8 +40,10 @@ class AuthController extends Controller
             if ($user->user_type === 'internal') {
                 $adResult = ActiveDirectoryService::authenticate((string) $user->ad_username, $request->password);
                 if ($adResult === null) {
+                    // خلل تهيئة الدليل يُسجَّل خادمياً ولا يُكشف للعميل (تفادي كشف وجود/نوع الحساب)
+                    \Illuminate\Support\Facades\Log::warning('AD authentication unavailable', ['username' => $user->username]);
                     throw ValidationException::withMessages([
-                        'username' => ['مصادقة الدليل (AD) غير مُهيّأة — راجع الإعدادات أو تواصل مع المشرف'],
+                        'username' => ['اسم المستخدم أو كلمة المرور غير صحيحة'],
                     ]);
                 }
                 $passwordOk = $adResult === true;
@@ -53,7 +55,8 @@ class AuthController extends Controller
         if (!$user || !$passwordOk) {
             if ($user) {
                 $user->increment('failed_attempts');
-                if ($user->failed_attempts >= 5) {
+                // اقرأ العدّاد الحقيقي من القاعدة بعد الزيادة الذرّية (لا القيمة المحلية) — يمنع تجاوز القفل بدفعة متزامنة
+                if ($user->fresh()->failed_attempts >= 5) {
                     $user->update([
                         'locked_until' => now()->addMinutes(15),
                         'failed_attempts' => 0,

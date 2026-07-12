@@ -44,8 +44,9 @@ class ImportController extends Controller
                 $errors[] = "السطر {$lineNum}: كود القطاع غير موجود ({$sectorCode})";
                 continue;
             }
+            // لا نُعيد رقم الهوية في الرسالة (تفادي كشف الوجود عبر السجل/الرد)
             if (Candidate::nationalIdExists($nationalId)) {
-                $errors[] = "السطر {$lineNum}: الهوية مكرّرة ({$nationalId})";
+                $errors[] = "السطر {$lineNum}: هذه الهوية مسجّلة مسبقاً";
                 continue;
             }
 
@@ -67,8 +68,13 @@ class ImportController extends Controller
                 $c->save();
 
                 $success[] = ['line' => $lineNum, 'code' => $code, 'name' => $fullName];
-            } catch (\Exception $e) {
-                $errors[] = "السطر {$lineNum}: خطأ - " . $e->getMessage();
+            } catch (\Illuminate\Database\QueryException $e) {
+                // الفهرس الفريد على الهوية يحسم سباق التكرار المتزامن
+                $errors[] = "السطر {$lineNum}: هذه الهوية مسجّلة مسبقاً";
+            } catch (\Throwable $e) {
+                // لا نُسرّب نص الاستثناء الخام للعميل
+                \Illuminate\Support\Facades\Log::warning('candidate import row failed', ['line' => $lineNum, 'error' => $e->getMessage()]);
+                $errors[] = "السطر {$lineNum}: تعذّر استيراد السطر";
             }
         }
 
