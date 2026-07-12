@@ -128,8 +128,11 @@ class AuditController extends Controller
 
         $entries = $logs->map(function ($log) use ($users, $canSeeClassified, $visibleCandidateIds, $sensitive) {
             $user = $users->get($log->user_id);
+            // لا تُعامَل الإجراءات الجماعية (entity_id='0'/null مثل EXPORT_CANDIDATES) كسجل مرشح مصنّف فتُحجب دائماً
             $redact = !$canSeeClassified
                 && $log->entity_type === 'candidate'
+                && $log->entity_id !== null
+                && $log->entity_id !== '0'
                 && !in_array((string) $log->entity_id, $visibleCandidateIds, true);
             return [
                 'id' => $log->id,

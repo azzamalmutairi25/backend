@@ -270,7 +270,15 @@ class CandidateController extends Controller
             $candidate->classification = $validated['classification'];
             $classChanged = true;
         }
-        $candidate->save();
+
+        // نوع التقييم سمة للدورة الحالية — زامن الدورة الأحدث معه وإلا انجرف سجل الشخص عن دورته
+        DB::transaction(function () use ($candidate) {
+            $candidate->save();
+            $latest = $candidate->assessments()->latest('id')->first();
+            if ($latest && $latest->assessment_type !== $candidate->assessment_type) {
+                $latest->update(['assessment_type' => $candidate->assessment_type]);
+            }
+        });
 
         $this->log($request, 'UPDATE_CANDIDATE', $candidate->id, ['code' => $candidate->participant_code]);
         if ($classChanged) {
@@ -306,14 +314,18 @@ class CandidateController extends Controller
         }
 
         $code = $candidate->participant_code;
+        $classification = $candidate->classification;
+
+        // الحذف أولاً داخل معاملة؛ التوثيق بعد النجاح فقط — وإلا بقي سجل حذف لمرشح لم يُحذف (تنافر تدقيقي)
+        DB::transaction(function () use ($candidate) {
+            $candidate->delete();
+        });
 
         $this->log($request, 'DELETE_CANDIDATE', $id, [
             'code' => $code,
             'reason' => $validated['reason'],
-            'classification' => $candidate->classification,
+            'classification' => $classification,
         ]);
-
-        $candidate->delete();
 
         return response()->json(['message' => "تم حذف المرشح {$code} (موثّق)"]);
     }
@@ -328,6 +340,10 @@ class CandidateController extends Controller
         // بوابة التصنيف كبقية الإجراءات — مصنّف خارج الصلاحية يُعامَل كـ«غير موجود»
         if (!in_array($candidate->classification, $this->allowedClassifications($request))) {
             return response()->json(['error' => 'المرشح غير موجود'], 404);
+        }
+        // الاعتماد انتقال مسودة→مجدول فقط — بلا حارس، يعيد اعتماد مرشح مكتمل فيُرجِع دورته من completed إلى scheduled
+        if ($candidate->status !== 'draft') {
+            return response()->json(['error' => 'لا يمكن اعتماد مرشح غادر حالة المسودة'], 422);
         }
         $candidate->setStatus('scheduled'); // يزامن الدورة الحالية
         $this->log($request, 'APPROVE_CANDIDATE', $id, ['code' => $candidate->participant_code]);
@@ -483,8 +499,8 @@ class CandidateController extends Controller
         $activityLabel = [
             'interview' => 'المقابلة الشخصية',
             'discussion' => 'حلقة النقاش',
-            'presentation' => 'العرض التقديمي',
             'measurement' => 'أدوات القياس',
+            'integration' => 'التمرين التكاملي',
         ];
         $act = fn ($a) => $activityLabel[$a] ?? $a;
 
@@ -646,7 +662,8 @@ class CandidateController extends Controller
         $allowed = $this->allowedClassifications($request);
 
         $query = Candidate::with('sector')->whereIn('classification', $allowed);
-        if ($request->filled('status')) $query->where('status', $request->status);
+        // يدعم قيمة واحدة أو عدّة حالات مفصولة بفواصل (كما في index) — وإلا رجع تصدير فارغ لفلتر متعدّد
+        if ($request->filled('status')) $query->whereIn('status', explode(',', $request->status));
         if ($request->filled('sectorId')) $query->where('sector_id', $request->sectorId);
         if ($request->filled('tier')) $query->where('tier', $request->tier);
         if ($request->filled('classification')) $query->where('classification', $request->classification);

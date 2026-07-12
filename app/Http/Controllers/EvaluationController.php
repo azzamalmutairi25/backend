@@ -76,7 +76,7 @@ class EvaluationController extends Controller
 
         $allowed = $this->allowedClassifications($request);
 
-        $query = Evaluation::with('candidate')
+        $query = Evaluation::with(['candidate', 'assessment'])
             ->withCount('scores')
             ->where('evaluator_id', $request->user()->id);
 
@@ -88,7 +88,8 @@ class EvaluationController extends Controller
             ->filter(fn ($e) => in_array($e->candidate->classification, $allowed))
             ->map(fn ($e) => [
                 'id' => $e->id,
-                'candidateCode' => $e->candidate->participant_code,
+                // رمز دورة التقييم (مجمّد) لا رمز المرشح الحالي — وإلا ظهر رمز دورة أحدث بعد reassess
+                'candidateCode' => optional($e->assessment)->participant_code ?? $e->candidate->participant_code,
                 'activity' => $e->activity,
                 'status' => $e->status,
                 'scoredCount' => $e->scores_count,
@@ -136,13 +137,20 @@ class EvaluationController extends Controller
             ], 422);
         }
 
-        $evaluation = Evaluation::create([
-            'candidate_id' => $validated['candidateId'],
-            'assessment_id' => $assessmentId,
-            'evaluator_id' => $request->user()->id,
-            'activity' => $validated['activity'],
-            'status' => 'draft',
-        ]);
+        // الفحص أعلاه غير ذرّي — الفهرس الفريد (assessment_id, activity) يحسم السباق المتزامن كـ 422 لا 500
+        try {
+            $evaluation = Evaluation::create([
+                'candidate_id' => $validated['candidateId'],
+                'assessment_id' => $assessmentId,
+                'evaluator_id' => $request->user()->id,
+                'activity' => $validated['activity'],
+                'status' => 'draft',
+            ]);
+        } catch (\Illuminate\Database\QueryException $e) {
+            return response()->json([
+                'error' => 'تم بدء تقييم لهذا المرشح في هذا النشاط للتوّ',
+            ], 422);
+        }
 
         $this->log($request, 'START_EVALUATION', $evaluation->id, [
             'candidate' => $candidate->participant_code,
@@ -161,7 +169,7 @@ class EvaluationController extends Controller
             return response()->json(['error' => 'ليس لديك صلاحية عرض التقييم'], 403);
         }
 
-        $evaluation = Evaluation::with(['scores.competency', 'candidate'])->findOrFail($id);
+        $evaluation = Evaluation::with(['scores.competency', 'candidate', 'assessment'])->findOrFail($id);
 
         if (!in_array($evaluation->candidate->classification, $this->allowedClassifications($request))) {
             $this->log($request, 'DENIED_EVAL_CLASSIFIED', $id);
@@ -179,7 +187,7 @@ class EvaluationController extends Controller
 
         return response()->json(['evaluation' => [
             'id' => $evaluation->id,
-            'candidateCode' => $evaluation->candidate->participant_code,
+            'candidateCode' => optional($evaluation->assessment)->participant_code ?? $evaluation->candidate->participant_code,
             'activity' => $evaluation->activity,
             'status' => $evaluation->status,
             'notes' => $evaluation->notes,
@@ -372,6 +380,19 @@ class EvaluationController extends Controller
             'status' => 'draft',
             'submitted_at' => null,
         ]);
+
+        // إرجاع التقييم يُبطل حالة «assessed» إن لم يبقَ للدورة أي تقييم مُرسل/معتمد آخر —
+        // وإلا بقيت الدورة «assessed» فمرّت بوابة التقرير على تقييم مُرجَع (مسودة) واعتُمد مرشح بلا تقييم صالح
+        $stillAssessed = Evaluation::where('assessment_id', $evaluation->assessment_id)
+            ->whereIn('status', ['submitted', 'approved'])
+            ->where('id', '!=', $evaluation->id)
+            ->exists();
+        if (!$stillAssessed) {
+            $candidate = $evaluation->candidate;
+            if ($candidate && $candidate->status === 'assessed') {
+                $candidate->setStatus('scheduled'); // يزامن الدورة الحالية للخلف
+            }
+        }
 
         $this->notify->notify($evaluation->evaluator_id, 'info',
             'تقييم مُرجع للتعديل',

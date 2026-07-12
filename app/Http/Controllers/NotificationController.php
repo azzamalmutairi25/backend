@@ -26,7 +26,9 @@ class NotificationController extends Controller
             $query->where('is_read', false);
         }
 
-        $paginated = $query->orderByDesc('created_at')->paginate((int) $request->input('perPage', 50));
+        // ?perPage= الفارغ يصبح null فيسقط الافتراضي 50 ويقسّم على 15 — احسم الافتراضي قبل التحويل واحصر المدى
+        $perPage = max(1, min(100, (int) ($request->input('perPage') ?: 50)));
+        $paginated = $query->orderByDesc('created_at')->paginate($perPage);
 
         $list = collect($paginated->items())->map(fn ($n) => [
             'id' => $n->id,

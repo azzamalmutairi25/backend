@@ -36,17 +36,19 @@ class Assessment extends Model
     }
 
     // توليد رمز مشارك جديد فريد عالميًا للقطاع (يقرأ من كل الدورات)
+    // نحسب أكبر رقم عدديًّا لا معجميًّا — وإلا اعتُبر 'DA-999' > 'DA-1000' فتكرّر الرمز بعد 999
     public static function generateParticipantCode(Sector $sector): string
     {
         $prefix = strtoupper(substr($sector->code, 0, 2));
-        $lastCode = self::where('participant_code', 'like', "$prefix-%")
-            ->orderBy('participant_code', 'desc')
-            ->value('participant_code');
+        $codes = self::where('participant_code', 'like', "$prefix-%")
+            ->pluck('participant_code');
 
-        $nextNum = 1;
-        if ($lastCode && preg_match('/-(\d+)$/', $lastCode, $m)) {
-            $nextNum = (int) $m[1] + 1;
+        $max = 0;
+        foreach ($codes as $code) {
+            if (preg_match('/-(\d+)$/', $code, $m)) {
+                $max = max($max, (int) $m[1]);
+            }
         }
-        return sprintf('%s-%03d', $prefix, $nextNum);
+        return sprintf('%s-%03d', $prefix, $max + 1);
     }
 }

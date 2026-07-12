@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Security\Permissions;
 use App\Services\ActiveDirectoryService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class SettingsController extends Controller
 {
@@ -61,22 +62,25 @@ class SettingsController extends Controller
             'ldap.use_ssl' => ($validated['useSsl'] ?? false) ? 'true' : 'false',
         ];
 
-        foreach ($map as $key => $value) {
-            Setting::updateOrCreate(
-                ['key' => $key],
-                ['value' => $value, 'description' => 'إعداد LDAP', 'updated_at' => now()]
-            );
-        }
+        // كل المفاتيح + سجل التدقيق ذرّياً — وإلا تركت أعطالٌ جزئية LDAP نصف مُعدّ (host جديد، port قديم)
+        DB::transaction(function () use ($map, $validated, $request) {
+            foreach ($map as $key => $value) {
+                Setting::updateOrCreate(
+                    ['key' => $key],
+                    ['value' => $value, 'description' => 'إعداد LDAP', 'updated_at' => now()]
+                );
+            }
 
-        AuditLog::create([
-            'user_id' => $request->user()->id,
-            'action' => 'UPDATE_LDAP_SETTINGS',
-            'entity_type' => 'settings',
-            'entity_id' => '0',
-            'details' => ['enabled' => $validated['enabled']],
-            'ip_address' => $request->ip(),
-            'created_at' => now(),
-        ]);
+            AuditLog::create([
+                'user_id' => $request->user()->id,
+                'action' => 'UPDATE_LDAP_SETTINGS',
+                'entity_type' => 'settings',
+                'entity_id' => '0',
+                'details' => ['enabled' => $validated['enabled']],
+                'ip_address' => $request->ip(),
+                'created_at' => now(),
+            ]);
+        });
 
         return response()->json(['message' => 'تم حفظ إعدادات LDAP']);
     }

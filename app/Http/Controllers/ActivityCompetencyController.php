@@ -56,13 +56,15 @@ class ActivityCompetencyController extends Controller
         $ids = $validated['competencyIds'];
         $previous = Competency::idsForActivity($activity);
 
-        // منع تفريغ كفاءات نشاط له تقييمات نشطة (يكسر إرسال تلك التقييمات لاحقًا)
-        if (empty($ids)) {
+        // أي إزالة/تبديل/تفريغ يكسر تقييمات جارية (تفشل عند الإرسال أو تُيتّم درجاتها) — يُسمح بالإضافة فقط.
+        // (التفريغ حالة خاصة من الإزالة، فهذا يشمل الحارس السابق ويوسّعه ليشمل التبديل والتقليص)
+        $removing = array_diff($previous, $ids);
+        if (!empty($removing)) {
             $hasActive = \App\Models\Evaluation::where('activity', $activity)
                 ->whereIn('status', ['draft', 'submitted'])->exists();
             if ($hasActive) {
                 return response()->json([
-                    'error' => 'لا يمكن تفريغ كفاءات نشاط له تقييمات نشطة قيد التنفيذ',
+                    'error' => 'لا يمكن حذف/تبديل كفاءات نشاط له تقييمات نشطة قيد التنفيذ (الإضافة فقط مسموحة)',
                 ], 422);
             }
         }

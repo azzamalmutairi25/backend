@@ -38,7 +38,7 @@ class ActiveDirectoryService
         $protocol = $useSsl ? 'ldaps://' : 'ldap://';
         $conn = @ldap_connect($protocol . $host, $port);
         if (!$conn) {
-            return false;
+            return null; // فشل إعداد اتصال (بنية تحتية) لا رفض اعتماد — لا تُعاقب المستخدم
         }
 
         ldap_set_option($conn, LDAP_OPT_PROTOCOL_VERSION, 3);
@@ -47,9 +47,18 @@ class ActiveDirectoryService
 
         $bindUser = $domain . '\\' . $adUsername;
         $bound = @ldap_bind($conn, $bindUser, $password);
+        $errno = $bound ? 0 : @ldap_errno($conn);
         @ldap_close($conn);
 
-        return $bound === true;
+        if ($bound) {
+            return true;
+        }
+        // 48/49/50 = بيانات اعتماد خاطئة/غير كافية → فشل مصادقة حقيقي (يُعاقَب بعدّاد القفل)
+        if (in_array($errno, [48, 49, 50], true)) {
+            return false;
+        }
+        // خلاف ذلك (خادم متوقّف/شبكة/مهلة) → «غير متاح»: لا تُعاقب مستخدماً أدخل كلمة مرور صحيحة
+        return null;
     }
 
     public static function testConnection(string $host, int $port, bool $useSsl = false): array

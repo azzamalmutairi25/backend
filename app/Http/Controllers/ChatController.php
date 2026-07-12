@@ -74,7 +74,8 @@ class ChatController extends Controller
 
         return response()->json([
             'threadId' => $thread->id,
-            'isClosed' => $thread->is_closed,
+            // (bool) صريح — صف firstOrCreate الجديد لا يُحمّل default القاعدة فيرجع is_closed = null بدل false
+            'isClosed' => (bool) $thread->is_closed,
             'messages' => $messages,
         ]);
     }
