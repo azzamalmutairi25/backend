@@ -89,6 +89,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // ═══ التقارير ═══
     Route::get('/reports', [ReportController::class, 'index']);
     Route::get('/reports/stats', [ReportController::class, 'stats']);
+    Route::get('/reports/eligible-candidates', [ReportController::class, 'eligibleCandidates']);
+    Route::post('/reports', [ReportController::class, 'store']);
+    Route::get('/reports/{id}', [ReportController::class, 'show']);
+    Route::put('/reports/{id}', [ReportController::class, 'update']);
     Route::post('/reports/{id}/approve', [ReportController::class, 'approve']);
     Route::post('/reports/{id}/return', [ReportController::class, 'returnReport']);
     Route::post('/reports/{id}/resubmit', [ReportController::class, 'resubmit']);

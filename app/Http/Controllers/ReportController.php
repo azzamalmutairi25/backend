@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\FinalReport;
+use App\Models\Candidate;
 use App\Models\ChatThread;
 use App\Models\ChatMessage;
 use App\Models\AuditLog;
@@ -90,6 +91,170 @@ class ReportController extends Controller
             'draft' => (clone $base)->where('status', 'draft')->count(),
             'returned' => (clone $base)->where('status', 'returned')->count(),
         ]]);
+    }
+
+    // مرشحون جاهزون لكتابة تقرير: انتهى تقييمهم ولا تقرير لدورتهم الحالية
+    public function eligibleCandidates(Request $request)
+    {
+        if (!$request->user()->hasPermission(Permissions::REPORT_CREATE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية إنشاء تقرير'], 403);
+        }
+        $allowed = $this->allowedClassifications($request);
+        $candidates = Candidate::with('sector')
+            ->whereIn('classification', $allowed)
+            ->where('status', 'assessed')
+            ->get()
+            ->filter(function ($c) {
+                $a = $c->assessments()->orderByDesc('id')->first();
+                return $a && !FinalReport::where('assessment_id', $a->id)->exists();
+            })
+            ->map(fn ($c) => [
+                'id' => $c->id,
+                'code' => $c->participant_code,
+                'sectorName' => optional($c->sector)->name_ar,
+                'tier' => $c->tier,
+            ])->values();
+
+        return response()->json(['candidates' => $candidates]);
+    }
+
+    // بيانات تقرير كاملة للتحرير
+    public function show(Request $request, int $id)
+    {
+        if (!$request->user()->hasPermission(Permissions::REPORT_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض التقرير'], 403);
+        }
+        $r = FinalReport::with('candidate.sector')->findOrFail($id);
+        if (!in_array($r->candidate->classification, $this->allowedClassifications($request))) {
+            return response()->json(['error' => 'هذا التقرير لمرشح مصنّف'], 403);
+        }
+        return response()->json(['report' => [
+            'id' => $r->id,
+            'participantCode' => $r->candidate->participant_code,
+            'sectorName' => optional($r->candidate->sector)->name_ar,
+            'tier' => $r->candidate->tier,
+            'status' => $r->status,
+            'behavioralFit' => $r->behavioral_fit !== null ? (float) $r->behavioral_fit : null,
+            'technicalFit' => $r->technical_fit !== null ? (float) $r->technical_fit : null,
+            'recommendation' => $r->recommendation,
+            'overviewText' => $r->overview_text,
+            'strengths' => $this->toList($r->strengths),
+            'developmentAreas' => $this->toList($r->development_areas),
+            'returnReason' => $r->return_reason,
+        ]]);
+    }
+
+    // قواعد التحقق المشتركة للإنشاء/التعديل
+    private function reportRules(): array
+    {
+        return [
+            'behavioralFit' => 'nullable|numeric|min:0|max:100',
+            'technicalFit' => 'nullable|numeric|min:0|max:100',
+            'recommendation' => 'required|string|max:120',
+            'overviewText' => 'nullable|string|max:5000',
+            'strengths' => 'nullable|array|max:20',
+            'strengths.*' => 'string|max:500',
+            'developmentAreas' => 'nullable|array|max:20',
+            'developmentAreas.*' => 'string|max:500',
+            'submit' => 'boolean',
+        ];
+    }
+
+    private function toList($v): array
+    {
+        if (is_array($v)) return array_values(array_filter($v, fn ($x) => trim((string) $x) !== ''));
+        if (is_string($v) && $v !== '') return [$v];
+        return [];
+    }
+
+    // إنشاء تقرير لدورة المرشح الحالية
+    public function store(Request $request)
+    {
+        if (!$request->user()->hasPermission(Permissions::REPORT_CREATE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية إنشاء تقرير'], 403);
+        }
+        $validated = $request->validate($this->reportRules() + [
+            'candidateId' => 'required|integer|exists:candidates,id',
+        ]);
+
+        $candidate = Candidate::find($validated['candidateId']);
+        if (!in_array($candidate->classification, $this->allowedClassifications($request))) {
+            return response()->json(['error' => 'هذا المرشح مصنّف، وليس لديك صلاحية'], 403);
+        }
+        $assessment = $candidate->assessments()->orderByDesc('id')->first();
+        if (!$assessment) {
+            return response()->json(['error' => 'لا توجد دورة تقييم لهذا المرشح'], 422);
+        }
+        if (FinalReport::where('assessment_id', $assessment->id)->exists()) {
+            return response()->json(['error' => 'يوجد تقرير لهذه الدورة — استخدم التعديل'], 422);
+        }
+
+        $submit = (bool) ($validated['submit'] ?? false);
+        $report = FinalReport::create([
+            'candidate_id' => $candidate->id,
+            'assessment_id' => $assessment->id,
+            'behavioral_fit' => $validated['behavioralFit'] ?? null,
+            'technical_fit' => $validated['technicalFit'] ?? null,
+            'recommendation' => $validated['recommendation'],
+            'overview_text' => $validated['overviewText'] ?? null,
+            'strengths' => $this->toList($validated['strengths'] ?? []),
+            'development_areas' => $this->toList($validated['developmentAreas'] ?? []),
+            'status' => $submit ? 'pending_dev_approval' : 'draft',
+            'created_by' => $request->user()->id,
+        ]);
+
+        if ($submit) {
+            $this->notify->notifyRole('DEV_MANAGER', 'approval',
+                'تقرير جديد بانتظار الاعتماد',
+                "تقرير المرشح {$assessment->participant_code} بانتظار الاعتماد النهائي",
+                'report', (string) $report->id, $request->user()->id);
+        }
+        $this->log($request, $submit ? 'CREATE_SUBMIT_REPORT' : 'CREATE_REPORT', $report->id,
+            ['code' => $assessment->participant_code]);
+
+        return response()->json([
+            'message' => $submit ? 'تم إنشاء التقرير وإرساله للاعتماد' : 'تم حفظ التقرير كمسودة',
+            'id' => $report->id,
+        ], 201);
+    }
+
+    // تعديل تقرير (مسودة أو مُعاد) — مع إمكانية الإرسال للاعتماد
+    public function update(Request $request, int $id)
+    {
+        if (!$request->user()->hasPermission(Permissions::REPORT_CREATE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية تعديل التقرير'], 403);
+        }
+        $report = FinalReport::with('candidate', 'assessment')->findOrFail($id);
+        if (!in_array($report->candidate->classification, $this->allowedClassifications($request))) {
+            return response()->json(['error' => 'هذا التقرير لمرشح مصنّف'], 403);
+        }
+        if (!in_array($report->status, ['draft', 'returned'])) {
+            return response()->json(['error' => 'لا يمكن تعديل تقرير في هذه الحالة'], 422);
+        }
+        $validated = $request->validate($this->reportRules());
+        $submit = (bool) ($validated['submit'] ?? false);
+
+        $report->update([
+            'behavioral_fit' => $validated['behavioralFit'] ?? null,
+            'technical_fit' => $validated['technicalFit'] ?? null,
+            'recommendation' => $validated['recommendation'],
+            'overview_text' => $validated['overviewText'] ?? null,
+            'strengths' => $this->toList($validated['strengths'] ?? []),
+            'development_areas' => $this->toList($validated['developmentAreas'] ?? []),
+            'status' => $submit ? 'pending_dev_approval' : $report->status,
+        ]);
+
+        if ($submit) {
+            $this->notify->notifyRole('DEV_MANAGER', 'approval',
+                'تقرير معدّل بانتظار الاعتماد',
+                "تقرير المرشح " . optional($report->assessment)->participant_code . " بانتظار الاعتماد",
+                'report', (string) $report->id, $request->user()->id);
+        }
+        $this->log($request, $submit ? 'UPDATE_SUBMIT_REPORT' : 'UPDATE_REPORT', $report->id);
+
+        return response()->json([
+            'message' => $submit ? 'تم حفظ التعديلات وإرسال التقرير للاعتماد' : 'تم حفظ التعديلات',
+        ]);
     }
 
     public function approve(Request $request, int $id)
