@@ -271,11 +271,13 @@ class CandidateController extends Controller
             $classChanged = true;
         }
 
-        // نوع التقييم سمة للدورة الحالية — زامن الدورة الأحدث معه وإلا انجرف سجل الشخص عن دورته
+        // نوع التقييم سمة للدورة الحالية — زامن الدورة الأحدث «غير المكتملة» فقط.
+        // دورة مكتملة سجلٌّ تاريخي لما جرى فعلاً؛ إعادة كتابة نوعها تُفسد التاريخ (لا نمسّها)
         DB::transaction(function () use ($candidate) {
             $candidate->save();
             $latest = $candidate->assessments()->latest('id')->first();
-            if ($latest && $latest->assessment_type !== $candidate->assessment_type) {
+            if ($latest && $latest->status !== 'completed'
+                && $latest->assessment_type !== $candidate->assessment_type) {
                 $latest->update(['assessment_type' => $candidate->assessment_type]);
             }
         });
@@ -316,16 +318,16 @@ class CandidateController extends Controller
         $code = $candidate->participant_code;
         $classification = $candidate->classification;
 
-        // الحذف أولاً داخل معاملة؛ التوثيق بعد النجاح فقط — وإلا بقي سجل حذف لمرشح لم يُحذف (تنافر تدقيقي)
-        DB::transaction(function () use ($candidate) {
+        // الحذف والتوثيق في معاملة واحدة (ذرّية): إمّا حذف موثّق أو لا حذف — فشل كتابة السجل يُرجِع الحذف،
+        // فلا يبقى سجل حذف لمرشح لم يُحذف، ولا حذف مُهلِك بلا أثر تدقيقي (كلاهما غير مقبول لسجل يُلزِم بسبب)
+        DB::transaction(function () use ($candidate, $request, $id, $code, $classification, $validated) {
             $candidate->delete();
+            $this->log($request, 'DELETE_CANDIDATE', $id, [
+                'code' => $code,
+                'reason' => $validated['reason'],
+                'classification' => $classification,
+            ]);
         });
-
-        $this->log($request, 'DELETE_CANDIDATE', $id, [
-            'code' => $code,
-            'reason' => $validated['reason'],
-            'classification' => $classification,
-        ]);
 
         return response()->json(['message' => "تم حذف المرشح {$code} (موثّق)"]);
     }

@@ -85,8 +85,12 @@ class ImportController extends Controller
 
                 $success[] = ['line' => $lineNum, 'code' => $code, 'name' => $fullName];
             } catch (\Illuminate\Database\QueryException $e) {
-                // الفهرس الفريد على الهوية يحسم سباق التكرار المتزامن
-                $errors[] = "السطر {$lineNum}: هذه الهوية مسجّلة مسبقاً";
+                // مَيّز تكرار الهوية الحقيقي عن تصادم رمز متزامن (سباق) — لا تُسمِّ التصادم «هوية مكرّرة» فتُسقِط مرشحاً صالحاً بسبب مضلّل
+                if (Candidate::nationalIdExists($nationalId)) {
+                    $errors[] = "السطر {$lineNum}: هذه الهوية مسجّلة مسبقاً";
+                } else {
+                    $errors[] = "السطر {$lineNum}: تعذّر توليد رمز فريد (تعارض متزامن) — أعد المحاولة";
+                }
             } catch (\Throwable $e) {
                 // لا نُسرّب نص الاستثناء الخام للعميل
                 \Illuminate\Support\Facades\Log::warning('candidate import row failed', ['line' => $lineNum, 'error' => $e->getMessage()]);
