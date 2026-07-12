@@ -25,8 +25,9 @@ use App\Http\Controllers\PublicAssessmentController;
 Route::post('/login', [AuthController::class, 'login']);
 
 // ── بوابة المرشح العامة (رمز فريد في الرسالة النصية) — مقيّدة بالمعدل ضد التخمين ──
+// لا تُكشف أي بيانات إلا بعد /verify بمطابقة رقم الهوية (بوابة العامل الثاني)
 Route::middleware('throttle:20,1')->group(function () {
-    Route::get('/public/assessment/{token}', [PublicAssessmentController::class, 'show']);
+    Route::post('/public/assessment/{token}/verify', [PublicAssessmentController::class, 'verify']);
     Route::post('/public/assessment/{token}/confirm', [PublicAssessmentController::class, 'confirm']);
     Route::post('/public/assessment/{token}/arrive', [PublicAssessmentController::class, 'arrive']);
 });

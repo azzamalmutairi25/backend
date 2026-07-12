@@ -4,12 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Models\Assessment;
 use App\Models\Attendance;
+use App\Models\AuditLog;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\RateLimiter;
 
 // ════════════════════════════════════════════════════════════
-//  بوابة المرشح العامة (بدون مصادقة) — عبر رمز فريد في الرسالة النصية
-//  تأكيد البيانات + تسجيل الوصول الذاتي (ينعكس على الحضور)
+//  بوابة المرشح العامة (بدون مصادقة نظام) — عبر رمز فريد في الرسالة
+//  أمان: لا تُكشف أي بيانات قبل إثبات معرفة رقم الهوية.
+//  عاملان: رابط تملكه (something you have) + هوية تعرفها (something you know)
 // ════════════════════════════════════════════════════════════
 
 class PublicAssessmentController extends Controller
@@ -21,6 +25,10 @@ class PublicAssessmentController extends Controller
         'measurement' => 'أدوات القياس',
     ];
 
+    private const MAX_ATTEMPTS = 5;      // محاولات التحقق قبل القفل
+    private const LOCK_SECONDS = 900;    // ١٥ دقيقة قفل
+    private const ACCESS_TTL = 1200;     // صلاحية جلسة الوصول ٢٠ دقيقة
+
     // تطبيع التاريخ إلى Y-m-d سواء كان Carbon (cast) أو نصاً
     private function dateStr($value): ?string
     {
@@ -30,13 +38,13 @@ class PublicAssessmentController extends Controller
 
     private function resolve(string $token): ?Assessment
     {
-        if (strlen($token) < 20) return null; // رفض السريع للرموز القصيرة
+        if (strlen($token) < 20) return null; // رفض سريع للرموز القصيرة
         return Assessment::with(['candidate.sector', 'schedules'])
             ->where('confirm_token', $token)
             ->first();
     }
 
-    // بيانات مصغّرة تُعرض للمرشح ليؤكدها
+    // بيانات مصغّرة تُعرض بعد التحقق فقط (post-auth)
     private function present(Assessment $a): array
     {
         return [
@@ -60,71 +68,143 @@ class PublicAssessmentController extends Controller
         ];
     }
 
-    // GET /public/assessment/{token}
-    public function show(string $token)
+    // إصدار رمز جلسة عديم الحالة (موقّع ومشفّر AES بواسطة Crypt) — لا يُخزَّن
+    private function issueAccessToken(Assessment $a): string
     {
-        $a = $this->resolve($token);
-        if (!$a) {
-            return response()->json(['error' => 'الرابط غير صالح أو منتهي'], 404);
-        }
-        return response()->json(['assessment' => $this->present($a)]);
+        return Crypt::encryptString(json_encode([
+            'aid' => $a->id,
+            'exp' => now()->addSeconds(self::ACCESS_TTL)->timestamp,
+        ]));
     }
 
-    // POST /public/assessment/{token}/confirm
-    public function confirm(string $token)
+    // التحقق من رمز الجلسة لكل إجراء لاحق (بدون إعادة إرسال الهوية)
+    private function checkAccess(Request $request, Assessment $a): bool
+    {
+        $raw = (string) $request->input('accessToken');
+        if ($raw === '') return false;
+        try {
+            $data = json_decode(Crypt::decryptString($raw), true);
+        } catch (\Throwable $e) {
+            return false; // تلاعب أو رمز غير صالح
+        }
+        if (!is_array($data)) return false;
+        if (($data['aid'] ?? null) !== $a->id) return false;   // الرمز أُصدر لدورة أخرى
+        if ((int) ($data['exp'] ?? 0) < now()->timestamp) return false; // انتهت الصلاحية
+        return true;
+    }
+
+    private function audit(Request $request, Assessment $a, string $action): void
+    {
+        AuditLog::create([
+            'user_id' => null,
+            'action' => $action,
+            'entity_type' => 'assessment',
+            'entity_id' => (string) $a->id,
+            'ip_address' => $request->ip(),
+            'created_at' => now(),
+        ]);
+    }
+
+    // POST /public/assessment/{token}/verify  { nationalId }
+    // بوابة الأمان: لا يُرجَع أي بيان إلا بمطابقة الهوية
+    public function verify(Request $request, string $token)
+    {
+        $request->validate([
+            'nationalId' => 'required|string|regex:/^\d{10}$/',
+        ], [
+            'nationalId.required' => 'أدخل رقم الهوية',
+            'nationalId.regex' => 'رقم الهوية يجب أن يكون ١٠ أرقام',
+        ]);
+
+        // قفل التخمين: محاولات محدودة لكل رابط
+        $rlKey = 'pubverify:' . sha1($token);
+        if (RateLimiter::tooManyAttempts($rlKey, self::MAX_ATTEMPTS)) {
+            $mins = ceil(RateLimiter::availableIn($rlKey) / 60);
+            return response()->json([
+                'error' => "محاولات كثيرة. حاول بعد {$mins} دقيقة.",
+                'locked' => true,
+            ], 429);
+        }
+
+        $a = $this->resolve($token);
+        // مقارنة ثابتة الزمن ضد رابط غير صالح أو هوية غير مطابقة (نفس الرد لتفادي التعداد)
+        $inputHash = hash('sha256', $request->nationalId);
+        $stored = $a ? (string) $a->candidate->national_id_hash : '';
+        $match = $a && hash_equals($stored, $inputHash);
+
+        if (!$match) {
+            RateLimiter::hit($rlKey, self::LOCK_SECONDS);
+            if ($a) $this->audit($request, $a, 'PUBLIC_VERIFY_FAIL');
+            $left = RateLimiter::remaining($rlKey, self::MAX_ATTEMPTS);
+            return response()->json([
+                'error' => 'رقم الهوية غير مطابق لهذا الرابط.',
+                'attemptsLeft' => max(0, $left),
+            ], 403);
+        }
+
+        RateLimiter::clear($rlKey);
+        $this->audit($request, $a, 'PUBLIC_VERIFY_OK');
+
+        return response()->json([
+            'assessment' => $this->present($a),
+            'accessToken' => $this->issueAccessToken($a),
+        ]);
+    }
+
+    // POST /public/assessment/{token}/confirm  { accessToken }
+    public function confirm(Request $request, string $token)
     {
         $a = $this->resolve($token);
-        if (!$a) {
-            return response()->json(['error' => 'الرابط غير صالح أو منتهي'], 404);
+        if (!$a || !$this->checkAccess($request, $a)) {
+            return response()->json(['error' => 'انتهت الجلسة — أعد إدخال رقم الهوية'], 401);
         }
-        if (!$a->confirmed_at) {
+
+        $already = (bool) $a->confirmed_at;
+        if (!$already) {
             $a->update(['confirmed_at' => now()]);
+            $this->audit($request, $a, 'PUBLIC_CONFIRM');
         }
+
         return response()->json([
-            'message' => 'تم تأكيد بياناتك بنجاح',
+            'message' => $already ? 'بياناتك مؤكّدة مسبقاً' : 'تم تأكيد بياناتك بنجاح',
+            'alreadyConfirmed' => $already,
             'assessment' => $this->present($a->fresh(['candidate.sector', 'schedules'])),
         ]);
     }
 
-    // POST /public/assessment/{token}/arrive — تسجيل الوصول الذاتي → حضور
-    public function arrive(string $token)
+    // POST /public/assessment/{token}/arrive  { accessToken } — تسجيل الوصول الذاتي → حضور
+    public function arrive(Request $request, string $token)
     {
         $a = $this->resolve($token);
-        if (!$a) {
-            return response()->json(['error' => 'الرابط غير صالح أو منتهي'], 404);
+        if (!$a || !$this->checkAccess($request, $a)) {
+            return response()->json(['error' => 'انتهت الجلسة — أعد إدخال رقم الهوية'], 401);
         }
 
         $today = now()->toDateString();
         $marked = 0;
 
         DB::transaction(function () use ($a, $today, &$marked) {
-            if (!$a->arrived_at) {
-                $a->arrived_at = now();
-            }
-            if (!$a->confirmed_at) {
-                $a->confirmed_at = now(); // الوصول يؤكد البيانات ضمناً
-            }
+            if (!$a->arrived_at) $a->arrived_at = now();
+            if (!$a->confirmed_at) $a->confirmed_at = now(); // الوصول يؤكد ضمناً
             $a->save();
 
-            // علّم حضور جلسات اليوم التي لا حضور لها بعد (احترام قاعدة المرّة الواحدة)
             foreach ($a->schedules as $s) {
                 if ($this->dateStr($s->schedule_date) !== $today) continue;
-                $exists = Attendance::where('schedule_id', $s->id)->exists();
-                if ($exists) continue;
+                if (Attendance::where('schedule_id', $s->id)->exists()) continue;
                 Attendance::create([
                     'schedule_id' => $s->id,
                     'status' => 'present',
                     'check_in_time' => now(),
-                    'recorded_by' => null, // تسجيل ذاتي من المرشح
+                    'recorded_by' => null, // تسجيل ذاتي
                 ]);
                 $marked++;
             }
         });
 
+        $this->audit($request, $a, 'PUBLIC_ARRIVE');
+
         return response()->json([
-            'message' => $marked > 0
-                ? "تم تسجيل وصولك وحضور {$marked} جلسة"
-                : 'تم تسجيل وصولك',
+            'message' => $marked > 0 ? "تم تسجيل وصولك وحضور {$marked} جلسة" : 'تم تسجيل وصولك',
             'markedSessions' => $marked,
             'assessment' => $this->present($a->fresh(['candidate.sector', 'schedules'])),
         ]);
