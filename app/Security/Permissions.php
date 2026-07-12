@@ -16,6 +16,7 @@ class Permissions
     const CANDIDATE_APPROVE = 'candidate.approve';
     const CANDIDATE_VIEW_NAMES = 'candidate.view_names';   // رؤية الأسماء (حساس)
     const CANDIDATE_VIEW_CLASSIFIED = 'candidate.view_classified';   // رؤية المرشحين السرّيين
+    const CANDIDATE_JOURNEY = 'candidate.journey';   // عرض رحلة المرشح (الخط الزمني)
 
     const SCHEDULE_VIEW = 'schedule.view';
     const SCHEDULE_MANAGE = 'schedule.manage';
@@ -57,7 +58,7 @@ class Permissions
 
             // مدير المركز — إشراف عام (عرض)
             'CENTER_MANAGER' => [
-                self::CANDIDATE_VIEW, self::SCHEDULE_VIEW, self::ATTENDANCE_VIEW,
+                self::CANDIDATE_VIEW, self::CANDIDATE_JOURNEY, self::SCHEDULE_VIEW, self::ATTENDANCE_VIEW,
                 self::EVALUATION_VIEW, self::MEASUREMENT_VIEW, self::REPORT_VIEW,
                 self::REPORT_EXPORT, self::COMPETENCY_VIEW, self::AUDIT_VIEW,
             ],
@@ -78,7 +79,7 @@ class Permissions
 
             // مدير إدارة التقييم
             'ASSESS_MANAGER' => [
-                self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_NAMES, self::CANDIDATE_VIEW_CLASSIFIED, self::SCHEDULE_VIEW,
+                self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_NAMES, self::CANDIDATE_VIEW_CLASSIFIED, self::CANDIDATE_JOURNEY, self::SCHEDULE_VIEW,
                 self::ATTENDANCE_VIEW, self::EVALUATION_VIEW, self::EVALUATION_APPROVE,
                 self::MEASUREMENT_VIEW, self::REPORT_VIEW, self::REPORT_CREATE,
                 self::REPORT_EXPORT, self::COMPETENCY_VIEW,
@@ -102,7 +103,7 @@ class Permissions
 
             // إدارة تطوير الكفاءات — الاعتماد النهائي
             'DEV_MANAGER' => [
-                self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_CLASSIFIED, self::EVALUATION_VIEW, self::MEASUREMENT_VIEW,
+                self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_CLASSIFIED, self::CANDIDATE_JOURNEY, self::EVALUATION_VIEW, self::MEASUREMENT_VIEW,
                 self::REPORT_VIEW, self::REPORT_APPROVE, self::REPORT_RETURN,
                 self::REPORT_EXPORT, self::COMPETENCY_VIEW, self::COMPETENCY_MANAGE,
             ],
@@ -126,5 +127,11 @@ class Permissions
         if (!isset($matrix[$roleCode])) return false;
         $perms = $matrix[$roleCode];
         return in_array('*', $perms, true) || in_array($permission, $perms, true);
+    }
+
+    // ── قائمة صلاحيات الدور (تُرسل للواجهة لضبط العرض) ──
+    public static function forRole(string $roleCode): array
+    {
+        return self::matrix()[$roleCode] ?? [];
     }
 }

@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use App\Rules\StrongPassword;
 use App\Services\ActiveDirectoryService;
+use App\Security\Permissions;
 
 // ════════════════════════════════════════════════════════════
 //  وحدة التحكم بالمصادقة
@@ -101,6 +102,7 @@ class AuthController extends Controller
                 'role' => $user->role->code,
                 'roleName' => $user->role->name_ar,
                 'mustChangePassword' => $user->must_change_password,
+                'permissions' => Permissions::forRole($user->role->code),
             ],
         ]);
     }
@@ -115,6 +117,7 @@ class AuthController extends Controller
             'fullName' => $user->full_name,
             'role' => $user->role->code,
             'roleName' => $user->role->name_ar,
+            'permissions' => Permissions::forRole($user->role->code),
         ]);
     }
 

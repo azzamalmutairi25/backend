@@ -43,6 +43,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/candidates/import', [ImportController::class, 'import']);
     Route::patch('/candidates/{id}/classify', [CandidateController::class, 'reclassify']);
     Route::get('/candidates/{id}/assessments', [CandidateController::class, 'assessments']);
+    Route::get('/candidates/{id}/journey', [CandidateController::class, 'journey']);
     Route::post('/candidates/{id}/reassess', [CandidateController::class, 'reassess']);
     Route::get('/candidates/{id}/history', [AuditController::class, 'candidateHistory']);
     Route::get('/audit/log', [AuditController::class, 'systemLog']);
