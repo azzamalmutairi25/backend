@@ -104,13 +104,14 @@ class ReportController extends Controller
             return response()->json(['error' => 'ليس لديك صلاحية إنشاء تقرير'], 403);
         }
         $allowed = $this->allowedClassifications($request);
-        $candidates = Candidate::with('sector')
+        // تحميل مُسبق للدورات (مرتّبة) وتقاريرها — يتفادى N+1 (استعلامان بدل استعلامين لكل مرشح)
+        $candidates = Candidate::with(['sector', 'assessments' => fn ($q) => $q->orderByDesc('id'), 'assessments.report'])
             ->whereIn('classification', $allowed)
             ->where('status', 'assessed')
             ->get()
             ->filter(function ($c) {
-                $a = $c->assessments()->orderByDesc('id')->first();
-                return $a && !FinalReport::where('assessment_id', $a->id)->exists();
+                $a = $c->assessments->first(); // الأحدث (مرتّبة تنازلياً)
+                return $a && !$a->report;
             })
             ->map(fn ($c) => [
                 'id' => $c->id,
