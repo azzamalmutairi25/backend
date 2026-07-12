@@ -116,9 +116,11 @@ class PublicAssessmentController extends Controller
             'nationalId.regex' => 'رقم الهوية يجب أن يكون ١٠ أرقام',
         ]);
 
-        // قفل التخمين: محاولات محدودة لكل رابط
+        // قفل التخمين — الزيادة أولاً (ذرّية): تمنع تجاوز الحد عبر طلبات متزامنة (TOCTOU)
+        // فالعدّاد يُزاد قبل المقارنة، والزيادة الذرّية في القاعدة تسلسل المتسابقين
         $rlKey = 'pubverify:' . sha1($token);
-        if (RateLimiter::tooManyAttempts($rlKey, self::MAX_ATTEMPTS)) {
+        $hits = RateLimiter::hit($rlKey, self::LOCK_SECONDS);
+        if ($hits > self::MAX_ATTEMPTS) {
             $mins = ceil(RateLimiter::availableIn($rlKey) / 60);
             return response()->json([
                 'error' => "محاولات كثيرة. حاول بعد {$mins} دقيقة.",
@@ -133,16 +135,14 @@ class PublicAssessmentController extends Controller
         $match = $a && hash_equals($stored, $inputHash);
 
         if (!$match) {
-            RateLimiter::hit($rlKey, self::LOCK_SECONDS);
             if ($a) $this->audit($request, $a, 'PUBLIC_VERIFY_FAIL');
-            $left = RateLimiter::remaining($rlKey, self::MAX_ATTEMPTS);
             return response()->json([
                 'error' => 'رقم الهوية غير مطابق لهذا الرابط.',
-                'attemptsLeft' => max(0, $left),
+                'attemptsLeft' => max(0, self::MAX_ATTEMPTS - $hits),
             ], 403);
         }
 
-        RateLimiter::clear($rlKey);
+        RateLimiter::clear($rlKey); // نجاح ← لا نعاقب المرشح الشرعي
         $this->audit($request, $a, 'PUBLIC_VERIFY_OK');
 
         return response()->json([
