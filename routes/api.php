@@ -15,6 +15,7 @@ use App\Http\Controllers\CommunicationController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\SectorController;
 use App\Http\Controllers\ActivityCompetencyController;
+use App\Http\Controllers\PublicAssessmentController;
 
 // ════════════════════════════════════════════════════════════
 //  مسارات الـ API — كلها تحت البادئة /api
@@ -22,6 +23,13 @@ use App\Http\Controllers\ActivityCompetencyController;
 
 // ── عام (بدون مصادقة) ──
 Route::post('/login', [AuthController::class, 'login']);
+
+// ── بوابة المرشح العامة (رمز فريد في الرسالة النصية) — مقيّدة بالمعدل ضد التخمين ──
+Route::middleware('throttle:20,1')->group(function () {
+    Route::get('/public/assessment/{token}', [PublicAssessmentController::class, 'show']);
+    Route::post('/public/assessment/{token}/confirm', [PublicAssessmentController::class, 'confirm']);
+    Route::post('/public/assessment/{token}/arrive', [PublicAssessmentController::class, 'arrive']);
+});
 
 // ── محمي (يتطلب رمز Sanctum) ──
 Route::middleware('auth:sanctum')->group(function () {
