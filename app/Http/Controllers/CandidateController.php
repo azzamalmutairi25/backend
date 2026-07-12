@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\AuditLog;
 use App\Security\Permissions;
 use App\Rules\SaudiNationalId;
+use App\Services\CommunicationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -174,10 +175,13 @@ class CandidateController extends Controller
                 'assessment_type' => $assessmentType,
                 'status' => 'draft',
                 'created_by' => $request->user()->id,
+                'confirm_token' => Assessment::generateConfirmToken(),
             ]);
         });
 
         $this->log($request, $isReturning ? 'REASSESS_CANDIDATE' : 'CREATE_CANDIDATE', $candidate->id, ['code' => $code]);
+
+        $smsSent = $this->sendConfirmationSms($candidate, $assessment, $request->user()->id);
 
         return response()->json([
             'message' => $isReturning ? 'تمّت إضافة دورة تقييم جديدة لمرشح موجود' : 'تمت إضافة المرشح',
@@ -185,7 +189,32 @@ class CandidateController extends Controller
             'tier' => $tier,
             'isReturning' => $isReturning,
             'assessmentId' => $assessment->id,
+            'smsSent' => $smsSent,
         ], 201);
+    }
+
+    // إرسال رسالة تأكيد للمرشح تحوي بياناته ورابطًا فريدًا للتأكيد والوصول
+    private function sendConfirmationSms(Candidate $candidate, Assessment $assessment, ?int $actorId): bool
+    {
+        $mobile = $candidate->mobile; // فك التشفير عبر المُلحق
+        if (!$mobile) {
+            return false; // لا جوّال مسجّل — لا رسالة
+        }
+        $link = rtrim(config('app.frontend_url'), '/') . '/confirm/' . $assessment->confirm_token;
+        $name = $candidate->full_name ?: 'المرشح';
+        $message = "عزيزي {$name}، تم تسجيلك في مركز كفاءات لتقييم القيادات."
+            . " رمز المشارك: {$assessment->participant_code}."
+            . " لتأكيد بياناتك وتسجيل الوصول: {$link}";
+
+        // فشل الاتصالات يجب ألا يُفشل إضافة المرشح (الدورة أُنشئت فعلاً)
+        try {
+            return app(CommunicationService::class)->sendSms(
+                $mobile, $message, 'invitation', $candidate->id, $actorId
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('confirmation SMS failed: ' . $e->getMessage());
+            return false;
+        }
     }
 
     public function update(Request $request, int $id)
@@ -391,21 +420,23 @@ class CandidateController extends Controller
         }
 
         $code = Assessment::generateParticipantCode($candidate->sector);
-        DB::transaction(function () use ($candidate, $code, $request) {
+        $assessment = DB::transaction(function () use ($candidate, $code, $request) {
             $candidate->participant_code = $code;
             $candidate->status = 'draft';
             $candidate->save();
-            Assessment::create([
+            return Assessment::create([
                 'candidate_id' => $candidate->id,
                 'participant_code' => $code,
                 'assessment_type' => $candidate->assessment_type ?? 'comprehensive',
                 'status' => 'draft',
                 'created_by' => $request->user()->id,
+                'confirm_token' => Assessment::generateConfirmToken(),
             ]);
         });
 
         $this->log($request, 'REASSESS_CANDIDATE', $candidate->id, ['code' => $code]);
-        return response()->json(['message' => 'تمّت إضافة دورة تقييم جديدة', 'participantCode' => $code], 201);
+        $smsSent = $this->sendConfirmationSms($candidate, $assessment, $request->user()->id);
+        return response()->json(['message' => 'تمّت إضافة دورة تقييم جديدة', 'participantCode' => $code, 'smsSent' => $smsSent], 201);
     }
 
     // ── رحلة المرشح: خط زمني كامل (إضافة → جدولة → حضور → تقييم → تقرير → اعتماد) ──
