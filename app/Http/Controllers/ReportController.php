@@ -39,15 +39,26 @@ class ReportController extends Controller
             return response()->json(['error' => 'ليس لديك صلاحية عرض التقارير'], 403);
         }
 
+        $request->validate([
+            'status' => 'nullable|string',
+            'nationalId' => 'nullable|string|regex:/^\d{10}$/',
+        ]);
+
         $query = FinalReport::with('candidate.sector')
             ->whereHas('candidate', fn ($q) => $q->whereIn('classification', $this->allowedClassifications($request)));
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
+        // البحث بالهوية عبر الهاش المشفّر (لا نكشف رقم الهوية)
+        if ($request->filled('nationalId')) {
+            $hash = hash('sha256', $request->nationalId);
+            $query->whereHas('candidate', fn ($q) => $q->where('national_id_hash', $hash));
+        }
 
         $reports = $query->orderByDesc('created_at')->get()->map(fn ($r) => [
             'id' => $r->id,
+            'candidateId' => $r->candidate_id,
             'participantCode' => $r->candidate->participant_code,
             'sectorName' => $r->candidate->sector->name_ar,
             'tier' => $r->candidate->tier,
@@ -56,6 +67,7 @@ class ReportController extends Controller
             'recommendation' => $r->recommendation,
             'status' => $r->status,
             'returnCount' => $r->return_count,
+            'createdAt' => $r->created_at,
         ]);
 
         $this->log($request, 'VIEW_REPORTS', 0, ['count' => $reports->count()]);
