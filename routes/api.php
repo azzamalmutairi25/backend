@@ -21,6 +21,9 @@ use App\Http\Controllers\PublicAssessmentController;
 //  مسارات الـ API — كلها تحت البادئة /api
 // ════════════════════════════════════════════════════════════
 
+// كل معرّفات {id} أرقام DB — قيّدها بأرقام فقط: معرّف غير رقمي يخطئ المسار (404) بدل TypeError (500)
+Route::pattern('id', '[0-9]+');
+
 // ── عام (بدون مصادقة) ──
 // تقييد بمعدّل حسب IP ضدّ رشّ كلمات المرور والتعداد (بالإضافة لقفل الحساب)
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');

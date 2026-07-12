@@ -383,7 +383,8 @@ class ReportController extends Controller
             return response()->json(['error' => 'لا تملك صلاحية إرسال تقرير أنشأه غيرك'], 403);
         }
         if ($report->status !== 'returned') {
-            return response()->json(['error' => 'التقرير ليس في حالة إرجاع'], 400);
+            // 422 كبقية حرّاس حالة هذا المتحكّم (store/update/approve/return) بدل 400 الشاذّ
+            return response()->json(['error' => 'التقرير ليس في حالة إرجاع'], 422);
         }
 
         $report->update(['status' => 'pending_dev_approval']);

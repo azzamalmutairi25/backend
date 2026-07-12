@@ -57,6 +57,16 @@ class Candidate extends Model
         );
     }
 
+    // حذف المرشح يزيل سجلّات مراسلاته أولاً — وإلا منعت قيود FK (RESTRICT) الحذف فترمي 500
+    // (assessments/schedules/evaluations/reports تُحذف تلقائياً عبر cascade، لكن sms/email لا)
+    protected static function booted(): void
+    {
+        static::deleting(function (Candidate $candidate) {
+            SmsLog::where('candidate_id', $candidate->id)->delete();
+            EmailLog::where('candidate_id', $candidate->id)->delete();
+        });
+    }
+
     public function sector(): BelongsTo
     {
         return $this->belongsTo(Sector::class);
@@ -105,15 +115,7 @@ class Candidate extends Model
 
     public static function generateParticipantCode(Sector $sector): string
     {
-        $prefix = strtoupper(substr($sector->code, 0, 2));
-        $lastCode = self::where('participant_code', 'like', "$prefix-%")
-            ->orderBy('participant_code', 'desc')
-            ->value('participant_code');
-
-        $nextNum = 1;
-        if ($lastCode && preg_match('/-(\d+)$/', $lastCode, $m)) {
-            $nextNum = (int) $m[1] + 1;
-        }
-        return sprintf('%s-%03d', $prefix, $nextNum);
+        // مصدر الحقيقة الموحّد لتسلسل الرموز هو جدول الدورات (assessments)
+        return Assessment::generateParticipantCode($sector);
     }
 }

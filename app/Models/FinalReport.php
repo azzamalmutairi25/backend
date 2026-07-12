@@ -8,7 +8,9 @@ class FinalReport extends Model
     protected $fillable = ['candidate_id','assessment_id','behavioral_fit','technical_fit','recommendation',
         'overview_text','strengths','development_areas','status','return_reason',
         'return_count','last_returned_by','last_returned_at','created_by'];
-    protected $casts = ['strengths'=>'array','development_areas'=>'array','last_returned_at'=>'datetime'];
+    // fit كنوع رقمي ثابت عبر كل النقاط (list/detail/journey) — وإلا رجع نصًّا في بعضها ورقمًا في أخرى
+    protected $casts = ['strengths'=>'array','development_areas'=>'array','last_returned_at'=>'datetime',
+        'behavioral_fit'=>'float','technical_fit'=>'float'];
     public function candidate(): BelongsTo { return $this->belongsTo(Candidate::class); }
     public function assessment(): BelongsTo { return $this->belongsTo(Assessment::class); }
 }

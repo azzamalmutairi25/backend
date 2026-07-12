@@ -21,8 +21,8 @@ class PublicAssessmentController extends Controller
     private const ACTIVITY_LABEL = [
         'interview' => 'المقابلة الشخصية',
         'discussion' => 'حلقة النقاش',
-        'presentation' => 'العرض التقديمي',
         'measurement' => 'أدوات القياس',
+        'integration' => 'التمرين التكاملي',
     ];
 
     private const MAX_ATTEMPTS = 5;      // محاولات التحقق قبل القفل
@@ -190,14 +190,16 @@ class PublicAssessmentController extends Controller
 
             foreach ($a->schedules as $s) {
                 if ($this->dateStr($s->schedule_date) !== $today) continue;
-                if (Attendance::where('schedule_id', $s->id)->exists()) continue;
-                Attendance::create([
+                // insertOrIgnore (ON CONFLICT DO NOTHING) — يحسم السباق المتزامن بلا استثناء يُفسد المعاملة على Postgres
+                $inserted = Attendance::insertOrIgnore([
                     'schedule_id' => $s->id,
                     'status' => 'present',
                     'check_in_time' => now(),
                     'recorded_by' => null, // تسجيل ذاتي
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]);
-                $marked++;
+                if ($inserted) $marked++;
             }
         });
 

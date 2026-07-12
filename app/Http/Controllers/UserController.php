@@ -226,6 +226,12 @@ class UserController extends Controller
         ]);
 
         $user = User::findOrFail($id);
+        // مستخدم داخلي يُصادَق عبر AD بلا كلمة مرور محلية — إعادة تعيينها تحبسه في حلقة «غيّر كلمة المرور» لا يستطيع إتمامها
+        if ($user->user_type === 'internal') {
+            return response()->json([
+                'error' => 'هذا مستخدم يُصادَق عبر الدليل النشط (AD) ولا يملك كلمة مرور محلية',
+            ], 422);
+        }
         $user->password = $validated['password'];
         $user->must_change_password = true;
         $user->save();

@@ -63,19 +63,24 @@ class CommunicationController extends Controller
             $results[] = $ok ? 'تم إرسال الرسالة النصية' : 'فشل إرسال الرسالة';
         }
 
+        // لا شيء أُرسل فعلاً — لا تكتب سجل «دعوة أُرسلت» (كان يُكتب قبل هذا الفحص فيُوثّق دعوة وهمية)
+        if (empty($results)) {
+            return response()->json(['error' => 'لا يوجد بريد أو جوال للمرشح، أو لم تحدد طريقة إرسال'], 400);
+        }
+
         AuditLog::create([
             'user_id' => $userId,
             'action' => 'SEND_INVITATION',
             'entity_type' => 'candidate',
             'entity_id' => (string) $candidate->id,
-            'details' => ['email' => $validated['sendEmail'] ?? false, 'sms' => $validated['sendSms'] ?? false],
+            'details' => [
+                'email' => $validated['sendEmail'] ?? false,
+                'sms' => $validated['sendSms'] ?? false,
+                'results' => $results, // النتيجة الفعلية لكل قناة لا مجرّد الأعلام المطلوبة
+            ],
             'ip_address' => $request->ip(),
             'created_at' => now(),
         ]);
-
-        if (empty($results)) {
-            return response()->json(['error' => 'لا يوجد بريد أو جوال للمرشح، أو لم تحدد طريقة إرسال'], 400);
-        }
 
         return response()->json(['message' => 'تمت معالجة الدعوة', 'results' => $results]);
     }
@@ -114,13 +119,23 @@ class CommunicationController extends Controller
             ->orderByDesc('created_at')
             ->get(['message', 'sms_type', 'status', 'created_at'])
             ->map(fn ($s) => [
-                'message' => $canSeeContent ? $this->redactLink($s->message) : null,
+                'message' => $canSeeContent ? $this->redactLink($this->safeMessage($s)) : null,
                 'smsType' => $s->sms_type,
                 'status' => $s->status,
                 'createdAt' => $s->created_at,
             ]);
 
         return response()->json(['emails' => $emails, 'sms' => $sms]);
+    }
+
+    // فك تشفير آمن — صفوف قديمة كُتبت نصًّا صريحًا قبل تفعيل التشفير ترمي DecryptException فتعطّل السجل كله (500)
+    private function safeMessage(SmsLog $s): ?string
+    {
+        try {
+            return $s->message; // يمرّ عبر cast التشفير
+        } catch (\Throwable $e) {
+            return '[تعذّر فك تشفير الرسالة]';
+        }
     }
 
     // حجب رابط التأكيد من نص الرسالة (رمز حيّ يجب ألا يُكشف حتى للموظفين المخوّلين)

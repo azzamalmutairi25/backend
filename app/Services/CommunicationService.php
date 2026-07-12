@@ -104,14 +104,20 @@ class CommunicationService
         ?int $candidateId,
         ?int $createdBy
     ): bool {
-        $log = SmsLog::create([
-            'to_mobile' => $toMobile,
-            'message' => $message,
-            'sms_type' => $smsType,
-            'candidate_id' => $candidateId,
-            'status' => 'pending',
-            'created_by' => $createdBy,
-        ]);
+        // كتابة السجل داخل try — فشل التسجيل يُنهي الإرسال بلطف (false) بدل تصعيد 500 لطرف النداء
+        try {
+            $log = SmsLog::create([
+                'to_mobile' => $toMobile,
+                'message' => $message,
+                'sms_type' => $smsType,
+                'candidate_id' => $candidateId,
+                'status' => 'pending',
+                'created_by' => $createdBy,
+            ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('sms log write failed: ' . $e->getMessage());
+            return false;
+        }
 
         try {
             $apiUrl = config('services.sms.url');

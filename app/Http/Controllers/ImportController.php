@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Candidate;
+use App\Models\Assessment;
 use App\Models\Sector;
 use App\Models\AuditLog;
 use App\Security\Permissions;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ImportController extends Controller
 {
@@ -53,19 +55,33 @@ class ImportController extends Controller
             try {
                 $sector = $sectors[$sectorCode];
                 $tier = Candidate::classifyTier($rankLabel, $sector->is_military);
-                $code = Candidate::generateParticipantCode($sector);
+                // نفس مولّد بقية المسارات (يقرأ من جدول الدورات) — وإلا انجرف التسلسل عن store/reassess فصادم لاحقاً
+                $code = Assessment::generateParticipantCode($sector);
 
-                $c = new Candidate();
-                $c->participant_code = $code;
-                $c->national_id = $nationalId;
-                $c->full_name = $fullName;
-                $c->mobile = $mobile ?: null;
-                $c->email = $email ?: null;
-                $c->sector_id = $sector->id;
-                $c->rank_label = $rankLabel;
-                $c->tier = $tier;
-                $c->status = 'draft';
-                $c->save();
+                // مرشح + دورة تقييم معاً (كما في store) — وإلا بقي المرشح بلا دورة فكسر ثابت المزامنة و/confirm
+                DB::transaction(function () use ($code, $nationalId, $fullName, $mobile, $email, $sector, $rankLabel, $tier, $userId) {
+                    $c = new Candidate();
+                    $c->participant_code = $code;
+                    $c->national_id = $nationalId;
+                    $c->full_name = $fullName;
+                    $c->mobile = $mobile ?: null;
+                    $c->email = $email ?: null;
+                    $c->sector_id = $sector->id;
+                    $c->rank_label = $rankLabel;
+                    $c->tier = $tier;
+                    $c->assessment_type = 'comprehensive';
+                    $c->status = 'draft';
+                    $c->save();
+
+                    Assessment::create([
+                        'candidate_id' => $c->id,
+                        'participant_code' => $code,
+                        'assessment_type' => 'comprehensive',
+                        'status' => 'draft',
+                        'created_by' => $userId,
+                        'confirm_token' => Assessment::generateConfirmToken(),
+                    ]);
+                });
 
                 $success[] = ['line' => $lineNum, 'code' => $code, 'name' => $fullName];
             } catch (\Illuminate\Database\QueryException $e) {

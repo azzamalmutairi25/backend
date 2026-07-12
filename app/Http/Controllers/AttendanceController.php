@@ -112,8 +112,11 @@ class AttendanceController extends Controller
                 'recorded_by' => $request->user()->id,
             ]);
         } catch (\Illuminate\Database\QueryException $e) {
-            // الفهرس الفريد يحسم سباقاً متزامناً (قاعدة المرّة الواحدة)
-            return response()->json(['error' => 'تم تسجيل حالة هذه الجلسة مسبقاً'], 422);
+            // فقط انتهاك الفهرس الفريد (23505) يعني «سُجّلت مسبقاً»؛ أي خطأ آخر يُصعّد بدل ابتلاع فشل حقيقي
+            if ($e->getCode() === '23505') {
+                return response()->json(['error' => 'تم تسجيل حالة هذه الجلسة مسبقاً'], 422);
+            }
+            throw $e;
         }
 
         $this->log($request, 'RECORD_ATTENDANCE', $scheduleId, [
@@ -159,7 +162,10 @@ class AttendanceController extends Controller
                 'recorded_by' => $request->user()->id,
             ]);
         } catch (\Illuminate\Database\QueryException $e) {
-            return response()->json(['error' => 'تم تسجيل حالة هذه الجلسة مسبقاً'], 422);
+            if ($e->getCode() === '23505') {
+                return response()->json(['error' => 'تم تسجيل حالة هذه الجلسة مسبقاً'], 422);
+            }
+            throw $e;
         }
 
         $this->log($request, 'RECORD_ABSENCE', $scheduleId, [
