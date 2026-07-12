@@ -57,6 +57,9 @@ class ReportController extends Controller
             $query->whereHas('candidate', fn ($q) => $q->where('national_id_hash', $hash));
         }
 
+        $userId = $request->user()->id;
+        $canEditAny = $request->user()->hasPermission(Permissions::REPORT_EDIT_ANY);
+
         $reports = $query->orderByDesc('created_at')->get()->map(fn ($r) => [
             'id' => $r->id,
             'candidateId' => $r->candidate_id,
@@ -69,6 +72,7 @@ class ReportController extends Controller
             'status' => $r->status,
             'returnCount' => $r->return_count,
             'createdAt' => $r->created_at,
+            'canEdit' => $canEditAny || $r->created_by === $userId,
         ]);
 
         $this->log($request, 'VIEW_REPORTS', 0, ['count' => $reports->count()]);
@@ -168,6 +172,13 @@ class ReportController extends Controller
         return [];
     }
 
+    // من يعدّل التقرير: مؤلّفه، أو من يملك تعديل تقارير الغير (مدير التقييم)
+    private function canEditReport(Request $request, FinalReport $report): bool
+    {
+        return $report->created_by === $request->user()->id
+            || $request->user()->hasPermission(Permissions::REPORT_EDIT_ANY);
+    }
+
     // إنشاء تقرير لدورة المرشح الحالية
     public function store(Request $request)
     {
@@ -239,6 +250,9 @@ class ReportController extends Controller
         $report = FinalReport::with('candidate', 'assessment')->findOrFail($id);
         if (!in_array($report->candidate->classification, $this->allowedClassifications($request))) {
             return response()->json(['error' => 'التقرير غير موجود'], 404);
+        }
+        if (!$this->canEditReport($request, $report)) {
+            return response()->json(['error' => 'لا تملك صلاحية تعديل تقرير أنشأه غيرك'], 403);
         }
         if (!in_array($report->status, ['draft', 'returned'])) {
             return response()->json(['error' => 'لا يمكن تعديل تقرير في هذه الحالة'], 422);
@@ -363,6 +377,9 @@ class ReportController extends Controller
         // نفس بوابة التصنيف في بقية الإجراءات — كانت مفقودة هنا (مصنّف → «غير موجود»)
         if (!in_array($report->candidate->classification, $this->allowedClassifications($request))) {
             return response()->json(['error' => 'التقرير غير موجود'], 404);
+        }
+        if (!$this->canEditReport($request, $report)) {
+            return response()->json(['error' => 'لا تملك صلاحية إرسال تقرير أنشأه غيرك'], 403);
         }
         if ($report->status !== 'returned') {
             return response()->json(['error' => 'التقرير ليس في حالة إرجاع'], 400);
