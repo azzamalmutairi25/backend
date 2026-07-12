@@ -34,8 +34,9 @@ class ChatController extends Controller
             if (!$report) {
                 return response()->json(['error' => 'المحادثة غير موجودة'], 404);
             }
+            // مصنّف خارج الصلاحية = نفس ردّ «غير موجودة» (لا كشف وجود)
             if ($report->candidate && !in_array($report->candidate->classification, $this->allowedClassifications($request))) {
-                return response()->json(['error' => 'هذه المحادثة لمرشح مصنّف'], 403);
+                return response()->json(['error' => 'المحادثة غير موجودة'], 404);
             }
             return null;
         }

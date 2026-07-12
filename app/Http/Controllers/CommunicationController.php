@@ -36,6 +36,11 @@ class CommunicationController extends Controller
         ]);
 
         $candidate = Candidate::findOrFail($validated['candidateId']);
+        // بوابة التصنيف — لا تُرسَل دعوة لمرشح مصنّف لمن لا يملك صلاحيته (مصنّف = «غير موجود»)
+        if ($candidate->classification !== 'normal'
+            && !$request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
+            return response()->json(['error' => 'المرشح غير موجود'], 404);
+        }
         $data = [
             'date' => $validated['date'],
             'time' => $validated['time'],
@@ -89,7 +94,7 @@ class CommunicationController extends Controller
         // بوابة التصنيف الأمني (كما في show/export/journey)
         if ($candidate->classification !== 'normal'
             && !$user->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
-            return response()->json(['error' => 'هذا المرشح مصنّف، وليس لديك صلاحية'], 403);
+            return response()->json(['error' => 'المرشح غير موجود'], 404);
         }
 
         // نص الرسائل يحوي الاسم — يُكشف فقط لمن يملك رؤية الأسماء، ورابط التأكيد يُحجب دائماً

@@ -56,13 +56,11 @@ class AuditController extends Controller
         if (!$user->hasPermission(Permissions::CANDIDATE_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض سجل المرشح'], 403);
         }
-        // احترام تصنيف المرشح — لا تكشف سجل مرشح مصنّف لمن لا يملك التصريح
+        // احترام تصنيف المرشح — فشل مغلق: مرشح محذوف قد يكون كان مصنّفاً
         $candidate = \App\Models\Candidate::find($id);
-        if ($candidate) {
-            $allowed = $user->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)
-                ? ['normal', 'secret', 'top_secret'] : ['normal'];
-            if (!in_array($candidate->classification, $allowed)) {
-                return response()->json(['error' => 'هذا المرشح مصنّف، وليس لديك صلاحية'], 403);
+        if (!$user->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
+            if (!$candidate || $candidate->classification !== 'normal') {
+                return response()->json(['error' => 'المرشح غير موجود'], 404);
             }
         }
 
@@ -115,21 +113,24 @@ class AuditController extends Controller
         $users = User::whereIn('id', $userIds)->get()->keyBy('id');
 
         // إخفاء تفاصيل المرشحين المصنّفين عمّن لا يملك التصريح (منع تسريب التصنيف عبر السجل)
+        // فشل مغلق: نُظهر فقط سجلّات المرشحين «العاديين الموجودين»؛ المصنّف أو المحذوف يُحجب
         $canSeeClassified = $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED);
-        $classifiedIds = [];
+        $visibleCandidateIds = [];
         if (!$canSeeClassified) {
             $candIds = $logs->where('entity_type', 'candidate')->pluck('entity_id')->unique()->filter();
-            $classifiedIds = \App\Models\Candidate::whereIn('id', $candIds)
-                ->where('classification', '!=', 'normal')
+            $visibleCandidateIds = \App\Models\Candidate::whereIn('id', $candIds)
+                ->where('classification', 'normal')
                 ->pluck('id')->map(fn ($i) => (string) $i)->all();
         }
 
         $sensitive = ['VIEW_CANDIDATE_PII', 'RECLASSIFY_CANDIDATE', 'DELETE_CANDIDATE',
             'EXPORT_CANDIDATES', 'RESET_PASSWORD', 'DISABLE_USER'];
 
-        $entries = $logs->map(function ($log) use ($users, $classifiedIds, $sensitive) {
+        $entries = $logs->map(function ($log) use ($users, $canSeeClassified, $visibleCandidateIds, $sensitive) {
             $user = $users->get($log->user_id);
-            $redact = $log->entity_type === 'candidate' && in_array((string) $log->entity_id, $classifiedIds, true);
+            $redact = !$canSeeClassified
+                && $log->entity_type === 'candidate'
+                && !in_array((string) $log->entity_id, $visibleCandidateIds, true);
             return [
                 'id' => $log->id,
                 'action' => $this->label($log->action),

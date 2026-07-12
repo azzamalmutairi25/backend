@@ -113,7 +113,7 @@ class EvaluationController extends Controller
 
         if (!in_array($candidate->classification, $this->allowedClassifications($request))) {
             $this->log($request, 'DENIED_EVAL_CLASSIFIED', $candidate->id);
-            return response()->json(['error' => 'هذا المرشح مصنّف، وليس لديك صلاحية تقييمه'], 403);
+            return response()->json(['error' => 'المرشح غير موجود'], 404);
         }
 
         if (!in_array($candidate->status, ['scheduled', 'assessed'])) {
@@ -165,7 +165,12 @@ class EvaluationController extends Controller
 
         if (!in_array($evaluation->candidate->classification, $this->allowedClassifications($request))) {
             $this->log($request, 'DENIED_EVAL_CLASSIFIED', $id);
-            return response()->json(['error' => 'هذا التقييم لمرشح مصنّف'], 403);
+            return response()->json(['error' => 'التقييم غير موجود'], 404);
+        }
+        // سرّية الدرجات: المستشار يرى تقييماته فقط؛ المراجعون (اعتماد التقييم) يرون الكل
+        if ($evaluation->evaluator_id !== $request->user()->id
+            && !$request->user()->hasPermission(Permissions::EVALUATION_APPROVE)) {
+            return response()->json(['error' => 'التقييم غير موجود'], 404);
         }
 
         $this->log($request, 'VIEW_EVALUATION', $id, [
@@ -198,7 +203,7 @@ class EvaluationController extends Controller
 
         if (!in_array($evaluation->candidate->classification, $this->allowedClassifications($request))) {
             $this->log($request, 'DENIED_EVAL_CLASSIFIED', $id);
-            return response()->json(['error' => 'هذا التقييم لمرشح مصنّف'], 403);
+            return response()->json(['error' => 'التقييم غير موجود'], 404);
         }
 
         if ($evaluation->status !== 'draft') {
@@ -207,7 +212,7 @@ class EvaluationController extends Controller
 
         $validated = $request->validate([
             'scores' => 'required|array',
-            'scores.*.competencyId' => 'required|exists:competencies,id',
+            'scores.*.competencyId' => 'required|exists:competencies,id|distinct',
             'scores.*.score' => 'required|integer|min:1',
             'scores.*.note' => 'nullable|string',
             'notes' => 'nullable|string',
@@ -267,7 +272,7 @@ class EvaluationController extends Controller
 
         if (!in_array($evaluation->candidate->classification, $this->allowedClassifications($request))) {
             $this->log($request, 'DENIED_EVAL_CLASSIFIED', $id);
-            return response()->json(['error' => 'هذا التقييم لمرشح مصنّف'], 403);
+            return response()->json(['error' => 'التقييم غير موجود'], 404);
         }
 
         if ($evaluation->status !== 'draft') {
@@ -285,7 +290,8 @@ class EvaluationController extends Controller
 
         $scoredCount = EvaluationScore::where('evaluation_id', $id)
             ->whereIn('competency_id', $requiredCompetencyIds)
-            ->count();
+            ->distinct('competency_id')
+            ->count('competency_id');
 
         if ($scoredCount === 0) {
             return response()->json(['error' => 'لا يمكن إرسال تقييم بدون درجات'], 422);
