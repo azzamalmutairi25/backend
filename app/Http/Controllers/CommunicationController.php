@@ -78,14 +78,50 @@ class CommunicationController extends Controller
     // ── سجل المراسلات لمرشح ──
     public function history(Request $request, int $candidateId)
     {
+        $user = $request->user();
+        if (!$user->hasPermission(Permissions::CANDIDATE_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض سجل المراسلات'], 403);
+        }
+        $candidate = Candidate::find($candidateId);
+        if (!$candidate) {
+            return response()->json(['error' => 'المرشح غير موجود'], 404);
+        }
+        // بوابة التصنيف الأمني (كما في show/export/journey)
+        if ($candidate->classification !== 'normal'
+            && !$user->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
+            return response()->json(['error' => 'هذا المرشح مصنّف، وليس لديك صلاحية'], 403);
+        }
+
+        // نص الرسائل يحوي الاسم — يُكشف فقط لمن يملك رؤية الأسماء، ورابط التأكيد يُحجب دائماً
+        $canSeeContent = $user->hasPermission(Permissions::CANDIDATE_VIEW_NAMES);
+
         $emails = EmailLog::where('candidate_id', $candidateId)
             ->orderByDesc('created_at')
-            ->get(['subject', 'email_type', 'status', 'created_at']);
+            ->get(['subject', 'email_type', 'status', 'created_at'])
+            ->map(fn ($e) => [
+                'subject' => $canSeeContent ? $e->subject : null,
+                'emailType' => $e->email_type,
+                'status' => $e->status,
+                'createdAt' => $e->created_at,
+            ]);
 
         $sms = SmsLog::where('candidate_id', $candidateId)
             ->orderByDesc('created_at')
-            ->get(['message', 'sms_type', 'status', 'created_at']);
+            ->get(['message', 'sms_type', 'status', 'created_at'])
+            ->map(fn ($s) => [
+                'message' => $canSeeContent ? $this->redactLink($s->message) : null,
+                'smsType' => $s->sms_type,
+                'status' => $s->status,
+                'createdAt' => $s->created_at,
+            ]);
 
         return response()->json(['emails' => $emails, 'sms' => $sms]);
+    }
+
+    // حجب رابط التأكيد من نص الرسالة (رمز حيّ يجب ألا يُكشف حتى للموظفين المخوّلين)
+    private function redactLink(?string $msg): ?string
+    {
+        if (!$msg) return $msg;
+        return preg_replace('#https?://\S+/confirm/\S+#u', '[رابط تأكيد محجوب]', $msg);
     }
 }
