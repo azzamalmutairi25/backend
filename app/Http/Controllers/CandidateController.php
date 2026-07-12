@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Candidate;
 use App\Models\Assessment;
 use App\Models\Sector;
+use App\Models\User;
 use App\Models\AuditLog;
 use App\Security\Permissions;
 use App\Rules\SaudiNationalId;
@@ -405,6 +406,160 @@ class CandidateController extends Controller
 
         $this->log($request, 'REASSESS_CANDIDATE', $candidate->id, ['code' => $code]);
         return response()->json(['message' => 'تمّت إضافة دورة تقييم جديدة', 'participantCode' => $code], 201);
+    }
+
+    // ── رحلة المرشح: خط زمني كامل (إضافة → جدولة → حضور → تقييم → تقرير → اعتماد) ──
+    public function journey(Request $request, int $id)
+    {
+        if (!$request->user()->hasPermission(Permissions::CANDIDATE_JOURNEY)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض رحلة المرشح'], 403);
+        }
+        $candidate = Candidate::find($id);
+        if (!$candidate) {
+            return response()->json(['error' => 'المرشح غير موجود'], 404);
+        }
+        if (!in_array($candidate->classification, $this->allowedClassifications($request))) {
+            return response()->json(['error' => 'هذا المرشح مصنّف، وليس لديك صلاحية'], 403);
+        }
+
+        $assessments = $candidate->assessments()
+            ->with(['schedules.attendance', 'evaluations.evaluator', 'report'])
+            ->orderBy('id')
+            ->get();
+
+        // حلّ أسماء الفاعلين دفعةً واحدة (تفادي N+1)
+        $userIds = collect();
+        foreach ($assessments as $a) {
+            $userIds->push($a->created_by);
+            if ($a->report) $userIds->push($a->report->created_by, $a->report->last_returned_by);
+            foreach ($a->schedules as $s) {
+                $userIds->push($s->evaluator_id);
+                if ($s->attendance) $userIds->push($s->attendance->recorded_by);
+            }
+        }
+        $names = User::whereIn('id', $userIds->filter()->unique()->values())->pluck('full_name', 'id');
+        $nameOf = fn ($uid) => $uid ? ($names[$uid] ?? null) : null;
+
+        $activityLabel = [
+            'interview' => 'المقابلة الشخصية',
+            'discussion' => 'حلقة النقاش',
+            'presentation' => 'العرض التقديمي',
+            'measurement' => 'أدوات القياس',
+        ];
+        $act = fn ($a) => $activityLabel[$a] ?? $a;
+
+        $events = [];
+        $events[] = [
+            'type' => 'candidate_created',
+            'at' => optional($candidate->created_at)->toIso8601String(),
+            'title' => 'أُضيف المرشح إلى النظام',
+            'cycle' => null, 'meta' => null, 'actor' => null, 'status' => null,
+            'icon' => 'user',
+        ];
+
+        foreach ($assessments as $a) {
+            $code = $a->participant_code;
+            $events[] = [
+                'type' => 'cycle_started',
+                'at' => optional($a->created_at)->toIso8601String(),
+                'title' => 'بدأت دورة تقييم', 'meta' => null, 'status' => null,
+                'cycle' => $code, 'actor' => $nameOf($a->created_by), 'icon' => 'refresh',
+            ];
+
+            foreach ($a->schedules as $s) {
+                $when = $this->toIso(trim(((string) $s->schedule_date) . ' ' . ((string) $s->schedule_time)))
+                    ?? optional($s->created_at)->toIso8601String();
+                $events[] = [
+                    'type' => 'scheduled', 'at' => $when,
+                    'title' => 'جدولة: ' . $act($s->activity), 'meta' => $s->location ?: null,
+                    'cycle' => $code, 'actor' => $nameOf($s->evaluator_id), 'status' => null,
+                    'icon' => 'calendar',
+                ];
+                if ($s->attendance) {
+                    $att = $s->attendance;
+                    $present = $att->status === 'present';
+                    $events[] = [
+                        'type' => 'attendance',
+                        'at' => optional($att->check_in_time ?? $att->created_at)->toIso8601String(),
+                        'title' => ($present ? 'حضر: ' : 'غياب: ') . $act($s->activity),
+                        'meta' => $present ? null : ($att->absence_reason ?: null),
+                        'cycle' => $code, 'actor' => $nameOf($att->recorded_by), 'status' => $att->status,
+                        'icon' => $present ? 'check' : 'x',
+                    ];
+                }
+            }
+
+            foreach ($a->evaluations as $e) {
+                $submitted = $e->status === 'submitted' || $e->submitted_at;
+                $events[] = [
+                    'type' => 'evaluation',
+                    'at' => optional($e->submitted_at ?? $e->created_at)->toIso8601String(),
+                    'title' => ($submitted ? 'تسليم تقييم: ' : 'مسودة تقييم: ') . $act($e->activity),
+                    'meta' => null, 'cycle' => $code,
+                    'actor' => optional($e->evaluator)->full_name, 'status' => $e->status,
+                    'icon' => 'clipboard',
+                ];
+            }
+
+            if ($a->report) {
+                $rep = $a->report;
+                $events[] = [
+                    'type' => 'report_created',
+                    'at' => optional($rep->created_at)->toIso8601String(),
+                    'title' => 'أُنشئ التقرير النهائي', 'meta' => null,
+                    'cycle' => $code, 'actor' => $nameOf($rep->created_by), 'status' => null,
+                    'icon' => 'file',
+                ];
+                if ($rep->last_returned_at) {
+                    $events[] = [
+                        'type' => 'report_returned',
+                        'at' => optional($rep->last_returned_at)->toIso8601String(),
+                        'title' => 'أُعيد التقرير للتعديل', 'meta' => $rep->return_reason ?: null,
+                        'cycle' => $code, 'actor' => $nameOf($rep->last_returned_by), 'status' => null,
+                        'icon' => 'undo',
+                    ];
+                }
+                if ($rep->status === 'approved') {
+                    $events[] = [
+                        'type' => 'report_approved',
+                        'at' => optional($rep->updated_at)->toIso8601String(),
+                        'title' => 'اعتُمد التقرير نهائياً', 'meta' => null,
+                        'cycle' => $code, 'actor' => null, 'status' => null, 'icon' => 'award',
+                    ];
+                } elseif ($rep->status === 'pending_dev_approval') {
+                    $events[] = [
+                        'type' => 'report_submitted',
+                        'at' => optional($rep->updated_at)->toIso8601String(),
+                        'title' => 'أُرسل التقرير للاعتماد', 'meta' => null,
+                        'cycle' => $code, 'actor' => null, 'status' => null, 'icon' => 'send',
+                    ];
+                }
+            }
+        }
+
+        // ترتيب زمني تصاعدي؛ الأحداث بلا وقت تُوضع في النهاية
+        usort($events, function ($x, $y) {
+            if ($x['at'] === $y['at']) return 0;
+            if ($x['at'] === null) return 1;
+            if ($y['at'] === null) return -1;
+            return strcmp($x['at'], $y['at']);
+        });
+
+        $this->log($request, 'VIEW_CANDIDATE_JOURNEY', $candidate->id);
+
+        return response()->json([
+            'candidate' => ['code' => $candidate->participant_code, 'status' => $candidate->status],
+            'journey' => $events,
+        ]);
+    }
+
+    // تحويل نص تاريخ/وقت إلى ISO8601 بأمان (يرجع null عند الفشل)
+    private function toIso($value): ?string
+    {
+        $value = is_string($value) ? trim($value) : $value;
+        if (!$value) return null;
+        try { return \Illuminate\Support\Carbon::parse($value)->toIso8601String(); }
+        catch (\Throwable $e) { return null; }
     }
 
     public function stats(Request $request)
