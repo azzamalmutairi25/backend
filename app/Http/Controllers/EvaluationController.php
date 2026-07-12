@@ -219,6 +219,9 @@ class EvaluationController extends Controller
         ]);
 
         $activityCompetencyIds = Competency::idsForActivity($evaluation->activity);
+        // تحميل الكفاءات المطلوبة دفعة واحدة (تفادي N+1 داخل الحلقة)
+        $competencies = Competency::whereIn('id', collect($validated['scores'])->pluck('competencyId'))
+            ->get()->keyBy('id');
 
         foreach ($validated['scores'] as $s) {
             if (!in_array($s['competencyId'], $activityCompetencyIds)) {
@@ -227,7 +230,7 @@ class EvaluationController extends Controller
                 ], 422);
             }
 
-            $competency = Competency::find($s['competencyId']);
+            $competency = $competencies->get($s['competencyId']);
             if ($competency && $s['score'] > $competency->max_level) {
                 return response()->json([
                     'error' => "الدرجة تتجاوز الحد الأقصى للكفاءة ({$competency->name_ar}: {$competency->max_level})",
