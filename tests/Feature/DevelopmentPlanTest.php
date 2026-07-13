@@ -104,4 +104,18 @@ class DevelopmentPlanTest extends TestCase
         $this->deleteJson("/api/development-plan-items/{$id}")->assertOk();
         $this->assertNull(DevelopmentPlanItem::find($id));
     }
+
+    public function test_seed_deduplicates_repeated_areas_in_one_run(): void
+    {
+        [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed']);
+        FinalReport::create([
+            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'مرشّح',
+            'development_areas' => ['القيادة', 'القيادة'], 'status' => 'approved', 'created_by' => null,
+        ]);
+        $this->actingAsRole('ASSESS_MANAGER');
+
+        $this->postJson('/api/development-plans/seed', ['candidateId' => $c->id])
+            ->assertOk()->assertJsonPath('created', 1); // المجال المتكرّر لا يُنتِج بندين
+        $this->assertSame(1, DevelopmentPlanItem::where('candidate_id', $c->id)->count());
+    }
 }

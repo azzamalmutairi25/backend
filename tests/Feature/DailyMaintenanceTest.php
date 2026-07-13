@@ -117,4 +117,34 @@ class DailyMaintenanceTest extends TestCase
             Notification::where('recipient_id', $devManager->id)->where('entity_type', 'report')->exists()
         );
     }
+
+    public function test_overdue_report_escalates_only_once_across_runs(): void
+    {
+        [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed']);
+        $devManager = $this->userWithRole('DEV_MANAGER');
+        $report = FinalReport::create([
+            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'مرشّح',
+            'status' => 'pending_dev_approval', 'created_by' => null,
+        ]);
+        DB::table('final_reports')->where('id', $report->id)->update(['updated_at' => now()->subDays(5)]);
+
+        Artisan::call('kafaat:daily', ['--days' => 3]);
+        Artisan::call('kafaat:daily', ['--days' => 3]); // تشغيل ثانٍ — يجب ألا يُعيد التصعيد
+
+        $this->assertSame(1, Notification::where('recipient_id', $devManager->id)
+            ->where('entity_type', 'report')->count());
+    }
+
+    public function test_no_show_ignores_sessions_outside_window(): void
+    {
+        [$c, $a] = $this->makeCandidate(['status' => 'scheduled']);
+        $old = Schedule::create([
+            'candidate_id' => $c->id, 'assessment_id' => $a->id,
+            'schedule_date' => now()->subDays(20)->toDateString(), 'activity' => 'interview',
+        ]);
+        Artisan::call('kafaat:daily'); // النافذة الافتراضية 7 أيام
+
+        // جلسة قديمة خارج النافذة لا تُوسَم غياباً (تفادي وسم كل التاريخ عند أول تشغيل)
+        $this->assertSame(0, Attendance::where('schedule_id', $old->id)->count());
+    }
 }
