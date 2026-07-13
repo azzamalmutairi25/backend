@@ -47,6 +47,7 @@ class AuditController extends Controller
         'RECORD_ATTENDANCE' => 'تسجيل حضور',
         'RECORD_ABSENCE' => 'تسجيل غياب',
         'UPLOAD_MEASUREMENT' => 'رفع نتيجة قياس',
+        'UPDATE_COMPETENCY' => 'تعديل كفاءة (إطار مرجعي)',
         'DENIED_ATTENDANCE_CLASSIFIED' => 'محاولة تسجيل حضور مصنّف',
         'LOGIN' => 'تسجيل دخول',
     ];

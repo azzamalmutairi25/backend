@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Assessment;
+use App\Models\Competency;
 use App\Models\Evaluation;
 use App\Models\EvaluationScore;
 use Illuminate\Support\Collection;
@@ -53,6 +54,40 @@ class ScoringService
             'competenciesScored' => $byComp->count(),
             'evaluationsCount' => $evalIds->count(),
             'breakdown' => $byComp->all(),
+        ];
+    }
+
+    // تحليل الفجوة: المستوى المُحقَّق مقابل المطلوب لفئة المرشّح، لكل كفاءة لها مستوى مطلوب
+    public function computeGap(Assessment $assessment, string $tier): array
+    {
+        $targetCol = $tier === 'upper' ? 'target_upper' : 'target_middle';
+        $competencies = Competency::whereNotNull($targetCol)->orderBy('sort_order')->get();
+
+        $evalIds = Evaluation::where('assessment_id', $assessment->id)
+            ->whereIn('status', ['submitted', 'approved'])->pluck('id');
+        $achieved = EvaluationScore::whereIn('evaluation_id', $evalIds)->get()
+            ->groupBy('competency_id')
+            ->map(fn ($rows) => round((float) $rows->avg('score'), 2));
+
+        $items = $competencies->map(function ($c) use ($achieved, $targetCol) {
+            $target = (int) $c->{$targetCol};
+            $ach = $achieved->get($c->id); // null إن لم تُرصد بعد
+            return [
+                'competency' => $c->name_ar,
+                'type' => $c->type,
+                'maxLevel' => (int) $c->max_level,
+                'target' => $target,
+                'achieved' => $ach,
+                'gap' => $ach === null ? null : round($ach - $target, 2),
+                'met' => $ach !== null && $ach >= $target,
+            ];
+        })->values();
+
+        return [
+            'tier' => $tier,
+            'total' => $items->count(),
+            'met' => $items->where('met', true)->count(),
+            'items' => $items->all(),
         ];
     }
 

@@ -18,6 +18,7 @@ use App\Http\Controllers\CommunicationController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\SectorController;
 use App\Http\Controllers\ActivityCompetencyController;
+use App\Http\Controllers\CompetencyController;
 use App\Http\Controllers\PublicAssessmentController;
 
 // ════════════════════════════════════════════════════════════
@@ -82,6 +83,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ═══ التقييم ═══
     Route::get('/competencies', [EvaluationController::class, 'competencies']);
+    Route::get('/competencies/framework', [CompetencyController::class, 'framework']);
+    Route::put('/competencies/{id}', [CompetencyController::class, 'update']);
     Route::get('/activity-competencies', [ActivityCompetencyController::class, 'index']);
     Route::put('/activity-competencies/{activity}', [ActivityCompetencyController::class, 'update']);
     Route::post('/evaluations/start', [EvaluationController::class, 'start']);
@@ -119,6 +122,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/reports/stats', [ReportController::class, 'stats']);
     Route::get('/reports/eligible-candidates', [ReportController::class, 'eligibleCandidates']);
     Route::get('/reports/score-preview', [ReportController::class, 'scorePreview']);
+    Route::get('/reports/competency-gap', [ReportController::class, 'competencyGap']);
     Route::get('/reports/export', [ReportController::class, 'exportCsv']);
     Route::post('/reports', [ReportController::class, 'store']);
     Route::get('/reports/{id}', [ReportController::class, 'show']);
