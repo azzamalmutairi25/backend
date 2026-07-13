@@ -47,6 +47,7 @@ class Permissions
     const USER_MANAGE = 'user.manage';
     const AUDIT_VIEW = 'audit.view';
     const SETTINGS_MANAGE = 'settings.manage';
+    const ANALYTICS_VIEW = 'analytics.view';
 
     // ════════════════════════════════════════════════════════
     //  مصفوفة الأدوار والصلاحيات
@@ -61,7 +62,7 @@ class Permissions
             'CENTER_MANAGER' => [
                 self::CANDIDATE_VIEW, self::CANDIDATE_JOURNEY, self::SCHEDULE_VIEW, self::ATTENDANCE_VIEW,
                 self::EVALUATION_VIEW, self::MEASUREMENT_VIEW, self::REPORT_VIEW,
-                self::REPORT_EXPORT, self::COMPETENCY_VIEW, self::AUDIT_VIEW,
+                self::REPORT_EXPORT, self::COMPETENCY_VIEW, self::AUDIT_VIEW, self::ANALYTICS_VIEW,
             ],
 
             // مسؤول الجدولة
@@ -83,7 +84,7 @@ class Permissions
                 self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_NAMES, self::CANDIDATE_VIEW_CLASSIFIED, self::CANDIDATE_JOURNEY, self::SCHEDULE_VIEW,
                 self::ATTENDANCE_VIEW, self::EVALUATION_VIEW, self::EVALUATION_APPROVE,
                 self::MEASUREMENT_VIEW, self::REPORT_VIEW, self::REPORT_CREATE,
-                self::REPORT_EDIT_ANY, self::REPORT_EXPORT, self::COMPETENCY_VIEW,
+                self::REPORT_EDIT_ANY, self::REPORT_EXPORT, self::COMPETENCY_VIEW, self::ANALYTICS_VIEW,
             ],
 
             // مستشار المقابلة
@@ -106,7 +107,7 @@ class Permissions
             'DEV_MANAGER' => [
                 self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_CLASSIFIED, self::CANDIDATE_JOURNEY, self::EVALUATION_VIEW, self::MEASUREMENT_VIEW,
                 self::REPORT_VIEW, self::REPORT_APPROVE, self::REPORT_RETURN,
-                self::REPORT_EXPORT, self::COMPETENCY_VIEW, self::COMPETENCY_MANAGE,
+                self::REPORT_EXPORT, self::COMPETENCY_VIEW, self::COMPETENCY_MANAGE, self::ANALYTICS_VIEW,
             ],
 
             // مشرف أدوات القياس

@@ -86,6 +86,7 @@ class UserController extends Controller
             'user.manage' => 'إدارة المستخدمين',
             'audit.view' => 'عرض سجل التدقيق',
             'settings.manage' => 'إدارة الإعدادات',
+            'analytics.view' => 'عرض التحليلات',
         ];
 
         $matrix = \App\Security\Permissions::matrix();
