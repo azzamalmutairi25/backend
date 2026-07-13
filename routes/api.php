@@ -9,6 +9,7 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\EvaluationController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\CommunicationController;
@@ -88,6 +89,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/evaluations/{id}/submit', [EvaluationController::class, 'submit']);
     Route::post('/evaluations/{id}/approve', [EvaluationController::class, 'approve']);
     Route::post('/evaluations/{id}/return', [EvaluationController::class, 'returnEvaluation']);
+
+    // ═══ الجدولة ═══
+    Route::get('/schedules', [ScheduleController::class, 'index']);
+    Route::post('/schedules', [ScheduleController::class, 'store']);
+    Route::put('/schedules/{id}', [ScheduleController::class, 'update']);
+    Route::delete('/schedules/{id}', [ScheduleController::class, 'destroy']);
 
     // ═══ الحضور ═══
     Route::get('/attendance/today', [AttendanceController::class, 'today']);

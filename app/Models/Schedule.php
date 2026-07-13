@@ -28,4 +28,14 @@ class Schedule extends Model
     {
         return $this->hasOne(Attendance::class);
     }
+
+    public function evaluator()
+    {
+        return $this->belongsTo(User::class, 'evaluator_id');
+    }
+
+    public function assistant()
+    {
+        return $this->belongsTo(User::class, 'assistant_id');
+    }
 }
