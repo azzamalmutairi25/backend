@@ -46,6 +46,7 @@ class AuditController extends Controller
         'DELETE_SCHEDULE' => 'حذف جلسة',
         'RECORD_ATTENDANCE' => 'تسجيل حضور',
         'RECORD_ABSENCE' => 'تسجيل غياب',
+        'UPLOAD_MEASUREMENT' => 'رفع نتيجة قياس',
         'DENIED_ATTENDANCE_CLASSIFIED' => 'محاولة تسجيل حضور مصنّف',
         'LOGIN' => 'تسجيل دخول',
     ];
