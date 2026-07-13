@@ -10,6 +10,7 @@ use App\Http\Controllers\EvaluationController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\ScheduleController;
+use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\CommunicationController;
@@ -89,6 +90,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/evaluations/{id}/submit', [EvaluationController::class, 'submit']);
     Route::post('/evaluations/{id}/approve', [EvaluationController::class, 'approve']);
     Route::post('/evaluations/{id}/return', [EvaluationController::class, 'returnEvaluation']);
+
+    // ═══ التحليلات ═══
+    Route::get('/analytics/dashboard', [AnalyticsController::class, 'dashboard']);
+    Route::get('/analytics/by-sector', [AnalyticsController::class, 'bySector']);
+    Route::get('/analytics/competency-gaps', [AnalyticsController::class, 'competencyGaps']);
+    Route::get('/analytics/trends', [AnalyticsController::class, 'trends']);
 
     // ═══ الجدولة ═══
     Route::get('/schedules', [ScheduleController::class, 'index']);
