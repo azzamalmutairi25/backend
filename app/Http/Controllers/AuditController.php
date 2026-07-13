@@ -48,6 +48,10 @@ class AuditController extends Controller
         'RECORD_ABSENCE' => 'تسجيل غياب',
         'UPLOAD_MEASUREMENT' => 'رفع نتيجة قياس',
         'UPDATE_COMPETENCY' => 'تعديل كفاءة (إطار مرجعي)',
+        'CREATE_DEV_ITEM' => 'إضافة بند خطة تطوير',
+        'UPDATE_DEV_ITEM' => 'تحديث بند خطة تطوير',
+        'DELETE_DEV_ITEM' => 'حذف بند خطة تطوير',
+        'SEED_DEV_PLAN' => 'توليد خطة تطوير من التقرير',
         'DENIED_ATTENDANCE_CLASSIFIED' => 'محاولة تسجيل حضور مصنّف',
         'LOGIN' => 'تسجيل دخول',
     ];
