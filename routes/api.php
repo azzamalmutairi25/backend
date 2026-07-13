@@ -11,6 +11,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\MeasurementController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\CommunicationController;
@@ -102,6 +103,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/schedules', [ScheduleController::class, 'store']);
     Route::put('/schedules/{id}', [ScheduleController::class, 'update']);
     Route::delete('/schedules/{id}', [ScheduleController::class, 'destroy']);
+
+    // ═══ أدوات القياس ═══
+    Route::get('/measurements/{candidateId}', [MeasurementController::class, 'show']);
+    Route::post('/measurements', [MeasurementController::class, 'store']);
 
     // ═══ الحضور ═══
     Route::get('/attendance/today', [AttendanceController::class, 'today']);

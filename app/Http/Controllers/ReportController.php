@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\FinalReport;
 use App\Models\Candidate;
+use App\Models\MeasurementResult;
 use App\Models\ChatThread;
 use App\Models\ChatMessage;
 use App\Models\AuditLog;
@@ -438,9 +439,10 @@ class ReportController extends Controller
         }
         $canSeeNames = $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_NAMES);
         $fit = $this->scoring->computeFit($r->assessment);
+        $measurement = MeasurementResult::where('assessment_id', $r->assessment_id)->first();
         $this->log($request, 'EXPORT_REPORT', $id, ['code' => $r->candidate->participant_code]);
 
-        return response($this->renderDocument($r, $fit, $canSeeNames), 200)
+        return response($this->renderDocument($r, $fit, $canSeeNames, $measurement), 200)
             ->header('Content-Type', 'text/html; charset=UTF-8');
     }
 
@@ -501,7 +503,7 @@ class ReportController extends Controller
         return ['behavioral' => 'سلوكية', 'leadership' => 'قيادية', 'technical' => 'فنية'][$t] ?? $t;
     }
 
-    private function renderDocument(FinalReport $r, array $fit, bool $canSeeNames): string
+    private function renderDocument(FinalReport $r, array $fit, bool $canSeeNames, ?MeasurementResult $measurement = null): string
     {
         $name = e($canSeeNames ? ($r->candidate->full_name ?: $r->candidate->participant_code) : $r->candidate->participant_code);
         $code = e($r->candidate->participant_code);
@@ -529,6 +531,17 @@ class ReportController extends Controller
             : '<p class="muted">—</p>';
         $strengths = $li($r->strengths ?? []);
         $devAreas = $li($r->development_areas ?? []);
+
+        $measHtml = '';
+        if ($measurement && ($measurement->personality_score !== null
+            || $measurement->analytical_score !== null || $measurement->english_score !== null)) {
+            $mrow = fn ($label, $v) => '<tr><td>' . $label . '</td><td class="num">' . ($v === null ? '—' : $v) . '</td></tr>';
+            $measHtml = '<h2>أدوات القياس</h2><table><tbody>'
+                . $mrow('المقياس الشخصي', $measurement->personality_score)
+                . $mrow('القدرات التحليلية', $measurement->analytical_score)
+                . $mrow('اللغة الإنجليزية', $measurement->english_score)
+                . '</tbody></table>';
+        }
 
         $fitBox = function ($label, $val) {
             $v = $val === null ? '—' : $val . '%';
@@ -601,6 +614,8 @@ class ReportController extends Controller
   <h2>تفصيل الكفاءات</h2>
   <table><thead><tr><th>الكفاءة</th><th>النوع</th><th>المتوسط</th><th>النسبة</th></tr></thead>
   <tbody>{$rows}</tbody></table>
+
+  {$measHtml}
 
   <h2>مواطن القوة</h2>
   {$strengths}
