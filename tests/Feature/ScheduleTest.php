@@ -118,4 +118,18 @@ class ScheduleTest extends TestCase
         $this->assertCount(1, $res->json('schedules'));
         $this->assertSame('integration', $res->json('schedules.0.activity'));
     }
+
+    public function test_partial_update_changes_only_location(): void
+    {
+        [$c] = $this->makeCandidate(['status' => 'scheduled']);
+        $this->actingAsRole('SCHEDULER');
+        $id = $this->postJson('/api/schedules', [
+            'candidateId' => $c->id, 'activity' => 'interview', 'date' => $this->tomorrow(), 'location' => 'قاعة 1',
+        ])->assertCreated()->json('scheduleId');
+
+        // تعديل الموقع فقط دون إرسال activity — يجب أن ينجح (تعديل جزئي)
+        $this->putJson("/api/schedules/{$id}", ['location' => 'قاعة 2'])->assertOk();
+        $this->assertSame('قاعة 2', Schedule::find($id)->location);
+        $this->assertSame('interview', Schedule::find($id)->activity); // لم يتغيّر
+    }
 }

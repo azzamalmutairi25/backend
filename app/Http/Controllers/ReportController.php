@@ -434,7 +434,8 @@ class ReportController extends Controller
             return response()->json(['error' => 'التقرير ليس في حالة إرجاع'], 422);
         }
 
-        $report->update(['status' => 'pending_dev_approval']);
+        // تصفير التصعيد: حالة تأخّر جديدة قد تتطلّب تصعيداً لاحقاً
+        $report->update(['status' => 'pending_dev_approval', 'escalated_at' => null]);
 
         $this->notify->notifyRole('DEV_MANAGER', 'approval',
             'تقرير معدّل بانتظار الاعتماد',
@@ -501,6 +502,10 @@ class ReportController extends Controller
     private function csv($v): string
     {
         $v = (string) $v;
+        // تحييد حقن صيغ الجداول (CSV formula injection): قيمة تبدأ بمُشغّل صيغة تُسبَق بفاصلة عليا
+        if ($v !== '' && in_array($v[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
+            $v = "'" . $v;
+        }
         if (str_contains($v, ',') || str_contains($v, '"') || str_contains($v, "\n")) {
             $v = '"' . str_replace('"', '""', $v) . '"';
         }

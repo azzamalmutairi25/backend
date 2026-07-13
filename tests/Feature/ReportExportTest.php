@@ -75,4 +75,13 @@ class ReportExportTest extends TestCase
         $this->actingAsRole('EVALUATOR'); // REPORT_VIEW لكن لا REPORT_EXPORT
         $this->get('/api/reports/export')->assertStatus(403);
     }
+
+    public function test_csv_export_neutralises_formula_injection(): void
+    {
+        $this->report(['recommendation' => '=SUM(1)']); // توصية بادئة بمُشغّل صيغة
+        $this->actingAsRole('ASSESS_MANAGER');
+        $body = $this->get('/api/reports/export')->assertOk()->getContent();
+        $this->assertStringContainsString("'=SUM(1)", $body);   // مُحيَّد بفاصلة عليا
+        $this->assertStringNotContainsString(',=SUM(1)', $body); // لا صيغة خام بعد الفاصلة
+    }
 }

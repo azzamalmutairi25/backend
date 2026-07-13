@@ -174,7 +174,8 @@ class DevelopmentPlanController extends Controller
         $existing = DevelopmentPlanItem::where('candidate_id', $candidate->id)
             ->where('assessment_id', $assessment->id)->pluck('area')->all();
         $created = 0;
-        foreach ($areas as $area) {
+        // array_unique يمنع تكرار المجال المتطابق داخل نفس التشغيل، والإلحاق بـ $existing تحصينٌ إضافي
+        foreach (array_unique($areas) as $area) {
             if (in_array($area, $existing, true)) continue;
             DevelopmentPlanItem::create([
                 'candidate_id' => $candidate->id,
@@ -183,6 +184,7 @@ class DevelopmentPlanController extends Controller
                 'status' => 'pending',
                 'created_by' => $request->user()->id,
             ]);
+            $existing[] = $area;
             $created++;
         }
 

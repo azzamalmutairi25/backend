@@ -92,7 +92,8 @@ class ScheduleController extends Controller
     private function rules(bool $creating): array
     {
         return [
-            'activity' => 'required|in:interview,discussion,measurement,integration',
+            // النشاط إلزامي عند الإنشاء، واختياري عند التعديل الجزئي (يُطبَّق فقط إن أُرسل)
+            'activity' => ($creating ? 'required|' : 'sometimes|') . 'in:interview,discussion,measurement,integration',
             'date' => ($creating ? 'required|' : 'nullable|') . 'date|after_or_equal:today',
             'time' => 'nullable|date_format:H:i',
             'location' => 'nullable|string|max:200',
