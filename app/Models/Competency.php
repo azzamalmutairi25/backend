@@ -4,7 +4,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class Competency extends Model
 {
-    protected $fillable = ['name_ar', 'type', 'max_level', 'sort_order'];
+    protected $fillable = ['name_ar', 'type', 'max_level', 'weight', 'sort_order'];
+    protected $casts = ['weight' => 'float', 'max_level' => 'integer'];
 
     /**
      * يجيب معرّفات (IDs) الكفاءات التي تُقيَّم في نشاط معيّن.

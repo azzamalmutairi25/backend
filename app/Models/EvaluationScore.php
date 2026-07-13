@@ -7,4 +7,5 @@ class EvaluationScore extends Model
 {
     protected $fillable = ['evaluation_id','competency_id','score','note'];
     public function competency(): BelongsTo { return $this->belongsTo(Competency::class); }
+    public function evaluation(): BelongsTo { return $this->belongsTo(Evaluation::class); }
 }
