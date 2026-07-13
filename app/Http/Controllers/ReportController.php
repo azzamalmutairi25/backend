@@ -425,4 +425,195 @@ class ReportController extends Controller
 
         return response()->json(['message' => 'تم إعادة إرسال التقرير']);
     }
+
+    // GET /reports/{id}/document — مستند رسمي جاهز للطباعة (المتصفّح → PDF)
+    public function document(Request $request, int $id)
+    {
+        if (!$request->user()->hasPermission(Permissions::REPORT_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض التقرير'], 403);
+        }
+        $r = FinalReport::with(['candidate.sector', 'assessment'])->findOrFail($id);
+        if (!in_array($r->candidate->classification, $this->allowedClassifications($request), true)) {
+            return response()->json(['error' => 'التقرير غير موجود'], 404);
+        }
+        $canSeeNames = $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_NAMES);
+        $fit = $this->scoring->computeFit($r->assessment);
+        $this->log($request, 'EXPORT_REPORT', $id, ['code' => $r->candidate->participant_code]);
+
+        return response($this->renderDocument($r, $fit, $canSeeNames), 200)
+            ->header('Content-Type', 'text/html; charset=UTF-8');
+    }
+
+    // GET /reports/export — تصدير CSV (يفتحه Excel عربياً عبر BOM)
+    public function exportCsv(Request $request)
+    {
+        if (!$request->user()->hasPermission(Permissions::REPORT_EXPORT)) {
+            return response()->json(['error' => 'ليس لديك صلاحية تصدير التقارير'], 403);
+        }
+        $allowed = $this->allowedClassifications($request);
+        $reports = FinalReport::with('candidate.sector')
+            ->whereHas('candidate', fn ($q) => $q->whereIn('classification', $allowed))
+            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
+            ->orderByDesc('created_at')->get();
+
+        $this->log($request, 'EXPORT_REPORTS', 0, ['count' => $reports->count()]);
+
+        $out = "\xEF\xBB\xBF"; // BOM ليعرض Excel العربية صحيحةً
+        $out .= "الرمز,القطاع,الفئة,الحالة,التوافق السلوكي,التوافق الفني,التوصية\n";
+        foreach ($reports as $r) {
+            $out .= implode(',', [
+                $this->csv($r->candidate->participant_code),
+                $this->csv(optional($r->candidate->sector)->name_ar),
+                $this->csv($r->candidate->tier === 'upper' ? 'قيادة عليا' : 'قيادة وسطى'),
+                $this->csv($this->statusLabel($r->status)),
+                $r->behavioral_fit ?? '',
+                $r->technical_fit ?? '',
+                $this->csv($r->recommendation),
+            ]) . "\n";
+        }
+
+        return response($out, 200)
+            ->header('Content-Type', 'text/csv; charset=UTF-8')
+            ->header('Content-Disposition', 'attachment; filename="reports.csv"');
+    }
+
+    private function csv($v): string
+    {
+        $v = (string) $v;
+        if (str_contains($v, ',') || str_contains($v, '"') || str_contains($v, "\n")) {
+            $v = '"' . str_replace('"', '""', $v) . '"';
+        }
+        return $v;
+    }
+
+    private function statusLabel(string $s): string
+    {
+        return [
+            'draft' => 'مسودة',
+            'pending_dev_approval' => 'بانتظار الاعتماد',
+            'returned' => 'مُعاد للتعديل',
+            'approved' => 'معتمد',
+        ][$s] ?? $s;
+    }
+
+    private function typeLabel(string $t): string
+    {
+        return ['behavioral' => 'سلوكية', 'leadership' => 'قيادية', 'technical' => 'فنية'][$t] ?? $t;
+    }
+
+    private function renderDocument(FinalReport $r, array $fit, bool $canSeeNames): string
+    {
+        $name = e($canSeeNames ? ($r->candidate->full_name ?: $r->candidate->participant_code) : $r->candidate->participant_code);
+        $code = e($r->candidate->participant_code);
+        $sector = e(optional($r->candidate->sector)->name_ar ?? '—');
+        $tier = $r->candidate->tier === 'upper' ? 'قيادة عليا' : 'قيادة وسطى';
+        $status = $this->statusLabel($r->status);
+        $beh = $r->behavioral_fit !== null ? (float) $r->behavioral_fit : null;
+        $tech = $r->technical_fit !== null ? (float) $r->technical_fit : null;
+        $rec = e($r->recommendation);
+        $overview = e($r->overview_text ?? '');
+        $date = now()->format('Y-m-d');
+
+        $rows = '';
+        foreach ($fit['breakdown'] as $b) {
+            $rows .= '<tr><td>' . e($b['name']) . '</td><td>' . $this->typeLabel($b['type'])
+                . '</td><td class="num">' . $b['avgScore'] . ' / ' . $b['maxLevel']
+                . '</td><td class="num">' . $b['pct'] . '%</td></tr>';
+        }
+        if ($rows === '') {
+            $rows = '<tr><td colspan="4" class="muted">لا توجد درجات مُحتسَبة</td></tr>';
+        }
+
+        $li = fn ($items) => count($items)
+            ? '<ul>' . implode('', array_map(fn ($x) => '<li>' . e($x) . '</li>', $items)) . '</ul>'
+            : '<p class="muted">—</p>';
+        $strengths = $li($r->strengths ?? []);
+        $devAreas = $li($r->development_areas ?? []);
+
+        $fitBox = function ($label, $val) {
+            $v = $val === null ? '—' : $val . '%';
+            $w = $val === null ? 0 : max(0, min(100, $val));
+            return '<div class="fit"><div class="fit-h"><span>' . $label . '</span><b>' . $v . '</b></div>'
+                . '<div class="bar"><div class="bar-f" style="width:' . $w . '%"></div></div></div>';
+        };
+        $behBox = $fitBox('التوافق السلوكي/القيادي', $beh);
+        $techBox = $fitBox('التوافق الفني', $tech);
+
+        return <<<HTML
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<title>التقرير النهائي — {$code}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI","Noto Naskh Arabic",Tahoma,sans-serif; color:#1a2420; margin:0; background:#f0f2ef; }
+  .sheet { max-width: 820px; margin: 24px auto; background:#fff; padding: 40px 46px; box-shadow: 0 2px 20px rgba(0,0,0,.08); }
+  .print-bar { max-width:820px; margin: 16px auto 0; text-align:left; }
+  .print-bar button { font: inherit; padding: 8px 18px; border:0; border-radius:8px; background:#1f6b4a; color:#fff; cursor:pointer; }
+  .hd { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:3px solid #1f6b4a; padding-bottom:16px; }
+  .hd .org { font-weight:800; font-size:20px; color:#1f6b4a; }
+  .hd .sub { color:#5b6a62; font-size:13px; margin-top:4px; }
+  .hd .meta { text-align:left; font-size:13px; color:#5b6a62; }
+  h1 { font-size:22px; margin:26px 0 4px; }
+  .status { display:inline-block; font-size:12px; padding:3px 12px; border-radius:999px; background:#e5f0ea; color:#1f6b4a; font-weight:700; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:8px 28px; margin:18px 0; font-size:14px; }
+  .grid .k { color:#5b6a62; } .grid .v { font-weight:700; }
+  .fits { display:flex; gap:20px; margin:22px 0; }
+  .fit { flex:1; } .fit-h { display:flex; justify-content:space-between; font-size:14px; margin-bottom:6px; } .fit-h b{ color:#1f6b4a; }
+  .bar { height:10px; background:#e8ece9; border-radius:6px; overflow:hidden; } .bar-f { height:100%; background:#1f6b4a; }
+  h2 { font-size:15px; margin:24px 0 8px; color:#1f6b4a; border-right:4px solid #1f6b4a; padding-right:10px; }
+  table { width:100%; border-collapse:collapse; font-size:13.5px; }
+  th,td { text-align:right; padding:8px 10px; border-bottom:1px solid #e8ece9; }
+  th { color:#5b6a62; font-size:12px; background:#f6f8f6; } td.num { text-align:left; font-variant-numeric:tabular-nums; }
+  .rec { background:#f6f8f6; border-radius:10px; padding:14px 16px; font-weight:700; font-size:15px; }
+  ul { margin:6px 0; padding-inline-start:20px; } li { margin:3px 0; font-size:14px; }
+  .muted { color:#8a978f; }
+  .sign { display:flex; justify-content:space-between; margin-top:44px; gap:24px; }
+  .sign div { flex:1; text-align:center; font-size:13px; color:#5b6a62; }
+  .sign .line { margin-top:44px; border-top:1px solid #b9c4bd; padding-top:6px; }
+  @media print { body{ background:#fff; } .sheet{ box-shadow:none; margin:0; max-width:none; } .print-bar{ display:none; } @page{ margin:14mm; } }
+</style></head>
+<body>
+<div class="print-bar"><button onclick="window.print()">طباعة / حفظ PDF</button></div>
+<div class="sheet">
+  <div class="hd">
+    <div><div class="org">مركز كفاءات لتقييم القيادات</div><div class="sub">التقرير النهائي لتقييم الكفاءات</div></div>
+    <div class="meta">رمز المشارك: <b>{$code}</b><br>تاريخ الإصدار: {$date}</div>
+  </div>
+
+  <h1>{$name}</h1>
+  <span class="status">{$status}</span>
+
+  <div class="grid">
+    <div><span class="k">القطاع:</span> <span class="v">{$sector}</span></div>
+    <div><span class="k">الفئة القيادية:</span> <span class="v">{$tier}</span></div>
+  </div>
+
+  <div class="fits">
+    {$behBox}
+    {$techBox}
+  </div>
+
+  <h2>التوصية</h2>
+  <div class="rec">{$rec}</div>
+
+  <h2>نظرة عامة</h2>
+  <p>{$overview}</p>
+
+  <h2>تفصيل الكفاءات</h2>
+  <table><thead><tr><th>الكفاءة</th><th>النوع</th><th>المتوسط</th><th>النسبة</th></tr></thead>
+  <tbody>{$rows}</tbody></table>
+
+  <h2>مواطن القوة</h2>
+  {$strengths}
+  <h2>مجالات التطوير</h2>
+  {$devAreas}
+
+  <div class="sign">
+    <div><div class="line">المُقيّم</div></div>
+    <div><div class="line">مدير إدارة التقييم</div></div>
+    <div><div class="line">إدارة تطوير الكفاءات</div></div>
+  </div>
+</div>
+</body></html>
+HTML;
+    }
 }

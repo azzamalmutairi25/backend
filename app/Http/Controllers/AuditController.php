@@ -38,6 +38,8 @@ class AuditController extends Controller
         'APPROVE_REPORT' => 'اعتماد تقرير نهائي',
         'RETURN_REPORT' => 'إرجاع تقرير للتعديل',
         'RESUBMIT_REPORT' => 'إعادة إرسال تقرير',
+        'EXPORT_REPORT' => 'طباعة تقرير رسمي',
+        'EXPORT_REPORTS' => 'تصدير التقارير',
         'DENIED_REPORT_CLASSIFIED' => 'محاولة وصول لتقرير مصنّف',
         'CREATE_SCHEDULE' => 'جدولة جلسة',
         'UPDATE_SCHEDULE' => 'تعديل جلسة',

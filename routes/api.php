@@ -114,8 +114,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/reports/stats', [ReportController::class, 'stats']);
     Route::get('/reports/eligible-candidates', [ReportController::class, 'eligibleCandidates']);
     Route::get('/reports/score-preview', [ReportController::class, 'scorePreview']);
+    Route::get('/reports/export', [ReportController::class, 'exportCsv']);
     Route::post('/reports', [ReportController::class, 'store']);
     Route::get('/reports/{id}', [ReportController::class, 'show']);
+    Route::get('/reports/{id}/document', [ReportController::class, 'document']);
     Route::put('/reports/{id}', [ReportController::class, 'update']);
     Route::post('/reports/{id}/approve', [ReportController::class, 'approve']);
     Route::post('/reports/{id}/return', [ReportController::class, 'returnReport']);
