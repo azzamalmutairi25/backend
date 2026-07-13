@@ -9,11 +9,34 @@ use App\Models\ChatMessage;
 use App\Models\AuditLog;
 use App\Security\Permissions;
 use App\Services\NotificationService;
+use App\Services\ScoringService;
 use Illuminate\Http\Request;
 
 class ReportController extends Controller
 {
-    public function __construct(private NotificationService $notify) {}
+    public function __construct(
+        private NotificationService $notify,
+        private ScoringService $scoring,
+    ) {}
+
+    // GET /reports/score-preview?candidateId= — توافق مُحتسَب آلياً + تفصيل الكفاءات (لتعبئة التقرير)
+    public function scorePreview(Request $request)
+    {
+        if (!$request->user()->hasPermission(Permissions::REPORT_CREATE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية إنشاء تقرير'], 403);
+        }
+        $validated = $request->validate(['candidateId' => 'required|integer']);
+        $candidate = Candidate::whereIn('classification', $this->allowedClassifications($request))
+            ->find($validated['candidateId']);
+        if (!$candidate) {
+            return response()->json(['error' => 'المرشح غير موجود'], 404);
+        }
+        $assessment = $candidate->assessments()->orderByDesc('id')->first();
+        if (!$assessment) {
+            return response()->json(['error' => 'لا توجد دورة تقييم لهذا المرشح'], 422);
+        }
+        return response()->json($this->scoring->computeFit($assessment));
+    }
 
     private function allowedClassifications(Request $request): array
     {
@@ -209,12 +232,16 @@ class ReportController extends Controller
         }
 
         $submit = (bool) ($validated['submit'] ?? false);
+        // احتساب آلي من درجات الكفاءات؛ يُقبل التجاوز اليدوي إن أُرسلت القيمة صراحةً
+        $computed = $this->scoring->computeFit($assessment);
+        $behavioralFit = $validated['behavioralFit'] ?? $computed['behavioralFit'];
+        $technicalFit = $validated['technicalFit'] ?? $computed['technicalFit'];
         try {
             $report = FinalReport::create([
                 'candidate_id' => $candidate->id,
                 'assessment_id' => $assessment->id,
-                'behavioral_fit' => $validated['behavioralFit'] ?? null,
-                'technical_fit' => $validated['technicalFit'] ?? null,
+                'behavioral_fit' => $behavioralFit,
+                'technical_fit' => $technicalFit,
                 'recommendation' => $validated['recommendation'],
                 'overview_text' => $validated['overviewText'] ?? null,
                 'strengths' => $this->toList($validated['strengths'] ?? []),
