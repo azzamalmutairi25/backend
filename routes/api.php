@@ -12,6 +12,7 @@ use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\MeasurementController;
+use App\Http\Controllers\DevelopmentPlanController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\CommunicationController;
@@ -110,6 +111,13 @@ Route::middleware('auth:sanctum')->group(function () {
     // ═══ أدوات القياس ═══
     Route::get('/measurements/{candidateId}', [MeasurementController::class, 'show']);
     Route::post('/measurements', [MeasurementController::class, 'store']);
+
+    // ═══ خطة التطوير الفردية ═══
+    Route::get('/development-plans/{candidateId}', [DevelopmentPlanController::class, 'index']);
+    Route::post('/development-plans', [DevelopmentPlanController::class, 'store']);
+    Route::post('/development-plans/seed', [DevelopmentPlanController::class, 'seed']);
+    Route::put('/development-plan-items/{id}', [DevelopmentPlanController::class, 'update']);
+    Route::delete('/development-plan-items/{id}', [DevelopmentPlanController::class, 'destroy']);
 
     // ═══ الحضور ═══
     Route::get('/attendance/today', [AttendanceController::class, 'today']);
