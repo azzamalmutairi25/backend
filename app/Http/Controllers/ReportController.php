@@ -39,6 +39,25 @@ class ReportController extends Controller
         return response()->json($this->scoring->computeFit($assessment));
     }
 
+    // GET /reports/competency-gap?candidateId= — الفجوة مقابل المستوى المطلوب لفئة المرشّح
+    public function competencyGap(Request $request)
+    {
+        if (!$request->user()->hasPermission(Permissions::REPORT_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض التقارير'], 403);
+        }
+        $validated = $request->validate(['candidateId' => 'required|integer']);
+        $candidate = Candidate::whereIn('classification', $this->allowedClassifications($request))
+            ->find($validated['candidateId']);
+        if (!$candidate) {
+            return response()->json(['error' => 'المرشح غير موجود'], 404);
+        }
+        $assessment = $candidate->assessments()->orderByDesc('id')->first();
+        if (!$assessment) {
+            return response()->json(['error' => 'لا توجد دورة تقييم لهذا المرشح'], 422);
+        }
+        return response()->json($this->scoring->computeGap($assessment, $candidate->tier ?? 'middle'));
+    }
+
     private function allowedClassifications(Request $request): array
     {
         $canSeeClassified = $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED);
