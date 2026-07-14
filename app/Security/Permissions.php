@@ -22,7 +22,10 @@ class Permissions
     const SCHEDULE_MANAGE = 'schedule.manage';
 
     const ATTENDANCE_VIEW = 'attendance.view';
+    // تسجيل حضور الجلسات المُسنَدة للمستخدم (مقيّماً أو مساعداً) — «الذي يستقبله يسجّله»
     const ATTENDANCE_RECORD = 'attendance.record';
+    // تسجيل أي جلسة بلا إسناد — للاستقبال ومشرف القياس: يستقبلان من لا جلسة لهما فيه
+    const ATTENDANCE_RECORD_ANY = 'attendance.record_any';
 
     const EVALUATION_VIEW = 'evaluation.view';
     const EVALUATION_INPUT = 'evaluation.input';
@@ -76,10 +79,11 @@ class Permissions
                 self::SEND_INVITATION,
             ],
 
-            // مسؤول الاستقبال
+            // مسؤول الاستقبال — يستقبل كل داخل فيسجّل أي جلسة
             'RECEPTIONIST' => [
                 self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_NAMES,
-                self::ATTENDANCE_VIEW, self::ATTENDANCE_RECORD, self::SEND_INVITATION,
+                self::ATTENDANCE_VIEW, self::ATTENDANCE_RECORD, self::ATTENDANCE_RECORD_ANY,
+                self::SEND_INVITATION,
             ],
 
             // مدير إدارة التقييم — يكتب التقرير، ويعتمد المرحلة الثانية
@@ -119,9 +123,9 @@ class Permissions
                 self::REPORT_EXPORT, self::COMPETENCY_VIEW, self::COMPETENCY_MANAGE, self::ANALYTICS_VIEW,
             ],
 
-            // مشرف أدوات القياس
+            // مشرف أدوات القياس — يشرف على جلسات القياس كلها لا جلسة بعينها
             'MEASURE_SUPER' => [
-                self::CANDIDATE_VIEW, self::ATTENDANCE_VIEW, self::ATTENDANCE_RECORD,
+                self::CANDIDATE_VIEW, self::ATTENDANCE_VIEW, self::ATTENDANCE_RECORD, self::ATTENDANCE_RECORD_ANY,
                 self::MEASUREMENT_VIEW, self::MEASUREMENT_UPLOAD,
             ],
 

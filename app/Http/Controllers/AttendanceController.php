@@ -16,6 +16,20 @@ class AttendanceController extends Controller
         return $canSeeClassified ? ['normal', 'secret', 'top_secret'] : ['normal'];
     }
 
+    // ── من يستقبل المرشح يسجّل حضوره ──
+    // المقيّم/المساعد يسجّلان الجلسات المُسنَدة لهما وحدها؛ والاستقبال ومشرف
+    // القياس يسجّلان أي جلسة (ATTENDANCE_RECORD_ANY) لأنهما يستقبلان من لا
+    // إسناد لهما فيه. بلا هذا التمييز إمّا عجز المقيّم عن تسجيل جلسته، أو
+    // سجّل أيُّ مقيّم حضور مرشّح لم يره.
+    private function canRecordFor(Request $request, Schedule $schedule): bool
+    {
+        $user = $request->user();
+        if ($user->hasPermission(Permissions::ATTENDANCE_RECORD_ANY)) {
+            return true;
+        }
+        return $schedule->evaluator_id === $user->id || $schedule->assistant_id === $user->id;
+    }
+
     private function log(Request $request, string $action, int $entityId, array $details = []): void
     {
         AuditLog::create([
@@ -38,11 +52,13 @@ class AttendanceController extends Controller
         $today = now()->toDateString();
         $allowed = $this->allowedClassifications($request);
 
+        $canRecord = $request->user()->hasPermission(Permissions::ATTENDANCE_RECORD);
+
         $rows = Schedule::with(['candidate.sector', 'attendance'])
             ->whereDate('schedule_date', $today)
             ->whereHas('candidate', fn ($q) => $q->whereIn('classification', $allowed))
             ->get()
-            ->map(function ($sch) {
+            ->map(function ($sch) use ($request, $canRecord) {
                 $att = $sch->attendance; // eager-loaded — لا N+1
                 return [
                     'id' => $sch->id,
@@ -51,6 +67,8 @@ class AttendanceController extends Controller
                     'activity' => $sch->activity,
                     'status' => $att?->status ?? 'pending',
                     'checkInTime' => $att?->check_in_time?->format('H:i'),
+                    // الواجهة تُظهر الأزرار على هذا — الخادم يفرضه على أي حال
+                    'canRecord' => $canRecord && $this->canRecordFor($request, $sch),
                 ];
             });
 
@@ -97,6 +115,11 @@ class AttendanceController extends Controller
             return response()->json(['error' => 'الجدول غير موجود'], 404);
         }
 
+        if (!$this->canRecordFor($request, $schedule)) {
+            $this->log($request, 'DENIED_ATTENDANCE_NOT_ASSIGNED', $scheduleId);
+            return response()->json(['error' => 'هذه الجلسة ليست مُسنَدة لك'], 403);
+        }
+
         if ($schedule->schedule_date->toDateString() !== now()->toDateString()) {
             return response()->json(['error' => 'لا يمكن تسجيل الحضور إلا لجلسات اليوم'], 422);
         }
@@ -140,6 +163,11 @@ class AttendanceController extends Controller
         if (!in_array($schedule->candidate->classification, $this->allowedClassifications($request))) {
             $this->log($request, 'DENIED_ATTENDANCE_CLASSIFIED', $scheduleId);
             return response()->json(['error' => 'الجدول غير موجود'], 404);
+        }
+
+        if (!$this->canRecordFor($request, $schedule)) {
+            $this->log($request, 'DENIED_ATTENDANCE_NOT_ASSIGNED', $scheduleId);
+            return response()->json(['error' => 'هذه الجلسة ليست مُسنَدة لك'], 403);
         }
 
         if ($schedule->schedule_date->toDateString() !== now()->toDateString()) {
