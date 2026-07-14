@@ -85,6 +85,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/settings/sms', [SettingsController::class, 'saveSms']);
     // اختبار يرسل رسالة فعلية بتكلفة — يُخنق لمنع الاستنزاف
     Route::post('/settings/sms/test', [SettingsController::class, 'testSms'])->middleware('throttle:5,1');
+
+    Route::get('/settings/smtp', [SettingsController::class, 'getSmtp']);
+    Route::put('/settings/smtp', [SettingsController::class, 'saveSmtp']);
+    // اختبار يفتح اتصالاً خارجياً — يُخنق كنظيره في الرسائل
+    Route::post('/settings/smtp/test', [SettingsController::class, 'testSmtp'])->middleware('throttle:5,1');
     Route::get('/sectors', [SectorController::class, 'index']);
 
     // ═══ التقييم ═══
