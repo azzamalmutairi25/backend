@@ -35,7 +35,10 @@ class Permissions
     const REPORT_VIEW = 'report.view';
     const REPORT_CREATE = 'report.create';
     const REPORT_EDIT_ANY = 'report.edit_any';   // تعديل تقرير أنشأه غيره (مدير التقييم)
-    const REPORT_APPROVE = 'report.approve';
+    // سلسلة الاعتماد: صلاحية لكل مرحلة — المرحلة تحدَّد من حالة التقرير لا من الدور
+    const REPORT_APPROVE_EVALUATOR = 'report.approve_evaluator';   // اعتماد المقيّم (أولى)
+    const REPORT_APPROVE_MANAGER = 'report.approve_manager';       // اعتماد مدير إدارة التقييم
+    const REPORT_APPROVE = 'report.approve';                       // الاعتماد النهائي (تطوير الكفاءات)
     const REPORT_RETURN = 'report.return';
     const REPORT_EXPORT = 'report.export';
 
@@ -79,28 +82,34 @@ class Permissions
                 self::ATTENDANCE_VIEW, self::ATTENDANCE_RECORD, self::SEND_INVITATION,
             ],
 
-            // مدير إدارة التقييم
+            // مدير إدارة التقييم — يكتب التقرير، ويعتمد المرحلة الثانية
             'ASSESS_MANAGER' => [
                 self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_NAMES, self::CANDIDATE_VIEW_CLASSIFIED, self::CANDIDATE_JOURNEY, self::SCHEDULE_VIEW,
                 self::ATTENDANCE_VIEW, self::EVALUATION_VIEW, self::EVALUATION_APPROVE,
                 self::MEASUREMENT_VIEW, self::REPORT_VIEW, self::REPORT_CREATE,
-                self::REPORT_EDIT_ANY, self::REPORT_EXPORT, self::COMPETENCY_VIEW, self::ANALYTICS_VIEW,
+                self::REPORT_EDIT_ANY, self::REPORT_APPROVE_MANAGER, self::REPORT_RETURN,
+                self::REPORT_EXPORT, self::COMPETENCY_VIEW, self::ANALYTICS_VIEW,
             ],
 
-            // مستشار المقابلة
+            // مستشار المقابلة — يعتمد المرحلة الأولى، ويسجّل حضور جلساته
+            // لا يكتب التقرير: من يكتب لا يعتمد
             'EVALUATOR' => [
                 self::CANDIDATE_VIEW, self::EVALUATION_VIEW, self::EVALUATION_INPUT,
-                self::REPORT_VIEW, self::REPORT_CREATE,
+                self::ATTENDANCE_VIEW, self::ATTENDANCE_RECORD,
+                self::REPORT_VIEW, self::REPORT_APPROVE_EVALUATOR, self::REPORT_RETURN,
             ],
 
-            // مستشار حلقة النقاش
+            // مستشار حلقة النقاش — يسجّل حضور حلقاته
             'DISCUSSION_EVAL' => [
                 self::CANDIDATE_VIEW, self::EVALUATION_VIEW, self::EVALUATION_INPUT,
+                self::ATTENDANCE_VIEW, self::ATTENDANCE_RECORD,
             ],
 
-            // مساعد التقييم — يرصد فقط
+            // مساعد التقييم — يرصد، ويكتب التقرير، ويسجّل حضور جلساته
             'ASSISTANT' => [
-                self::CANDIDATE_VIEW, self::EVALUATION_VIEW, self::EVALUATION_ASSIST,
+                self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_NAMES, self::EVALUATION_VIEW, self::EVALUATION_ASSIST,
+                self::ATTENDANCE_VIEW, self::ATTENDANCE_RECORD,
+                self::MEASUREMENT_VIEW, self::REPORT_VIEW, self::REPORT_CREATE,
             ],
 
             // إدارة تطوير الكفاءات — الاعتماد النهائي

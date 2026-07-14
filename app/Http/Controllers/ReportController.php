@@ -15,6 +15,38 @@ use Illuminate\Http\Request;
 
 class ReportController extends Controller
 {
+    // ════════════════════════════════════════════════════════
+    //  سلسلة اعتماد التقرير
+    //    مسودة → المقيّم → مدير التقييم → تطوير الكفاءات → معتمد
+    //
+    //  المرحلة تُشتقّ من حالة التقرير لا من دور المستخدم — فالدور لا
+    //  يحدّد ماذا يعتمد، بل الحالة تحدّد من يملك اعتمادها.
+    // ════════════════════════════════════════════════════════
+    private const STAGES = [
+        'pending_evaluator' => [
+            'perm' => Permissions::REPORT_APPROVE_EVALUATOR,
+            'owner' => 'EVALUATOR',          // من يعتمد هذه المرحلة (لإشعاره عند وصولها)
+            'next' => 'pending_manager',
+            'label' => 'اعتماد المقيّم',
+        ],
+        'pending_manager' => [
+            'perm' => Permissions::REPORT_APPROVE_MANAGER,
+            'owner' => 'ASSESS_MANAGER',
+            'next' => 'pending_dev_approval',
+            'label' => 'اعتماد مدير إدارة التقييم',
+        ],
+        'pending_dev_approval' => [
+            'perm' => Permissions::REPORT_APPROVE,
+            'owner' => 'DEV_MANAGER',
+            'next' => 'approved',            // نهاية السلسلة — يُبلَّغ كاتب التقرير لا مرحلة تالية
+            'label' => 'الاعتماد النهائي',
+        ],
+    ];
+
+    public const PENDING_STATUSES = ['pending_evaluator', 'pending_manager', 'pending_dev_approval'];
+
+    private const FIRST_STAGE = 'pending_evaluator';
+
     public function __construct(
         private NotificationService $notify,
         private ScoringService $scoring,
@@ -92,7 +124,11 @@ class ReportController extends Controller
             ->whereHas('candidate', fn ($q) => $q->whereIn('classification', $this->allowedClassifications($request)));
 
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            // «pending» تعني السلسلة كاملة — تطابق ما يعدّه مؤشّر «معلّق» في اللوحة،
+            // وإلا فتح الرقمُ قائمةً أصغر منه
+            $request->status === 'pending'
+                ? $query->whereIn('status', self::PENDING_STATUSES)
+                : $query->where('status', $request->status);
         }
         // البحث بالهوية عبر الهاش المشفّر (لا نكشف رقم الهوية)
         if ($request->filled('nationalId')) {
@@ -134,9 +170,14 @@ class ReportController extends Controller
 
         return response()->json(['stats' => [
             'approved' => (clone $base)->where('status', 'approved')->count(),
-            'pending' => (clone $base)->where('status', 'pending_dev_approval')->count(),
+            // «معلّق» = السلسلة كاملة لا مرحلتها الأخيرة — وإلا أخفى المؤشّر تقارير عالقة
+            'pending' => (clone $base)->whereIn('status', self::PENDING_STATUSES)->count(),
             'draft' => (clone $base)->where('status', 'draft')->count(),
             'returned' => (clone $base)->where('status', 'returned')->count(),
+            // تفصيل المراحل — يُظهر أين تتكدّس التقارير فعلاً
+            'pendingEvaluator' => (clone $base)->where('status', 'pending_evaluator')->count(),
+            'pendingManager' => (clone $base)->where('status', 'pending_manager')->count(),
+            'pendingDev' => (clone $base)->where('status', 'pending_dev_approval')->count(),
         ]]);
     }
 
@@ -266,7 +307,7 @@ class ReportController extends Controller
                 'overview_text' => $validated['overviewText'] ?? null,
                 'strengths' => $this->toList($validated['strengths'] ?? []),
                 'development_areas' => $this->toList($validated['developmentAreas'] ?? []),
-                'status' => $submit ? 'pending_dev_approval' : 'draft',
+                'status' => $submit ? self::FIRST_STAGE : 'draft',
                 'created_by' => $request->user()->id,
             ]);
         } catch (\Illuminate\Database\QueryException $e) {
@@ -315,7 +356,7 @@ class ReportController extends Controller
             'overview_text' => $validated['overviewText'] ?? null,
             'strengths' => $this->toList($validated['strengths'] ?? []),
             'development_areas' => $this->toList($validated['developmentAreas'] ?? []),
-            'status' => $submit ? 'pending_dev_approval' : $report->status,
+            'status' => $submit ? self::FIRST_STAGE : $report->status,
         ]);
 
         if ($submit) {
@@ -333,27 +374,80 @@ class ReportController extends Controller
 
     public function approve(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::REPORT_APPROVE)) {
-            return response()->json(['error' => 'ليس لديك صلاحية الاعتماد النهائي'], 403);
-        }
-
         $report = FinalReport::with('candidate')->findOrFail($id);
 
+        // بوابة التصنيف قبل أي إفصاح عن حالة التقرير
         if (!in_array($report->candidate->classification, $this->allowedClassifications($request))) {
             $this->log($request, 'DENIED_REPORT_CLASSIFIED', $id);
             return response()->json(['error' => 'هذا التقرير لمرشح مصنّف'], 403);
         }
 
-        if ($report->status !== 'pending_dev_approval') {
-            return response()->json(['error' => 'لا يمكن اعتماد تقرير غير مُرسل للاعتماد'], 422);
+        $stage = self::STAGES[$report->status] ?? null;
+        if (!$stage) {
+            return response()->json(['error' => 'لا يمكن اعتماد تقرير في هذه الحالة'], 422);
         }
 
-        $report->update(['status' => 'approved']);
-        $report->candidate->setStatus('completed'); // يزامن حالة الدورة → تُتاح إعادة التقييم بدورة جديدة
+        $user = $request->user();
+        $skipped = false;
 
-        $this->log($request, 'APPROVE_REPORT', $id, ['candidate' => $report->candidate->participant_code]);
+        $from = $report->status;
 
-        return response()->json(['message' => 'تم اعتماد التقرير نهائياً']);
+        if ($user->hasPermission($stage['perm'])) {
+            $next = $stage['next'];
+        } elseif ($from === self::FIRST_STAGE && $user->hasPermission(Permissions::REPORT_APPROVE_MANAGER)) {
+            // تجاوز مقصود: مدير التقييم يعتمد مباشرة دون انتظار المقيّم.
+            // يقفز إلى ما بعد مرحلته هو (لا إليها) — وإلا اعتمد المدير مرحلته مرتين.
+            $next = self::STAGES['pending_manager']['next'];
+            $skipped = true;
+        } else {
+            return response()->json(['error' => 'ليس لديك صلاحية اعتماد هذه المرحلة'], 403);
+        }
+
+        $report->update(['status' => $next, 'escalated_at' => null]);
+
+        $final = $next === 'approved';
+        if ($final) {
+            // يزامن حالة الدورة → تُتاح إعادة التقييم بدورة جديدة
+            $report->candidate->setStatus('completed');
+        }
+
+        $this->notifyStage($report, $final ? null : self::STAGES[$next]['owner'], $final, $user->id);
+
+        $this->log($request, $skipped ? 'APPROVE_REPORT_SKIPPED_EVALUATOR' : 'APPROVE_REPORT', $id, [
+            'candidate' => $report->candidate->participant_code,
+            'stage' => $stage['label'],
+            'from' => $from,
+            'to' => $next,
+        ]);
+
+        return response()->json([
+            'message' => $final ? 'تم اعتماد التقرير نهائياً' : 'تم الاعتماد — أُحيل للمرحلة التالية',
+            'status' => $next,
+            'skippedEvaluator' => $skipped,
+        ]);
+    }
+
+    // إشعار المرحلة التالية، أو كاتب التقرير عند نهاية السلسلة
+    private function notifyStage(FinalReport $report, ?string $roleCode, bool $final, int $actorId): void
+    {
+        $code = $report->candidate->participant_code;
+
+        if ($final) {
+            if ($report->created_by) {
+                $this->notify->notify($report->created_by, 'report',
+                    'اعتُمد التقرير نهائياً',
+                    "اكتمل اعتماد تقرير المشارك {$code}",
+                    'report', (string) $report->id, $actorId);
+            }
+            return;
+        }
+
+        if ($roleCode) {
+            $this->notify->notifyRole($roleCode, 'approval',
+                'تقرير بانتظار اعتمادك',
+                "تقرير المشارك {$code} وصل مرحلتك",
+                'report', (string) $report->id, $actorId);
+        }
     }
 
     public function returnReport(Request $request, int $id)
@@ -375,8 +469,9 @@ class ReportController extends Controller
             return response()->json(['error' => 'هذا التقرير لمرشح مصنّف'], 403);
         }
 
-        // لا يُرجَع إلا تقرير مُرسل للاعتماد (منع إرجاع معتمد/مسودة → إفساد حالة المرشح)
-        if ($report->status !== 'pending_dev_approval') {
+        // لا يُرجَع إلا تقرير في إحدى مراحل الاعتماد (منع إرجاع معتمد/مسودة → إفساد حالة المرشح).
+        // أي مرحلة تُرجع: من يستطيع حجب التقرير يستطيع ردّه لصاحبه.
+        if (!in_array($report->status, self::PENDING_STATUSES, true)) {
             return response()->json(['error' => 'لا يمكن إرجاع تقرير غير مُرسل للاعتماد'], 422);
         }
 
@@ -434,10 +529,12 @@ class ReportController extends Controller
             return response()->json(['error' => 'التقرير ليس في حالة إرجاع'], 422);
         }
 
+        // يعود لأول السلسلة لا لآخرها: التعديل بعد الإرجاع يستحق مراجعة المراحل كلها
+        // من جديد، وإلا مرّ تغييرٌ جوهري باعتماد مرحلة واحدة.
         // تصفير التصعيد: حالة تأخّر جديدة قد تتطلّب تصعيداً لاحقاً
-        $report->update(['status' => 'pending_dev_approval', 'escalated_at' => null]);
+        $report->update(['status' => self::FIRST_STAGE, 'escalated_at' => null]);
 
-        $this->notify->notifyRole('DEV_MANAGER', 'approval',
+        $this->notify->notifyRole(self::STAGES[self::FIRST_STAGE]['owner'], 'approval',
             'تقرير معدّل بانتظار الاعتماد',
             'أُعيد إرسال تقرير بعد تعديله',
             'report', (string) $id, $request->user()->id);
@@ -516,7 +613,9 @@ class ReportController extends Controller
     {
         return [
             'draft' => 'مسودة',
-            'pending_dev_approval' => 'بانتظار الاعتماد',
+            'pending_evaluator' => 'بانتظار اعتماد المقيّم',
+            'pending_manager' => 'بانتظار اعتماد مدير التقييم',
+            'pending_dev_approval' => 'بانتظار الاعتماد النهائي',
             'returned' => 'مُعاد للتعديل',
             'approved' => 'معتمد',
         ][$s] ?? $s;

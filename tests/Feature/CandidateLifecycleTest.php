@@ -55,9 +55,19 @@ class CandidateLifecycleTest extends TestCase
             'candidateId' => $c->id, 'recommendation' => 'مرشّح قوي',
             'behavioralFit' => 88.5, 'technicalFit' => 77.0, 'submit' => true,
         ])->assertCreated()->json('reportId') ?? FinalReport::latest('id')->value('id');
-        $this->assertSame('pending_dev_approval', FinalReport::find($reportId)->status);
+        $this->assertSame('pending_evaluator', FinalReport::find($reportId)->status);
 
-        // 4) اعتماد التقرير: المرشح + الدورة → completed
+        // 4) سلسلة الاعتماد كاملة: المقيّم → مدير التقييم → تطوير الكفاءات
+        // (ADMIN يملك كل المراحل، فيمرّ بها واحدة واحدة لا دفعة واحدة)
+        $this->postJson("/api/reports/{$reportId}/approve")->assertOk();
+        $this->assertSame('pending_manager', FinalReport::find($reportId)->status);
+        $this->assertSame('assessed', $c->fresh()->status, 'المرشح لا يكتمل قبل نهاية السلسلة');
+
+        $this->postJson("/api/reports/{$reportId}/approve")->assertOk();
+        $this->assertSame('pending_dev_approval', FinalReport::find($reportId)->status);
+        $this->assertSame('assessed', $c->fresh()->status);
+
+        // 5) الاعتماد النهائي: المرشح + الدورة → completed
         $this->postJson("/api/reports/{$reportId}/approve")->assertOk();
         $this->assertSame('approved', FinalReport::find($reportId)->status);
         $this->assertSame('completed', $c->fresh()->status);
