@@ -65,7 +65,9 @@ class AnalyticsController extends Controller
                 'byClassification' => $this->fill($byClass, ['normal', 'secret', 'top_secret']),
             ],
             'reports' => [
-                'byStatus' => $this->fill($reportsByStatus, ['draft', 'pending_dev_approval', 'returned', 'approved']),
+                'byStatus' => $this->fill($reportsByStatus, [
+                    'draft', 'pending_evaluator', 'pending_manager', 'pending_dev_approval', 'returned', 'approved',
+                ]),
                 'avgBehavioralFit' => $this->round1((clone $approved)->avg('behavioral_fit')),
                 'avgTechnicalFit' => $this->round1((clone $approved)->avg('technical_fit')),
             ],

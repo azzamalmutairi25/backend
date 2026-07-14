@@ -48,14 +48,20 @@ class DailyMaintenance extends Command
             $reminders++;
         }
 
-        // 3) تصعيد التقارير المتأخرة (بانتظار الاعتماد أطول من المهلة)
+        // 3) تصعيد التقارير المتأخرة في أي مرحلة اعتماد
+        // كل مرحلة تُصعَّد لصاحبها هو — تقرير عالق عند المقيّم لا يفيد إشعار تطوير الكفاءات به
         $cutoff = now()->subDays((int) $this->option('days'));
         $escalated = 0;
-        // مرّة واحدة لكل حالة تأخّر (whereNull escalated_at) — يمنع إعادة إشعار DEV_MANAGER يومياً بلا حدّ
-        foreach (FinalReport::where('status', 'pending_dev_approval')
+        $owners = [
+            'pending_evaluator' => 'EVALUATOR',
+            'pending_manager' => 'ASSESS_MANAGER',
+            'pending_dev_approval' => 'DEV_MANAGER',
+        ];
+        // مرّة واحدة لكل حالة تأخّر (whereNull escalated_at) — يمنع إعادة الإشعار يومياً بلا حدّ
+        foreach (FinalReport::whereIn('status', array_keys($owners))
                      ->where('updated_at', '<', $cutoff)->whereNull('escalated_at')
                      ->with('candidate')->get() as $r) {
-            $notify->notifyRole('DEV_MANAGER', 'approval', 'تقرير متأخر بانتظار الاعتماد',
+            $notify->notifyRole($owners[$r->status], 'approval', 'تقرير متأخر بانتظار الاعتماد',
                 "تجاوز تقرير المشارك {$r->candidate->participant_code} مهلة الاعتماد — يرجى المراجعة",
                 'report', (string) $r->id, null);
             // طابع التصعيد دون لمس updated_at (query builder لا يشغّل طوابع Eloquent)
