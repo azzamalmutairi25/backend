@@ -80,6 +80,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/settings/ldap', [SettingsController::class, 'getLdap']);
     Route::put('/settings/ldap', [SettingsController::class, 'saveLdap']);
     Route::post('/settings/ldap/test', [SettingsController::class, 'testLdap']);
+
+    Route::get('/settings/sms', [SettingsController::class, 'getSms']);
+    Route::put('/settings/sms', [SettingsController::class, 'saveSms']);
+    // اختبار يرسل رسالة فعلية بتكلفة — يُخنق لمنع الاستنزاف
+    Route::post('/settings/sms/test', [SettingsController::class, 'testSms'])->middleware('throttle:5,1');
     Route::get('/sectors', [SectorController::class, 'index']);
 
     // ═══ التقييم ═══
