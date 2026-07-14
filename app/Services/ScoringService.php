@@ -57,9 +57,20 @@ class ScoringService
         ];
     }
 
+    private const TIERS = ['upper', 'middle'];
+
     // تحليل الفجوة: المستوى المُحقَّق مقابل المطلوب لفئة المرشّح، لكل كفاءة لها مستوى مطلوب
     public function computeGap(Assessment $assessment, string $tier): array
     {
+        // فئة مجهولة كانت تقع صامتة على target_middle ثم تُعاد كما هي في الرد،
+        // فينتج ردّ يقول tier=X بأرقام middle. الفئة تأتي من classifyTier (upper|middle)
+        // فهذا خطأ برمجي لا مُدخَل مستخدم — يُرفض بدل أن يُخمَّن.
+        if (!in_array($tier, self::TIERS, true)) {
+            throw new \InvalidArgumentException(
+                "فئة قيادية غير معروفة: '{$tier}'. المسموح: " . implode(', ', self::TIERS)
+            );
+        }
+
         $targetCol = $tier === 'upper' ? 'target_upper' : 'target_middle';
         $competencies = Competency::whereNotNull($targetCol)->orderBy('sort_order')->get();
 
