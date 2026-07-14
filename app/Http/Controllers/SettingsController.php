@@ -246,4 +246,142 @@ class SettingsController extends Controller
             ? ['success' => true, 'message' => 'تم إرسال رسالة الاختبار — تحقّق من الجوال']
             : ['success' => false, 'message' => 'فشل الإرسال — راجع سجل الرسائل للتفاصيل']);
     }
+
+    // ════════════════ خادم البريد (SMTP) ════════════════
+
+    public function getSmtp(Request $request)
+    {
+        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
+        }
+
+        $c = CommunicationService::smtpConfig();
+
+        // كلمة المرور لا تُعاد أبداً — فقط ما إذا كانت مضبوطة
+        return response()->json(['smtp' => [
+            'enabled' => $c['enabled'],
+            'host' => $c['host'],
+            'port' => $c['port'],
+            'encryption' => $c['encryption'],
+            'username' => $c['username'],
+            'fromAddress' => $c['fromAddress'],
+            'fromName' => $c['fromName'],
+            'passwordSet' => $c['password'] !== '',
+        ]]);
+    }
+
+    public function saveSmtp(Request $request)
+    {
+        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
+        }
+
+        $validated = $request->validate([
+            'enabled' => 'required|boolean',
+            'host' => 'required_if:enabled,true|nullable|string|max:255',
+            'port' => 'required_if:enabled,true|nullable|integer|min:1|max:65535',
+            'encryption' => 'required_if:enabled,true|nullable|in:tls,ssl,none',
+            'username' => 'nullable|string|max:255',
+            'password' => 'nullable|string|max:500',
+            'fromAddress' => 'required_if:enabled,true|nullable|email|max:255',
+            'fromName' => 'nullable|string|max:100',
+        ], [
+            'host.required_if' => 'عنوان الخادم مطلوب عند التفعيل',
+            'port.required_if' => 'المنفذ مطلوب عند التفعيل',
+            'fromAddress.required_if' => 'عنوان المرسِل مطلوب عند التفعيل',
+            'fromAddress.email' => 'عنوان المرسِل يجب أن يكون بريداً صحيحاً',
+        ]);
+
+        // كلمة مرور فارغة = «أبقِ الحالية» — الواجهة لا تملكها لتعيد إرسالها
+        $newPass = (string) ($validated['password'] ?? '');
+        $hasExisting = CommunicationService::smtpConfig()['password'] !== '';
+
+        $map = [
+            'smtp.enabled' => $validated['enabled'] ? 'true' : 'false',
+            'smtp.host' => $validated['host'] ?? '',
+            'smtp.port' => (string) ($validated['port'] ?? 587),
+            'smtp.encryption' => $validated['encryption'] ?? 'tls',
+            'smtp.username' => $validated['username'] ?? '',
+            'smtp.from_address' => $validated['fromAddress'] ?? '',
+            'smtp.from_name' => $validated['fromName'] ?? '',
+        ];
+        if ($newPass !== '') {
+            $map['smtp.password'] = Crypt::encryptString($newPass);
+        }
+
+        DB::transaction(function () use ($map, $validated, $request, $newPass) {
+            foreach ($map as $key => $value) {
+                Setting::updateOrCreate(
+                    ['key' => $key],
+                    ['value' => $value, 'description' => 'إعداد خادم البريد', 'updated_at' => now()]
+                );
+            }
+
+            AuditLog::create([
+                'user_id' => $request->user()->id,
+                'action' => 'UPDATE_SMTP_SETTINGS',
+                'entity_type' => 'settings',
+                'entity_id' => '0',
+                // لا تُسجَّل كلمة المرور — فقط ما إذا استُبدلت
+                'details' => ['enabled' => $validated['enabled'], 'passwordReplaced' => $newPass !== ''],
+                'ip_address' => $request->ip(),
+                'created_at' => now(),
+            ]);
+        });
+
+        // خادم مُفعَّل بلا كلمة مرور قد يكون صحيحاً (مُرحِّل داخلي بلا مصادقة) — تنبيه لا رفض
+        $warn = ($validated['enabled'] && $newPass === '' && !$hasExisting && ($validated['username'] ?? '') !== '')
+            ? ' — تنبيه: اسم مستخدم بلا كلمة مرور'
+            : '';
+
+        return response()->json(['message' => 'تم حفظ إعدادات خادم البريد' . $warn]);
+    }
+
+    public function testSmtp(Request $request)
+    {
+        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية'], 403);
+        }
+
+        $validated = $request->validate(['email' => 'required|email|max:255']);
+
+        AuditLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'TEST_SMTP',
+            'entity_type' => 'settings',
+            'entity_id' => '0',
+            'details' => ['email' => $validated['email']],
+            'ip_address' => $request->ip(),
+            'created_at' => now(),
+        ]);
+
+        $c = CommunicationService::smtpConfig();
+        if (!$c['enabled'] || $c['host'] === '') {
+            return response()->json([
+                'success' => false,
+                'message' => 'خادم البريد غير مفعّل أو غير مكتمل — احفظ الإعدادات أولاً',
+            ]);
+        }
+
+        $ok = app(CommunicationService::class)->sendEmail(
+            $validated['email'],
+            null,
+            'رسالة اختبار — منصة مركز تمكين الكفاءات',
+            "هذه رسالة اختبار من منصة مركز تمكين الكفاءات.\nوصولها يعني أن إعدادات خادم البريد صحيحة.",
+            'notification',
+            null,
+            $request->user()->id
+        );
+
+        if ($ok) {
+            return response()->json(['success' => true, 'message' => 'تم إرسال رسالة الاختبار — تحقّق من البريد']);
+        }
+
+        // سبب الفشل مكتوب في السجل — أعِده ليرى المشرف الخطأ الحقيقي بدل «فشل» مبهمة
+        $err = \App\Models\EmailLog::latest('id')->first()?->error_message;
+        return response()->json([
+            'success' => false,
+            'message' => 'فشل الإرسال' . ($err ? ': ' . mb_substr($err, 0, 180) : ' — راجع سجل البريد'),
+        ]);
+    }
 }
