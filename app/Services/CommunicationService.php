@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\EmailLog;
 use App\Models\SmsLog;
 use App\Models\Setting;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Http;
 
@@ -14,6 +16,44 @@ use Illuminate\Support\Facades\Http;
 
 class CommunicationService
 {
+    public const GATEWAY_KEYS = [
+        'sms.enabled', 'sms.url', 'sms.key', 'sms.sender_id', 'sms.support_phone',
+    ];
+
+    // ── إعداد بوّابة الرسائل: جدول settings أولاً، ثم متغيّرات البيئة ──
+    // الرجوع للبيئة يُبقي التنصيبات القائمة (المضبوطة عبر .env) شغّالة بلا تدخّل.
+    public static function gatewayConfig(): array
+    {
+        $s = Setting::whereIn('key', self::GATEWAY_KEYS)->pluck('value', 'key');
+
+        // المفتاح مُخزَّن مشفّراً — لا يُترك واضحاً في القاعدة ولا في النسخ الاحتياطية
+        $key = (string) ($s->get('sms.key') ?? '');
+        if ($key !== '') {
+            try {
+                $key = Crypt::decryptString($key);
+            } catch (\Throwable $e) {
+                // مفتاح تطبيق تغيّر أو قيمة تالفة — عطّل الإرسال بدل المحاولة بمفتاح خاطئ
+                Log::warning('sms gateway key decrypt failed: ' . $e->getMessage());
+                $key = '';
+            }
+        }
+
+        $url = (string) ($s->get('sms.url') ?: config('services.sms.url', ''));
+        $key = $key ?: (string) config('services.sms.key', '');
+
+        // لا مفتاح «enabled» مخزَّن (تنصيب سابق لصفحة الإعدادات) => استنتجه من اكتمال الإعداد
+        $enabled = $s->has('sms.enabled')
+            ? $s->get('sms.enabled') === 'true'
+            : ($url !== '' && $key !== '');
+
+        return [
+            'enabled' => $enabled,
+            'url' => $url,
+            'key' => $key,
+            'sender' => (string) ($s->get('sms.sender_id') ?: config('services.sms.sender_id', 'Kafaat')),
+            'support' => (string) ($s->get('sms.support_phone') ?? config('services.sms.support_phone', '')),
+        ];
+    }
     // ════════════════ البريد الإلكتروني ════════════════
 
     // ── إرسال دعوة بالبريد ──
@@ -89,7 +129,7 @@ class CommunicationService
     {
         $template = Setting::find('sms.invitation.template')?->value
             ?? 'لديك جلسة تقييم بتاريخ {date} الساعة {time}';
-        $phone = config('services.sms.support_phone', '');
+        $phone = self::gatewayConfig()['support'];
 
         $message = strtr($template, [
             '{date}' => $data['date'] ?? '',
@@ -125,26 +165,29 @@ class CommunicationService
         }
 
         try {
-            $apiUrl = config('services.sms.url');
-            $apiKey = config('services.sms.key');
+            $g = self::gatewayConfig();
 
-            if (empty($apiUrl) || empty($apiKey)) {
-                // وضع التطوير: لا مزوّد مُعدّ
+            if (!$g['enabled'] || $g['url'] === '' || $g['key'] === '') {
+                // وضع التطوير: البوّابة معطّلة أو غير مكتملة
                 $log->update([
                     'status' => 'sent',
                     'sent_at' => now(),
-                    'error_message' => '(وضع التطوير: لم تُرسل فعلياً - أعدّ مزوّد الرسائل)',
+                    'error_message' => '(وضع التطوير: لم تُرسل فعلياً - أعدّ بوّابة الرسائل)',
                 ]);
                 return true;
             }
 
-            // الاتصال بمزوّد الرسائل (مثال عام يصلح لمعظم المزوّدين مثل Unifonic)
-            $response = Http::asJson()->post($apiUrl, [
-                'appSid' => $apiKey,
-                'sender' => config('services.sms.sender_id', 'Kafaat'),
-                'recipient' => $toMobile,
-                'body' => $message,
-            ]);
+            // الاتصال ببوّابة الرسائل (شكل عام يصلح لمعظم المزوّدين مثل Unifonic)
+            // مهلة صريحة: بوّابة معلّقة يجب ألا توقف خيط الطلب حتى المهلة الافتراضية (30ث)
+            $response = Http::asJson()
+                ->connectTimeout(5)
+                ->timeout(10)
+                ->post($g['url'], [
+                    'appSid' => $g['key'],
+                    'sender' => $g['sender'],
+                    'recipient' => $toMobile,
+                    'body' => $message,
+                ]);
 
             if ($response->successful()) {
                 $log->update([
