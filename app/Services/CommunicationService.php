@@ -51,17 +51,22 @@ class CommunicationService
         ?int $candidateId,
         ?int $createdBy
     ): bool {
-        // تسجيل في السجل أولاً
-        $log = EmailLog::create([
-            'to_email' => $toEmail,
-            'to_name' => $toName,
-            'subject' => $subject,
-            'body' => $body,
-            'email_type' => $emailType,
-            'candidate_id' => $candidateId,
-            'status' => 'pending',
-            'created_by' => $createdBy,
-        ]);
+        // كتابة السجل داخل try — فشل التسجيل يُنهي الإرسال بلطف (false) بدل تصعيد 500 لطرف النداء
+        try {
+            $log = EmailLog::create([
+                'to_email' => $toEmail,
+                'to_name' => $toName,
+                'subject' => $subject,
+                'body' => $body,
+                'email_type' => $emailType,
+                'candidate_id' => $candidateId,
+                'status' => 'pending',
+                'created_by' => $createdBy,
+            ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('email log write failed: ' . $e->getMessage());
+            return false;
+        }
 
         try {
             // إرسال فعلي عبر Laravel Mail
