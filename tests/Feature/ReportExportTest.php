@@ -32,7 +32,7 @@ class ReportExportTest extends TestCase
         $res = $this->get("/api/reports/{$report->id}/document")->assertOk();
         $res->assertHeader('Content-Type', 'text/html; charset=UTF-8');
         $html = $res->getContent();
-        $this->assertStringContainsString('مركز كفاءات', $html);
+        $this->assertStringContainsString('مركز تمكين الكفاءات لتقييم القيادات', $html);
         $this->assertStringContainsString($c->participant_code, $html);
         $this->assertStringContainsString('التوصية', $html);
         $this->assertStringContainsString('مرشّح قوي', $html);

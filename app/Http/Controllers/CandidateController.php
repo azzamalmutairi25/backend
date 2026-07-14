@@ -207,7 +207,7 @@ class CandidateController extends Controller
         }
         $link = rtrim(config('app.frontend_url'), '/') . '/confirm/' . $assessment->confirm_token;
         $name = $candidate->full_name ?: 'المرشح';
-        $message = "عزيزي {$name}، تم تسجيلك في مركز كفاءات لتقييم القيادات."
+        $message = "عزيزي {$name}، تم تسجيلك في مركز تمكين الكفاءات لتقييم القيادات."
             . " رمز المشارك: {$assessment->participant_code}."
             . " لتأكيد بياناتك وتسجيل الوصول: {$link}";
 
