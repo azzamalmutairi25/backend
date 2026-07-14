@@ -53,7 +53,7 @@ class CommunicationController extends Controller
 
         // إرسال البريد
         if (($validated['sendEmail'] ?? false) && $candidate->email) {
-            $ok = $this->comm->sendInvitationEmail($candidate->id, $candidate->email, null, $data, $userId);
+            $ok = $this->comm->sendInvitationEmail($candidate->id, $candidate->email, $candidate->full_name, $data, $userId);
             $results[] = $ok ? 'تم إرسال البريد' : 'فشل إرسال البريد';
         }
 
