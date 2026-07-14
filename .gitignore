@@ -21,3 +21,7 @@ yarn-error.log
 /.zed
 *.log
 .DS_Store
+/.claude
+*.backup
+# نسخة قديمة من الخلفية بمستودع git خاص — المعتمَد هو backend-new نفسه
+/backend
