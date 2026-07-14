@@ -612,7 +612,7 @@ class ReportController extends Controller
 <div class="print-bar"><button onclick="window.print()">طباعة / حفظ PDF</button></div>
 <div class="sheet">
   <div class="hd">
-    <div><div class="org">مركز كفاءات لتقييم القيادات</div><div class="sub">التقرير النهائي لتقييم الكفاءات</div></div>
+    <div><div class="org">مركز تمكين الكفاءات لتقييم القيادات</div><div class="sub">التقرير النهائي لتقييم الكفاءات</div></div>
     <div class="meta">رمز المشارك: <b>{$code}</b><br>تاريخ الإصدار: {$date}</div>
   </div>
 

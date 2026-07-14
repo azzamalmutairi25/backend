@@ -85,7 +85,7 @@ class DatabaseSeeder extends Seeder
         // ── الإعدادات (قوالب البريد والرسائل) ──
         DB::table('settings')->insert([
             ['key' => 'email.invitation.subject', 'value' => 'دعوة لجلسة تقييم الكفاءات القيادية', 'description' => 'عنوان بريد الدعوة', 'updated_at' => now()],
-            ['key' => 'sms.invitation.template', 'value' => 'مركز الكفاءات: لديك جلسة تقييم بتاريخ {date} الساعة {time} في {location}', 'description' => 'قالب رسالة الدعوة', 'updated_at' => now()],
+            ['key' => 'sms.invitation.template', 'value' => 'مركز تمكين الكفاءات: لديك جلسة تقييم بتاريخ {date} الساعة {time} في {location}', 'description' => 'قالب رسالة الدعوة', 'updated_at' => now()],
         ]);
 
         echo "✓ تمت تعبئة البيانات الأولية\n";
