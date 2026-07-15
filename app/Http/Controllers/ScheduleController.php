@@ -63,6 +63,12 @@ class ScheduleController extends Controller
         $query = Schedule::with(['candidate.sector', 'attendance', 'evaluator', 'assistant'])
             ->whereHas('candidate', fn ($q) => $q->whereIn('classification', $allowed));
 
+        // المحصور بقطاع يرى جلسات قطاعه وحدها
+        $user = $request->user();
+        if ($user->isSectorBound()) {
+            $query->whereHas('candidate', fn ($q) => $q->where('sector_id', $user->sector_id));
+        }
+
         if (!empty($validated['date']))        { $query->whereDate('schedule_date', $validated['date']); }
         if (!empty($validated['activity']))    { $query->where('activity', $validated['activity']); }
         if (!empty($validated['candidateId'])) { $query->where('candidate_id', $validated['candidateId']); }
@@ -103,6 +109,62 @@ class ScheduleController extends Controller
     }
 
     // POST /schedules — جدولة جلسة لمرشّح ضمن دورته الحالية
+    // ── حدّ القطاع عند التوزيع ──
+    // كل مقيّم ومساعد مخصَّص لقطاع ولا يُقيّم غيره. الإسناد عبر القطاعات يُمنع،
+    // ولا يمرّ إلا لحامل CROSS_SECTOR_ASSIGN وبعد تأكيد صريح (confirmCrossSector).
+    // يرجع خطأً جاهزاً للرد، أو null إن كان الإسناد سليماً.
+    private function crossSectorError(Request $request, Candidate $candidate, array $validated): ?array
+    {
+        $offenders = [];
+
+        foreach (['evaluatorId' => 'المقيّم', 'assistantId' => 'المساعد'] as $key => $label) {
+            $id = $validated[$key] ?? null;
+            if (!$id) {
+                continue;
+            }
+            $u = User::with(['role', 'sector'])->find($id);
+            if (!$u || $u->coversSector($candidate->sector_id)) {
+                continue;
+            }
+            $offenders[] = $label . ' «' . $u->full_name . '» ('
+                . ($u->sector?->name_ar ?? 'بلا قطاع') . ')';
+        }
+
+        if (!$offenders) {
+            return null;
+        }
+
+        $sector = $candidate->sector?->name_ar ?? '—';
+        $warning = 'تنبيه: هذا المرشح ليس من نفس القطاع. المرشّح من قطاع «' . $sector
+            . '» بينما ' . implode(' و', $offenders) . '.';
+
+        if (!$request->user()->hasPermission(Permissions::CROSS_SECTOR_ASSIGN)) {
+            return ['body' => ['error' => $warning . ' الإسناد عبر القطاعات يتطلّب صلاحية إدارة المرشحين.'], 'status' => 403];
+        }
+
+        // يملك الصلاحية لكنه لم يؤكّد بعد — أعِد التحذير ليُعرض قبل التوزيع
+        if (!$request->boolean('confirmCrossSector')) {
+            return ['body' => [
+                'error' => $warning,
+                'requiresConfirmation' => true,
+                'confirmField' => 'confirmCrossSector',
+            ], 'status' => 409];
+        }
+
+        return null; // أكّد وهو يملك الصلاحية — يمرّ، ويُدوَّن التجاوز عند الحفظ
+    }
+
+    private function isCrossSector(Request $request, Candidate $candidate, array $validated): bool
+    {
+        foreach (['evaluatorId', 'assistantId'] as $key) {
+            $id = $validated[$key] ?? null;
+            if ($id && ($u = User::with('role')->find($id)) && !$u->coversSector($candidate->sector_id)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public function store(Request $request)
     {
         if (!$request->user()->hasPermission(Permissions::SCHEDULE_MANAGE)) {
@@ -129,6 +191,11 @@ class ScheduleController extends Controller
             return response()->json(['error' => 'لا توجد دورة تقييم نشطة للمرشّح'], 422);
         }
 
+        if ($err = $this->crossSectorError($request, $candidate, $validated)) {
+            return response()->json($err['body'], $err['status']);
+        }
+        $crossed = $this->isCrossSector($request, $candidate, $validated);
+
         $schedule = Schedule::create([
             'candidate_id' => $candidate->id,
             'assessment_id' => $assessment->id,
@@ -140,13 +207,19 @@ class ScheduleController extends Controller
             'location' => $validated['location'] ?? null,
         ]);
 
-        $this->log($request, 'CREATE_SCHEDULE', $schedule->id, [
+        // التجاوز يُدوَّن بفعل مستقل — تجاوز حدّ القطاع يجب أن يكون مرئياً في التدقيق
+        $this->log($request, $crossed ? 'CREATE_SCHEDULE_CROSS_SECTOR' : 'CREATE_SCHEDULE', $schedule->id, [
             'candidate' => $candidate->participant_code,
             'activity' => $schedule->activity,
             'date' => $validated['date'],
+            'candidateSector' => $candidate->sector?->code,
         ]);
 
-        return response()->json(['message' => 'تمت جدولة الجلسة', 'scheduleId' => $schedule->id], 201);
+        return response()->json([
+            'message' => 'تمت جدولة الجلسة',
+            'scheduleId' => $schedule->id,
+            'crossSector' => $crossed,
+        ], 201);
     }
 
     // PUT /schedules/{id} — تعديل جلسة (يُمنع بعد تسجيل الحضور تفادياً للتنافر)
@@ -169,6 +242,12 @@ class ScheduleController extends Controller
 
         $validated = $request->validate($this->rules(false));
 
+        // إعادة الإسناد تمرّ بنفس حدّ القطاع — وإلا التفّ التوزيع عبر التعديل
+        if ($err = $this->crossSectorError($request, $schedule->candidate, $validated)) {
+            return response()->json($err['body'], $err['status']);
+        }
+        $crossed = $this->isCrossSector($request, $schedule->candidate, $validated);
+
         if (isset($validated['activity']))  { $schedule->activity = $validated['activity']; }
         if (isset($validated['date']))      { $schedule->schedule_date = $validated['date']; }
         if (array_key_exists('time', $validated))        { $schedule->schedule_time = $validated['time']; }
@@ -177,9 +256,11 @@ class ScheduleController extends Controller
         if (array_key_exists('assistantId', $validated)) { $schedule->assistant_id = $validated['assistantId']; }
         $schedule->save();
 
-        $this->log($request, 'UPDATE_SCHEDULE', $schedule->id, ['activity' => $schedule->activity]);
+        $this->log($request, $crossed ? 'UPDATE_SCHEDULE_CROSS_SECTOR' : 'UPDATE_SCHEDULE', $schedule->id, [
+            'activity' => $schedule->activity,
+        ]);
 
-        return response()->json(['message' => 'تم تحديث الجلسة']);
+        return response()->json(['message' => 'تم تحديث الجلسة', 'crossSector' => $crossed]);
     }
 
     // DELETE /schedules/{id} — حذف جلسة (يُمنع بعد تسجيل الحضور)

@@ -554,10 +554,16 @@ class ReportController extends Controller
         if (!in_array($r->candidate->classification, $this->allowedClassifications($request), true)) {
             return response()->json(['error' => 'التقرير غير موجود'], 404);
         }
-        $canSeeNames = $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_NAMES);
+        // المستند المطبوع يحمل الاسم لحاملي REPORT_VIEW_NAMES وحدهم (مدير النظام
+        // ومدير المركز) — لا لكل من يملك رؤية الأسماء في الشاشات. المستند يُطبع
+        // ويخرج من النظام، فحدّه أضيق.
+        $canSeeNames = $request->user()->hasPermission(Permissions::REPORT_VIEW_NAMES);
         $fit = $this->scoring->computeFit($r->assessment);
         $measurement = MeasurementResult::where('assessment_id', $r->assessment_id)->first();
-        $this->log($request, 'EXPORT_REPORT', $id, ['code' => $r->candidate->participant_code]);
+        $this->log($request, 'EXPORT_REPORT', $id, [
+            'code' => $r->candidate->participant_code,
+            'named' => $canSeeNames, // يُدوَّن من أخرج مستنداً يحمل الاسم
+        ]);
 
         return response($this->renderDocument($r, $fit, $canSeeNames, $measurement), 200)
             ->header('Content-Type', 'text/html; charset=UTF-8');

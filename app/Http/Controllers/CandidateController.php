@@ -30,6 +30,13 @@ class CandidateController extends Controller
         $query = Candidate::with('sector');
         $query->whereIn('classification', $this->allowedClassifications($request));
 
+        // المستخدم المحصور بقطاع لا يرى غير مرشحيه — الحصر قبل أي فلتر يطلبه هو،
+        // فلا يوسّعه بتمرير sectorId لقطاع آخر
+        $user = $request->user();
+        if ($user->isSectorBound()) {
+            $query->where('sector_id', $user->sector_id);
+        }
+
         if ($request->filled('status')) {
             // يدعم قيمة واحدة أو عدّة حالات مفصولة بفواصل (مثل: scheduled,assessed)
             $query->whereIn('status', explode(',', $request->status));

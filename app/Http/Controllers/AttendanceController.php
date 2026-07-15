@@ -54,9 +54,14 @@ class AttendanceController extends Controller
 
         $canRecord = $request->user()->hasPermission(Permissions::ATTENDANCE_RECORD);
 
+        $user = $request->user();
+
         $rows = Schedule::with(['candidate.sector', 'attendance'])
             ->whereDate('schedule_date', $today)
             ->whereHas('candidate', fn ($q) => $q->whereIn('classification', $allowed))
+            // المحصور بقطاع لا يرى حضور قطاع آخر
+            ->when($user->isSectorBound(), fn ($q) => $q->whereHas('candidate',
+                fn ($c) => $c->where('sector_id', $user->sector_id)))
             ->get()
             ->map(function ($sch) use ($request, $canRecord) {
                 $att = $sch->attendance; // eager-loaded — لا N+1
@@ -83,8 +88,12 @@ class AttendanceController extends Controller
 
         $today = now()->toDateString();
         $allowed = $this->allowedClassifications($request);
+        $user = $request->user();
+        // نفس حصر القطاع في today() — وإلا عدّ المؤشّر ما لا تعرضه القائمة
         $scheduleIds = Schedule::whereDate('schedule_date', $today)
             ->whereHas('candidate', fn ($q) => $q->whereIn('classification', $allowed))
+            ->when($user->isSectorBound(), fn ($q) => $q->whereHas('candidate',
+                fn ($c) => $c->where('sector_id', $user->sector_id)))
             ->pluck('id');
         $total = $scheduleIds->count();
         $present = Attendance::whereIn('schedule_id', $scheduleIds)->where('status', 'present')->count();

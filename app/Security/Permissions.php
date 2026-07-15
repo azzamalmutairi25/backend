@@ -17,6 +17,8 @@ class Permissions
     const CANDIDATE_VIEW_NAMES = 'candidate.view_names';   // رؤية الأسماء (حساس)
     const CANDIDATE_VIEW_CLASSIFIED = 'candidate.view_classified';   // رؤية المرشحين السرّيين
     const CANDIDATE_JOURNEY = 'candidate.journey';   // عرض رحلة المرشح (الخط الزمني)
+    // إسناد مرشّح لمقيّم من قطاع آخر — الأصل أن كل مقيّم لقطاعه
+    const CROSS_SECTOR_ASSIGN = 'candidate.cross_sector';
 
     const SCHEDULE_VIEW = 'schedule.view';
     const SCHEDULE_MANAGE = 'schedule.manage';
@@ -44,6 +46,8 @@ class Permissions
     const REPORT_APPROVE = 'report.approve';                       // الاعتماد النهائي (تطوير الكفاءات)
     const REPORT_RETURN = 'report.return';
     const REPORT_EXPORT = 'report.export';
+    // اسم المرشّح في المستند المطبوع — لا يراه غير حامل هذه الصلاحية، ولو ملك رؤية الأسماء
+    const REPORT_VIEW_NAMES = 'report.view_names';
 
     const COMPETENCY_VIEW = 'competency.view';
     const COMPETENCY_MANAGE = 'competency.manage';
@@ -64,17 +68,21 @@ class Permissions
             // مدير النظام — كل الصلاحيات
             'ADMIN' => ['*'],
 
-            // مدير المركز — إشراف عام (عرض)
+            // مدير المركز — إشراف عام (عرض)، وهو أحد اثنين يريان الاسم في المستند المطبوع.
+            // بلا CANDIDATE_VIEW_NAMES: الاسم محجوب عنه في الشاشات كغيره؛ الاستثناء
+            // للمستند وحده لأنه وثيقة رسمية تُوقَّع، لا لتصفّح بيانات المرشحين.
             'CENTER_MANAGER' => [
-                self::CANDIDATE_VIEW, self::CANDIDATE_JOURNEY, self::SCHEDULE_VIEW, self::ATTENDANCE_VIEW,
+                self::CANDIDATE_VIEW, self::CANDIDATE_JOURNEY,
+                self::SCHEDULE_VIEW, self::ATTENDANCE_VIEW,
                 self::EVALUATION_VIEW, self::MEASUREMENT_VIEW, self::REPORT_VIEW,
-                self::REPORT_EXPORT, self::COMPETENCY_VIEW, self::AUDIT_VIEW, self::ANALYTICS_VIEW,
+                self::REPORT_VIEW_NAMES, self::REPORT_EXPORT, self::COMPETENCY_VIEW,
+                self::AUDIT_VIEW, self::ANALYTICS_VIEW,
             ],
 
-            // مسؤول الجدولة
+            // مسؤول الجدولة — يملك إدارة المرشحين، فله وحده تجاوز حدّ القطاع (بتحذير وتدقيق)
             'SCHEDULER' => [
                 self::CANDIDATE_VIEW, self::CANDIDATE_CREATE, self::CANDIDATE_EDIT,
-                self::CANDIDATE_APPROVE, self::CANDIDATE_VIEW_NAMES,
+                self::CANDIDATE_APPROVE, self::CANDIDATE_VIEW_NAMES, self::CROSS_SECTOR_ASSIGN,
                 self::SCHEDULE_VIEW, self::SCHEDULE_MANAGE, self::ATTENDANCE_VIEW,
                 self::SEND_INVITATION,
             ],
@@ -110,8 +118,9 @@ class Permissions
             ],
 
             // مساعد التقييم — يرصد، ويكتب التقرير، ويسجّل حضور جلساته
+            // بلا CANDIDATE_VIEW_NAMES: المقيّم ومساعده يريان الرمز لا الاسم
             'ASSISTANT' => [
-                self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_NAMES, self::EVALUATION_VIEW, self::EVALUATION_ASSIST,
+                self::CANDIDATE_VIEW, self::EVALUATION_VIEW, self::EVALUATION_ASSIST,
                 self::ATTENDANCE_VIEW, self::ATTENDANCE_RECORD,
                 self::MEASUREMENT_VIEW, self::REPORT_VIEW, self::REPORT_CREATE,
             ],
