@@ -591,7 +591,7 @@ class CandidateController extends Controller
                         'title' => 'اعتُمد التقرير نهائياً', 'meta' => null,
                         'cycle' => $code, 'actor' => null, 'status' => null, 'icon' => 'award',
                     ];
-                } elseif (in_array($rep->status, \App\Http\Controllers\ReportController::PENDING_STATUSES, true)) {
+                } elseif (in_array($rep->status, \App\Http\Controllers\ReportController::pendingStatuses(), true)) {
                     $events[] = [
                         'type' => 'report_submitted',
                         'at' => optional($rep->updated_at)->toIso8601String(),

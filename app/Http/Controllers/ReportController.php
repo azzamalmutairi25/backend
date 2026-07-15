@@ -8,6 +8,7 @@ use App\Models\MeasurementResult;
 use App\Models\ChatThread;
 use App\Models\ChatMessage;
 use App\Models\AuditLog;
+use App\Models\WorkflowStage;
 use App\Security\Permissions;
 use App\Services\NotificationService;
 use App\Services\ScoringService;
@@ -16,36 +17,44 @@ use Illuminate\Http\Request;
 class ReportController extends Controller
 {
     // ════════════════════════════════════════════════════════
-    //  سلسلة اعتماد التقرير
-    //    مسودة → المقيّم → مدير التقييم → تطوير الكفاءات → معتمد
+    //  سلسلة اعتماد التقرير — تُقرأ من workflow_stages لا من الكود،
+    //  فيعيد المشرف ترتيبها ويُفعّل/يُعطّل مراحلها من الشاشة.
     //
     //  المرحلة تُشتقّ من حالة التقرير لا من دور المستخدم — فالدور لا
     //  يحدّد ماذا يعتمد، بل الحالة تحدّد من يملك اعتمادها.
     // ════════════════════════════════════════════════════════
-    private const STAGES = [
-        'pending_evaluator' => [
-            'perm' => Permissions::REPORT_APPROVE_EVALUATOR,
-            'owner' => 'EVALUATOR',          // من يعتمد هذه المرحلة (لإشعاره عند وصولها)
-            'next' => 'pending_manager',
-            'label' => 'اعتماد المقيّم',
-        ],
-        'pending_manager' => [
-            'perm' => Permissions::REPORT_APPROVE_MANAGER,
-            'owner' => 'ASSESS_MANAGER',
-            'next' => 'pending_dev_approval',
-            'label' => 'اعتماد مدير إدارة التقييم',
-        ],
-        'pending_dev_approval' => [
-            'perm' => Permissions::REPORT_APPROVE,
-            'owner' => 'DEV_MANAGER',
-            'next' => 'approved',            // نهاية السلسلة — يُبلَّغ كاتب التقرير لا مرحلة تالية
-            'label' => 'الاعتماد النهائي',
-        ],
-    ];
 
-    public const PENDING_STATUSES = ['pending_evaluator', 'pending_manager', 'pending_dev_approval'];
+    // كل حالة «قيد الاعتماد» — تشمل مراحل مُعطّلة فيها تقارير عالقة،
+    // وإلا اختفت تلك التقارير من الإحصاء والفلاتر وهي قائمة.
+    // دالّة لا ثابت: السلسلة بيانات تتغيّر في الطلب نفسه.
+    public static function pendingStatuses(): array
+    {
+        return WorkflowStage::pendingStatuses();
+    }
 
-    private const FIRST_STAGE = 'pending_evaluator';
+    private function firstStage(): ?WorkflowStage
+    {
+        return WorkflowStage::firstStage();
+    }
+
+    // ── التجاوز: صاحب المرحلة التالية مباشرةً يعتمد من المرحلة الحالية ──
+    // كان محفوراً كـ«مدير التقييم يتجاوز المقيّم»؛ صار مشتقّاً من الترتيب فيصمد
+    // مهما أُعيدت السلسلة من الشاشة.
+    //
+    // «التالية مباشرةً» لا «أي لاحقة»: التعميم الأوسع يجعل صاحب الاعتماد النهائي
+    // يقفز السلسلة كلها من أولها — وهو نقضٌ لمعنى السلسلة. يُتخطّى طرفٌ واحد،
+    // ومن يليه لا يزال يعتمد.
+    private function maySkipTo($user, WorkflowStage $current): ?WorkflowStage
+    {
+        $chain = WorkflowStage::chain();
+        $i = $chain->search(fn ($s) => $s->status_key === $current->status_key);
+        if ($i === false) {
+            return null;
+        }
+        $next = $chain->get($i + 1);
+
+        return $next && $user->hasPermission($next->permission) ? $next : null;
+    }
 
     public function __construct(
         private NotificationService $notify,
@@ -152,7 +161,7 @@ class ReportController extends Controller
             // «pending» تعني السلسلة كاملة — تطابق ما يعدّه مؤشّر «معلّق» في اللوحة،
             // وإلا فتح الرقمُ قائمةً أصغر منه
             $request->status === 'pending'
-                ? $query->whereIn('status', self::PENDING_STATUSES)
+                ? $query->whereIn('status', self::pendingStatuses())
                 : $query->where('status', $request->status);
         }
         // البحث بالهوية عبر الهاش المشفّر (لا نكشف رقم الهوية)
@@ -198,7 +207,7 @@ class ReportController extends Controller
         return response()->json(['stats' => [
             'approved' => (clone $base)->where('status', 'approved')->count(),
             // «معلّق» = السلسلة كاملة لا مرحلتها الأخيرة — وإلا أخفى المؤشّر تقارير عالقة
-            'pending' => (clone $base)->whereIn('status', self::PENDING_STATUSES)->count(),
+            'pending' => (clone $base)->whereIn('status', self::pendingStatuses())->count(),
             'draft' => (clone $base)->where('status', 'draft')->count(),
             'returned' => (clone $base)->where('status', 'returned')->count(),
             // تفصيل المراحل — يُظهر أين تتكدّس التقارير فعلاً
@@ -342,7 +351,7 @@ class ReportController extends Controller
                 'overview_text' => $validated['overviewText'] ?? null,
                 'strengths' => $this->toList($validated['strengths'] ?? []),
                 'development_areas' => $this->toList($validated['developmentAreas'] ?? []),
-                'status' => $submit ? self::FIRST_STAGE : 'draft',
+                'status' => $submit ? $this->firstStage()?->status_key : 'draft',
                 'created_by' => $request->user()->id,
             ]);
         } catch (\Illuminate\Database\QueryException $e) {
@@ -391,7 +400,7 @@ class ReportController extends Controller
             'overview_text' => $validated['overviewText'] ?? null,
             'strengths' => $this->toList($validated['strengths'] ?? []),
             'development_areas' => $this->toList($validated['developmentAreas'] ?? []),
-            'status' => $submit ? self::FIRST_STAGE : $report->status,
+            'status' => $submit ? $this->firstStage()?->status_key : $report->status,
         ]);
 
         if ($submit) {
@@ -417,22 +426,21 @@ class ReportController extends Controller
             return response()->json(['error' => 'هذا التقرير لمرشح مصنّف'], 403);
         }
 
-        $stage = self::STAGES[$report->status] ?? null;
+        $stage = WorkflowStage::forStatus($report->status);
         if (!$stage) {
             return response()->json(['error' => 'لا يمكن اعتماد تقرير في هذه الحالة'], 422);
         }
 
         $user = $request->user();
         $skipped = false;
-
         $from = $report->status;
 
-        if ($user->hasPermission($stage['perm'])) {
-            $next = $stage['next'];
-        } elseif ($from === self::FIRST_STAGE && $user->hasPermission(Permissions::REPORT_APPROVE_MANAGER)) {
-            // تجاوز مقصود: مدير التقييم يعتمد مباشرة دون انتظار المقيّم.
-            // يقفز إلى ما بعد مرحلته هو (لا إليها) — وإلا اعتمد المدير مرحلته مرتين.
-            $next = self::STAGES['pending_manager']['next'];
+        if ($user->hasPermission($stage->permission)) {
+            $next = WorkflowStage::nextAfter($from);
+        } elseif ($this->maySkipTo($user, $stage)) {
+            // تجاوز مقصود: من يملك مرحلةً لاحقة يعتمد مباشرة دون انتظار من قبله.
+            // يقفز إلى ما بعد مرحلته هو (لا إليها) — وإلا اعتمد مرحلته مرتين.
+            $next = WorkflowStage::nextAfter($this->maySkipTo($user, $stage)->status_key);
             $skipped = true;
         } else {
             return response()->json(['error' => 'ليس لديك صلاحية اعتماد هذه المرحلة'], 403);
@@ -440,13 +448,13 @@ class ReportController extends Controller
 
         $report->update(['status' => $next, 'escalated_at' => null]);
 
-        $final = $next === 'approved';
+        $final = $next === WorkflowStage::FINAL_STATUS;
         if ($final) {
             // يزامن حالة الدورة → تُتاح إعادة التقييم بدورة جديدة
             $report->candidate->setStatus('completed');
         }
 
-        $this->notifyStage($report, $final ? null : self::STAGES[$next]['owner'], $final, $user->id);
+        $this->notifyStage($report, $final ? null : WorkflowStage::forStatus($next)?->role_code, $final, $user->id);
 
         $this->log($request, $skipped ? 'APPROVE_REPORT_SKIPPED_EVALUATOR' : 'APPROVE_REPORT', $id, [
             'candidate' => $report->candidate->participant_code,
@@ -506,7 +514,7 @@ class ReportController extends Controller
 
         // لا يُرجَع إلا تقرير في إحدى مراحل الاعتماد (منع إرجاع معتمد/مسودة → إفساد حالة المرشح).
         // أي مرحلة تُرجع: من يستطيع حجب التقرير يستطيع ردّه لصاحبه.
-        if (!in_array($report->status, self::PENDING_STATUSES, true)) {
+        if (!in_array($report->status, self::pendingStatuses(), true)) {
             return response()->json(['error' => 'لا يمكن إرجاع تقرير غير مُرسل للاعتماد'], 422);
         }
 
@@ -567,9 +575,13 @@ class ReportController extends Controller
         // يعود لأول السلسلة لا لآخرها: التعديل بعد الإرجاع يستحق مراجعة المراحل كلها
         // من جديد، وإلا مرّ تغييرٌ جوهري باعتماد مرحلة واحدة.
         // تصفير التصعيد: حالة تأخّر جديدة قد تتطلّب تصعيداً لاحقاً
-        $report->update(['status' => self::FIRST_STAGE, 'escalated_at' => null]);
+        $first = $this->firstStage();
+        if (!$first) {
+            return response()->json(['error' => 'لا توجد مراحل اعتماد مفعّلة — راجع إعدادات سير العمل'], 422);
+        }
+        $report->update(['status' => $first->status_key, 'escalated_at' => null]);
 
-        $this->notify->notifyRole(self::STAGES[self::FIRST_STAGE]['owner'], 'approval',
+        $this->notify->notifyRole($first->role_code, 'approval',
             'تقرير معدّل بانتظار الاعتماد',
             'أُعيد إرسال تقرير بعد تعديله',
             'report', (string) $id, $request->user()->id);
