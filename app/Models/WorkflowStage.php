@@ -75,6 +75,15 @@ class WorkflowStage extends Model
         return $chain->get($i + 1)?->status_key ?? self::FINAL_STATUS;
     }
 
+    // ── السابقة قبل هذه الحالة، أو null إن كانت الأولى ──
+    public static function previousBefore(string $status, string $workflow = self::REPORT): ?self
+    {
+        $chain = static::chain($workflow);
+        $i = $chain->search(fn ($s) => $s->status_key === $status);
+
+        return $i === false || $i === 0 ? null : $chain->get($i - 1);
+    }
+
     // ── كل الحالات التي تعني «قيد الاعتماد» ──
     // تشمل المعطّلة التي فيها تقارير — وإلا اختفت من الإحصاء والفلاتر وهي قائمة
     public static function pendingStatuses(string $workflow = self::REPORT): array

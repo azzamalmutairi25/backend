@@ -18,10 +18,11 @@ abstract class TestCase extends BaseTestCase
     // فمصنعٌ ينشئه لا يمثّل الواقع. الافتراضي ED ليطابق makeCandidate الافتراضي،
     // فيبقى الاختبار الذي لا يعني القطاع شيئاً بالنسبة له عاملاً كما كان.
     // مرّر sectorCode لاختبار حدود القطاع صراحةً.
-    protected function actingAsRole(string $roleCode, ?string $sectorCode = null): User
+    protected function actingAsRole(string $roleCode, ?string $sectorCode = null, ?User $manager = null): User
     {
         $role = Role::where('code', $roleCode)->firstOrFail();
         $bound = in_array($roleCode, User::SECTOR_BOUND_ROLES, true);
+        $managed = in_array($roleCode, User::MANAGED_ROLES, true);
 
         $user = User::create([
             'username' => 'u_' . strtolower($roleCode) . '_' . substr(md5(uniqid('', true)), 0, 6),
@@ -30,11 +31,33 @@ abstract class TestCase extends BaseTestCase
             'password' => 'Kafaat@2026',
             'role_id' => $role->id,
             'sector_id' => $bound ? Sector::where('code', $sectorCode ?? 'ED')->value('id') : null,
+            // الدور المُدار يُنشأ بمدير — مساعدٌ بلا مدير تعلق تقاريره عند
+            // مرحلة تشترط الفريق، وهي حالة لا تنشأ من الواجهة أصلاً
+            'manager_id' => $managed ? ($manager?->id ?? $this->defaultManager()->id) : null,
             'is_active' => true,
             'must_change_password' => false,
         ]);
         Sanctum::actingAs($user);
         return $user;
+    }
+
+    // مدير تقييم يُعاد استعماله كمدير افتراضي للأدوار المُدارة
+    private function defaultManager(): User
+    {
+        static $cached = null;
+        if ($cached && User::whereKey($cached->id)->exists()) {
+            return $cached;
+        }
+        $role = Role::where('code', 'ASSESS_MANAGER')->firstOrFail();
+
+        return $cached = User::create([
+            'username' => 'mgr_' . substr(md5(uniqid('', true)), 0, 8),
+            'full_name' => 'مدير افتراضي',
+            'password' => 'Kafaat@2026',
+            'role_id' => $role->id,
+            'is_active' => true,
+            'must_change_password' => false,
+        ]);
     }
 
     // مرشح (+ دورة تقييم) بحالة/تصنيف محدّدين — يرجع [candidate, assessment]

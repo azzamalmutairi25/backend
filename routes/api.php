@@ -156,6 +156,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/reports/{id}', [ReportController::class, 'update']);
     Route::post('/reports/{id}/approve', [ReportController::class, 'approve']);
     Route::post('/reports/{id}/return', [ReportController::class, 'returnReport']);
+    Route::post('/reports/{id}/cancel', [ReportController::class, 'cancel']);
     Route::post('/reports/{id}/resubmit', [ReportController::class, 'resubmit']);
 
     // ═══ الإشعارات ═══

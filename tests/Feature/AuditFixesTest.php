@@ -153,17 +153,28 @@ class AuditFixesTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['action' => 'DENIED_REPORT_OUT_OF_SCOPE']);
     }
 
-    public function test_evaluator_cannot_return_a_report_they_did_not_evaluate(): void
+    // الإرجاع صار لمدير المركز وحده — لم يعد المقيّم يملكه أصلاً، فالنطاق
+    // لا يُبلَغ عنده. يبقى النطاق مفروضاً لمن يملك الإرجاع.
+    public function test_return_is_refused_for_roles_that_no_longer_hold_it(): void
     {
-        $this->actingAsRole('EVALUATOR', 'ED');
+        $ev = $this->actingAsRole('EVALUATOR', 'ED');
         [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'sectorCode' => 'ED']);
+        Evaluation::create([
+            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'evaluator_id' => $ev->id,
+            'activity' => 'interview', 'status' => 'submitted', 'submitted_at' => now(),
+        ]);
         $r = FinalReport::create([
             'candidate_id' => $c->id, 'assessment_id' => $a->id,
             'recommendation' => 'يوصى به', 'status' => 'pending_evaluator', 'created_by' => null,
         ]);
 
-        // قطاعه، لكن لم يقيّمه — ليس شأنه
-        $this->postJson("/api/reports/{$r->id}/return", ['reason' => 'محاولة إرجاع'])->assertStatus(404);
+        // قيّمه ويراه — ومع ذلك لا يُرجعه
+        $this->postJson("/api/reports/{$r->id}/return", ['reason' => 'محاولة إرجاع'])->assertStatus(403);
+
+        foreach (['ASSESS_MANAGER', 'DEV_MANAGER'] as $role) {
+            $this->actingAsRole($role);
+            $this->postJson("/api/reports/{$r->id}/return", ['reason' => 'محاولة إرجاع'])->assertStatus(403);
+        }
     }
 
     public function test_assistant_cannot_write_a_report_for_another_sector(): void

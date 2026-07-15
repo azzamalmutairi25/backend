@@ -46,7 +46,10 @@ class Permissions
     const REPORT_APPROVE_MANAGER = 'report.approve_manager';       // اعتماد مدير إدارة التقييم
     const REPORT_APPROVE = 'report.approve';                       // اعتماد إدارة تطوير الكفاءات
     const REPORT_APPROVE_CENTER = 'report.approve_center';         // اعتماد مدير المركز
+    // الإرجاع (لمسودة أو للمرحلة السابقة) والإلغاء — مدير المركز وحده.
+    // كانا موزّعين على كل مرحلة، فكان كلُّ معتمِدٍ يردّ التقرير خطوات للوراء.
     const REPORT_RETURN = 'report.return';
+    const REPORT_CANCEL = 'report.cancel';
     const REPORT_EXPORT = 'report.export';
     // اسم المرشّح في المستند المطبوع — لا يراه غير حامل هذه الصلاحية، ولو ملك رؤية الأسماء
     const REPORT_VIEW_NAMES = 'report.view_names';
@@ -77,7 +80,7 @@ class Permissions
                 self::CANDIDATE_VIEW, self::CANDIDATE_JOURNEY,
                 self::SCHEDULE_VIEW, self::ATTENDANCE_VIEW,
                 self::EVALUATION_VIEW, self::MEASUREMENT_VIEW, self::REPORT_VIEW,
-                self::REPORT_APPROVE_CENTER, self::REPORT_RETURN,
+                self::REPORT_APPROVE_CENTER, self::REPORT_RETURN, self::REPORT_CANCEL,
                 self::REPORT_VIEW_NAMES, self::REPORT_EXPORT, self::COMPETENCY_VIEW,
                 self::AUDIT_VIEW, self::ANALYTICS_VIEW,
             ],
@@ -102,7 +105,7 @@ class Permissions
                 self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_NAMES, self::CANDIDATE_VIEW_CLASSIFIED, self::CANDIDATE_JOURNEY, self::SCHEDULE_VIEW,
                 self::ATTENDANCE_VIEW, self::EVALUATION_VIEW, self::EVALUATION_APPROVE,
                 self::MEASUREMENT_VIEW, self::REPORT_VIEW, self::REPORT_CREATE,
-                self::REPORT_EDIT_ANY, self::REPORT_APPROVE_MANAGER, self::REPORT_RETURN,
+                self::REPORT_EDIT_ANY, self::REPORT_APPROVE_MANAGER,
                 self::REPORT_EXPORT, self::COMPETENCY_VIEW, self::ANALYTICS_VIEW,
             ],
 
@@ -111,7 +114,7 @@ class Permissions
             'EVALUATOR' => [
                 self::CANDIDATE_VIEW, self::EVALUATION_VIEW, self::EVALUATION_INPUT,
                 self::ATTENDANCE_VIEW, self::ATTENDANCE_RECORD,
-                self::REPORT_VIEW, self::REPORT_APPROVE_EVALUATOR, self::REPORT_RETURN,
+                self::REPORT_VIEW, self::REPORT_APPROVE_EVALUATOR,
             ],
 
             // مستشار حلقة النقاش — يسجّل حضور حلقاته
@@ -131,7 +134,7 @@ class Permissions
             // إدارة تطوير الكفاءات — الاعتماد النهائي
             'DEV_MANAGER' => [
                 self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_CLASSIFIED, self::CANDIDATE_JOURNEY, self::EVALUATION_VIEW, self::MEASUREMENT_VIEW,
-                self::REPORT_VIEW, self::REPORT_APPROVE, self::REPORT_RETURN,
+                self::REPORT_VIEW, self::REPORT_APPROVE,
                 self::REPORT_EXPORT, self::COMPETENCY_VIEW, self::COMPETENCY_MANAGE, self::ANALYTICS_VIEW,
             ],
 

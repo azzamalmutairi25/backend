@@ -20,7 +20,7 @@ class UserController extends Controller
             return response()->json(['error' => 'ليس لديك صلاحية إدارة المستخدمين'], 403);
         }
 
-        $users = User::with(['role', 'sector'])->orderBy('full_name')->get()->map(fn ($u) => [
+        $users = User::with(['role', 'sector', 'manager'])->orderBy('full_name')->get()->map(fn ($u) => [
             'id' => $u->id,
             'username' => $u->username,
             'fullName' => $u->full_name,
@@ -30,6 +30,9 @@ class UserController extends Controller
             'sectorId' => $u->sector_id,
             'sectorName' => $u->sector?->name_ar,
             'sectorBound' => $u->isSectorBound(),
+            'managerId' => $u->manager_id,
+            'managerName' => $u->manager?->full_name,
+            'managed' => $u->isManaged(),
             'userType' => $u->user_type,
             'adUsername' => $u->ad_username,
             'isActive' => $u->is_active,
@@ -155,6 +158,7 @@ class UserController extends Controller
             'description' => $r->description,
             // تُصدَّر ليعرف النموذج متى يطلب القطاع — بدل تكرار القائمة في الواجهة فتتباعدان
             'sectorBound' => in_array($r->code, User::SECTOR_BOUND_ROLES, true),
+            'managed' => in_array($r->code, User::MANAGED_ROLES, true),
         ]);
 
         return response()->json(['roles' => $roles]);
@@ -229,6 +233,30 @@ class UserController extends Controller
         return null;
     }
 
+    // ── المدير إلزامي للأدوار المُدارة ──
+    // مساعد بلا مدير يكتب تقارير لا يعتمدها أحد: مرحلة مدير التقييم تشترط أن
+    // يكون الكاتب من فريق المعتمِد، فالتقرير يعلق. والمدير يجب أن يكون فعلاً
+    // من يملك تلك المرحلة، لا أيّ مستخدم.
+    private function managerRuleError(int $roleId, ?int $managerId): ?array
+    {
+        $code = Role::whereKey($roleId)->value('code');
+        $managed = in_array($code, User::MANAGED_ROLES, true);
+
+        if ($managed && !$managerId) {
+            return ['errors' => ['managerId' => ['المدير مطلوب لهذا الدور — تقاريره يعتمدها مديره']]];
+        }
+        if (!$managed && $managerId) {
+            return ['errors' => ['managerId' => ['هذا الدور لا يُسنَد لمدير']]];
+        }
+        if ($managerId) {
+            $manager = User::with('role')->find($managerId);
+            if (!$manager || !$manager->hasPermission(Permissions::REPORT_APPROVE_MANAGER)) {
+                return ['errors' => ['managerId' => ['المدير المختار لا يملك اعتماد تقارير فريقه']]];
+            }
+        }
+        return null;
+    }
+
     public function store(Request $request)
     {
         if (!$request->user()->hasPermission(Permissions::USER_MANAGE)) {
@@ -242,6 +270,7 @@ class UserController extends Controller
             'email' => 'nullable|email',
             'roleId' => 'required|exists:roles,id',
             'sectorId' => 'nullable|exists:sectors,id',
+            'managerId' => 'nullable|exists:users,id',
         ];
         if ($userType === 'internal') {
             // مستخدم داخلي: يُصادَق عبر AD — لا كلمة مرور محلية، بل معرّف AD
@@ -258,6 +287,9 @@ class UserController extends Controller
         if ($err = $this->sectorRuleError($validated['roleId'], $validated['sectorId'] ?? null)) {
             return response()->json($err, 422);
         }
+        if ($err = $this->managerRuleError($validated['roleId'], $validated['managerId'] ?? null)) {
+            return response()->json($err, 422);
+        }
 
         $user = new User();
         $user->username = $validated['username'];
@@ -265,6 +297,7 @@ class UserController extends Controller
         $user->email = $validated['email'] ?? null;
         $user->role_id = $validated['roleId'];
         $user->sector_id = $validated['sectorId'] ?? null;
+        $user->manager_id = $validated['managerId'] ?? null;
         $user->user_type = $userType;
         $user->is_active = true;
         if ($userType === 'internal') {
@@ -296,6 +329,7 @@ class UserController extends Controller
             'email' => 'nullable|email',
             'roleId' => 'required|exists:roles,id',
             'sectorId' => 'nullable|exists:sectors,id',
+            'managerId' => 'nullable|exists:users,id',
         ]);
 
         if ($user->id === $request->user()->id && $user->role_id != $validated['roleId']) {
@@ -307,6 +341,13 @@ class UserController extends Controller
         if ($err = $this->sectorRuleError($validated['roleId'], $validated['sectorId'] ?? null)) {
             return response()->json($err, 422);
         }
+        if ($err = $this->managerRuleError($validated['roleId'], $validated['managerId'] ?? null)) {
+            return response()->json($err, 422);
+        }
+        // مستخدم لا يكون مدير نفسه — حلقة تجعل قاعدة الفريق تقبله على تقريره
+        if (($validated['managerId'] ?? null) === $user->id) {
+            return response()->json(['errors' => ['managerId' => ['لا يكون المستخدم مدير نفسه']]], 422);
+        }
 
         $roleChanged = $user->role_id != $validated['roleId'];
         $sectorChanged = $user->sector_id != ($validated['sectorId'] ?? null);
@@ -314,6 +355,7 @@ class UserController extends Controller
         $user->email = $validated['email'] ?? null;
         $user->role_id = $validated['roleId'];
         $user->sector_id = $validated['sectorId'] ?? null;
+        $user->manager_id = $validated['managerId'] ?? null;
         $user->save();
 
         // تغيير الدور أو القطاع يغيّر ما يراه ويقيّمه — أبطل جلساته ليعيد الدخول بنطاقه الجديد
