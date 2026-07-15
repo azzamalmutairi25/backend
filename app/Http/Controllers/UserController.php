@@ -7,7 +7,9 @@ use App\Models\Role;
 use App\Models\AuditLog;
 use App\Security\Permissions;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use App\Rules\StrongPassword;
 
 class UserController extends Controller
@@ -37,6 +39,107 @@ class UserController extends Controller
         ]);
 
         return response()->json(['users' => $users]);
+    }
+
+    // GET /users/{id}/permissions — الصلاحيات الفعلية + مصدر كل واحدة
+    public function permissions(Request $request, int $id)
+    {
+        if (!$request->user()->hasPermission(Permissions::USER_MANAGE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية'], 403);
+        }
+
+        $user = User::with(['role', 'permissionOverrides'])->findOrFail($id);
+        $fromRole = Permissions::forRole($user->role->code);
+        $hasStar = in_array('*', $fromRole, true);
+        $overrides = $user->permissionOverrides->keyBy('permission');
+
+        $rows = [];
+        foreach (Permissions::grouped() as $key => $group) {
+            $perms = [];
+            foreach ($group['permissions'] as $p) {
+                $byRole = $hasStar || in_array($p, $fromRole, true);
+                $o = $overrides->get($p);
+                $perms[] = [
+                    'permission' => $p,
+                    'byRole' => $byRole,
+                    // null = لا استثناء، true = ممنوحة، false = مسحوبة
+                    'override' => $o ? $o->granted : null,
+                    'effective' => $o ? $o->granted : $byRole,
+                    'reason' => $o?->reason,
+                ];
+            }
+            $rows[] = ['key' => $key, 'label' => $group['label'], 'permissions' => $perms];
+        }
+
+        return response()->json([
+            'user' => ['id' => $user->id, 'fullName' => $user->full_name, 'roleName' => $user->role->name_ar],
+            'groups' => $rows,
+            'isSelf' => $user->id === $request->user()->id,
+        ]);
+    }
+
+    // PUT /users/{id}/permissions — ضبط استثناءات المستخدم
+    public function savePermissions(Request $request, int $id)
+    {
+        if (!$request->user()->hasPermission(Permissions::USER_MANAGE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية'], 403);
+        }
+
+        $user = User::with('role')->findOrFail($id);
+
+        // لا أحد يعدّل صلاحيات نفسه — وإلا صار من يملك USER_MANAGE قادراً على
+        // منح نفسه كل شيء، فلا معنى لأي حدّ بعدها
+        if ($user->id === $request->user()->id) {
+            return response()->json(['error' => 'لا يمكنك تعديل صلاحيات حسابك'], 422);
+        }
+
+        $validated = $request->validate([
+            'overrides' => 'present|array',
+            'overrides.*.permission' => ['required', 'string', Rule::in(Permissions::all())],
+            'overrides.*.granted' => 'required|boolean',
+            'overrides.*.reason' => 'nullable|string|max:300',
+        ]);
+
+        $incoming = collect($validated['overrides']);
+
+        // استثناء يطابق الدور أصلاً = ضجيج: يوحي باستثناء حيث لا استثناء،
+        // ويصير كذباً صامتاً لحظةَ تغيّر الدور
+        $fromRole = Permissions::forRole($user->role->code);
+        $hasStar = in_array('*', $fromRole, true);
+        $redundant = $incoming->filter(function ($o) use ($fromRole, $hasStar) {
+            $byRole = $hasStar || in_array($o['permission'], $fromRole, true);
+            return $o['granted'] === $byRole;
+        });
+        if ($redundant->isNotEmpty()) {
+            return response()->json([
+                'errors' => ['overrides' => [
+                    'استثناء يطابق الدور بلا فائدة: ' . $redundant->pluck('permission')->implode('، '),
+                ]],
+            ], 422);
+        }
+
+        DB::transaction(function () use ($user, $incoming, $request) {
+            $user->permissionOverrides()->delete();
+            foreach ($incoming as $o) {
+                $user->permissionOverrides()->create([
+                    'permission' => $o['permission'],
+                    'granted' => $o['granted'],
+                    'reason' => $o['reason'] ?? null,
+                    'created_by' => $request->user()->id,
+                ]);
+            }
+        });
+
+        // تغيّرت صلاحياته ⇒ اطرد جلساته ليعيد الدخول بها
+        $user->tokens()->delete();
+
+        $this->log($request, 'UPDATE_USER_PERMISSIONS', $user->id, [
+            'username' => $user->username,
+            'granted' => $incoming->where('granted', true)->pluck('permission')->all(),
+            'revoked' => $incoming->where('granted', false)->pluck('permission')->all(),
+        ]);
+
+        return response()->json(['message' => 'تم حفظ الصلاحيات — سيُطلب من المستخدم إعادة الدخول']);
     }
 
     public function roles(Request $request)

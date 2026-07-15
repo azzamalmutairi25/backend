@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\WorkflowController;
 use App\Http\Controllers\CandidateController;
 use App\Http\Controllers\AuditController;
 use App\Http\Controllers\UserController;
@@ -73,6 +74,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/users', [UserController::class, 'index']);
     Route::get('/users/roles', [UserController::class, 'roles']);
     Route::get('/users/role-permissions', [UserController::class, 'rolePermissions']);
+    // استثناءات صلاحيات المستخدم فوق دوره
+    Route::get('/users/{id}/permissions', [UserController::class, 'permissions']);
+    Route::put('/users/{id}/permissions', [UserController::class, 'savePermissions']);
     Route::post('/users', [UserController::class, 'store']);
     Route::put('/users/{id}', [UserController::class, 'update']);
     Route::patch('/users/{id}/toggle', [UserController::class, 'toggleActive']);
@@ -85,6 +89,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/settings/sms', [SettingsController::class, 'saveSms']);
     // اختبار يرسل رسالة فعلية بتكلفة — يُخنق لمنع الاستنزاف
     Route::post('/settings/sms/test', [SettingsController::class, 'testSms'])->middleware('throttle:5,1');
+
+    // سير العمل: ترتيب مراحل الاعتماد وتفعيلها
+    Route::get('/workflow/report', [WorkflowController::class, 'show']);
+    Route::put('/workflow/report', [WorkflowController::class, 'update']);
 
     Route::get('/settings/smtp', [SettingsController::class, 'getSmtp']);
     Route::put('/settings/smtp', [SettingsController::class, 'saveSmtp']);

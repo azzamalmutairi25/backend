@@ -147,6 +147,51 @@ class Permissions
         ];
     }
 
+    // ── كل الصلاحيات المعرَّفة ──
+    // تُقرأ من ثوابت الصنف بالانعكاس، فلا تُنسى واحدة عند إضافتها.
+    // تُستعمل لفَرْد '*' قبل تطبيق سحبٍ على مدير النظام، ولبناء شاشة الصلاحيات.
+    public static function all(): array
+    {
+        static $cache = null;
+        if ($cache !== null) {
+            return $cache;
+        }
+        $consts = (new \ReflectionClass(self::class))->getConstants();
+
+        return $cache = array_values(array_filter(
+            $consts,
+            fn ($v) => is_string($v) && str_contains($v, '.')
+        ));
+    }
+
+    // ── الصلاحيات مجمّعة للعرض ──
+    public static function grouped(): array
+    {
+        $groups = [
+            'candidate' => 'المرشحون',
+            'schedule' => 'الجدولة',
+            'attendance' => 'الحضور',
+            'evaluation' => 'التقييم',
+            'measurement' => 'أدوات القياس',
+            'report' => 'التقارير',
+            'competency' => 'الكفاءات',
+            'communication' => 'المراسلات',
+            'user' => 'المستخدمون',
+            'audit' => 'التدقيق',
+            'settings' => 'الإعدادات',
+            'analytics' => 'التحليلات',
+        ];
+
+        $out = [];
+        foreach (self::all() as $p) {
+            $prefix = explode('.', $p)[0];
+            $out[$prefix]['label'] = $groups[$prefix] ?? $prefix;
+            $out[$prefix]['permissions'][] = $p;
+        }
+
+        return $out;
+    }
+
     // ── التحقق: هل الدور يملك الصلاحية؟ ──
     public static function roleHasPermission(string $roleCode, string $permission): bool
     {

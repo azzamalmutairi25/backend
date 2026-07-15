@@ -65,10 +65,49 @@ class User extends Authenticatable
         return $this->sector_id !== null && $this->sector_id === $sectorId;
     }
 
+    public function permissionOverrides(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(UserPermissionOverride::class);
+    }
+
     // ── هل المستخدم يملك صلاحية معيّنة؟ ──
+    // الدور أولاً، ثم استثناء المستخدم إن وُجد — منحاً أو سحباً.
+    //
+    // السحب يسبق '*': مدير النظام نفسه يُسحب منه استثناءً. لولا ذلك لصار '*'
+    // بابَ التفافٍ على كل سحبٍ يُكتب.
     public function hasPermission(string $permission): bool
     {
+        $override = $this->relationLoaded('permissionOverrides')
+            ? $this->permissionOverrides->firstWhere('permission', $permission)
+            : $this->permissionOverrides()->where('permission', $permission)->first();
+
+        if ($override) {
+            return (bool) $override->granted;
+        }
+
         return \App\Security\Permissions::roleHasPermission($this->role->code, $permission);
+    }
+
+    // ── الصلاحيات الفعلية: الدور + الاستثناءات ──
+    // تُرسل للواجهة عند الدخول لتضبط ما يُعرض.
+    public function effectivePermissions(): array
+    {
+        $base = \App\Security\Permissions::forRole($this->role->code);
+        $overrides = $this->permissionOverrides()->get();
+
+        if ($overrides->isEmpty()) {
+            return $base;
+        }
+
+        // '*' يُفرَد قبل تطبيق السحب — وإلا لم يكن للسحب أثر على مدير النظام
+        if (in_array('*', $base, true)) {
+            $base = \App\Security\Permissions::all();
+        }
+
+        $granted = $overrides->where('granted', true)->pluck('permission')->all();
+        $revoked = $overrides->where('granted', false)->pluck('permission')->all();
+
+        return array_values(array_diff(array_unique([...$base, ...$granted]), $revoked));
     }
 
     // ── هل المستخدم بأحد هذه الأدوار؟ ──
