@@ -60,6 +60,15 @@ class TestUsersSeeder extends Seeder
             $created++;
         }
 
+        // المساعد يُسنَد لمدير التقييم — مرحلة المدير تشترط أن يكون الكاتب من
+        // فريقه، فمساعدٌ بلا مدير يكتب تقارير تعلق عند تلك المرحلة إلى الأبد
+        $manager = User::where('username', 'assess')->first();
+        if ($manager) {
+            User::whereHas('role', fn ($q) => $q->whereIn('code', User::MANAGED_ROLES))
+                ->whereNull('manager_id')
+                ->update(['manager_id' => $manager->id]);
+        }
+
         $this->command->info("✅ تم تجهيز {$created} مستخدم اختبار — كلمة المرور للجميع: {$password}");
     }
 }

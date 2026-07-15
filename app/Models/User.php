@@ -20,7 +20,7 @@ class User extends Authenticatable
 
     protected $fillable = [
         'username', 'full_name', 'email', 'password',
-        'role_id', 'sector_id', 'is_active', 'must_change_password', 'last_login_at',
+        'role_id', 'sector_id', 'manager_id', 'is_active', 'must_change_password', 'last_login_at',
         'failed_attempts', 'locked_until',
         'user_type', 'ad_username',
     ];
@@ -46,6 +46,25 @@ class User extends Authenticatable
     public function sector(): BelongsTo
     {
         return $this->belongsTo(Sector::class);
+    }
+
+    // مدير المستخدم — للمساعد: مدير إدارة التقييم الذي يعتمد تقاريره
+    public function manager(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'manager_id');
+    }
+
+    public function team(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(User::class, 'manager_id');
+    }
+
+    // الأدوار التي تُسنَد لمدير — المساعد يكتب التقرير ومديره يعتمده
+    public const MANAGED_ROLES = ['ASSISTANT'];
+
+    public function isManaged(): bool
+    {
+        return in_array($this->role->code, self::MANAGED_ROLES, true);
     }
 
     // ── هل هذا المستخدم محصور بقطاع؟ ──

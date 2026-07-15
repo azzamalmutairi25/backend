@@ -8,6 +8,7 @@ use App\Models\MeasurementResult;
 use App\Models\ChatThread;
 use App\Models\ChatMessage;
 use App\Models\AuditLog;
+use App\Models\User;
 use App\Models\WorkflowStage;
 use App\Security\Permissions;
 use App\Services\NotificationService;
@@ -54,6 +55,31 @@ class ReportController extends Controller
         $next = $chain->get($i + 1);
 
         return $next && $user->hasPermission($next->permission) ? $next : null;
+    }
+
+    // ── قواعد المرحلة على كاتب التقرير ──
+    // إعدادان على workflow_stages لا شرطان محفوران، فيُبدَّلان من الشاشة:
+    //   blocks_self_authored     — الكاتب لا يعتمد مرحلته («من يكتب لا يعتمد»)
+    //   requires_team_authorship — الكاتب يجب أن يكون من فريق المعتمِد
+    // يرجع رسالة المنع أو null.
+    private function stageRuleError(WorkflowStage $stage, FinalReport $report, $user): ?string
+    {
+        if ($stage->blocks_self_authored && $report->created_by === $user->id) {
+            return 'لا يمكنك اعتماد تقرير كتبته بنفسك — يعتمده صاحب صلاحية أخرى';
+        }
+
+        if ($stage->requires_team_authorship) {
+            $author = $report->created_by ? User::with('role')->find($report->created_by) : null;
+            if (!$author) {
+                // تقرير بلا كاتب معروف لا يُنسب لفريق — لا يُعتمد بقاعدة الفريق
+                return 'تعذّر تحديد كاتب التقرير — لا يمكن اعتماده بقاعدة الفريق';
+            }
+            if ($author->manager_id !== $user->id) {
+                return 'هذا التقرير كتبه من ليس ضمن فريقك';
+            }
+        }
+
+        return null;
     }
 
     public function __construct(
@@ -420,11 +446,23 @@ class ReportController extends Controller
         $from = $report->status;
 
         if ($user->hasPermission($stage->permission)) {
+            // قواعد المرحلة على الكاتب — تُفحص بعد الصلاحية: الرسالة تشرح المنع
+            // لمن يملك المرحلة، ولا تُفصح بشيء لمن لا يملكها أصلاً
+            if ($err = $this->stageRuleError($stage, $report, $user)) {
+                $this->log($request, 'DENIED_APPROVE_STAGE_RULE', $id, ['stage' => $stage->status_key]);
+                return response()->json(['error' => $err], 403);
+            }
             $next = WorkflowStage::nextAfter($from);
-        } elseif ($this->maySkipTo($user, $stage)) {
+        } elseif ($skipTo = $this->maySkipTo($user, $stage)) {
             // تجاوز مقصود: من يملك مرحلةً لاحقة يعتمد مباشرة دون انتظار من قبله.
+            // قواعد المرحلة التي يقفز إليها تُفحص أيضاً — وإلا صار التجاوز
+            // باباً خلفياً لاعتماد ما كتبه بنفسه.
+            if ($err = $this->stageRuleError($skipTo, $report, $user)) {
+                $this->log($request, 'DENIED_APPROVE_STAGE_RULE', $id, ['stage' => $skipTo->status_key]);
+                return response()->json(['error' => $err], 403);
+            }
             // يقفز إلى ما بعد مرحلته هو (لا إليها) — وإلا اعتمد مرحلته مرتين.
-            $next = WorkflowStage::nextAfter($this->maySkipTo($user, $stage)->status_key);
+            $next = WorkflowStage::nextAfter($skipTo->status_key);
             $skipped = true;
         } else {
             return response()->json(['error' => 'ليس لديك صلاحية اعتماد هذه المرحلة'], 403);
@@ -485,6 +523,8 @@ class ReportController extends Controller
 
         $validated = $request->validate([
             'reason' => 'required|string|min:5|max:500',
+            // draft = يعود لكاتبه للتعديل، previous = خطوة واحدة للوراء في السلسلة
+            'target' => 'nullable|in:draft,previous',
         ], [
             'reason.required' => 'يجب ذكر سبب الإرجاع',
             'reason.min' => 'سبب الإرجاع قصير جداً',
@@ -497,18 +537,28 @@ class ReportController extends Controller
             return response()->json(['error' => 'التقرير غير موجود'], 404);
         }
 
-        // لا يُرجَع إلا تقرير في إحدى مراحل الاعتماد (منع إرجاع معتمد/مسودة → إفساد حالة المرشح).
-        // أي مرحلة تُرجع: من يستطيع حجب التقرير يستطيع ردّه لصاحبه.
+        // لا يُرجَع إلا تقرير في إحدى مراحل الاعتماد (منع إرجاع معتمد/مسودة → إفساد حالة المرشح)
         if (!in_array($report->status, self::pendingStatuses(), true)) {
             return response()->json(['error' => 'لا يمكن إرجاع تقرير غير مُرسل للاعتماد'], 422);
         }
 
+        // «للمرحلة السابقة» ترجع خطوة واحدة؛ وعند أول مرحلة لا سابق لها فتؤول
+        // للمسودة — البديل ردٌّ بلا أثر يُوهم المستخدم أن شيئاً حدث
+        $target = $validated['target'] ?? 'draft';
+        $newStatus = 'returned';
+        if ($target === 'previous') {
+            $prev = WorkflowStage::previousBefore($report->status);
+            $newStatus = $prev?->status_key ?? 'returned';
+        }
+
         $report->update([
-            'status' => 'returned',
+            'status' => $newStatus,
             'return_reason' => $validated['reason'],
             'return_count' => $report->return_count + 1,
             'last_returned_by' => $request->user()->id,
             'last_returned_at' => now(),
+            // الرجوع للوراء حالة تأخّر جديدة — يُصعَّد من جديد إن تأخّر
+            'escalated_at' => null,
         ]);
 
         if ($report->created_by) {
@@ -530,12 +580,81 @@ class ReportController extends Controller
             'action_type' => 'return',
         ]);
 
-        $this->log($request, 'RETURN_REPORT', $id, ['reason' => $validated['reason'], 'count' => $report->return_count]);
+        $this->log($request, 'RETURN_REPORT', $id, [
+            'reason' => $validated['reason'],
+            'count' => $report->return_count,
+            'target' => $target,
+            'to' => $newStatus,
+        ]);
 
         return response()->json([
-            'message' => 'تم إرجاع التقرير للتعديل',
+            'message' => $newStatus === 'returned'
+                ? 'تم إرجاع التقرير للتعديل'
+                : 'تم إرجاع التقرير للمرحلة السابقة',
+            'status' => $newStatus,
             'returnCount' => $report->return_count,
         ]);
+    }
+
+    // POST /reports/{id}/cancel — إيقاف التقرير نهائياً (مدير المركز وحده)
+    public function cancel(Request $request, int $id)
+    {
+        if (!$request->user()->hasPermission(Permissions::REPORT_CANCEL)) {
+            return response()->json(['error' => 'ليس لديك صلاحية إلغاء التقرير'], 403);
+        }
+
+        $validated = $request->validate([
+            'reason' => 'required|string|min:5|max:500',
+        ], [
+            'reason.required' => 'يجب ذكر سبب الإلغاء',
+            'reason.min' => 'سبب الإلغاء قصير جداً',
+        ]);
+
+        $report = $this->resolveReportInScope($request, $id);
+        if (!$report) {
+            return response()->json(['error' => 'التقرير غير موجود'], 404);
+        }
+
+        // المعتمَد لا يُلغى: وثيقة نافذة قد تكون طُبعت ووُقّعت — سحبها يحتاج
+        // إجراءً موثّقاً لا زرّاً. والملغى لا يُلغى مرتين.
+        if (in_array($report->status, ['approved', 'cancelled'], true)) {
+            return response()->json(['error' => 'لا يمكن إلغاء تقرير معتمد أو ملغى مسبقاً'], 422);
+        }
+
+        $report->update([
+            'status' => 'cancelled',
+            'return_reason' => $validated['reason'],
+            'escalated_at' => null,
+        ]);
+
+        // المرشّح يعود «مُقيَّم» فيُكتب له تقرير جديد — الإلغاء يفتح الباب لا يغلقه
+        $report->candidate->setStatus('assessed');
+
+        if ($report->created_by) {
+            $this->notify->notify($report->created_by, 'return',
+                'أُلغي التقرير',
+                'سبب الإلغاء: ' . $validated['reason'],
+                'report', (string) $id, $request->user()->id);
+        }
+
+        $thread = ChatThread::firstOrCreate(
+            ['entity_type' => 'report', 'entity_id' => $id],
+            ['title' => 'محادثة التقرير']
+        );
+        ChatMessage::create([
+            'thread_id' => $thread->id,
+            'sender_id' => $request->user()->id,
+            'message' => 'أُلغي التقرير. السبب: ' . $validated['reason'],
+            'message_type' => 'action',
+            'action_type' => 'return',
+        ]);
+
+        $this->log($request, 'CANCEL_REPORT', $id, [
+            'reason' => $validated['reason'],
+            'candidate' => $report->candidate->participant_code,
+        ]);
+
+        return response()->json(['message' => 'تم إلغاء التقرير', 'status' => 'cancelled']);
     }
 
     public function resubmit(Request $request, int $id)

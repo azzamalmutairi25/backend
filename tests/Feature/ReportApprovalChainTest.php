@@ -22,7 +22,7 @@ class ReportApprovalChainTest extends TestCase
     // المقيّم لا يرى — ولا يعتمد — إلا تقارير من قيّمهم هو، فتقريرٌ بلا تقييم
     // لا مقيّمَ يملكه ويقرأ 404 لكل مقيّم. المصنع يعكس ذلك بدل أن يصنع حالةً
     // لا تنشأ في النظام.
-    private function reportAt(string $status, ?User $evaluatedBy = null): FinalReport
+    private function reportAt(string $status, ?User $evaluatedBy = null, ?User $author = null): FinalReport
     {
         [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed']);
 
@@ -36,8 +36,14 @@ class ReportApprovalChainTest extends TestCase
 
         return FinalReport::create([
             'candidate_id' => $c->id, 'assessment_id' => $a->id,
-            'recommendation' => 'يوصى به', 'status' => $status, 'created_by' => null,
+            'recommendation' => 'يوصى به', 'status' => $status, 'created_by' => $author?->id,
         ]);
+    }
+
+    // مساعد يتبع المدير المعطى — مرحلة المدير تشترط أن يكون الكاتب من فريقه
+    private function assistantOf(User $manager): User
+    {
+        return $this->actingAsRole('ASSISTANT', 'ED', $manager);
     }
 
     // ── من يكتب ──
@@ -76,8 +82,9 @@ class ReportApprovalChainTest extends TestCase
 
     public function test_manager_approval_advances_to_the_dev_stage(): void
     {
-        $r = $this->reportAt('pending_manager');
-        $this->actingAsRole('ASSESS_MANAGER');
+        $mgr = $this->actingAsRole('ASSESS_MANAGER');
+        $r = $this->reportAt('pending_manager', null, $this->assistantOf($mgr));
+        \Laravel\Sanctum\Sanctum::actingAs($mgr);
 
         $this->postJson("/api/reports/{$r->id}/approve")
             ->assertOk()->assertJsonPath('status', 'pending_dev_approval');
@@ -161,8 +168,9 @@ class ReportApprovalChainTest extends TestCase
 
     public function test_manager_may_approve_directly_skipping_the_evaluator(): void
     {
-        $r = $this->reportAt('pending_evaluator');
         $u = $this->actingAsRole('ASSESS_MANAGER');
+        $r = $this->reportAt('pending_evaluator', null, $this->assistantOf($u));
+        \Laravel\Sanctum\Sanctum::actingAs($u);
 
         $this->postJson("/api/reports/{$r->id}/approve")
             ->assertOk()
@@ -179,8 +187,9 @@ class ReportApprovalChainTest extends TestCase
 
     public function test_normal_approval_is_not_logged_as_a_skip(): void
     {
-        $r = $this->reportAt('pending_manager');
         $u = $this->actingAsRole('ASSESS_MANAGER');
+        $r = $this->reportAt('pending_manager', null, $this->assistantOf($u));
+        \Laravel\Sanctum\Sanctum::actingAs($u);
         $this->postJson("/api/reports/{$r->id}/approve")->assertOk();
 
         $this->assertDatabaseHas('audit_logs', ['action' => 'APPROVE_REPORT', 'user_id' => $u->id]);
@@ -202,15 +211,10 @@ class ReportApprovalChainTest extends TestCase
 
     public function test_any_stage_can_return_the_report(): void
     {
-        foreach ([
-            'pending_evaluator' => 'EVALUATOR',
-            'pending_manager' => 'ASSESS_MANAGER',
-            'pending_dev_approval' => 'DEV_MANAGER',
-            'pending_center' => 'CENTER_MANAGER',
-        ] as $status => $role) {
-            $actor = $this->actingAsRole($role);
-            // المقيّم يحتاج أن يكون قد قيّم المرشّح ليرى تقريره أصلاً
-            $r = $this->reportAt($status, $role === 'EVALUATOR' ? $actor : null);
+        // الإرجاع لمدير المركز وحده — لا لكل معتمِد
+        foreach (\App\Models\WorkflowStage::chain()->pluck('status_key') as $status) {
+            $r = $this->reportAt($status);
+            $this->actingAsRole('CENTER_MANAGER');
 
             $this->postJson("/api/reports/{$r->id}/return", ['reason' => 'يحتاج مراجعة الأرقام'])
                 ->assertOk();
