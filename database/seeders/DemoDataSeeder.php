@@ -88,13 +88,15 @@ class DemoDataSeeder extends Seeder
 
         $this->purge();
 
-        // التوزيع يعكس قمعاً واقعياً: كثيرون في الأعلى، قليلون أنهوا الرحلة
+        // التوزيع يعكس قمعاً واقعياً: كثيرون في الأعلى، قليلون أنهوا الرحلة.
+        // الأعداد مضاعفات ٨ (عدد القطاعات) ليقع في كل قطاع مرشّح من كل حالة —
+        // وإلا لم يجد مقيّمُ قطاعٍ ما أحداً ليختبر عليه.
         $plan = [
-            ['status' => 'draft', 'count' => 4],
-            ['status' => 'scheduled', 'count' => 6],
-            ['status' => 'assessed', 'count' => 6],
-            ['status' => 'approved', 'count' => 5],
-            ['status' => 'completed', 'count' => 4],
+            ['status' => 'draft', 'count' => 8],
+            ['status' => 'scheduled', 'count' => 16],
+            ['status' => 'assessed', 'count' => 16],
+            ['status' => 'approved', 'count' => 8],
+            ['status' => 'completed', 'count' => 8],
         ];
 
         $made = [];
@@ -150,7 +152,9 @@ class DemoDataSeeder extends Seeder
     private function makeCandidate(string $status, $sectors, $evaluators, $managers, $assistants, $devManagers): array
     {
         $this->seq++;
-        $sector = $sectors->random();
+        // دوّار لا عشوائي: العشوائية تترك قطاعات بمرشّح واحد وأخرى بستة، فلا
+        // يُختبر حدّ القطاع. الدوّار يضمن تغطية كل قطاع بالتساوي.
+        $sector = $sectors->values()[($this->seq - 1) % $sectors->count()];
         $isMil = (bool) $sector->is_military;
 
         // الرتبة تحدّد الفئة عبر نفس المنطق الذي يستعمله المتحكّم — لا تُكتب الفئة يدوياً
