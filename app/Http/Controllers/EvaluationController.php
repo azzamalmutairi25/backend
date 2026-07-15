@@ -16,11 +16,6 @@ class EvaluationController extends Controller
 {
     public function __construct(private NotificationService $notify) {}
 
-    private function allowedClassifications(Request $request): array
-    {
-        $canSeeClassified = $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED);
-        return $canSeeClassified ? ['normal', 'secret', 'top_secret'] : ['normal'];
-    }
 
     private function log(Request $request, string $action, int $entityId, array $details = []): void
     {
@@ -212,6 +207,11 @@ class EvaluationController extends Controller
 
     public function saveScores(Request $request, int $id)
     {
+        // الصلاحية قبل الملكية: الملكية وحدها تُبقي الجلسة مفتوحةً لمن سُحبت
+        // منه EVALUATION_INPUT بعد بدئها — وقد صار السحب الفردي ممكناً.
+        if (!$request->user()->hasPermission(Permissions::EVALUATION_INPUT)) {
+            return response()->json(['error' => 'ليس لديك صلاحية إدخال التقييم'], 403);
+        }
         $evaluation = Evaluation::with('candidate')->findOrFail($id);
 
         if ($evaluation->evaluator_id !== $request->user()->id) {
@@ -284,6 +284,9 @@ class EvaluationController extends Controller
 
     public function submit(Request $request, int $id)
     {
+        if (!$request->user()->hasPermission(Permissions::EVALUATION_INPUT)) {
+            return response()->json(['error' => 'ليس لديك صلاحية إدخال التقييم'], 403);
+        }
         $evaluation = Evaluation::with('candidate')->findOrFail($id);
 
         if ($evaluation->evaluator_id !== $request->user()->id) {

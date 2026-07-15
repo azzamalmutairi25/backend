@@ -15,11 +15,6 @@ use Illuminate\Http\Request;
 
 class DevelopmentPlanController extends Controller
 {
-    private function allowedClassifications(Request $request): array
-    {
-        return $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)
-            ? ['normal', 'secret', 'top_secret'] : ['normal'];
-    }
 
     private function log(Request $request, string $action, int $entityId, array $details = []): void
     {
@@ -35,9 +30,21 @@ class DevelopmentPlanController extends Controller
     }
 
     // يحلّ المرشّح ضمن التصنيف المسموح (مصنّف خارج الصلاحية = «غير موجود»)
+    // النطاق كاملاً: التصنيف + القطاع. كان التصنيف وحده، فكان المحصور بقطاع
+    // يقرأ ويكتب ويحذف خطط تطوير مرشحي القطاعات الأخرى — وكل مسارات هذا
+    // المتحكّم تمرّ من هنا، فالحارس واحد يغطّيها.
     private function resolveCandidate(Request $request, int $candidateId): ?Candidate
     {
-        return Candidate::whereIn('classification', $this->allowedClassifications($request))->find($candidateId);
+        return $this->resolveCandidateInScope($request, $candidateId);
+    }
+
+    // بند ضمن نطاق المستخدم — النطاق عبر علاقة candidate لأن الحلّ بمعرّف البند
+    private function resolveItemInScope(Request $request, int $id): ?DevelopmentPlanItem
+    {
+        $q = DevelopmentPlanItem::with('candidate');
+        $this->scopeViaCandidate($request, $q);
+
+        return $q->find($id);
     }
 
     private function present(DevelopmentPlanItem $i): array
@@ -113,8 +120,9 @@ class DevelopmentPlanController extends Controller
         if (!$request->user()->hasPermission(Permissions::REPORT_CREATE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة خطة التطوير'], 403);
         }
-        $item = DevelopmentPlanItem::with('candidate')->find($id);
-        if (!$item || !in_array($item->candidate->classification, $this->allowedClassifications($request), true)) {
+        // يُحلّ بمعرّف البند لا المرشح، فالنطاق يُطبَّق عبر علاقة candidate
+        $item = $this->resolveItemInScope($request, $id);
+        if (!$item) {
             return response()->json(['error' => 'البند غير موجود'], 404);
         }
         $validated = $request->validate([
@@ -142,8 +150,9 @@ class DevelopmentPlanController extends Controller
         if (!$request->user()->hasPermission(Permissions::REPORT_CREATE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة خطة التطوير'], 403);
         }
-        $item = DevelopmentPlanItem::with('candidate')->find($id);
-        if (!$item || !in_array($item->candidate->classification, $this->allowedClassifications($request), true)) {
+        // يُحلّ بمعرّف البند لا المرشح، فالنطاق يُطبَّق عبر علاقة candidate
+        $item = $this->resolveItemInScope($request, $id);
+        if (!$item) {
             return response()->json(['error' => 'البند غير موجود'], 404);
         }
         $item->delete();
