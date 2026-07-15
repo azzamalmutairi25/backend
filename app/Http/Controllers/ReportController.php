@@ -96,6 +96,29 @@ class ReportController extends Controller
         return $canSeeClassified ? ['normal', 'secret', 'top_secret'] : ['normal'];
     }
 
+    // ── نطاق التقارير ──
+    // القطاع حدّ أعلى لكل محصور به. وداخله يضيق المقيّم أكثر: لا يرى إلا تقارير
+    // من قيّمهم هو — فالتقرير الذي لم يشارك في تقييمه ليس شأنه ولو كان في قطاعه.
+    // مساعد التقييم يبقى على حدّ القطاع لأنه يكتب تقارير مرشحي قطاعه، ولا يقيّم.
+    // من لا قطاع له (مدير التقييم، تطوير الكفاءات، مدير المركز) يرى الكل.
+    //
+    // يُستدعى من index وstats وshow معاً — الرقم والقائمة والتفصيلة من نطاق واحد.
+    private function scopeToUser($query, $user): void
+    {
+        if (!$user->isSectorBound()) {
+            return;
+        }
+
+        $query->whereHas('candidate', fn ($q) => $q->where('sector_id', $user->sector_id));
+
+        if ($user->hasRole('EVALUATOR', 'DISCUSSION_EVAL')) {
+            $query->whereIn(
+                'candidate_id',
+                \App\Models\Evaluation::where('evaluator_id', $user->id)->select('candidate_id')
+            );
+        }
+    }
+
     private function log(Request $request, string $action, int $entityId, array $details = []): void
     {
         AuditLog::create([
@@ -122,6 +145,8 @@ class ReportController extends Controller
 
         $query = FinalReport::with('candidate.sector')
             ->whereHas('candidate', fn ($q) => $q->whereIn('classification', $this->allowedClassifications($request)));
+
+        $this->scopeToUser($query, $request->user());
 
         if ($request->filled('status')) {
             // «pending» تعني السلسلة كاملة — تطابق ما يعدّه مؤشّر «معلّق» في اللوحة،
@@ -167,6 +192,8 @@ class ReportController extends Controller
 
         $allowed = $this->allowedClassifications($request);
         $base = FinalReport::whereHas('candidate', fn ($q) => $q->whereIn('classification', $allowed));
+        // نفس نطاق index — وإلا عدّ المؤشّر تقارير لا تظهر في القائمة
+        $this->scopeToUser($base, $request->user());
 
         return response()->json(['stats' => [
             'approved' => (clone $base)->where('status', 'approved')->count(),
@@ -188,9 +215,12 @@ class ReportController extends Controller
             return response()->json(['error' => 'ليس لديك صلاحية إنشاء تقرير'], 403);
         }
         $allowed = $this->allowedClassifications($request);
+        $user = $request->user();
         // تحميل مُسبق للدورات (مرتّبة) وتقاريرها — يتفادى N+1 (استعلامان بدل استعلامين لكل مرشح)
         $candidates = Candidate::with(['sector', 'assessments' => fn ($q) => $q->orderByDesc('id'), 'assessments.report'])
             ->whereIn('classification', $allowed)
+            // المحصور بقطاع لا يكتب تقريراً لمرشّح من قطاع آخر — القائمة تطابق ما يُسمح به
+            ->when($user->isSectorBound(), fn ($q) => $q->where('sector_id', $user->sector_id))
             ->where('status', 'assessed')
             ->get()
             ->filter(function ($c) {
@@ -213,9 +243,14 @@ class ReportController extends Controller
         if (!$request->user()->hasPermission(Permissions::REPORT_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض التقرير'], 403);
         }
-        $r = FinalReport::with('candidate.sector')->findOrFail($id);
-        // مصنّف خارج صلاحية المستخدم يُعامَل كـ«غير موجود» (لا نكشف وجوده)
-        if (!in_array($r->candidate->classification, $this->allowedClassifications($request))) {
+        // النطاق داخل الاستعلام لا بعده: تقرير خارج نطاق المستخدم لا يُحلّ أصلاً،
+        // فلا يفرّق الردّ بين «غير موجود» و«موجود وليس لك» — ولا يصير المعرّف كاشفاً
+        $q = FinalReport::with('candidate.sector')
+            ->whereHas('candidate', fn ($c) => $c->whereIn('classification', $this->allowedClassifications($request)));
+        $this->scopeToUser($q, $request->user());
+
+        $r = $q->find($id);
+        if (!$r) {
             return response()->json(['error' => 'التقرير غير موجود'], 404);
         }
         return response()->json(['report' => [
@@ -550,8 +585,13 @@ class ReportController extends Controller
         if (!$request->user()->hasPermission(Permissions::REPORT_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض التقرير'], 403);
         }
-        $r = FinalReport::with(['candidate.sector', 'assessment'])->findOrFail($id);
-        if (!in_array($r->candidate->classification, $this->allowedClassifications($request), true)) {
+        // نفس نطاق show — المستند وثيقة كاملة، فحدّه لا يكون أوسع من القائمة
+        $q = FinalReport::with(['candidate.sector', 'assessment'])
+            ->whereHas('candidate', fn ($c) => $c->whereIn('classification', $this->allowedClassifications($request)));
+        $this->scopeToUser($q, $request->user());
+
+        $r = $q->find($id);
+        if (!$r) {
             return response()->json(['error' => 'التقرير غير موجود'], 404);
         }
         // المستند المطبوع يحمل الاسم لحاملي REPORT_VIEW_NAMES وحدهم (مدير النظام
@@ -576,10 +616,13 @@ class ReportController extends Controller
             return response()->json(['error' => 'ليس لديك صلاحية تصدير التقارير'], 403);
         }
         $allowed = $this->allowedClassifications($request);
-        $reports = FinalReport::with('candidate.sector')
+        $query = FinalReport::with('candidate.sector')
             ->whereHas('candidate', fn ($q) => $q->whereIn('classification', $allowed))
-            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
-            ->orderByDesc('created_at')->get();
+            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status));
+        // التصدير لا يكون ثغرةً لما تُخفيه الشاشة
+        $this->scopeToUser($query, $request->user());
+
+        $reports = $query->orderByDesc('created_at')->get();
 
         $this->log($request, 'EXPORT_REPORTS', 0, ['count' => $reports->count()]);
 
