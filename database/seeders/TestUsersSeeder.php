@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Role;
+use App\Models\Sector;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 
@@ -29,6 +30,10 @@ class TestUsersSeeder extends Seeder
             'external'   => 'EXTERNAL_ADD',     // إضافة مرشّح فقط (صلاحية دنيا)
         ];
 
+        // الأدوار المحصورة بقطاع تحتاج قطاعاً وإلا لم تُقيّم أحداً — نُسندها للتعليم
+        // (نفس قطاع أغلب بيانات العرض) ليعمل حساب الاختبار فور إنشائه
+        $defaultSector = Sector::where('code', 'ED')->value('id') ?? Sector::value('id');
+
         $created = 0;
         foreach ($map as $username => $roleCode) {
             $role = Role::where('code', $roleCode)->first();
@@ -36,6 +41,7 @@ class TestUsersSeeder extends Seeder
                 $this->command->warn("تخطّي {$username}: الدور {$roleCode} غير موجود");
                 continue;
             }
+            $bound = in_array($roleCode, User::SECTOR_BOUND_ROLES, true);
             User::updateOrCreate(
                 ['username' => $username],
                 [
@@ -43,6 +49,7 @@ class TestUsersSeeder extends Seeder
                     'email' => "{$username}@kafaat.test",
                     'password' => $password,      // يُشفَّر تلقائياً عبر الموديل
                     'role_id' => $role->id,
+                    'sector_id' => $bound ? $defaultSector : null,
                     'user_type' => 'external',    // كلمة مرور محلية (لا AD)
                     'is_active' => true,
                     'must_change_password' => false,

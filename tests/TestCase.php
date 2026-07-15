@@ -13,15 +13,23 @@ use Laravel\Sanctum\Sanctum;
 abstract class TestCase extends BaseTestCase
 {
     // مستخدم بدور محدّد + مصادقة عبر Sanctum (يرجع المستخدم)
-    protected function actingAsRole(string $roleCode): User
+    //
+    // الأدوار المحصورة بقطاع تُنشأ بقطاع — لا يوجد مقيّم بلا قطاع في النظام،
+    // فمصنعٌ ينشئه لا يمثّل الواقع. الافتراضي ED ليطابق makeCandidate الافتراضي،
+    // فيبقى الاختبار الذي لا يعني القطاع شيئاً بالنسبة له عاملاً كما كان.
+    // مرّر sectorCode لاختبار حدود القطاع صراحةً.
+    protected function actingAsRole(string $roleCode, ?string $sectorCode = null): User
     {
         $role = Role::where('code', $roleCode)->firstOrFail();
+        $bound = in_array($roleCode, User::SECTOR_BOUND_ROLES, true);
+
         $user = User::create([
             'username' => 'u_' . strtolower($roleCode) . '_' . substr(md5(uniqid('', true)), 0, 6),
             'full_name' => "مستخدم {$roleCode}",
             'email' => strtolower($roleCode) . '.' . substr(md5(uniqid('', true)), 0, 6) . '@kafaat.local',
             'password' => 'Kafaat@2026',
             'role_id' => $role->id,
+            'sector_id' => $bound ? Sector::where('code', $sectorCode ?? 'ED')->value('id') : null,
             'is_active' => true,
             'must_change_password' => false,
         ]);

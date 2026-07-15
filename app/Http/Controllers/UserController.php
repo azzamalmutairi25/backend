@@ -18,13 +18,16 @@ class UserController extends Controller
             return response()->json(['error' => 'ليس لديك صلاحية إدارة المستخدمين'], 403);
         }
 
-        $users = User::with('role')->orderBy('full_name')->get()->map(fn ($u) => [
+        $users = User::with(['role', 'sector'])->orderBy('full_name')->get()->map(fn ($u) => [
             'id' => $u->id,
             'username' => $u->username,
             'fullName' => $u->full_name,
             'email' => $u->email,
             'roleCode' => $u->role->code,
             'roleName' => $u->role->name_ar,
+            'sectorId' => $u->sector_id,
+            'sectorName' => $u->sector?->name_ar,
+            'sectorBound' => $u->isSectorBound(),
             'userType' => $u->user_type,
             'adUsername' => $u->ad_username,
             'isActive' => $u->is_active,
@@ -47,6 +50,8 @@ class UserController extends Controller
             'code' => $r->code,
             'nameAr' => $r->name_ar,
             'description' => $r->description,
+            // تُصدَّر ليعرف النموذج متى يطلب القطاع — بدل تكرار القائمة في الواجهة فتتباعدان
+            'sectorBound' => in_array($r->code, User::SECTOR_BOUND_ROLES, true),
         ]);
 
         return response()->json(['roles' => $roles]);
@@ -105,6 +110,22 @@ class UserController extends Controller
         return response()->json(['rolePermissions' => $result]);
     }
 
+    // ── القطاع إلزامي للأدوار المحصورة، ولا معنى له لسواها ──
+    // يرجع جسم خطأ جاهزاً أو null. الدور يأتي كمعرّف فنقرأ رمزه من القاعدة.
+    private function sectorRuleError(int $roleId, ?int $sectorId): ?array
+    {
+        $code = Role::whereKey($roleId)->value('code');
+        $bound = in_array($code, User::SECTOR_BOUND_ROLES, true);
+
+        if ($bound && !$sectorId) {
+            return ['errors' => ['sectorId' => ['القطاع مطلوب لهذا الدور — كل مقيّم ومساعد مخصَّص لقطاع']]];
+        }
+        if (!$bound && $sectorId) {
+            return ['errors' => ['sectorId' => ['هذا الدور غير محصور بقطاع']]];
+        }
+        return null;
+    }
+
     public function store(Request $request)
     {
         if (!$request->user()->hasPermission(Permissions::USER_MANAGE)) {
@@ -117,6 +138,7 @@ class UserController extends Controller
             'fullName' => 'required|string|max:200',
             'email' => 'nullable|email',
             'roleId' => 'required|exists:roles,id',
+            'sectorId' => 'nullable|exists:sectors,id',
         ];
         if ($userType === 'internal') {
             // مستخدم داخلي: يُصادَق عبر AD — لا كلمة مرور محلية، بل معرّف AD
@@ -128,11 +150,18 @@ class UserController extends Controller
             'username.unique' => 'اسم المستخدم مسجّل مسبقاً',
         ]);
 
+        // القطاع إلزامي للأدوار المحصورة به — مقيّم بلا قطاع لا يستطيع تقييم أحد،
+        // فالسماح بإنشائه يُنتج حساباً معطّلاً بصمت
+        if ($err = $this->sectorRuleError($validated['roleId'], $validated['sectorId'] ?? null)) {
+            return response()->json($err, 422);
+        }
+
         $user = new User();
         $user->username = $validated['username'];
         $user->full_name = $validated['fullName'];
         $user->email = $validated['email'] ?? null;
         $user->role_id = $validated['roleId'];
+        $user->sector_id = $validated['sectorId'] ?? null;
         $user->user_type = $userType;
         $user->is_active = true;
         if ($userType === 'internal') {
@@ -163,20 +192,29 @@ class UserController extends Controller
             'fullName' => 'required|string|max:200',
             'email' => 'nullable|email',
             'roleId' => 'required|exists:roles,id',
+            'sectorId' => 'nullable|exists:sectors,id',
         ]);
 
         if ($user->id === $request->user()->id && $user->role_id != $validated['roleId']) {
             return response()->json(['error' => 'لا يمكنك تغيير دورك الخاص'], 422);
         }
 
+        // تغيير الدور قد يجعله محصوراً بقطاع أو يخرجه من الحصر — تُعاد القاعدة على
+        // الدور الجديد لا القديم، وإلا نشأ مقيّم بلا قطاع بترقية مستخدم قائم
+        if ($err = $this->sectorRuleError($validated['roleId'], $validated['sectorId'] ?? null)) {
+            return response()->json($err, 422);
+        }
+
         $roleChanged = $user->role_id != $validated['roleId'];
+        $sectorChanged = $user->sector_id != ($validated['sectorId'] ?? null);
         $user->full_name = $validated['fullName'];
         $user->email = $validated['email'] ?? null;
         $user->role_id = $validated['roleId'];
+        $user->sector_id = $validated['sectorId'] ?? null;
         $user->save();
 
-        // تغيير الدور يغيّر الصلاحيات — أبطل جلسات المستخدم ليعيد الدخول بصلاحياته الجديدة
-        if ($roleChanged) {
+        // تغيير الدور أو القطاع يغيّر ما يراه ويقيّمه — أبطل جلساته ليعيد الدخول بنطاقه الجديد
+        if ($roleChanged || $sectorChanged) {
             $user->tokens()->delete();
         }
 

@@ -117,6 +117,15 @@ class EvaluationController extends Controller
             return response()->json(['error' => 'المرشح غير موجود'], 404);
         }
 
+        // حدّ القطاع: المقيّم لا يُقيّم إلا مرشحي قطاعه. يُفرض هنا لا عند التوزيع
+        // وحده — وإلا بدأ مقيّمٌ تقييماً لمرشّح من قطاع آخر بلا جدولة أصلاً.
+        if (!$request->user()->coversSector($candidate->sector_id)) {
+            $this->log($request, 'DENIED_EVAL_CROSS_SECTOR', $candidate->id, [
+                'candidateSector' => $candidate->sector_id,
+            ]);
+            return response()->json(['error' => 'هذا المرشح ليس من قطاعك'], 403);
+        }
+
         if (!in_array($candidate->status, ['scheduled', 'assessed'])) {
             return response()->json(['error' => 'لا يمكن تقييم مرشح غير معتمد للتقييم'], 422);
         }
