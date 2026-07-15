@@ -633,7 +633,11 @@ class CandidateController extends Controller
             return response()->json(['error' => 'ليس لديك صلاحية عرض المرشحين'], 403);
         }
         $allowed = $this->allowedClassifications($request);
-        $base = Candidate::whereIn('classification', $allowed);
+        $user = $request->user();
+        $base = Candidate::whereIn('classification', $allowed)
+            // نفس حصر index — وإلا أفشى المؤشّر حجم ما تخفيه القائمة:
+            // مقيّم يرى ٥ مرشحين ومؤشّرٌ يقول ٤٤ يكشف اتساع القطاعات الأخرى
+            ->when($user->isSectorBound(), fn ($q) => $q->where('sector_id', $user->sector_id));
 
         $total = (clone $base)->count();
         $upper = (clone $base)->where('tier', 'upper')->count();
