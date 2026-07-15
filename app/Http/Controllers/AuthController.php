@@ -105,7 +105,7 @@ class AuthController extends Controller
                 'role' => $user->role->code,
                 'roleName' => $user->role->name_ar,
                 'mustChangePassword' => $user->must_change_password,
-                'permissions' => Permissions::forRole($user->role->code),
+                'permissions' => $user->effectivePermissions(),
             ],
         ]);
     }
@@ -120,7 +120,7 @@ class AuthController extends Controller
             'fullName' => $user->full_name,
             'role' => $user->role->code,
             'roleName' => $user->role->name_ar,
-            'permissions' => Permissions::forRole($user->role->code),
+            'permissions' => $user->effectivePermissions(),
         ]);
     }
 
