@@ -63,9 +63,12 @@ class AuditController extends Controller
 
     public function candidateHistory(Request $request, int $id)
     {
+        // سجل التدقيق — لا عرض المرشح. كان محروساً بـCANDIDATE_VIEW فقرأه عشرة
+        // أدوار من أحد عشر، بينما شقيقه systemLog على الجدول نفسه محروس بـAUDIT_VIEW.
+        // السجل يكشف من فعل ماذا ومتى: من رأى بيانات المرشّح، ومن حاول ورُفض.
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::CANDIDATE_VIEW)) {
-            return response()->json(['error' => 'ليس لديك صلاحية عرض سجل المرشح'], 403);
+        if (!$user->hasPermission(Permissions::AUDIT_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض سجل التدقيق'], 403);
         }
         // احترام تصنيف المرشح — فشل مغلق: مرشح محذوف قد يكون كان مصنّفاً
         $candidate = \App\Models\Candidate::find($id);

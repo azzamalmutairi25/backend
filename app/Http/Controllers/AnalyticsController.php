@@ -17,11 +17,6 @@ use Illuminate\Http\Request;
 
 class AnalyticsController extends Controller
 {
-    private function allowedClassifications(Request $request): array
-    {
-        return $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)
-            ? ['normal', 'secret', 'top_secret'] : ['normal'];
-    }
 
     private function gate(Request $request): bool
     {

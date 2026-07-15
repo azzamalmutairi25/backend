@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\Evaluation;
 use App\Models\FinalReport;
+use App\Models\User;
 use App\Models\Notification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -15,9 +17,23 @@ class ReportApprovalChainTest extends TestCase
 
     protected $seed = true;
 
-    private function reportAt(string $status): FinalReport
+    // تقرير عند مرحلة، مع تقييمٍ مُسنَد للمقيّم المعطى.
+    //
+    // المقيّم لا يرى — ولا يعتمد — إلا تقارير من قيّمهم هو، فتقريرٌ بلا تقييم
+    // لا مقيّمَ يملكه ويقرأ 404 لكل مقيّم. المصنع يعكس ذلك بدل أن يصنع حالةً
+    // لا تنشأ في النظام.
+    private function reportAt(string $status, ?User $evaluatedBy = null): FinalReport
     {
         [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed']);
+
+        if ($evaluatedBy) {
+            Evaluation::create([
+                'candidate_id' => $c->id, 'assessment_id' => $a->id,
+                'evaluator_id' => $evaluatedBy->id, 'activity' => 'interview',
+                'status' => 'submitted', 'submitted_at' => now(),
+            ]);
+        }
+
         return FinalReport::create([
             'candidate_id' => $c->id, 'assessment_id' => $a->id,
             'recommendation' => 'يوصى به', 'status' => $status, 'created_by' => null,
@@ -49,8 +65,8 @@ class ReportApprovalChainTest extends TestCase
 
     public function test_evaluator_approval_advances_to_the_manager_stage(): void
     {
-        $r = $this->reportAt('pending_evaluator');
-        $this->actingAsRole('EVALUATOR');
+        $ev = $this->actingAsRole('EVALUATOR');
+        $r = $this->reportAt('pending_evaluator', $ev);
 
         $this->postJson("/api/reports/{$r->id}/approve")
             ->assertOk()
@@ -103,8 +119,8 @@ class ReportApprovalChainTest extends TestCase
 
     public function test_candidate_is_not_completed_before_the_chain_ends(): void
     {
-        $r = $this->reportAt('pending_evaluator');
-        $this->actingAsRole('EVALUATOR');
+        $ev = $this->actingAsRole('EVALUATOR');
+        $r = $this->reportAt('pending_evaluator', $ev);
         $this->postJson("/api/reports/{$r->id}/approve")->assertOk();
 
         $this->assertSame('assessed', $r->candidate->fresh()->status);
@@ -114,15 +130,15 @@ class ReportApprovalChainTest extends TestCase
 
     public function test_evaluator_cannot_approve_the_manager_stage(): void
     {
-        $r = $this->reportAt('pending_manager');
-        $this->actingAsRole('EVALUATOR');
+        $ev = $this->actingAsRole('EVALUATOR');
+        $r = $this->reportAt('pending_manager', $ev);
         $this->postJson("/api/reports/{$r->id}/approve")->assertStatus(403);
     }
 
     public function test_evaluator_cannot_approve_the_final_stage(): void
     {
-        $r = $this->reportAt('pending_dev_approval');
-        $this->actingAsRole('EVALUATOR');
+        $ev = $this->actingAsRole('EVALUATOR');
+        $r = $this->reportAt('pending_dev_approval', $ev);
         $this->postJson("/api/reports/{$r->id}/approve")->assertStatus(403);
     }
 
@@ -190,9 +206,12 @@ class ReportApprovalChainTest extends TestCase
             'pending_evaluator' => 'EVALUATOR',
             'pending_manager' => 'ASSESS_MANAGER',
             'pending_dev_approval' => 'DEV_MANAGER',
+            'pending_center' => 'CENTER_MANAGER',
         ] as $status => $role) {
-            $r = $this->reportAt($status);
-            $this->actingAsRole($role);
+            $actor = $this->actingAsRole($role);
+            // المقيّم يحتاج أن يكون قد قيّم المرشّح ليرى تقريره أصلاً
+            $r = $this->reportAt($status, $role === 'EVALUATOR' ? $actor : null);
+
             $this->postJson("/api/reports/{$r->id}/return", ['reason' => 'يحتاج مراجعة الأرقام'])
                 ->assertOk();
             $this->assertSame('returned', $r->fresh()->status, "الإرجاع من {$status}");
@@ -217,9 +236,9 @@ class ReportApprovalChainTest extends TestCase
 
     public function test_each_stage_notifies_the_role_that_owns_the_next_one(): void
     {
-        $r = $this->reportAt('pending_evaluator');
         $manager = $this->actingAsRole('ASSESS_MANAGER');
-        $this->actingAsRole('EVALUATOR');
+        $ev = $this->actingAsRole('EVALUATOR');
+        $r = $this->reportAt('pending_evaluator', $ev);
 
         $this->postJson("/api/reports/{$r->id}/approve")->assertOk();
 
@@ -288,7 +307,9 @@ class ReportApprovalChainTest extends TestCase
         ]);
 
         $this->actingAsRole('EVALUATOR'); // لا يملك view_classified
-        $this->postJson("/api/reports/{$r->id}/approve")->assertStatus(403);
+        // 404 لا 403: صار الحلّ داخل الاستعلام، فلا يفرّق الردّ بين «غير موجود»
+        // و«موجود وليس لك» — والمعرّف لا يكشف وجود تقرير لمرشّح مصنّف
+        $this->postJson("/api/reports/{$r->id}/approve")->assertStatus(404);
         $this->assertSame('pending_evaluator', $r->fresh()->status);
     }
 }

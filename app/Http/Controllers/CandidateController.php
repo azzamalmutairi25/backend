@@ -15,11 +15,6 @@ use Illuminate\Support\Facades\DB;
 
 class CandidateController extends Controller
 {
-    private function allowedClassifications(Request $request): array
-    {
-        $canSeeClassified = $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED);
-        return $canSeeClassified ? ['normal', 'secret', 'top_secret'] : ['normal'];
-    }
 
     public function index(Request $request)
     {
@@ -77,10 +72,12 @@ class CandidateController extends Controller
         if (!$user->hasPermission(Permissions::CANDIDATE_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض المرشحين'], 403);
         }
-        $candidate = Candidate::with('sector')->findOrFail($id);
-
-        if (!in_array($candidate->classification, $this->allowedClassifications($request))) {
-            $this->log($request, 'DENIED_CLASSIFIED_ACCESS', $id, ['code' => $candidate->participant_code]);
+        // النطاق كاملاً — التصنيف والقطاع معاً. كان يفحص التصنيف وحده بينما
+        // index() محصور بالقطاع، فكانت التفاصيل الكاملة تُفتح بالمعرّف لمرشّح
+        // من قطاع آخر لا يظهر في القائمة أصلاً.
+        $candidate = $this->resolveCandidateInScope($request, $id, ['sector']);
+        if (!$candidate) {
+            $this->log($request, 'DENIED_CANDIDATE_OUT_OF_SCOPE', $id);
             return response()->json(['error' => 'المرشح غير موجود'], 404);
         }
 
@@ -148,6 +145,15 @@ class CandidateController extends Controller
                     'participantCode' => $active->participant_code,
                 ], 422);
             }
+            // الكتابة فوق سجلٍّ قائم تعديلٌ لا إنشاء — تتطلّب CANDIDATE_EDIT.
+            // بدونها كان EXTERNAL_ADD (وصلاحيته الإضافة وحدها) يعيد تسمية أي
+            // مرشّح ونقله بين القطاعات بمجرّد «إضافته» بهويته.
+            if (!$request->user()->hasPermission(Permissions::CANDIDATE_EDIT)) {
+                return response()->json([
+                    'error' => 'المرشح مسجّل مسبقاً — تعديل بياناته يتطلّب صلاحية التعديل',
+                ], 403);
+            }
+
             // تحديث بيانات الشخص للأحدث (قد يكون تغيّر قطاعه/رتبته). التصنيف يُدار عبر reclassify فقط.
             $candidate->full_name = $validated['fullName'];
             $candidate->mobile = $validated['mobile'] ?? null;
@@ -235,9 +241,8 @@ class CandidateController extends Controller
             return response()->json(['error' => 'ليس لديك صلاحية التعديل'], 403);
         }
 
-        $candidate = Candidate::findOrFail($id);
-
-        if (!in_array($candidate->classification, $this->allowedClassifications($request))) {
+                $candidate = $this->resolveCandidateInScope($request, $id);
+        if (!$candidate) {
             return response()->json(['error' => 'المرشح غير موجود'], 404);
         }
 
@@ -312,9 +317,8 @@ class CandidateController extends Controller
             'reason.min' => 'سبب الحذف قصير جداً',
         ]);
 
-        $candidate = Candidate::findOrFail($id);
-
-        if (!in_array($candidate->classification, $this->allowedClassifications($request))) {
+                $candidate = $this->resolveCandidateInScope($request, $id);
+        if (!$candidate) {
             return response()->json(['error' => 'المرشح غير موجود'], 404);
         }
 
@@ -345,9 +349,9 @@ class CandidateController extends Controller
             return response()->json(['error' => 'ليس لديك صلاحية الاعتماد'], 403);
         }
 
-        $candidate = Candidate::findOrFail($id);
-        // بوابة التصنيف كبقية الإجراءات — مصنّف خارج الصلاحية يُعامَل كـ«غير موجود»
-        if (!in_array($candidate->classification, $this->allowedClassifications($request))) {
+        // النطاق كاملاً — مصنّف أو خارج القطاع يُعامَل كـ«غير موجود»
+        $candidate = $this->resolveCandidateInScope($request, $id);
+        if (!$candidate) {
             return response()->json(['error' => 'المرشح غير موجود'], 404);
         }
         // الاعتماد انتقال مسودة→مجدول فقط — بلا حارس، يعيد اعتماد مرشح مكتمل فيُرجِع دورته من completed إلى scheduled
@@ -370,7 +374,12 @@ class CandidateController extends Controller
             'classification' => 'required|in:normal,secret,top_secret',
         ]);
 
-        $candidate = Candidate::findOrFail($id);
+        // النطاق: حامل VIEW_CLASSIFIED يرى كل التصنيفات، لكن حدّ القطاع يبقى
+        // قائماً — لا يُصنَّف مرشّح خارج قطاع من يصنّفه
+        $candidate = $this->resolveCandidateInScope($request, $id);
+        if (!$candidate) {
+            return response()->json(['error' => 'المرشح غير موجود'], 404);
+        }
         $old = $candidate->classification;
         $candidate->update(['classification' => $validated['classification']]);
 
@@ -390,11 +399,9 @@ class CandidateController extends Controller
         if (!$user->hasPermission(Permissions::CANDIDATE_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض المرشح'], 403);
         }
-        $candidate = Candidate::find($id);
+        // النطاق كاملاً: التصنيف + القطاع — الحارس الموحّد في Controller
+        $candidate = $this->resolveCandidateInScope($request, $id);
         if (!$candidate) {
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
-        }
-        if (!in_array($candidate->classification, $this->allowedClassifications($request))) {
             return response()->json(['error' => 'المرشح غير موجود'], 404);
         }
 
@@ -434,19 +441,21 @@ class CandidateController extends Controller
     // إنشاء دورة تقييم جديدة لمرشح موجود (زر «تقييم جديد»)
     public function reassess(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::CANDIDATE_CREATE)) {
+        // القراءة شرط الكتابة: لا يُعاد تقييم من لا يُرى. بلا CANDIDATE_VIEW كان
+        // EXTERNAL_ADD — وصلاحيته الوحيدة الإضافة — يمرّ بالمعرّفات ١، ٢، ٣… فيفرّق
+        // بردّ الخادم بين الموجود والمعدوم، ويحصد رموز المشاركين من رسالة الخطأ.
+        $user = $request->user();
+        if (!$user->hasPermission(Permissions::CANDIDATE_CREATE) || !$user->hasPermission(Permissions::CANDIDATE_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية إنشاء تقييم'], 403);
         }
-        $candidate = Candidate::with('sector')->find($id);
+        $candidate = $this->resolveCandidateInScope($request, $id, ['sector']);
         if (!$candidate) {
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
-        }
-        if (!in_array($candidate->classification, $this->allowedClassifications($request))) {
             return response()->json(['error' => 'المرشح غير موجود'], 404);
         }
 
         $active = $candidate->assessments()->where('status', '!=', 'completed')->orderByDesc('id')->first();
         if ($active) {
+            // الرمز يُعاد لأن المستخدم يملك CANDIDATE_VIEW — يراه في القائمة أصلاً
             return response()->json([
                 'error' => "لدى المرشح دورة نشطة ({$active->participant_code}) — يجب إكمالها أولاً",
                 'participantCode' => $active->participant_code,
@@ -479,11 +488,9 @@ class CandidateController extends Controller
         if (!$request->user()->hasPermission(Permissions::CANDIDATE_JOURNEY)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض رحلة المرشح'], 403);
         }
-        $candidate = Candidate::find($id);
+        // النطاق كاملاً: التصنيف + القطاع — الحارس الموحّد في Controller
+        $candidate = $this->resolveCandidateInScope($request, $id);
         if (!$candidate) {
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
-        }
-        if (!in_array($candidate->classification, $this->allowedClassifications($request))) {
             return response()->json(['error' => 'المرشح غير موجود'], 404);
         }
 
@@ -672,9 +679,12 @@ class CandidateController extends Controller
             return response()->json(['error' => 'ليس لديك صلاحية تصدير المرشحين'], 403);
         }
         $canSeeNames = $user->hasPermission(Permissions::CANDIDATE_VIEW_NAMES);
-        $allowed = $this->allowedClassifications($request);
 
-        $query = Candidate::with('sector')->whereIn('classification', $allowed);
+        $query = Candidate::with('sector');
+        // نفس نطاق index — التصدير لا يكون ثغرةً لما تُخفيه الشاشة.
+        // الحصر قبل الفلاتر، فلا يوسّعه sectorId لقطاع آخر.
+        $this->scopeCandidateQuery($request, $query);
+
         // يدعم قيمة واحدة أو عدّة حالات مفصولة بفواصل (كما في index) — وإلا رجع تصدير فارغ لفلتر متعدّد
         if ($request->filled('status')) $query->whereIn('status', explode(',', $request->status));
         if ($request->filled('sectorId')) $query->where('sector_id', $request->sectorId);

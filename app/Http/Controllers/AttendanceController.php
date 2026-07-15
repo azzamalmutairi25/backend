@@ -10,11 +10,6 @@ use Illuminate\Http\Request;
 
 class AttendanceController extends Controller
 {
-    private function allowedClassifications(Request $request): array
-    {
-        $canSeeClassified = $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED);
-        return $canSeeClassified ? ['normal', 'secret', 'top_secret'] : ['normal'];
-    }
 
     // ── من يستقبل المرشح يسجّل حضوره ──
     // المقيّم/المساعد يسجّلان الجلسات المُسنَدة لهما وحدها؛ والاستقبال ومشرف
