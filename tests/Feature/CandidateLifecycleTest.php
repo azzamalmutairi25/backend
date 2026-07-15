@@ -57,18 +57,18 @@ class CandidateLifecycleTest extends TestCase
         ])->assertCreated()->json('reportId') ?? FinalReport::latest('id')->value('id');
         $this->assertSame('pending_evaluator', FinalReport::find($reportId)->status);
 
-        // 4) سلسلة الاعتماد كاملة: المقيّم → مدير التقييم → تطوير الكفاءات
-        // (ADMIN يملك كل المراحل، فيمرّ بها واحدة واحدة لا دفعة واحدة)
-        $this->postJson("/api/reports/{$reportId}/approve")->assertOk();
-        $this->assertSame('pending_manager', FinalReport::find($reportId)->status);
-        $this->assertSame('assessed', $c->fresh()->status, 'المرشح لا يكتمل قبل نهاية السلسلة');
+        // 4) سلسلة الاعتماد كاملة — تُقرأ من workflow_stages، فيصمد الاختبار إن
+        // أُعيد ترتيبها من الشاشة. (ADMIN يملك كل المراحل فيمرّ بها واحدة واحدة.)
+        $chain = \App\Models\WorkflowStage::chain();
+        foreach ($chain as $i => $stage) {
+            $this->assertSame($stage->status_key, FinalReport::find($reportId)->status,
+                "التقرير عند المرحلة {$stage->position}");
+            $this->assertSame('assessed', $c->fresh()->status, 'المرشح لا يكتمل قبل نهاية السلسلة');
 
-        $this->postJson("/api/reports/{$reportId}/approve")->assertOk();
-        $this->assertSame('pending_dev_approval', FinalReport::find($reportId)->status);
-        $this->assertSame('assessed', $c->fresh()->status);
+            $this->postJson("/api/reports/{$reportId}/approve")->assertOk();
+        }
 
-        // 5) الاعتماد النهائي: المرشح + الدورة → completed
-        $this->postJson("/api/reports/{$reportId}/approve")->assertOk();
+        // 5) بعد آخر مرحلة: المرشح + الدورة → completed
         $this->assertSame('approved', FinalReport::find($reportId)->status);
         $this->assertSame('completed', $c->fresh()->status);
         $this->assertSame('completed', $a->fresh()->status);

@@ -67,15 +67,38 @@ class ReportApprovalChainTest extends TestCase
             ->assertOk()->assertJsonPath('status', 'pending_dev_approval');
     }
 
-    public function test_dev_manager_gives_the_final_approval_and_completes_the_candidate(): void
+    // آخر مرحلة في السلسلة — أياً كانت — تُنهيها وتُكمل المرشح.
+    // يُقرأ من workflow_stages لا يُكتب هنا، فيصمد إن أُعيد ترتيب السلسلة.
+    public function test_the_last_stage_completes_the_chain_and_the_candidate(): void
     {
-        $r = $this->reportAt('pending_dev_approval');
-        $this->actingAsRole('DEV_MANAGER');
+        $last = \App\Models\WorkflowStage::chain()->last();
+        $r = $this->reportAt($last->status_key);
+        $this->actingAsRole($last->role_code);
 
         $this->postJson("/api/reports/{$r->id}/approve")
             ->assertOk()->assertJsonPath('status', 'approved');
 
         $this->assertSame('completed', $r->candidate->fresh()->status, 'نهاية السلسلة تُكمل المرشح');
+    }
+
+    public function test_dev_manager_is_no_longer_final_and_hands_off_to_the_center_manager(): void
+    {
+        $r = $this->reportAt('pending_dev_approval');
+        $this->actingAsRole('DEV_MANAGER');
+
+        $this->postJson("/api/reports/{$r->id}/approve")
+            ->assertOk()->assertJsonPath('status', 'pending_center');
+
+        $this->assertSame('assessed', $r->candidate->fresh()->status, 'لم تنته السلسلة بعد');
+    }
+
+    public function test_center_manager_gives_the_final_approval(): void
+    {
+        $r = $this->reportAt('pending_center');
+        $this->actingAsRole('CENTER_MANAGER');
+
+        $this->postJson("/api/reports/{$r->id}/approve")
+            ->assertOk()->assertJsonPath('status', 'approved');
     }
 
     public function test_candidate_is_not_completed_before_the_chain_ends(): void
@@ -206,14 +229,15 @@ class ReportApprovalChainTest extends TestCase
 
     public function test_final_approval_notifies_the_author(): void
     {
+        $last = \App\Models\WorkflowStage::chain()->last();
         [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed']);
         $author = $this->actingAsRole('ASSISTANT');
         $r = FinalReport::create([
             'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'يوصى به',
-            'status' => 'pending_dev_approval', 'created_by' => $author->id,
+            'status' => $last->status_key, 'created_by' => $author->id,
         ]);
 
-        $this->actingAsRole('DEV_MANAGER');
+        $this->actingAsRole($last->role_code);
         $this->postJson("/api/reports/{$r->id}/approve")->assertOk();
 
         // نهاية السلسلة: لا مرحلة تالية تُبلَّغ — يُبلَّغ من كتب

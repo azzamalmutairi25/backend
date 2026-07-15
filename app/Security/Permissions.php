@@ -40,10 +40,12 @@ class Permissions
     const REPORT_VIEW = 'report.view';
     const REPORT_CREATE = 'report.create';
     const REPORT_EDIT_ANY = 'report.edit_any';   // تعديل تقرير أنشأه غيره (مدير التقييم)
-    // سلسلة الاعتماد: صلاحية لكل مرحلة — المرحلة تحدَّد من حالة التقرير لا من الدور
-    const REPORT_APPROVE_EVALUATOR = 'report.approve_evaluator';   // اعتماد المقيّم (أولى)
+    // سلسلة الاعتماد: صلاحية لكل مرحلة — المرحلة تحدَّد من حالة التقرير لا من الدور.
+    // ترتيب المراحل وتفعيلها بيانات في workflow_stages، لا ثوابت هنا.
+    const REPORT_APPROVE_EVALUATOR = 'report.approve_evaluator';   // اعتماد المقيّم
     const REPORT_APPROVE_MANAGER = 'report.approve_manager';       // اعتماد مدير إدارة التقييم
-    const REPORT_APPROVE = 'report.approve';                       // الاعتماد النهائي (تطوير الكفاءات)
+    const REPORT_APPROVE = 'report.approve';                       // اعتماد إدارة تطوير الكفاءات
+    const REPORT_APPROVE_CENTER = 'report.approve_center';         // اعتماد مدير المركز
     const REPORT_RETURN = 'report.return';
     const REPORT_EXPORT = 'report.export';
     // اسم المرشّح في المستند المطبوع — لا يراه غير حامل هذه الصلاحية، ولو ملك رؤية الأسماء
@@ -75,6 +77,7 @@ class Permissions
                 self::CANDIDATE_VIEW, self::CANDIDATE_JOURNEY,
                 self::SCHEDULE_VIEW, self::ATTENDANCE_VIEW,
                 self::EVALUATION_VIEW, self::MEASUREMENT_VIEW, self::REPORT_VIEW,
+                self::REPORT_APPROVE_CENTER, self::REPORT_RETURN,
                 self::REPORT_VIEW_NAMES, self::REPORT_EXPORT, self::COMPETENCY_VIEW,
                 self::AUDIT_VIEW, self::ANALYTICS_VIEW,
             ],
