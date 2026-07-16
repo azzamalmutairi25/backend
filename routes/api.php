@@ -47,6 +47,7 @@ Route::middleware('throttle:20,1')->group(function () {
     Route::post('/public/assessment/{token}/verify', [PublicAssessmentController::class, 'verify']);
     Route::post('/public/assessment/{token}/confirm', [PublicAssessmentController::class, 'confirm']);
     Route::post('/public/assessment/{token}/arrive', [PublicAssessmentController::class, 'arrive']);
+    Route::post('/public/assessment/{token}/cv', [PublicAssessmentController::class, 'saveCv']);
 });
 
 // ── محمي (يتطلب رمز Sanctum) ──
@@ -70,6 +71,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/candidates/{id}/classify', [CandidateController::class, 'reclassify']);
     Route::get('/candidates/{id}/assessments', [CandidateController::class, 'assessments']);
     Route::get('/candidates/{id}/journey', [CandidateController::class, 'journey']);
+    // السيرة الذاتية — مسار الإدارة (قراءة بصلاحية CANDIDATE_CV_VIEW، تعديل بـ CANDIDATE_EDIT)
+    Route::get('/candidates/{id}/cv', [CandidateController::class, 'showCv']);
+    Route::put('/candidates/{id}/cv', [CandidateController::class, 'saveCv']);
     Route::post('/candidates/{id}/reassess', [CandidateController::class, 'reassess']);
     Route::get('/candidates/{id}/history', [AuditController::class, 'candidateHistory']);
     Route::get('/audit/log', [AuditController::class, 'systemLog']);
@@ -119,6 +123,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/evaluations/{id}/submit', [EvaluationController::class, 'submit']);
     Route::post('/evaluations/{id}/approve', [EvaluationController::class, 'approve']);
     Route::post('/evaluations/{id}/return', [EvaluationController::class, 'returnEvaluation']);
+    // سيرة المرشح للمقيّم — بلا اسم، من لقطة الدورة المجمَّدة
+    Route::get('/evaluations/{id}/cv', [EvaluationController::class, 'cv']);
 
     // ═══ التحليلات ═══
     // التقرير اليومي — عرض ومستند للطباعة

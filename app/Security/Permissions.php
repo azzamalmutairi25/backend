@@ -17,6 +17,7 @@ class Permissions
     const CANDIDATE_VIEW_NAMES = 'candidate.view_names';   // رؤية الأسماء (حساس)
     const CANDIDATE_VIEW_CLASSIFIED = 'candidate.view_classified';   // رؤية المرشحين السرّيين
     const CANDIDATE_JOURNEY = 'candidate.journey';   // عرض رحلة المرشح (الخط الزمني)
+    const CANDIDATE_CV_VIEW = 'candidate.cv_view';   // قراءة السيرة الذاتية بمعرّف المرشح (مسار الإدارة)
     // إسناد مرشّح لمقيّم من قطاع آخر — الأصل أن كل مقيّم لقطاعه
     const CROSS_SECTOR_ASSIGN = 'candidate.cross_sector';
 
@@ -79,7 +80,7 @@ class Permissions
             // بلا CANDIDATE_VIEW_NAMES: الاسم محجوب عنه في الشاشات كغيره؛ الاستثناء
             // للمستند وحده لأنه وثيقة رسمية تُوقَّع، لا لتصفّح بيانات المرشحين.
             'CENTER_MANAGER' => [
-                self::CANDIDATE_VIEW, self::CANDIDATE_JOURNEY,
+                self::CANDIDATE_VIEW, self::CANDIDATE_JOURNEY, self::CANDIDATE_CV_VIEW,
                 self::SCHEDULE_VIEW, self::ATTENDANCE_VIEW,
                 self::EVALUATION_VIEW, self::MEASUREMENT_VIEW, self::REPORT_VIEW,
                 self::REPORT_APPROVE_CENTER, self::REPORT_RETURN, self::REPORT_CANCEL,
@@ -90,7 +91,7 @@ class Permissions
             // مسؤول الجدولة — يملك إدارة المرشحين، فله وحده تجاوز حدّ القطاع (بتحذير وتدقيق)
             'SCHEDULER' => [
                 self::CANDIDATE_VIEW, self::CANDIDATE_CREATE, self::CANDIDATE_EDIT,
-                self::CANDIDATE_APPROVE, self::CANDIDATE_VIEW_NAMES, self::CROSS_SECTOR_ASSIGN,
+                self::CANDIDATE_APPROVE, self::CANDIDATE_VIEW_NAMES, self::CANDIDATE_CV_VIEW, self::CROSS_SECTOR_ASSIGN,
                 self::SCHEDULE_VIEW, self::SCHEDULE_MANAGE, self::DISTRIBUTION_MANAGE, self::ATTENDANCE_VIEW,
                 self::SEND_INVITATION,
             ],
@@ -104,7 +105,7 @@ class Permissions
 
             // مدير إدارة التقييم — يكتب التقرير، ويعتمد المرحلة الثانية
             'ASSESS_MANAGER' => [
-                self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_NAMES, self::CANDIDATE_VIEW_CLASSIFIED, self::CANDIDATE_JOURNEY, self::SCHEDULE_VIEW,
+                self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_NAMES, self::CANDIDATE_VIEW_CLASSIFIED, self::CANDIDATE_JOURNEY, self::CANDIDATE_CV_VIEW, self::SCHEDULE_VIEW,
                 self::ATTENDANCE_VIEW, self::EVALUATION_VIEW, self::EVALUATION_APPROVE,
                 self::MEASUREMENT_VIEW, self::REPORT_VIEW, self::REPORT_CREATE,
                 self::REPORT_EDIT_ANY, self::REPORT_APPROVE_MANAGER,
@@ -135,7 +136,7 @@ class Permissions
 
             // إدارة تطوير الكفاءات — الاعتماد النهائي
             'DEV_MANAGER' => [
-                self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_CLASSIFIED, self::CANDIDATE_JOURNEY, self::EVALUATION_VIEW, self::MEASUREMENT_VIEW,
+                self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_CLASSIFIED, self::CANDIDATE_JOURNEY, self::CANDIDATE_CV_VIEW, self::EVALUATION_VIEW, self::MEASUREMENT_VIEW,
                 self::REPORT_VIEW, self::REPORT_APPROVE,
                 self::REPORT_EXPORT, self::COMPETENCY_VIEW, self::COMPETENCY_MANAGE, self::ANALYTICS_VIEW,
             ],

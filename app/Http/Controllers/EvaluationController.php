@@ -6,8 +6,11 @@ use App\Models\Evaluation;
 use App\Models\EvaluationScore;
 use App\Models\Competency;
 use App\Models\Candidate;
+use App\Models\Assessment;
+use App\Models\CandidateCv;
 use App\Models\AuditLog;
 use App\Security\Permissions;
+use App\Services\CvGuard;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -143,13 +146,24 @@ class EvaluationController extends Controller
 
         // الفحص أعلاه غير ذرّي — الفهرس الفريد (assessment_id, activity) يحسم السباق المتزامن كـ 422 لا 500
         try {
-            $evaluation = Evaluation::create([
-                'candidate_id' => $validated['candidateId'],
-                'assessment_id' => $assessmentId,
-                'evaluator_id' => $request->user()->id,
-                'activity' => $validated['activity'],
-                'status' => 'draft',
-            ]);
+            $evaluation = DB::transaction(function () use ($validated, $assessmentId, $request) {
+                // قفل صفّ الدورة نقطة تسلسل مقابل saveCv عبر البوّابة، فتُلتقَط لقطة سيرة مكتملة
+                if ($assessmentId) {
+                    Assessment::whereKey($assessmentId)->lockForUpdate()->first();
+                }
+                $e = Evaluation::create([
+                    'candidate_id' => $validated['candidateId'],
+                    'assessment_id' => $assessmentId,
+                    'evaluator_id' => $request->user()->id,
+                    'activity' => $validated['activity'],
+                    'status' => 'draft',
+                ]);
+                // جمّد لقطة السيرة لهذه الدورة مرة واحدة عند أول تقييم
+                if ($assessmentId) {
+                    Assessment::with('candidate.cv')->find($assessmentId)?->freezeCvSnapshot();
+                }
+                return $e;
+            });
         } catch (\Illuminate\Database\QueryException $e) {
             return response()->json([
                 'error' => 'تم بدء تقييم لهذا المرشح في هذا النشاط للتوّ',
@@ -165,6 +179,48 @@ class EvaluationController extends Controller
             'message' => 'بدأت الجلسة',
             'evaluation' => ['id' => $evaluation->id],
         ], 201);
+    }
+
+    // GET /evaluations/{id}/cv — سيرة المرشح للمقيّم بلا اسم (الميزة ٧)
+    // يقرأ لقطة الدورة المجمَّدة لا السيرة الحيّة، ويطمس أي معرّف لمن لا يرى الأسماء.
+    public function cv(Request $request, int $id)
+    {
+        $user = $request->user();
+        if (!$user->hasPermission(Permissions::EVALUATION_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض التقييم'], 403);
+        }
+
+        $evaluation = Evaluation::with('candidate', 'assessment')->findOrFail($id);
+
+        // النطاق: تصنيف المرشح ثم ملكية الجلسة — 404 لا 403 كي لا يكون المعرّف عرّافاً
+        if (!in_array($evaluation->candidate->classification, $this->allowedClassifications($request))) {
+            $this->log($request, 'DENIED_EVAL_CLASSIFIED', $id);
+            return response()->json(['error' => 'التقييم غير موجود'], 404);
+        }
+        if ($evaluation->evaluator_id !== $user->id && !$user->hasPermission(Permissions::EVALUATION_APPROVE)) {
+            return response()->json(['error' => 'التقييم غير موجود'], 404);
+        }
+
+        $assessment = $evaluation->assessment;
+        if (!$assessment) { // لا نرجع رمز المرشح المتغيّر بديلاً
+            return response()->json(['error' => 'السيرة غير متوفرة لهذا التقييم'], 404);
+        }
+
+        $doc = $assessment->cv_snapshot ?? CandidateCv::emptyDoc(); // اللقطة المجمَّدة لا الحيّة
+        $canSeeNames = $user->hasPermission(Permissions::CANDIDATE_VIEW_NAMES);
+        if (!$canSeeNames) {
+            $doc = CvGuard::scrub($doc, $evaluation->candidate);
+        }
+
+        $this->log($request, 'VIEW_CV', $id, ['candidate' => $assessment->participant_code]);
+
+        return response()->json(['cv' => [
+            'candidateCode' => $assessment->participant_code, // الرمز المجمَّد للدورة فقط
+            'name' => $canSeeNames ? $evaluation->candidate->full_name : null,
+            'hasCv' => !CandidateCv::isEmptyDoc($doc),
+            'document' => $doc,
+            // لا يُرسَل أبداً: candidate_id، updated_by، version، الطوابع، الهوية، الجوال، البريد
+        ]]);
     }
 
     public function show(Request $request, int $id)
@@ -330,6 +386,11 @@ class EvaluationController extends Controller
             'status' => 'submitted',
             'submitted_at' => now(),
         ]);
+
+        // ضمان تجميد لقطة السيرة لو لم تُلتقَط عند البدء (فكرة idempotent)
+        if ($evaluation->assessment_id) {
+            Assessment::with('candidate.cv')->find($evaluation->assessment_id)?->freezeCvSnapshot();
+        }
 
         // المرشح: scheduled -> assessed (تمّ تقييمه)
         if ($evaluation->candidate->status === 'scheduled') {

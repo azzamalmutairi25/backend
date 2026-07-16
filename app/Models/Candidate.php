@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Support\Facades\Crypt;
 
@@ -76,6 +77,12 @@ class Candidate extends Model
     public function assessments(): HasMany
     {
         return $this->hasMany(Assessment::class);
+    }
+
+    // السيرة الذاتية — وثيقة واحدة لكل مرشح (يدخلها المرشح عبر البوّابة)
+    public function cv(): HasOne
+    {
+        return $this->hasOne(CandidateCv::class);
     }
 
     // تحديث حالة الشخص + مزامنتها على دورته الحالية (الأحدث)

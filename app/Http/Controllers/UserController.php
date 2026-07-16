@@ -177,6 +177,7 @@ class UserController extends Controller
             'candidate.approve' => 'اعتماد مرشح',
             'candidate.view_names' => 'رؤية الأسماء الحساسة',
             'candidate.view_classified' => 'رؤية المرشحين المصنّفين',
+            'candidate.cv_view' => 'عرض السيرة الذاتية',
             'schedule.view' => 'عرض الجدولة',
             'schedule.manage' => 'إدارة الجدولة',
             'attendance.view' => 'عرض الحضور',

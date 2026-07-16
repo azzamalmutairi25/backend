@@ -2,13 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\CvTooLargeException;
 use App\Models\Assessment;
 use App\Models\Attendance;
 use App\Models\AuditLog;
+use App\Models\Candidate;
+use App\Models\CandidateCv;
+use App\Services\CvGuard;
+use App\Services\CvValidator;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Validation\ValidationException;
 
 // ════════════════════════════════════════════════════════════
 //  بوابة المرشح العامة (بدون مصادقة نظام) — عبر رمز فريد في الرسالة
@@ -39,7 +46,7 @@ class PublicAssessmentController extends Controller
     private function resolve(string $token): ?Assessment
     {
         if (strlen($token) < 20) return null; // رفض سريع للرموز القصيرة
-        return Assessment::with(['candidate.sector', 'schedules'])
+        return Assessment::with(['candidate.sector', 'candidate.cv', 'schedules'])
             ->where('confirm_token', $token)
             ->first();
     }
@@ -47,6 +54,8 @@ class PublicAssessmentController extends Controller
     // بيانات مصغّرة تُعرض بعد التحقق فقط (post-auth)
     private function present(Assessment $a): array
     {
+        $cv = $a->candidate->cv;
+
         return [
             'name' => $a->candidate->full_name,
             'participantCode' => $a->participant_code,
@@ -56,6 +65,11 @@ class PublicAssessmentController extends Controller
             'arrived' => (bool) $a->arrived_at,
             'confirmedAt' => optional($a->confirmed_at)->toIso8601String(),
             'arrivedAt' => optional($a->arrived_at)->toIso8601String(),
+            // السيرة الذاتية (يملؤها المرشح عبر البوّابة) — تُقفَل بعد بدء التقييم لا الوصول
+            'cv' => $cv?->data ?? CandidateCv::emptyDoc(),
+            'hasCv' => $cv ? !CandidateCv::isEmptyDoc($cv->data) : false,
+            'cvLocked' => $a->cvFrozen(),
+            'cvVersion' => $cv?->version ?? 0,
             'schedules' => $a->schedules
                 ->sortBy(fn ($s) => $this->dateStr($s->schedule_date) . ' ' . $s->schedule_time)
                 ->values()
@@ -168,7 +182,7 @@ class PublicAssessmentController extends Controller
         return response()->json([
             'message' => $already ? 'بياناتك مؤكّدة مسبقاً' : 'تم تأكيد بياناتك بنجاح',
             'alreadyConfirmed' => $already,
-            'assessment' => $this->present($a->fresh(['candidate.sector', 'schedules'])),
+            'assessment' => $this->present($a->fresh(['candidate.sector', 'candidate.cv', 'schedules'])),
         ]);
     }
 
@@ -208,7 +222,87 @@ class PublicAssessmentController extends Controller
         return response()->json([
             'message' => $marked > 0 ? "تم تسجيل وصولك وحضور {$marked} جلسة" : 'تم تسجيل وصولك',
             'markedSessions' => $marked,
-            'assessment' => $this->present($a->fresh(['candidate.sector', 'schedules'])),
+            'assessment' => $this->present($a->fresh(['candidate.sector', 'candidate.cv', 'schedules'])),
+        ]);
+    }
+
+    // POST /public/assessment/{token}/cv  { accessToken, cv, expectedVersion }
+    // كتابة السيرة الذاتية من المرشح — كامل حزمة الأمان (حجم، عدد، تحقّق، تسرّب،
+    // تزامن، قفل بعد بدء التقييم). القراءة تركب مع present() المحمي، فلا مسار قراءة.
+    public function saveCv(Request $request, string $token)
+    {
+        $a = $this->resolve($token);
+        if (!$a || !$this->checkAccess($request, $a)) {
+            return response()->json(['error' => 'انتهت الجلسة — أعد إدخال رقم الهوية'], 401);
+        }
+
+        // الحجم قبل أي عمل ثقيل (نفخ الحمولة)
+        if (strlen($request->getContent()) > CvValidator::MAX_BYTES) {
+            return response()->json(['error' => 'الحجم كبير جداً'], 413);
+        }
+        $cvInput = $request->input('cv');
+        if (!is_array($cvInput) || $cvInput === []) { // لا يُمحى بمسح
+            return response()->json(['error' => 'بيانات غير صحيحة'], 422);
+        }
+
+        // تقييد بالمعدّل على المرشح (لا الدورة) — زيادة أولاً ثم مقارنة
+        $rl = 'pubcv:candidate:' . $a->candidate_id;
+        if (RateLimiter::hit($rl, 600) > 10) {
+            return response()->json(['error' => 'محاولات حفظ كثيرة، حاول لاحقاً'], 429);
+        }
+
+        try {
+            $clean = app(CvValidator::class)->clean($cvInput);
+        } catch (CvTooLargeException $e) {
+            return response()->json(['error' => 'عناصر أكثر من المسموح'], 413);
+        } catch (ValidationException $e) {
+            return response()->json(['error' => 'بيانات غير صحيحة', 'fields' => $e->errors()], 422);
+        }
+
+        // فحص تسرّب الاسم/الهوية — يرجع مفتاح الحقل لا المحتوى
+        if ($hit = CvGuard::directIdentifierHit($clean, $a->candidate)) {
+            $this->audit($request, $a, 'PUBLIC_CV_BLOCKED');
+            return response()->json([
+                'error' => 'لا تكتب اسمك أو رقم هويتك أو جوالك في السيرة',
+                'field' => $hit,
+            ], 422);
+        }
+
+        $result = DB::transaction(function () use ($a, $clean, $request) {
+            Assessment::whereKey($a->id)->lockForUpdate()->first();          // تسلسل مقابل start()
+            Candidate::whereKey($a->candidate_id)->lockForUpdate()->first(); // تسلسل سباق الإنشاء
+            if ($a->fresh()->cvFrozen()) return 'locked';                    // إعادة فحص تحت القفل
+
+            $cv = CandidateCv::firstOrNew(['candidate_id' => $a->candidate_id]);
+            $expected = $request->input('expectedVersion');
+            if ($cv->exists) { // النسخة إلزامية متى وُجد صفّ
+                if ($expected === null || (int) $expected !== (int) $cv->version) return 'conflict';
+            }
+            $cv->data = $clean;
+            $cv->version = ($cv->version ?? 0) + 1;
+            $cv->source = 'portal';
+            $cv->updated_by = null;
+            try {
+                $cv->save();
+            } catch (QueryException $e) {
+                return 'conflict'; // خسر سباق الإنشاء
+            }
+            return $cv->fresh();
+        });
+
+        if ($result === 'locked') {
+            return response()->json(['error' => 'لا يمكن تعديل السيرة بعد بدء التقييم'], 422);
+        }
+        if ($result === 'conflict') {
+            return response()->json(['error' => 'عُدّلت السيرة، أعد التحميل'], 409);
+        }
+
+        $this->audit($request, $a, 'PUBLIC_CV_SAVE');
+
+        return response()->json([
+            'message' => 'تم حفظ سيرتك الذاتية',
+            'accessToken' => $this->issueAccessToken($a), // يجدّد الجلسة أثناء التحرير
+            'assessment' => $this->present($a->fresh(['candidate.sector', 'candidate.cv', 'schedules'])),
         ]);
     }
 }
