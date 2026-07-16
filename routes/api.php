@@ -74,6 +74,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // السيرة الذاتية — مسار الإدارة (قراءة بصلاحية CANDIDATE_CV_VIEW، تعديل بـ CANDIDATE_EDIT)
     Route::get('/candidates/{id}/cv', [CandidateController::class, 'showCv']);
     Route::put('/candidates/{id}/cv', [CandidateController::class, 'saveCv']);
+    // مستشارو المقابلة المؤهّلون — لاختيار المستشار عند الجدولة بعد مراجعة السيرة
+    Route::get('/candidates/{id}/interviewers', [ScheduleController::class, 'interviewers']);
     Route::post('/candidates/{id}/reassess', [CandidateController::class, 'reassess']);
     Route::get('/candidates/{id}/history', [AuditController::class, 'candidateHistory']);
     Route::get('/audit/log', [AuditController::class, 'systemLog']);
