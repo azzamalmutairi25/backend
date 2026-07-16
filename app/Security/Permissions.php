@@ -22,6 +22,8 @@ class Permissions
 
     const SCHEDULE_VIEW = 'schedule.view';
     const SCHEDULE_MANAGE = 'schedule.manage';
+    // التوزيع الأسبوعي: اقتراح واعتماد — لمسؤول الجدولة (إدارة المرشحين)
+    const DISTRIBUTION_MANAGE = 'schedule.distribute';
 
     const ATTENDANCE_VIEW = 'attendance.view';
     // تسجيل حضور الجلسات المُسنَدة للمستخدم (مقيّماً أو مساعداً) — «الذي يستقبله يسجّله»
@@ -89,7 +91,7 @@ class Permissions
             'SCHEDULER' => [
                 self::CANDIDATE_VIEW, self::CANDIDATE_CREATE, self::CANDIDATE_EDIT,
                 self::CANDIDATE_APPROVE, self::CANDIDATE_VIEW_NAMES, self::CROSS_SECTOR_ASSIGN,
-                self::SCHEDULE_VIEW, self::SCHEDULE_MANAGE, self::ATTENDANCE_VIEW,
+                self::SCHEDULE_VIEW, self::SCHEDULE_MANAGE, self::DISTRIBUTION_MANAGE, self::ATTENDANCE_VIEW,
                 self::SEND_INVITATION,
             ],
 
