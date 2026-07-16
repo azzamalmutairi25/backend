@@ -305,4 +305,89 @@ class ScheduleController extends Controller
 
         return response()->json(['message' => 'تم حذف الجلسة']);
     }
+
+    // GET /schedules/absences/{candidateId} — جلسات الغياب القابلة لإعادة الجدولة
+    public function absences(Request $request, int $candidateId)
+    {
+        if (!$request->user()->hasPermission(Permissions::SCHEDULE_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض الجدولة'], 403);
+        }
+
+        $candidate = Candidate::find($candidateId);
+        if (!$candidate || !in_array($candidate->classification, $this->allowedClassifications($request), true)) {
+            return response()->json(['error' => 'المرشح غير موجود'], 404);
+        }
+        // المحصور بقطاع لا يرى غياب قطاع آخر
+        $user = $request->user();
+        if ($user->isSectorBound() && $candidate->sector_id !== $user->sector_id) {
+            return response()->json(['error' => 'المرشح غير موجود'], 404);
+        }
+
+        $rows = Schedule::with('attendance')
+            ->where('candidate_id', $candidateId)
+            ->whereHas('attendance', fn ($q) => $q->whereIn('status', ['absent_excused', 'absent_unexcused']))
+            ->orderByDesc('schedule_date')
+            ->get()
+            ->map(fn ($s) => [
+                'id' => $s->id,
+                'activity' => self::ACTIVITY_LABEL[$s->activity] ?? $s->activity,
+                'date' => (string) $s->schedule_date,
+                'status' => $s->attendance->status === 'absent_excused' ? 'غياب بعذر' : 'غياب',
+                'reason' => $s->attendance->absence_reason,
+            ]);
+
+        return response()->json(['absences' => $rows]);
+    }
+
+    // POST /schedules/{id}/reschedule — إعادة جدولة جلسة غياب بتاريخ جديد.
+    // إدارة المرشحين (CANDIDATE_EDIT) وحدها: إعادة الجدولة قرار إداري لا تسجيل.
+    // تُنشئ جلسة جديدة بنفس النشاط والإسناد، وتُبقي جلسة الغياب للتدقيق.
+    public function reschedule(Request $request, int $id)
+    {
+        if (!$request->user()->hasPermission(Permissions::CANDIDATE_EDIT)) {
+            return response()->json(['error' => 'ليس لديك صلاحية إعادة الجدولة'], 403);
+        }
+
+        $old = Schedule::with(['candidate', 'attendance'])->find($id);
+        if (!$old || !in_array($old->candidate->classification, $this->allowedClassifications($request), true)) {
+            return response()->json(['error' => 'الجلسة غير موجودة'], 404);
+        }
+
+        // لا يُعاد جدولة إلا جلسة غياب — الحاضر والمعلّق لا يحتاجان
+        $status = $old->attendance?->status;
+        if (!in_array($status, ['absent_excused', 'absent_unexcused'], true)) {
+            return response()->json(['error' => 'لا تُعاد جدولة إلا جلسة سُجّل فيها غياب'], 422);
+        }
+
+        $validated = $request->validate([
+            'date' => 'required|date|after_or_equal:today',
+            'time' => 'nullable|date_format:H:i',
+            'location' => 'nullable|string|max:150',
+        ], [
+            'date.after_or_equal' => 'تاريخ إعادة الجدولة يجب ألا يكون في الماضي',
+        ]);
+
+        $new = Schedule::create([
+            'candidate_id' => $old->candidate_id,
+            'assessment_id' => $old->assessment_id,
+            'schedule_date' => $validated['date'],
+            'schedule_time' => $validated['time'] ?? $old->schedule_time,
+            'activity' => $old->activity,             // نفس النشاط الذي تغيّب عنه
+            'evaluator_id' => $old->evaluator_id,      // نفس الإسناد
+            'assistant_id' => $old->assistant_id,
+            'location' => $validated['location'] ?? $old->location,
+        ]);
+
+        $this->log($request, 'RESCHEDULE_SESSION', $new->id, [
+            'candidate' => $old->candidate->participant_code,
+            'fromSchedule' => $old->id,
+            'activity' => $old->activity,
+            'date' => $validated['date'],
+        ]);
+
+        return response()->json([
+            'message' => 'تمت إعادة جدولة الجلسة',
+            'scheduleId' => $new->id,
+        ], 201);
+    }
 }
