@@ -49,21 +49,29 @@ class CandidateController extends Controller
             $query->where('participant_code', 'like', '%' . $request->search . '%');
         }
 
-        $candidates = $query->orderBy('participant_code')->get()->map(function ($c) {
-            return [
-                'id' => $c->id,
-                'participantCode' => $c->participant_code,
-                'sectorName' => $c->sector->name_ar,
-                'sectorId' => $c->sector_id,
-                'rankLabel' => $c->rank_label,
-                'tier' => $c->tier,
-                'assessmentType' => $c->assessment_type,
-                'status' => $c->status,
-                'classification' => $c->classification,
-            ];
-        });
+        $candidates = $query->orderBy('participant_code')->get();
 
-        return response()->json(['candidates' => $candidates]);
+        // المرشحون الذين لهم جلسة غياب مسجّلة — استعلام واحد لا N+1.
+        // يظهر لهم في الواجهة علم غياب وخيار إعادة الجدولة بتاريخ جديد.
+        $absentIds = \App\Models\Schedule::query()
+            ->whereIn('candidate_id', $candidates->pluck('id'))
+            ->whereHas('attendance', fn ($q) => $q->whereIn('status', ['absent_excused', 'absent_unexcused']))
+            ->pluck('candidate_id')->unique()->flip();
+
+        $rows = $candidates->map(fn ($c) => [
+            'id' => $c->id,
+            'participantCode' => $c->participant_code,
+            'sectorName' => $c->sector->name_ar,
+            'sectorId' => $c->sector_id,
+            'rankLabel' => $c->rank_label,
+            'tier' => $c->tier,
+            'assessmentType' => $c->assessment_type,
+            'status' => $c->status,
+            'classification' => $c->classification,
+            'hasAbsence' => $absentIds->has($c->id),
+        ]);
+
+        return response()->json(['candidates' => $rows]);
     }
 
     public function show(Request $request, int $id)
