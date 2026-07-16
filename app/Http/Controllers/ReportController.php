@@ -173,34 +173,7 @@ class ReportController extends Controller
         $query = FinalReport::with('candidate.sector');
         $this->scopeReports($request, $query);
 
-        if ($request->filled('status')) {
-            // «pending» تعني السلسلة كاملة — تطابق ما يعدّه مؤشّر «معلّق» في اللوحة،
-            // وإلا فتح الرقمُ قائمةً أصغر منه
-            $request->status === 'pending'
-                ? $query->whereIn('status', self::pendingStatuses())
-                : $query->where('status', $request->status);
-        }
-        // البحث بالهوية عبر الهاش المشفّر (لا نكشف رقم الهوية)
-        if ($request->filled('nationalId')) {
-            $hash = hash('sha256', $request->nationalId);
-            $query->whereHas('candidate', fn ($q) => $q->where('national_id_hash', $hash));
-        }
-        // فلاتر القطاع/الفئة (فوق النطاق المفروض — لا توسّعه، القطاع المحصور يبقى محصوراً)
-        if ($request->filled('sectorId')) {
-            $query->whereHas('candidate', fn ($q) => $q->where('sector_id', $request->sectorId));
-        }
-        if ($request->filled('tier')) {
-            $query->whereHas('candidate', fn ($q) => $q->where('tier', $request->tier));
-        }
-        if ($request->filled('recommendation')) {
-            $query->where('recommendation', $request->recommendation);
-        }
-        if ($request->filled('dateFrom')) {
-            $query->whereDate('created_at', '>=', $request->dateFrom);
-        }
-        if ($request->filled('dateTo')) {
-            $query->whereDate('created_at', '<=', $request->dateTo);
-        }
+        $this->applyReportFilters($request, $query);
 
         $userId = $request->user()->id;
         $canEditAny = $request->user()->hasPermission(Permissions::REPORT_EDIT_ANY);
@@ -248,7 +221,38 @@ class ReportController extends Controller
         ]]);
     }
 
-    // GET /reports/analytics — تجميعات مشهد التقارير للرسوم البيانية (ضمن النطاق نفسه)
+    // فلاتر مشتركة بين القائمة والتحليلات — كي تطابق الرسومُ القائمةَ المفلترة
+    private function applyReportFilters(Request $request, $query): void
+    {
+        if ($request->filled('status')) {
+            // «pending» = السلسلة كاملة (يطابق مؤشّر «معلّق»)
+            $request->status === 'pending'
+                ? $query->whereIn('status', self::pendingStatuses())
+                : $query->where('status', $request->status);
+        }
+        if ($request->filled('nationalId')) {
+            $hash = hash('sha256', $request->nationalId);
+            $query->whereHas('candidate', fn ($q) => $q->where('national_id_hash', $hash));
+        }
+        // فوق النطاق المفروض — لا توسّعه (القطاع المحصور يبقى محصوراً)
+        if ($request->filled('sectorId')) {
+            $query->whereHas('candidate', fn ($q) => $q->where('sector_id', $request->sectorId));
+        }
+        if ($request->filled('tier')) {
+            $query->whereHas('candidate', fn ($q) => $q->where('tier', $request->tier));
+        }
+        if ($request->filled('recommendation')) {
+            $query->where('recommendation', $request->recommendation);
+        }
+        if ($request->filled('dateFrom')) {
+            $query->whereDate('created_at', '>=', $request->dateFrom);
+        }
+        if ($request->filled('dateTo')) {
+            $query->whereDate('created_at', '<=', $request->dateTo);
+        }
+    }
+
+    // GET /reports/analytics — تجميعات مشهد التقارير للرسوم البيانية (بنفس النطاق والفلاتر)
     public function analytics(Request $request)
     {
         if (!$request->user()->hasPermission(Permissions::REPORT_VIEW)) {
@@ -257,6 +261,7 @@ class ReportController extends Controller
 
         $base = FinalReport::query();
         $this->scopeReports($request, $base);
+        $this->applyReportFilters($request, $base); // تطابق فلاتر القائمة
         $reports = (clone $base)->with('candidate.sector')->get();
 
         // توزيع التوصية
@@ -270,21 +275,24 @@ class ReportController extends Controller
             'value' => $reports->filter(fn ($r) => optional($r->candidate)->tier === $t)->count(),
         ])->values();
 
+        // متوسط قيمة قد تكون null (لا تقييم) — نحفظ null بدل قسرها إلى 0.0 المضلِّل
+        $avg = fn ($col, $set) => ($v = $set->avg($col)) === null ? null : round((float) $v, 1);
+
         // متوسط التوافق حسب القطاع (للتقارير المعتمدة)
         $approved = $reports->where('status', 'approved');
         $bySector = $approved->groupBy(fn ($r) => optional($r->candidate->sector)->name_ar ?? '—')
             ->map(fn ($g, $name) => [
                 'label' => $name,
-                'behavioral' => round((float) $g->avg('behavioral_fit'), 1),
-                'technical' => round((float) $g->avg('technical_fit'), 1),
+                'behavioral' => $avg('behavioral_fit', $g),
+                'technical' => $avg('technical_fit', $g),
                 'count' => $g->count(),
             ])->values();
 
         return response()->json(['analytics' => [
             'total' => $reports->count(),
             'approved' => $approved->count(),
-            'avgBehavioral' => $approved->count() ? round((float) $approved->avg('behavioral_fit'), 1) : null,
-            'avgTechnical' => $approved->count() ? round((float) $approved->avg('technical_fit'), 1) : null,
+            'avgBehavioral' => $avg('behavioral_fit', $approved),
+            'avgTechnical' => $avg('technical_fit', $approved),
             'byRecommendation' => $byRecommendation,
             'byTier' => $byTier,
             'bySector' => $bySector,
@@ -1018,7 +1026,7 @@ HTML;
         $beh = $r->behavioral_fit !== null ? (float) $r->behavioral_fit : null;
         $tech = $r->technical_fit !== null ? (float) $r->technical_fit : null;
         $rec = e($r->recommendation);
-        $overview = e($r->overview_text ?? '');
+        $overview = nl2br(e($r->overview_text ?? '')); // يحافظ على الأسطر كنظيره في المختصر
         $date = now()->format('Y-m-d');
 
         // الكفاءات مجمّعة: السلوكية/القيادية حسب «المجموعة»، الفنية حسب «المجال»
