@@ -56,6 +56,7 @@ class Permissions
     const REPORT_EXPORT = 'report.export';
     // اسم المرشّح في المستند المطبوع — لا يراه غير حامل هذه الصلاحية، ولو ملك رؤية الأسماء
     const REPORT_VIEW_NAMES = 'report.view_names';
+    const REPORT_EXEC_SUMMARY = 'report.exec_summary';   // الملخّص التنفيذي النهائي (مدير المركز، قابل للتفويض)
 
     const COMPETENCY_VIEW = 'competency.view';
     const COMPETENCY_MANAGE = 'competency.manage';
@@ -84,6 +85,7 @@ class Permissions
                 self::SCHEDULE_VIEW, self::ATTENDANCE_VIEW,
                 self::EVALUATION_VIEW, self::MEASUREMENT_VIEW, self::REPORT_VIEW,
                 self::REPORT_APPROVE_CENTER, self::REPORT_RETURN, self::REPORT_CANCEL,
+                self::REPORT_EXEC_SUMMARY,
                 self::REPORT_VIEW_NAMES, self::REPORT_EXPORT, self::COMPETENCY_VIEW,
                 self::AUDIT_VIEW, self::ANALYTICS_VIEW,
             ],

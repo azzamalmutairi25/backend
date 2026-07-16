@@ -281,10 +281,55 @@ class ReportController extends Controller
             'technicalFit' => $r->technical_fit !== null ? (float) $r->technical_fit : null,
             'recommendation' => $r->recommendation,
             'overviewText' => $r->overview_text,
+            'executiveSummary' => $r->executive_summary,
+            'canEditExecSummary' => $request->user()->hasPermission(Permissions::REPORT_EXEC_SUMMARY),
             'strengths' => $this->toList($r->strengths),
             'developmentAreas' => $this->toList($r->development_areas),
             'returnReason' => $r->return_reason,
         ]]);
+    }
+
+    // POST /reports/{id}/executive-summary — الملخّص التنفيذي (مدير المركز، قابل للتفويض)
+    public function saveExecutiveSummary(Request $request, int $id)
+    {
+        if (!$request->user()->hasPermission(Permissions::REPORT_EXEC_SUMMARY)) {
+            return response()->json(['error' => 'الملخّص التنفيذي بصلاحية مدير المركز فقط'], 403);
+        }
+        $r = $this->resolveReportInScope($request, $id);
+        if (!$r) {
+            return response()->json(['error' => 'التقرير غير موجود'], 404);
+        }
+
+        $validated = $request->validate(['executiveSummary' => 'required|string|max:5000']);
+
+        $r->update([
+            'executive_summary' => $validated['executiveSummary'],
+            'exec_summary_by' => $request->user()->id,
+            'exec_summary_at' => now(),
+        ]);
+
+        $this->log($request, 'SAVE_EXEC_SUMMARY', $id, ['code' => $r->candidate->participant_code]);
+
+        return response()->json(['message' => 'تم حفظ الملخّص التنفيذي']);
+    }
+
+    // GET /reports/{id}/brief — المستند المختصر (الملخّص التنفيذي + النتيجة)، للطباعة
+    public function briefDocument(Request $request, int $id)
+    {
+        if (!$request->user()->hasPermission(Permissions::REPORT_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض التقرير'], 403);
+        }
+        $q = FinalReport::with(['candidate.sector', 'assessment']);
+        $this->scopeReports($request, $q);
+        $r = $q->find($id);
+        if (!$r) {
+            return response()->json(['error' => 'التقرير غير موجود'], 404);
+        }
+        $canSeeNames = $request->user()->hasPermission(Permissions::REPORT_VIEW_NAMES);
+        $this->log($request, 'EXPORT_REPORT_BRIEF', $id, ['code' => $r->candidate->participant_code, 'named' => $canSeeNames]);
+
+        return response($this->renderBrief($r, $canSeeNames), 200)
+            ->header('Content-Type', 'text/html; charset=UTF-8');
     }
 
     // قواعد التحقق المشتركة للإنشاء/التعديل
@@ -830,6 +875,72 @@ class ReportController extends Controller
         }
         return '<table><thead><tr><th>مجال التطوير</th><th>الإجراء</th><th>المستهدف</th><th>الحالة</th></tr></thead><tbody>'
             . $body . '</tbody></table>';
+    }
+
+    // المستند المختصر — الملخّص التنفيذي + النتيجة النهائية فقط
+    private function renderBrief(FinalReport $r, bool $canSeeNames): string
+    {
+        $name = e($canSeeNames ? ($r->candidate->full_name ?: $r->candidate->participant_code) : $r->candidate->participant_code);
+        $code = e($r->candidate->participant_code);
+        $sector = e(optional($r->candidate->sector)->name_ar ?? '—');
+        $tier = $r->candidate->tier === 'upper' ? 'قيادة عليا' : 'قيادة وسطى';
+        $rec = e($r->recommendation ?? '—');
+        $beh = $r->behavioral_fit !== null ? (float) $r->behavioral_fit . '%' : '—';
+        $tech = $r->technical_fit !== null ? (float) $r->technical_fit . '%' : '—';
+        $summary = trim((string) $r->executive_summary) !== ''
+            ? nl2br(e($r->executive_summary))
+            : '<span class="muted">لم يُكتب الملخّص التنفيذي بعد (بصلاحية مدير المركز).</span>';
+        $date = now()->format('Y-m-d');
+
+        return <<<HTML
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<title>الملخّص التنفيذي — {$code}</title>
+<style>
+  * { box-sizing:border-box; }
+  body { font-family:"Segoe UI","Noto Naskh Arabic",Tahoma,sans-serif; color:#1a2420; margin:0; background:#f0f2ef; }
+  .sheet { max-width:720px; margin:24px auto; background:#fff; padding:40px 46px; box-shadow:0 2px 20px rgba(0,0,0,.08); }
+  .print-bar { max-width:720px; margin:16px auto 0; text-align:left; }
+  .print-bar button { font:inherit; padding:8px 18px; border:0; border-radius:8px; background:#1f6b4a; color:#fff; cursor:pointer; }
+  .hd { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:3px solid #1f6b4a; padding-bottom:16px; }
+  .hd .org { font-weight:800; font-size:19px; color:#1f6b4a; }
+  .hd .sub { color:#5b6a62; font-size:13px; margin-top:4px; }
+  .hd .meta { text-align:left; font-size:13px; color:#5b6a62; }
+  h1 { font-size:21px; margin:24px 0 10px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:8px 28px; margin:14px 0; font-size:14px; }
+  .grid .k { color:#5b6a62; } .grid .v { font-weight:700; }
+  .res { display:flex; gap:14px; margin:16px 0; }
+  .res div { flex:1; background:#f6f8f6; border-radius:10px; padding:12px 14px; font-size:13px; }
+  .res b { display:block; font-size:18px; color:#1f6b4a; margin-top:4px; }
+  h2 { font-size:15px; margin:22px 0 8px; color:#1f6b4a; border-right:4px solid #1f6b4a; padding-right:10px; }
+  .summary { font-size:14.5px; line-height:1.9; background:#f6f8f6; border-radius:10px; padding:16px 18px; }
+  .muted { color:#8a978f; }
+  .sign { margin-top:44px; text-align:center; font-size:13px; color:#5b6a62; }
+  .sign .line { display:inline-block; margin-top:44px; border-top:1px solid #b9c4bd; padding-top:6px; min-width:220px; }
+  @media print { body{ background:#fff; } .sheet{ box-shadow:none; margin:0; max-width:none; } .print-bar{ display:none; } @page{ margin:14mm; } }
+</style></head>
+<body>
+<div class="print-bar"><button onclick="window.print()">طباعة / حفظ PDF</button></div>
+<div class="sheet">
+  <div class="hd">
+    <div><div class="org">مركز تمكين الكفاءات لتقييم القيادات</div><div class="sub">الملخّص التنفيذي</div></div>
+    <div class="meta">رمز المشارك: <b>{$code}</b><br>تاريخ الإصدار: {$date}</div>
+  </div>
+  <h1>{$name}</h1>
+  <div class="grid">
+    <div><span class="k">القطاع:</span> <span class="v">{$sector}</span></div>
+    <div><span class="k">الفئة القيادية:</span> <span class="v">{$tier}</span></div>
+  </div>
+  <div class="res">
+    <div>التوافق السلوكي/القيادي <b>{$beh}</b></div>
+    <div>التوافق الفني <b>{$tech}</b></div>
+    <div>التوصية <b>{$rec}</b></div>
+  </div>
+  <h2>الملخّص التنفيذي</h2>
+  <div class="summary">{$summary}</div>
+  <div class="sign"><div class="line">مدير المركز</div></div>
+</div>
+</body></html>
+HTML;
     }
 
     private function renderDocument(FinalReport $r, array $fit, bool $canSeeNames, ?MeasurementResult $measurement = null, $devPlan = null): string

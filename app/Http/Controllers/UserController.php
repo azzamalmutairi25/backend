@@ -192,6 +192,7 @@ class UserController extends Controller
             'report.create' => 'إنشاء تقرير',
             'report.approve' => 'اعتماد تقرير',
             'report.return' => 'إرجاع تقرير',
+            'report.exec_summary' => 'الملخّص التنفيذي (مدير المركز)',
             'report.export' => 'تصدير التقارير',
             'competency.view' => 'عرض الكفاءات',
             'competency.manage' => 'إدارة الكفاءات',
