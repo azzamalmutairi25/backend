@@ -715,12 +715,14 @@ class ReportController extends Controller
         $canSeeNames = $request->user()->hasPermission(Permissions::REPORT_VIEW_NAMES);
         $fit = $this->scoring->computeFit($r->assessment);
         $measurement = MeasurementResult::where('assessment_id', $r->assessment_id)->first();
+        $devPlan = \App\Models\DevelopmentPlanItem::where('assessment_id', $r->assessment_id)
+            ->orderBy('id')->get();
         $this->log($request, 'EXPORT_REPORT', $id, [
             'code' => $r->candidate->participant_code,
             'named' => $canSeeNames, // يُدوَّن من أخرج مستنداً يحمل الاسم
         ]);
 
-        return response($this->renderDocument($r, $fit, $canSeeNames, $measurement), 200)
+        return response($this->renderDocument($r, $fit, $canSeeNames, $measurement, $devPlan), 200)
             ->header('Content-Type', 'text/html; charset=UTF-8');
     }
 
@@ -788,11 +790,54 @@ class ReportController extends Controller
         return ['behavioral' => 'سلوكية', 'leadership' => 'قيادية', 'technical' => 'فنية'][$t] ?? $t;
     }
 
-    private function renderDocument(FinalReport $r, array $fit, bool $canSeeNames, ?MeasurementResult $measurement = null): string
+    // يعرض كفاءات مجمّعة حسب مفتاح (group للسلوكية، domain للفنية) كجداول فرعية
+    private function renderCompGroups(array $comps, string $key, string $fallback): string
+    {
+        if (empty($comps)) {
+            return '<p class="muted">لا توجد كفاءات مُحتسَبة في هذا القسم</p>';
+        }
+        $groups = [];
+        foreach ($comps as $c) {
+            $g = $c[$key] ?? null;
+            $g = ($g === null || trim((string) $g) === '') ? $fallback : $g;
+            $groups[$g][] = $c;
+        }
+        $html = '';
+        foreach ($groups as $gName => $rows) {
+            $body = '';
+            foreach ($rows as $b) {
+                $body .= '<tr><td>' . e($b['name']) . '</td><td class="num">' . $b['avgScore'] . ' / ' . $b['maxLevel']
+                    . '</td><td class="num">' . $b['pct'] . '%</td></tr>';
+            }
+            $html .= '<h3>' . e($gName) . '</h3>'
+                . '<table><thead><tr><th>الكفاءة</th><th>المتوسط</th><th>النسبة</th></tr></thead><tbody>'
+                . $body . '</tbody></table>';
+        }
+        return $html;
+    }
+
+    private function renderDevPlan($items): string
+    {
+        if (!$items || $items->isEmpty()) {
+            return '<p class="muted">لا توجد خطة تطوير مسجّلة</p>';
+        }
+        $st = ['pending' => 'قيد الانتظار', 'in_progress' => 'قيد التنفيذ', 'done' => 'منجز'];
+        $body = '';
+        foreach ($items as $it) {
+            $body .= '<tr><td>' . e($it->area) . '</td><td>' . e($it->action ?? '—') . '</td>'
+                . '<td class="num">' . e($it->target_date ? (string) $it->target_date : '—') . '</td>'
+                . '<td>' . ($st[$it->status] ?? e($it->status)) . '</td></tr>';
+        }
+        return '<table><thead><tr><th>مجال التطوير</th><th>الإجراء</th><th>المستهدف</th><th>الحالة</th></tr></thead><tbody>'
+            . $body . '</tbody></table>';
+    }
+
+    private function renderDocument(FinalReport $r, array $fit, bool $canSeeNames, ?MeasurementResult $measurement = null, $devPlan = null): string
     {
         $name = e($canSeeNames ? ($r->candidate->full_name ?: $r->candidate->participant_code) : $r->candidate->participant_code);
         $code = e($r->candidate->participant_code);
         $sector = e(optional($r->candidate->sector)->name_ar ?? '—');
+        $rank = e($r->candidate->rank_label ?? '—');
         $tier = $r->candidate->tier === 'upper' ? 'قيادة عليا' : 'قيادة وسطى';
         $status = $this->statusLabel($r->status);
         $beh = $r->behavioral_fit !== null ? (float) $r->behavioral_fit : null;
@@ -801,15 +846,13 @@ class ReportController extends Controller
         $overview = e($r->overview_text ?? '');
         $date = now()->format('Y-m-d');
 
-        $rows = '';
-        foreach ($fit['breakdown'] as $b) {
-            $rows .= '<tr><td>' . e($b['name']) . '</td><td>' . $this->typeLabel($b['type'])
-                . '</td><td class="num">' . $b['avgScore'] . ' / ' . $b['maxLevel']
-                . '</td><td class="num">' . $b['pct'] . '%</td></tr>';
-        }
-        if ($rows === '') {
-            $rows = '<tr><td colspan="4" class="muted">لا توجد درجات مُحتسَبة</td></tr>';
-        }
+        // الكفاءات مجمّعة: السلوكية/القيادية حسب «المجموعة»، الفنية حسب «المجال»
+        $breakdown = $fit['breakdown'];
+        $behComps = array_values(array_filter($breakdown, fn ($b) => in_array($b['type'], ['behavioral', 'leadership'], true)));
+        $techComps = array_values(array_filter($breakdown, fn ($b) => $b['type'] === 'technical'));
+        $behHtml = $this->renderCompGroups($behComps, 'group', 'كفاءات عامة');
+        $techHtml = $this->renderCompGroups($techComps, 'domain', 'مجال عام');
+        $devPlanHtml = $this->renderDevPlan($devPlan);
 
         $li = fn ($items) => count($items)
             ? '<ul>' . implode('', array_map(fn ($x) => '<li>' . e($x) . '</li>', $items)) . '</ul>'
@@ -817,15 +860,21 @@ class ReportController extends Controller
         $strengths = $li($r->strengths ?? []);
         $devAreas = $li($r->development_areas ?? []);
 
+        $engRow = $measurement && $measurement->english_score !== null
+            ? '<div class="rec">درجة اللغة الإنجليزية: <b>' . $measurement->english_score . ' / 100</b></div>'
+            : '<p class="muted">لم تُسجَّل درجة اللغة الإنجليزية</p>';
+
         $measHtml = '';
         if ($measurement && ($measurement->personality_score !== null
             || $measurement->analytical_score !== null || $measurement->english_score !== null)) {
             $mrow = fn ($label, $v) => '<tr><td>' . $label . '</td><td class="num">' . ($v === null ? '—' : $v) . '</td></tr>';
-            $measHtml = '<h2>أدوات القياس</h2><table><tbody>'
+            $measHtml = '<table><tbody>'
                 . $mrow('المقياس الشخصي', $measurement->personality_score)
                 . $mrow('القدرات التحليلية', $measurement->analytical_score)
                 . $mrow('اللغة الإنجليزية', $measurement->english_score)
                 . '</tbody></table>';
+        } else {
+            $measHtml = '<p class="muted">لم تُسجَّل أدوات القياس</p>';
         }
 
         $fitBox = function ($label, $val) {
@@ -858,7 +907,9 @@ class ReportController extends Controller
   .fit { flex:1; } .fit-h { display:flex; justify-content:space-between; font-size:14px; margin-bottom:6px; } .fit-h b{ color:#1f6b4a; }
   .bar { height:10px; background:#e8ece9; border-radius:6px; overflow:hidden; } .bar-f { height:100%; background:#1f6b4a; }
   h2 { font-size:15px; margin:24px 0 8px; color:#1f6b4a; border-right:4px solid #1f6b4a; padding-right:10px; }
-  table { width:100%; border-collapse:collapse; font-size:13.5px; }
+  h2 .n { color:#8aa99a; font-weight:800; margin-inline-end:6px; }
+  h3 { font-size:13.5px; margin:14px 0 6px; color:#33473e; }
+  table { width:100%; border-collapse:collapse; font-size:13.5px; margin-bottom:6px; }
   th,td { text-align:right; padding:8px 10px; border-bottom:1px solid #e8ece9; }
   th { color:#5b6a62; font-size:12px; background:#f6f8f6; } td.num { text-align:left; font-variant-numeric:tabular-nums; }
   .rec { background:#f6f8f6; border-radius:10px; padding:14px 16px; font-weight:700; font-size:15px; }
@@ -880,37 +931,48 @@ class ReportController extends Controller
   <h1>{$name}</h1>
   <span class="status">{$status}</span>
 
+  <h2><span class="n">١</span>البيانات الشخصية والوظيفية</h2>
   <div class="grid">
+    <div><span class="k">رمز المشارك:</span> <span class="v">{$code}</span></div>
     <div><span class="k">القطاع:</span> <span class="v">{$sector}</span></div>
+    <div><span class="k">الرتبة / المسمّى:</span> <span class="v">{$rank}</span></div>
     <div><span class="k">الفئة القيادية:</span> <span class="v">{$tier}</span></div>
   </div>
 
+  <h2><span class="n">٢</span>نتائج التقييم النهائية</h2>
   <div class="fits">
     {$behBox}
     {$techBox}
   </div>
-
-  <h2>التوصية</h2>
+  <h3>التوصية النهائية</h3>
   <div class="rec">{$rec}</div>
 
-  <h2>نظرة عامة</h2>
+  <h2><span class="n">٣</span>الكفاءات السلوكية (المجموعات: سلوكية / تميّز / إحساس)</h2>
+  {$behHtml}
+
+  <h2><span class="n">٤</span>الكفاءات الفنية حسب مجالات التقييم</h2>
+  {$techHtml}
+
+  <h2><span class="n">٥</span>تقييم اللغة الإنجليزية</h2>
+  {$engRow}
+
+  <h2><span class="n">٦</span>المرئيات والتوصيات</h2>
   <p>{$overview}</p>
-
-  <h2>تفصيل الكفاءات</h2>
-  <table><thead><tr><th>الكفاءة</th><th>النوع</th><th>المتوسط</th><th>النسبة</th></tr></thead>
-  <tbody>{$rows}</tbody></table>
-
+  <h3>مواطن القوة</h3>
+  {$strengths}
+  <h3>مجالات التطوير</h3>
+  {$devAreas}
+  <h3>أدوات القياس</h3>
   {$measHtml}
 
-  <h2>مواطن القوة</h2>
-  {$strengths}
-  <h2>مجالات التطوير</h2>
-  {$devAreas}
+  <h2><span class="n">٧</span>خطة التطوير الفردية</h2>
+  {$devPlanHtml}
 
   <div class="sign">
     <div><div class="line">المُقيّم</div></div>
     <div><div class="line">مدير إدارة التقييم</div></div>
     <div><div class="line">إدارة تطوير الكفاءات</div></div>
+    <div><div class="line">مدير المركز</div></div>
   </div>
 </div>
 </body></html>

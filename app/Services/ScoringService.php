@@ -40,6 +40,8 @@ class ScoringService
                 'competencyId' => $c->id,
                 'name' => $c->name_ar,
                 'type' => $c->type,
+                'group' => $c->group,   // تجميع سلوكي (سلوكية/تميز/إحساس)
+                'domain' => $c->domain, // مجال فنّي
                 'weight' => (float) ($c->weight ?? 1),
                 'avgScore' => round($avg, 2),
                 'maxLevel' => $max,
