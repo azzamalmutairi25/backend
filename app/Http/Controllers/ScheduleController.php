@@ -231,7 +231,11 @@ class ScheduleController extends Controller
         if (!in_array($schedule->candidate->classification, $this->allowedClassifications($request), true)) {
             return response()->json(['error' => 'الجلسة غير موجودة'], 404);
         }
-        if (Attendance::where('schedule_id', $schedule->id)->exists()) {
+        // القفل بعد تسجيل الحضور يبقى للجميع، إلا إدارة المرشحين (CANDIDATE_EDIT):
+        // تعدّل مع تدوين التجاوز. القفل يمنع تنافر «حضورٌ لجلسة تغيّر تاريخها».
+        $recorded = Attendance::where('schedule_id', $schedule->id)->exists();
+        $canOverride = $request->user()->hasPermission(Permissions::CANDIDATE_EDIT);
+        if ($recorded && !$canOverride) {
             return response()->json(['error' => 'لا يمكن تعديل جلسة سُجّل حضورها'], 422);
         }
 
@@ -243,6 +247,11 @@ class ScheduleController extends Controller
         }
         $crossed = $this->isCrossSector($request, $schedule->candidate, $validated);
 
+        // تغيّر التاريخ أو الوقت يُبطل الحضور المسجّل: حضورٌ لجلسة موعدها تبدّل
+        // لم يعد صحيحاً. تغيير المكان أو المُقيّم لا يمسّ الحضور.
+        $timeChanged = (isset($validated['date']) && $validated['date'] !== (string) $schedule->schedule_date)
+            || (array_key_exists('time', $validated) && $validated['time'] !== substr((string) $schedule->schedule_time, 0, 5));
+
         if (isset($validated['activity']))  { $schedule->activity = $validated['activity']; }
         if (isset($validated['date']))      { $schedule->schedule_date = $validated['date']; }
         if (array_key_exists('time', $validated))        { $schedule->schedule_time = $validated['time']; }
@@ -251,11 +260,25 @@ class ScheduleController extends Controller
         if (array_key_exists('assistantId', $validated)) { $schedule->assistant_id = $validated['assistantId']; }
         $schedule->save();
 
-        $this->log($request, $crossed ? 'UPDATE_SCHEDULE_CROSS_SECTOR' : 'UPDATE_SCHEDULE', $schedule->id, [
+        $attendanceCleared = false;
+        if ($recorded && $timeChanged) {
+            Attendance::where('schedule_id', $schedule->id)->delete();
+            $attendanceCleared = true;
+        }
+
+        $action = $recorded ? 'UPDATE_SCHEDULE_OVERRIDE' : ($crossed ? 'UPDATE_SCHEDULE_CROSS_SECTOR' : 'UPDATE_SCHEDULE');
+        $this->log($request, $action, $schedule->id, [
             'activity' => $schedule->activity,
+            'attendanceCleared' => $attendanceCleared,
         ]);
 
-        return response()->json(['message' => 'تم تحديث الجلسة', 'crossSector' => $crossed]);
+        return response()->json([
+            'message' => $attendanceCleared
+                ? 'تم تحديث الجلسة — أُلغي الحضور المسجّل لتغيّر الموعد'
+                : 'تم تحديث الجلسة',
+            'crossSector' => $crossed,
+            'attendanceCleared' => $attendanceCleared,
+        ]);
     }
 
     // DELETE /schedules/{id} — حذف جلسة (يُمنع بعد تسجيل الحضور)

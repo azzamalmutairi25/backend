@@ -99,6 +99,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // اختبار يفتح اتصالاً خارجياً — يُخنق كنظيره في الرسائل
     Route::post('/settings/smtp/test', [SettingsController::class, 'testSmtp'])->middleware('throttle:5,1');
     Route::get('/sectors', [SectorController::class, 'index']);
+    Route::put('/sectors/{id}/prefix', [SectorController::class, 'updatePrefix']);
 
     // ═══ التقييم ═══
     Route::get('/competencies', [EvaluationController::class, 'competencies']);
