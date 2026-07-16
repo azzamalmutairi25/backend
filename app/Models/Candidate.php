@@ -103,21 +103,35 @@ class Candidate extends Model
         return $q->exists();
     }
 
+    // القواعد قابلة للضبط من الإعدادات (رتب عسكرية عليا + عتبة الرتبة المدنية)،
+    // مع رجوع لقيم افتراضية إن لم تُضبط بعد.
+    public const DEFAULT_UPPER_RANKS = ['عميد', 'لواء', 'فريق', 'مشير'];
+    public const DEFAULT_UPPER_GRADE = 13;
+
     public static function classifyTier(string $rankLabel, bool $isMilitary): string
     {
         if ($isMilitary) {
-            $upperRanks = ['عميد', 'لواء', 'فريق', 'مشير'];
-            foreach ($upperRanks as $r) {
-                if (str_contains($rankLabel, $r)) return 'upper';
-            }
-            return 'middle';
-        } else {
-            if (preg_match('/م-?(\d+)/u', $rankLabel, $m)) {
-                $grade = (int) $m[1];
-                return $grade >= 13 ? 'upper' : 'middle';
+            foreach (self::tierUpperRanks() as $r) {
+                if ($r !== '' && str_contains($rankLabel, $r)) return 'upper';
             }
             return 'middle';
         }
+        if (preg_match('/م-?(\d+)/u', $rankLabel, $m)) {
+            return (int) $m[1] >= self::tierUpperGrade() ? 'upper' : 'middle';
+        }
+        return 'middle';
+    }
+
+    public static function tierUpperRanks(): array
+    {
+        $raw = Setting::find('tier.military_upper_ranks')?->value;
+        if ($raw === null || trim($raw) === '') return self::DEFAULT_UPPER_RANKS;
+        return array_values(array_filter(array_map('trim', explode(',', $raw)), fn ($r) => $r !== ''));
+    }
+
+    public static function tierUpperGrade(): int
+    {
+        return max(1, (int) (Setting::find('tier.civilian_upper_grade')?->value ?? self::DEFAULT_UPPER_GRADE));
     }
 
     public static function generateParticipantCode(Sector $sector): string

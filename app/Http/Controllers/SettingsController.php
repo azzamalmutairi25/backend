@@ -426,4 +426,55 @@ class SettingsController extends Controller
 
         return response()->json(['message' => 'تم حفظ الحدّ', 'dailyCap' => $validated['dailyCap']]);
     }
+
+    // ── تصنيف القيادة (عليا/وسطى): رتب عسكرية عليا + عتبة الرتبة المدنية ──
+
+    public function getTier(Request $request)
+    {
+        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
+        }
+
+        return response()->json(['tier' => [
+            'militaryUpperRanks' => implode('، ', \App\Models\Candidate::tierUpperRanks()),
+            'civilianUpperGrade' => \App\Models\Candidate::tierUpperGrade(),
+        ]]);
+    }
+
+    public function saveTier(Request $request)
+    {
+        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
+        }
+
+        $validated = $request->validate([
+            'militaryUpperRanks' => 'required|string|max:500',
+            'civilianUpperGrade' => 'required|integer|min:1|max:20',
+        ], [
+            'militaryUpperRanks.required' => 'أدخل الرتب العسكرية العليا',
+            'civilianUpperGrade.min' => 'العتبة رقم بين 1 و 20',
+            'civilianUpperGrade.max' => 'العتبة رقم بين 1 و 20',
+        ]);
+
+        // تطبيع الفواصل العربية والإنجليزية إلى فاصلة موحّدة عند التخزين
+        $ranks = preg_split('/[،,]+/u', $validated['militaryUpperRanks']);
+        $ranks = array_values(array_filter(array_map('trim', $ranks), fn ($r) => $r !== ''));
+        if (empty($ranks)) {
+            return response()->json(['errors' => ['militaryUpperRanks' => ['أدخل رتبة واحدة على الأقل']]], 422);
+        }
+
+        Setting::updateOrCreate(['key' => 'tier.military_upper_ranks'],
+            ['value' => implode(',', $ranks), 'description' => 'الرتب العسكرية المصنّفة قيادة عليا']);
+        Setting::updateOrCreate(['key' => 'tier.civilian_upper_grade'],
+            ['value' => (string) $validated['civilianUpperGrade'], 'description' => 'عتبة الرتبة المدنية للقيادة العليا']);
+
+        AuditLog::create([
+            'user_id' => $request->user()->id, 'action' => 'UPDATE_TIER_RULES',
+            'entity_type' => 'settings', 'entity_id' => '0',
+            'details' => ['ranks' => count($ranks), 'grade' => $validated['civilianUpperGrade']],
+            'ip_address' => $request->ip(), 'created_at' => now(),
+        ]);
+
+        return response()->json(['message' => 'تم حفظ قواعد التصنيف']);
+    }
 }
