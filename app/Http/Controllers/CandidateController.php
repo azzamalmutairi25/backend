@@ -2,16 +2,22 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\CvTooLargeException;
 use App\Models\Candidate;
 use App\Models\Assessment;
+use App\Models\CandidateCv;
 use App\Models\Sector;
 use App\Models\User;
 use App\Models\AuditLog;
 use App\Security\Permissions;
 use App\Rules\SaudiNationalId;
 use App\Services\CommunicationService;
+use App\Services\CvGuard;
+use App\Services\CvValidator;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class CandidateController extends Controller
 {
@@ -112,6 +118,99 @@ class CandidateController extends Controller
             'createdAt' => $candidate->created_at,
             'canSeeNames' => $canSeeNames,
         ]]);
+    }
+
+    // GET /candidates/{id}/cv — قراءة السيرة (مسار الإدارة، صلاحية مستقلّة)
+    public function showCv(Request $request, int $id)
+    {
+        $user = $request->user();
+        // صلاحية مستقلّة عن CANDIDATE_VIEW: المقيّم/الاستقبال/القياس لا يصلون سيرة بالمعرّف
+        if (!$user->hasPermission(Permissions::CANDIDATE_CV_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض السيرة الذاتية'], 403);
+        }
+        $candidate = $this->resolveCandidateInScope($request, $id, ['cv']);
+        if (!$candidate) {
+            $this->log($request, 'DENIED_CANDIDATE_OUT_OF_SCOPE', $id);
+            return response()->json(['error' => 'المرشح غير موجود'], 404);
+        }
+
+        $cv = $candidate->cv;
+        $doc = $cv?->data ?? CandidateCv::emptyDoc(); // السجلّ الحيّ (وثيقة الإدارة)
+        $canSeeNames = $user->hasPermission(Permissions::CANDIDATE_VIEW_NAMES);
+        if (!$canSeeNames) {
+            $doc = CvGuard::scrub($doc, $candidate);
+        }
+
+        $this->log($request, 'VIEW_CV_ADMIN', $id, ['code' => $candidate->participant_code]);
+
+        return response()->json(['cv' => [
+            'participantCode' => $candidate->participant_code,
+            'name' => $canSeeNames ? $candidate->full_name : null,
+            'hasCv' => !CandidateCv::isEmptyDoc($doc),
+            'version' => $cv?->version ?? 0,
+            'source' => $cv?->source,
+            'document' => $doc,
+            'canSeeNames' => $canSeeNames,
+        ]]);
+    }
+
+    // PUT /candidates/{id}/cv — تعديل الإدارة للسيرة (تصحيحات) — حيّ فقط، بلا قفل
+    public function saveCv(Request $request, int $id)
+    {
+        $user = $request->user();
+        if (!$user->hasPermission(Permissions::CANDIDATE_EDIT)) {
+            return response()->json(['error' => 'ليس لديك صلاحية تعديل السيرة'], 403);
+        }
+        $candidate = $this->resolveCandidateInScope($request, $id, ['cv']);
+        if (!$candidate) {
+            $this->log($request, 'DENIED_CANDIDATE_OUT_OF_SCOPE', $id);
+            return response()->json(['error' => 'المرشح غير موجود'], 404);
+        }
+
+        $cvInput = $request->input('cv');
+        if (!is_array($cvInput) || $cvInput === []) {
+            return response()->json(['error' => 'بيانات غير صحيحة'], 422);
+        }
+
+        try {
+            $clean = app(CvValidator::class)->clean($cvInput);
+        } catch (CvTooLargeException $e) {
+            return response()->json(['error' => 'عناصر أكثر من المسموح'], 413);
+        } catch (ValidationException $e) {
+            return response()->json(['error' => 'بيانات غير صحيحة', 'fields' => $e->errors()], 422);
+        }
+
+        // الإدارة ليست معفاة من فحص التسرّب — لا تُدخل اسم المرشح في وثيقة يراها المقيّم
+        if ($hit = CvGuard::directIdentifierHit($clean, $candidate)) {
+            return response()->json(['error' => 'السيرة تحوي اسم المرشح أو معرّفاً — أزِله', 'field' => $hit], 422);
+        }
+
+        $result = DB::transaction(function () use ($candidate, $clean, $request, $user) {
+            Candidate::whereKey($candidate->id)->lockForUpdate()->first();
+            $cv = CandidateCv::firstOrNew(['candidate_id' => $candidate->id]);
+            $expected = $request->input('expectedVersion');
+            if ($cv->exists && ($expected === null || (int) $expected !== (int) $cv->version)) {
+                return 'conflict';
+            }
+            $cv->data = $clean;
+            $cv->version = ($cv->version ?? 0) + 1;
+            $cv->source = 'admin';
+            $cv->updated_by = $user->id;
+            try {
+                $cv->save();
+            } catch (QueryException $e) {
+                return 'conflict';
+            }
+            return $cv->fresh();
+        });
+
+        if ($result === 'conflict') {
+            return response()->json(['error' => 'عُدّلت السيرة، أعد التحميل'], 409);
+        }
+
+        $this->log($request, 'CV_UPDATE', $id, ['code' => $candidate->participant_code]);
+
+        return response()->json(['message' => 'تم حفظ السيرة', 'version' => $result->version]);
     }
 
     public function store(Request $request)

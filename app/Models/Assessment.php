@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
 
 // دورة تقييم واحدة للمرشح (رمز + حالة + تقييمات + تقرير)
@@ -19,12 +21,42 @@ class Assessment extends Model
     protected $casts = [
         'confirmed_at' => 'datetime',
         'arrived_at' => 'datetime',
+        'cv_snapshotted_at' => 'datetime',
     ];
 
     public function candidate(): BelongsTo { return $this->belongsTo(Candidate::class); }
     public function evaluations(): HasMany { return $this->hasMany(Evaluation::class); }
     public function schedules(): HasMany { return $this->hasMany(Schedule::class); }
     public function report(): HasOne { return $this->hasOne(FinalReport::class); }
+
+    // قراءة منطقية للوثيقة المجمَّدة (السيرة كما كانت لحظة بدء التقييم)
+    protected function cvSnapshot(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => $this->cv_snapshot_enc
+                ? json_decode(Crypt::decryptString($this->cv_snapshot_enc), true)
+                : null,
+        );
+    }
+
+    // مجمَّدة = بدأ المقيّم أو تجاوزت الدورة مرحلة الرصد (لا الوصول — الوصول لا يقفل)
+    public function cvFrozen(): bool
+    {
+        return in_array($this->status, ['assessed', 'approved', 'completed'], true)
+            || $this->evaluations()->exists();
+    }
+
+    // التقاط السيرة الحيّة في هذه الدورة مرة واحدة عند التجميد
+    public function freezeCvSnapshot(): void
+    {
+        if ($this->cv_snapshot_enc !== null) return; // مجمَّدة مسبقاً — لا تُكتب فوقها أبداً
+        $cv = $this->candidate->cv;
+        $doc = $cv?->data ?? CandidateCv::emptyDoc();
+        $this->cv_snapshot_enc = Crypt::encryptString(json_encode($doc, JSON_UNESCAPED_UNICODE));
+        $this->cv_snapshot_version = $cv?->version ?? 0;
+        $this->cv_snapshotted_at = now();
+        $this->save();
+    }
 
     // رمز تأكيد فريد يوضَع في رابط الرسالة النصية (غير قابل للتخمين)
     public static function generateConfirmToken(): string
