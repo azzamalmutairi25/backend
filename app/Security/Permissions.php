@@ -81,7 +81,9 @@ class Permissions
             // بلا CANDIDATE_VIEW_NAMES: الاسم محجوب عنه في الشاشات كغيره؛ الاستثناء
             // للمستند وحده لأنه وثيقة رسمية تُوقَّع، لا لتصفّح بيانات المرشحين.
             'CENTER_MANAGER' => [
-                self::CANDIDATE_VIEW, self::CANDIDATE_JOURNEY, self::CANDIDATE_CV_VIEW,
+                // السلطة النهائية (اعتماد pending_center + الملخّص التنفيذي) تلزمها رؤية
+                // المصنّفين، وإلا اختفى عنه تقرير مرشّح مصنّف يصل لمرحلته فتعذّر اعتماده
+                self::CANDIDATE_VIEW, self::CANDIDATE_JOURNEY, self::CANDIDATE_CV_VIEW, self::CANDIDATE_VIEW_CLASSIFIED,
                 self::SCHEDULE_VIEW, self::ATTENDANCE_VIEW,
                 self::EVALUATION_VIEW, self::MEASUREMENT_VIEW, self::REPORT_VIEW,
                 self::REPORT_APPROVE_CENTER, self::REPORT_RETURN, self::REPORT_CANCEL,

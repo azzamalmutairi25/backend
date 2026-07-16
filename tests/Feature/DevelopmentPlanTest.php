@@ -90,7 +90,9 @@ class DevelopmentPlanTest extends TestCase
     public function test_classified_candidate_is_404_without_clearance(): void
     {
         [$c] = $this->makeCandidate(['status' => 'assessed', 'classification' => 'secret']);
-        $this->actingAsRole('CENTER_MANAGER'); // REPORT_VIEW لكن لا VIEW_CLASSIFIED
+        // دور غير محصور بلا رؤية المصنّفين + REPORT_VIEW عبر استثناء (مدير المركز صار يرى المصنّفين)
+        $u = $this->actingAsRole('SCHEDULER');
+        $u->permissionOverrides()->create(['permission' => 'report.view', 'granted' => true]);
         $this->getJson("/api/development-plans/{$c->id}")->assertStatus(404);
     }
 

@@ -90,12 +90,22 @@ class ExecutiveSummaryTest extends TestCase
         $this->get("/api/reports/{$r->id}/brief")->assertStatus(403);
     }
 
-    public function test_executive_summary_is_404_out_of_scope(): void
+    public function test_center_manager_handles_classified_report_at_its_stage(): void
+    {
+        // مدير المركز يرى المصنّفين (سلطته النهائية) — يكتب ملخّص تقرير مصنّف
+        [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'classification' => 'secret']);
+        $r = FinalReport::create(['candidate_id' => $c->id, 'assessment_id' => $a->id, 'status' => 'pending_center', 'recommendation' => 'x', 'created_by' => null]);
+        $this->actingAsRole('CENTER_MANAGER');
+        $this->postJson("/api/reports/{$r->id}/executive-summary", ['executiveSummary' => 'ملخّص مصنّف'])->assertOk();
+    }
+
+    public function test_executive_summary_is_404_out_of_scope_for_delegate_without_clearance(): void
     {
         [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'classification' => 'secret']);
         $r = FinalReport::create(['candidate_id' => $c->id, 'assessment_id' => $a->id, 'status' => 'pending_center', 'recommendation' => 'x', 'created_by' => null]);
-        // مدير المركز لا يرى المصنّفين → خارج النطاق → 404 لا 403
-        $this->actingAsRole('CENTER_MANAGER');
+        // مفوَّض بلا رؤية المصنّفين (مسؤول جدولة) → التقرير خارج نطاقه → 404 لا 403
+        $user = $this->actingAsRole('SCHEDULER');
+        $user->permissionOverrides()->create(['permission' => Permissions::REPORT_EXEC_SUMMARY, 'granted' => true]);
         $this->postJson("/api/reports/{$r->id}/executive-summary", ['executiveSummary' => 'x'])->assertStatus(404);
     }
 }
