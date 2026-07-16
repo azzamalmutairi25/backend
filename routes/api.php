@@ -180,6 +180,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/reports', [ReportController::class, 'store']);
     Route::get('/reports/{id}', [ReportController::class, 'show']);
     Route::get('/reports/{id}/document', [ReportController::class, 'document']);
+    Route::get('/reports/{id}/brief', [ReportController::class, 'briefDocument']);
+    Route::post('/reports/{id}/executive-summary', [ReportController::class, 'saveExecutiveSummary']);
     Route::put('/reports/{id}', [ReportController::class, 'update']);
     Route::post('/reports/{id}/approve', [ReportController::class, 'approve']);
     Route::post('/reports/{id}/return', [ReportController::class, 'returnReport']);
