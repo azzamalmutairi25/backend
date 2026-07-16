@@ -53,6 +53,9 @@ class WorkflowController extends Controller
                 'permission' => $s->permission,
                 'label' => $s->label,
                 'isActive' => $s->is_active,
+                // قواعد المرحلة على كاتب التقرير — تُعرض ليعرف المشرف لماذا يُمنع اعتماد
+                'blocksSelfAuthored' => $s->blocks_self_authored,
+                'requiresTeamAuthorship' => $s->requires_team_authorship,
                 // تقارير عالقة هنا — تمنع تعطيل المرحلة
                 'reportsHere' => (int) ($counts[$s->status_key] ?? 0),
             ]);
