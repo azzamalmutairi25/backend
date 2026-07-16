@@ -173,6 +173,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ═══ التقارير ═══
     Route::get('/reports', [ReportController::class, 'index']);
     Route::get('/reports/stats', [ReportController::class, 'stats']);
+    Route::get('/reports/analytics', [ReportController::class, 'analytics']);
     Route::get('/reports/eligible-candidates', [ReportController::class, 'eligibleCandidates']);
     Route::get('/reports/score-preview', [ReportController::class, 'scorePreview']);
     Route::get('/reports/competency-gap', [ReportController::class, 'competencyGap']);

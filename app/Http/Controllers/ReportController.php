@@ -163,6 +163,11 @@ class ReportController extends Controller
         $request->validate([
             'status' => 'nullable|string',
             'nationalId' => 'nullable|string|regex:/^\d{10}$/',
+            'sectorId' => 'nullable|integer',
+            'tier' => 'nullable|in:upper,middle',
+            'recommendation' => 'nullable|string|max:120',
+            'dateFrom' => 'nullable|date',
+            'dateTo' => 'nullable|date',
         ]);
 
         $query = FinalReport::with('candidate.sector');
@@ -179,6 +184,22 @@ class ReportController extends Controller
         if ($request->filled('nationalId')) {
             $hash = hash('sha256', $request->nationalId);
             $query->whereHas('candidate', fn ($q) => $q->where('national_id_hash', $hash));
+        }
+        // فلاتر القطاع/الفئة (فوق النطاق المفروض — لا توسّعه، القطاع المحصور يبقى محصوراً)
+        if ($request->filled('sectorId')) {
+            $query->whereHas('candidate', fn ($q) => $q->where('sector_id', $request->sectorId));
+        }
+        if ($request->filled('tier')) {
+            $query->whereHas('candidate', fn ($q) => $q->where('tier', $request->tier));
+        }
+        if ($request->filled('recommendation')) {
+            $query->where('recommendation', $request->recommendation);
+        }
+        if ($request->filled('dateFrom')) {
+            $query->whereDate('created_at', '>=', $request->dateFrom);
+        }
+        if ($request->filled('dateTo')) {
+            $query->whereDate('created_at', '<=', $request->dateTo);
         }
 
         $userId = $request->user()->id;
@@ -224,6 +245,49 @@ class ReportController extends Controller
             'pendingEvaluator' => (clone $base)->where('status', 'pending_evaluator')->count(),
             'pendingManager' => (clone $base)->where('status', 'pending_manager')->count(),
             'pendingDev' => (clone $base)->where('status', 'pending_dev_approval')->count(),
+        ]]);
+    }
+
+    // GET /reports/analytics — تجميعات مشهد التقارير للرسوم البيانية (ضمن النطاق نفسه)
+    public function analytics(Request $request)
+    {
+        if (!$request->user()->hasPermission(Permissions::REPORT_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض التقارير'], 403);
+        }
+
+        $base = FinalReport::query();
+        $this->scopeReports($request, $base);
+        $reports = (clone $base)->with('candidate.sector')->get();
+
+        // توزيع التوصية
+        $byRecommendation = $reports->groupBy('recommendation')
+            ->map(fn ($g, $k) => ['label' => $k ?: 'بلا توصية', 'value' => $g->count()])
+            ->values();
+
+        // توزيع الفئة القيادية
+        $byTier = collect(['upper' => 'قيادة عليا', 'middle' => 'قيادة وسطى'])->map(fn ($label, $t) => [
+            'label' => $label,
+            'value' => $reports->filter(fn ($r) => optional($r->candidate)->tier === $t)->count(),
+        ])->values();
+
+        // متوسط التوافق حسب القطاع (للتقارير المعتمدة)
+        $approved = $reports->where('status', 'approved');
+        $bySector = $approved->groupBy(fn ($r) => optional($r->candidate->sector)->name_ar ?? '—')
+            ->map(fn ($g, $name) => [
+                'label' => $name,
+                'behavioral' => round((float) $g->avg('behavioral_fit'), 1),
+                'technical' => round((float) $g->avg('technical_fit'), 1),
+                'count' => $g->count(),
+            ])->values();
+
+        return response()->json(['analytics' => [
+            'total' => $reports->count(),
+            'approved' => $approved->count(),
+            'avgBehavioral' => $approved->count() ? round((float) $approved->avg('behavioral_fit'), 1) : null,
+            'avgTechnical' => $approved->count() ? round((float) $approved->avg('technical_fit'), 1) : null,
+            'byRecommendation' => $byRecommendation,
+            'byTier' => $byTier,
+            'bySector' => $bySector,
         ]]);
     }
 
