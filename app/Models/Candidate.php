@@ -131,7 +131,9 @@ class Candidate extends Model
 
     public static function tierUpperGrade(): int
     {
-        return max(1, (int) (Setting::find('tier.civilian_upper_grade')?->value ?? self::DEFAULT_UPPER_GRADE));
+        // قيمة غير رقمية (تلف) ترجع للافتراضي 13 لا إلى 1
+        $v = Setting::find('tier.civilian_upper_grade')?->value;
+        return is_numeric($v) ? max(1, (int) $v) : self::DEFAULT_UPPER_GRADE;
     }
 
     public static function generateParticipantCode(Sector $sector): string

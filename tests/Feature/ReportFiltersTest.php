@@ -72,6 +72,32 @@ class ReportFiltersTest extends TestCase
         $this->assertSame(2, $tierUpper['value']);
     }
 
+    public function test_analytics_preserves_null_fit_not_zero(): void
+    {
+        // تقارير معتمدة بلا توافق فنّي (تقييم سلوكي فقط) — يجب أن يبقى null لا 0
+        [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed', 'sectorCode' => 'ED']);
+        FinalReport::create(['candidate_id' => $c->id, 'assessment_id' => $a->id, 'status' => 'approved',
+            'recommendation' => 'يوصى به', 'behavioral_fit' => 80, 'technical_fit' => null, 'created_by' => null]);
+
+        $this->actingAsRole('ASSESS_MANAGER');
+        $an = $this->getJson('/api/reports/analytics')->assertOk()->json('analytics');
+        $this->assertNull($an['avgTechnical'], 'لا يُقسر null إلى 0');
+        $this->assertEquals(80, $an['avgBehavioral']);
+        $this->assertNull($an['bySector'][0]['technical']);
+    }
+
+    public function test_analytics_honors_the_same_filters_as_the_list(): void
+    {
+        $this->reportFor('ED', 'upper', 'يوصى به', 'approved', 90);
+        $this->reportFor('HI', 'upper', 'يوصى به', 'approved', 50);
+        $this->actingAsRole('ASSESS_MANAGER');
+        $edId = Sector::where('code', 'ED')->value('id');
+
+        $an = $this->getJson("/api/reports/analytics?sectorId={$edId}")->assertOk()->json('analytics');
+        $this->assertSame(1, $an['total'], 'التحليلات تحترم فلتر القطاع كالقائمة');
+        $this->assertEquals(90, $an['avgBehavioral']);
+    }
+
     public function test_analytics_requires_report_view(): void
     {
         $this->actingAsRole('EXTERNAL_ADD');
