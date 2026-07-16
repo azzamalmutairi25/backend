@@ -109,6 +109,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/settings/distribution', [SettingsController::class, 'getDistribution']);
     Route::put('/settings/distribution', [SettingsController::class, 'saveDistribution']);
+    Route::get('/settings/tier', [SettingsController::class, 'getTier']);
+    Route::put('/settings/tier', [SettingsController::class, 'saveTier']);
 
     // ═══ التقييم ═══
     Route::get('/competencies', [EvaluationController::class, 'competencies']);
