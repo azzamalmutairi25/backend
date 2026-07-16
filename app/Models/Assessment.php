@@ -39,7 +39,9 @@ class Assessment extends Model
     // نحسب أكبر رقم عدديًّا لا معجميًّا — وإلا اعتُبر 'DA-999' > 'DA-1000' فتكرّر الرمز بعد 999
     public static function generateParticipantCode(Sector $sector): string
     {
-        $prefix = strtoupper(substr($sector->code, 0, 2));
+        // البادئة قابلة للتحديد من الإعدادات؛ الرجوع لأول حرفين يبقي التنصيبات
+        // القديمة عاملة قبل تشغيل هجرة البادئة
+        $prefix = strtoupper($sector->participant_prefix ?: substr($sector->code, 0, 2));
         $codes = self::where('participant_code', 'like', "$prefix-%")
             ->pluck('participant_code');
 

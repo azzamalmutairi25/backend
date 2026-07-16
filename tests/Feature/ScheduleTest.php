@@ -14,9 +14,9 @@ class ScheduleTest extends TestCase
 
     protected $seed = true;
 
-    private function tomorrow(): string
+    private function tomorrow(int $days = 1): string
     {
-        return now()->addDay()->toDateString();
+        return now()->addDays($days)->toDateString();
     }
 
     public function test_list_requires_schedule_view(): void
@@ -79,19 +79,45 @@ class ScheduleTest extends TestCase
         ])->assertStatus(404);
     }
 
-    public function test_update_and_delete_blocked_after_attendance(): void
+    // القفل بعد الحضور يبقى لمن لا يملك إدارة المرشحين (CANDIDATE_EDIT).
+    // MEASURE_SUPER يجدول ويسجّل حضوراً لكنه لا يدير المرشحين.
+    public function test_update_blocked_after_attendance_for_non_candidate_managers(): void
+    {
+        [$c, $a] = $this->makeCandidate(['status' => 'scheduled']);
+        $ev = $this->actingAsRole('EVALUATOR', 'ED');
+        $sch = \App\Models\Schedule::create([
+            'candidate_id' => $c->id, 'assessment_id' => $a->id,
+            'schedule_date' => $this->tomorrow(), 'schedule_time' => '10:00:00',
+            'activity' => 'interview', 'evaluator_id' => $ev->id, 'location' => 'قاعة',
+        ]);
+        \App\Models\Attendance::create(['schedule_id' => $sch->id, 'status' => 'present', 'recorded_by' => null]);
+
+        // مشرف القياس يجدول لكن لا CANDIDATE_EDIT — القفل قائم عليه
+        $this->actingAsRole('MEASURE_SUPER');
+        $this->putJson("/api/schedules/{$sch->id}", ['location' => 'قاعة أخرى'])->assertStatus(403);
+    }
+
+    // إدارة المرشحين تتجاوز القفل — وتغيير الموعد يُلغي الحضور المسجّل
+    public function test_candidate_manager_overrides_the_lock_and_clears_stale_attendance(): void
     {
         [$c] = $this->makeCandidate(['status' => 'scheduled']);
-        $this->actingAsRole('SCHEDULER');
+        $this->actingAsRole('SCHEDULER'); // يملك CANDIDATE_EDIT + SCHEDULE_MANAGE
         $id = $this->postJson('/api/schedules', [
             'candidateId' => $c->id, 'activity' => 'interview', 'date' => $this->tomorrow(),
         ])->assertCreated()->json('scheduleId');
+        \App\Models\Attendance::create(['schedule_id' => $id, 'status' => 'present', 'recorded_by' => null]);
 
-        Attendance::create(['schedule_id' => $id, 'status' => 'present', 'recorded_by' => null]);
+        // تغيير المكان فقط: الحضور يبقى — لم يتبدّل الموعد
+        $this->putJson("/api/schedules/{$id}", ['location' => 'قاعة ٣'])
+            ->assertOk()->assertJsonPath('attendanceCleared', false);
+        $this->assertDatabaseCount('attendance', 1);
 
-        $this->putJson("/api/schedules/{$id}", ['activity' => 'discussion', 'date' => $this->tomorrow()])
-            ->assertStatus(422);
-        $this->deleteJson("/api/schedules/{$id}")->assertStatus(422);
+        // تغيير التاريخ: الحضور يُلغى — حضورٌ لجلسة تبدّل موعدها
+        $this->putJson("/api/schedules/{$id}", ['date' => $this->tomorrow(2)])
+            ->assertOk()->assertJsonPath('attendanceCleared', true);
+        $this->assertDatabaseCount('attendance', 0);
+
+        $this->assertDatabaseHas('audit_logs', ['action' => 'UPDATE_SCHEDULE_OVERRIDE']);
     }
 
     public function test_delete_removes_a_clean_session(): void
