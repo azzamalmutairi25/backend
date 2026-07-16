@@ -41,11 +41,15 @@ class CandidateCv extends Model
     }
 
     // هل الوثيقة فارغة فعلاً؟ (يميّز «لا سيرة» عن «تعذّر التحميل» في الواجهات)
+    // فحص صريح للفراغ — empty() يعتبر النصّ "0" فارغاً وهو محتوى صحيح
     public static function isEmptyDoc(array $d): bool
     {
-        return empty($d['currentPosition']) && empty($d['briefBio'])
-            && empty($d['qualifications']) && empty($d['experiences'])
-            && empty($d['certifications']) && (int) ($d['totalYearsExperience'] ?? 0) === 0;
+        $blank = fn ($v) => $v === null || $v === '';
+        return $blank($d['currentPosition'] ?? null) && $blank($d['briefBio'] ?? null)
+            && count($d['qualifications'] ?? []) === 0
+            && count($d['experiences'] ?? []) === 0
+            && count($d['certifications'] ?? []) === 0
+            && (int) ($d['totalYearsExperience'] ?? 0) === 0;
     }
 
     public function candidate(): BelongsTo

@@ -121,13 +121,30 @@ class CvPortalTest extends TestCase
         $this->postJson("/api/public/assessment/{$token}/cv", ['accessToken' => $at, 'cv' => $this->validCv()])->assertOk();
     }
 
-    public function test_started_evaluation_locks_cv(): void
+    public function test_frozen_snapshot_locks_cv(): void
     {
         [$c, $a, $token] = $this->gate();
+        CandidateCv::create(['candidate_id' => $c->id, 'data' => $this->validCv(), 'version' => 1, 'source' => 'portal']);
         Evaluation::create(['candidate_id' => $c->id, 'assessment_id' => $a->id, 'evaluator_id' => $this->evaluatorUser()->id, 'activity' => 'interview', 'status' => 'draft']);
+        $a->load('candidate.cv');
+        $a->freezeCvSnapshot(); // لُقطة موجودة → مقفلة
+        $at = $this->at($token, $c->national_id);
+        $this->postJson("/api/public/assessment/{$token}/cv", ['accessToken' => $at, 'cv' => $this->validCv(['totalYearsExperience' => 9]), 'expectedVersion' => 1])
+            ->assertStatus(422);
+    }
+
+    // ── لا يُحبَس المرشح بلقطة فارغة لو بدأ المقيّم قبل ملء السيرة ──
+    public function test_draft_evaluation_with_empty_cv_does_not_lock(): void
+    {
+        [$c, $a, $token] = $this->gate(); // لا سيرة بعد
+        // مسودّة تقييم بدأت قبل ملء السيرة — يجب ألّا تُجمّد لقطة فارغة ولا تقفل
+        $this->actingAsRole('EVALUATOR', 'ED');
+        $this->postJson('/api/evaluations/start', ['candidateId' => $c->id, 'activity' => 'interview'])->assertCreated();
+
         $at = $this->at($token, $c->national_id);
         $this->postJson("/api/public/assessment/{$token}/cv", ['accessToken' => $at, 'cv' => $this->validCv()])
-            ->assertStatus(422);
+            ->assertOk();
+        $this->assertNull($a->fresh()->cv_snapshotted_at, 'لم تُجمّد لقطة فارغة');
     }
 
     // ── التزامن: نسخة متوقَّعة إلزامية ──

@@ -65,6 +65,8 @@ class CvGuard
     }
 
     // ── تنظيف نصّ واحد: HTML، محارف تحكّم، عرض صفري، تجاوز اتجاه، توحيد NFC ──
+    // بعد NFC نحذف كل العلامات المركّبة (\p{M}): وإلا حُقنت علامة داخل الاسم فقسمت
+    // مقطعه (العلامة ليست حرفاً) فأفلت من الحجب والطمس معاً. حذفها يبقي النصّ نظيفاً.
     public static function sanitize(?string $s): ?string
     {
         if ($s === null) return null;
@@ -74,15 +76,16 @@ class CvGuard
         if (class_exists(Normalizer::class)) {
             $s = Normalizer::normalize($s, Normalizer::FORM_C) ?: $s;
         }
+        $s = preg_replace('/[\p{M}\x{0640}]+/u', '', $s); // علامات مركّبة + تطويل — تُفسِد المطابقة
         $s = preg_replace('/\s+/u', ' ', $s);
         return trim($s) === '' ? null : trim($s);
     }
 
-    // توحيد عربي للمطابقة: تصغير، حذف تشكيل وتطويل، طيّ حروف، أرقام لاتينية
+    // توحيد عربي للمطابقة: تصغير، حذف كل العلامات والتطويل، طيّ حروف، أرقام لاتينية
     public static function normalizeAr(string $s): string
     {
         $s = mb_strtolower($s, 'UTF-8');
-        $s = preg_replace('/[\x{064B}-\x{065F}\x{0670}\x{0640}]/u', '', $s);
+        $s = preg_replace('/[\p{M}\x{0640}]+/u', '', $s); // كل العلامات المركّبة + التطويل (لا نطاق التشكيل وحده)
         $s = strtr($s, [
             'أ' => 'ا', 'إ' => 'ا', 'آ' => 'ا', 'ٱ' => 'ا', 'ى' => 'ي',
             'ة' => 'ه', 'ؤ' => 'و', 'ئ' => 'ي', 'ء' => '',
@@ -93,12 +96,13 @@ class CvGuard
         return trim(preg_replace('/\s+/u', ' ', $s));
     }
 
-    // هيكل لاتيني: أحرف فقط، حذف الحركات، طيّ التكرار — لمطابقة النقحرة
+    // هيكل لاتيني: أحرف فقط، حذف الحركات وأنصاف الحركات (w/y مقابلة و/ي)، طيّ التكرار.
+    // إسقاط w/y يجعل Noor/Nour يطابقان «نور»، وMohammed يطابق «محمد».
     private static function latinSkeleton(string $latin): string
     {
         $latin = mb_strtolower($latin, 'UTF-8');
         $latin = preg_replace('/[^a-z]/', '', $latin);
-        $latin = preg_replace('/[aeiou]/', '', $latin);
+        $latin = preg_replace('/[aeiouwy]/', '', $latin);
         return preg_replace('/(.)\1+/', '$1', $latin); // طيّ الأحرف المكرّرة
     }
 
@@ -135,22 +139,34 @@ class CvGuard
         }
     }
 
+    // الحقول السردية الشخصية حيث يُحجب الاسم عند الحفظ. أسماء الجهات/المؤسسات
+    // (الجامعة، الوزارة، مانح الشهادة) قد تحوي مقطع اسم شرعاً، فلا تُحجب عند الحفظ
+    // بل تُطمَس عند القراءة فقط — تفادياً لرفض سِيَر صحيحة.
+    private static function isNarrativePath(string $path): bool
+    {
+        return $path === 'currentPosition' || $path === 'briefBio' || str_ends_with($path, '.summary');
+    }
+
     // يرجع مفتاح أول حقل يحوي معرّفاً، أو null. لا يرجع محتوى أبداً.
     public static function directIdentifierHit(array $doc, Candidate $c): ?string
     {
         $ctx = self::context($c);
         foreach (self::leaves($doc) as $path => $val) {
-            if (self::hasIdentifier($val, $ctx)) {
+            // الهوية/الجوال/البريد/الأرقام الطويلة تُحجب في أي حقل
+            if (self::hasPii($val, $ctx)) {
+                return $path;
+            }
+            // الاسم يُحجب في الحقول السردية فقط (الجهات تُطمَس عند القراءة)
+            if (self::isNarrativePath($path) && self::hasName($val, $ctx)) {
                 return $path;
             }
         }
         return null;
     }
 
-    // هل يحوي النصّ اسم المرشح أو هويته أو جواله أو بريده أو رقماً طويلاً؟
-    private static function hasIdentifier(string $val, array $ctx): bool
+    // هوية/جوال المرشح، أو أي سلسلة ≥9 أرقام، أو بريد/رابط
+    private static function hasPii(string $val, array $ctx): bool
     {
-        // أرقام: هوية/جوال المرشح، أو أي سلسلة ≥9 (السنوات حقول منفصلة)
         $digits = preg_replace('/\D/', '', strtr($val, [
             '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4',
             '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
@@ -158,26 +174,43 @@ class CvGuard
         if ($ctx['id'] !== '' && str_contains($digits, $ctx['id'])) return true;
         if ($ctx['mobile'] !== '' && mb_strlen($ctx['mobile']) >= 9 && str_contains($digits, $ctx['mobile'])) return true;
         if (preg_match('/[0-9\x{0660}-\x{0669}]{9,}/u', $val)) return true;
-        // بريد أو رابط
         if (preg_match('/[\w.%+\-]+@[\w.\-]+\.[a-z]{2,}/iu', $val)) return true;
         if (preg_match('#https?://|www\.#iu', $val)) return true;
+        return false;
+    }
 
-        // الاسم بالعربية: أي مقطع مخزَّن (≥3) يظهر كلمةً في النصّ المطبَّع
+    // هل يظهر أحد مقاطع اسم المرشح (عربي أو نقحرة لاتينية بمطابقة هيكل تامّة)؟
+    private static function hasName(string $val, array $ctx): bool
+    {
         $norm = ' ' . self::normalizeAr($val) . ' ';
         foreach ($ctx['tokens'] as $tok) {
             if (str_contains($norm, ' ' . $tok . ' ')) return true;
         }
-        // الاسم باللاتينية: هيكل أي كلمة لاتينية يطابق هيكل مقطع اسم
-        if ($ctx['skeletons'] && preg_match_all('/[A-Za-z]+/', $val, $m)) {
-            foreach ($m[0] as $word) {
+        if ($ctx['skeletons']) {
+            // أحرف مفردة متباعدة (m o h a m m e d) تُجمَع أولاً ثم تُطابَق
+            foreach (self::latinWords($val) as $word) {
                 $sk = self::latinSkeleton($word);
-                if (mb_strlen($sk) < 3) continue;
-                foreach ($ctx['skeletons'] as $ns) {
-                    if ($sk === $ns || (mb_strlen($ns) >= 4 && str_contains($sk, $ns))) return true;
-                }
+                if (mb_strlen($sk) >= 3 && in_array($sk, $ctx['skeletons'], true)) return true;
             }
         }
         return false;
+    }
+
+    // كلمات لاتينية للمطابقة: الكلمات العادية + سلاسل الأحرف المفردة المتباعدة مجموعةً
+    private static function latinWords(string $val): array
+    {
+        $words = [];
+        if (preg_match_all('/[A-Za-z]{2,}/', $val, $m)) {
+            $words = $m[0];
+        }
+        // سلاسل ≥3 أحرف مفردة يفصلها فراغ — تُجمَع ككلمة واحدة (تجاوز التباعد).
+        // حدود الكلمة تمنع التقاط حرف نهائي من كلمة مجاورة (cert → t)
+        if (preg_match_all('/(?<![A-Za-z])(?:[A-Za-z]\s+){2,}[A-Za-z](?![A-Za-z])/u', $val, $mm)) {
+            foreach ($mm[0] as $run) {
+                $words[] = preg_replace('/\s+/', '', $run);
+            }
+        }
+        return $words;
     }
 
     // ── الضابط الحاسم: طمس المعرّفات عند العرض للمقيّم ──
@@ -211,6 +244,14 @@ class CvGuard
         $val = preg_replace('#https?://\S+|www\.\S+#iu', self::REDACT, $val);
         $val = preg_replace('/[0-9\x{0660}-\x{0669}]{9,}/u', self::REDACT, $val);
 
+        // سلاسل أحرف مفردة متباعدة تُشكّل اسماً (m o h a m m e d) — تُطمَس كوحدة
+        if ($ctx['skeletons']) {
+            $val = preg_replace_callback('/(?<![A-Za-z])(?:[A-Za-z]\s+){2,}[A-Za-z](?![A-Za-z])/u', function ($m) use ($ctx) {
+                $sk = self::latinSkeleton(preg_replace('/\s+/', '', $m[0]));
+                return (mb_strlen($sk) >= 3 && in_array($sk, $ctx['skeletons'], true)) ? self::REDACT : $m[0];
+            }, $val);
+        }
+
         // طمس الكلمات التي تطابق مقاطع الاسم (عربي أو لاتيني)، مع إبقاء الفواصل
         $parts = preg_split('/(\s+)/u', $val, -1, PREG_SPLIT_DELIM_CAPTURE);
         foreach ($parts as $k => $tok) {
@@ -220,17 +261,14 @@ class CvGuard
         return implode('', $parts);
     }
 
+    // مطابقة تامّة للهيكل (لا احتواء جزئي) — تقلّل طمس كلمات شرعية تشارك هيكلاً
     private static function wordIsName(string $word, array $ctx): bool
     {
         $ar = self::normalizeAr($word);
         if ($ar !== '' && in_array($ar, $ctx['tokens'], true)) return true;
         if ($ctx['skeletons'] && preg_match('/[A-Za-z]/', $word)) {
             $sk = self::latinSkeleton($word);
-            if (mb_strlen($sk) >= 3) {
-                foreach ($ctx['skeletons'] as $ns) {
-                    if ($sk === $ns || (mb_strlen($ns) >= 4 && str_contains($sk, $ns))) return true;
-                }
-            }
+            if (mb_strlen($sk) >= 3 && in_array($sk, $ctx['skeletons'], true)) return true;
         }
         return false;
     }
