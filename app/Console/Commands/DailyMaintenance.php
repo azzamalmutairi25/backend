@@ -69,8 +69,40 @@ class DailyMaintenance extends Command
             $escalated++;
         }
 
-        $this->info("noShows={$noShows} reminders={$reminders} escalated={$escalated}");
+        // 4) التقرير اليومي بالبريد لمدير المركز
+        $mailed = $this->mailDailyReport($today);
+
+        $this->info("noShows={$noShows} reminders={$reminders} escalated={$escalated} dailyReport={$mailed}");
 
         return self::SUCCESS;
+    }
+
+    // يرسل تقرير اليوم لكل من يحمل دور مدير المركز وله بريد.
+    // يُبنى من نفس الخدمة التي تعرضه في الصفحة، فلا يتباعد المُرسَل عن المعروض.
+    private function mailDailyReport(string $today): int
+    {
+        $recipients = \App\Models\User::whereHas('role', fn ($q) => $q->where('code', 'CENTER_MANAGER'))
+            ->where('is_active', true)
+            ->whereNotNull('email')
+            ->get();
+
+        if ($recipients->isEmpty()) {
+            return 0;
+        }
+
+        $service = app(\App\Services\DailyReportService::class);
+        $comm = app(\App\Services\CommunicationService::class);
+        $html = $service->renderHtml($service->gather($today));
+
+        $sent = 0;
+        foreach ($recipients as $u) {
+            // البريد نصّي في هذا النظام؛ نُرسل ملخّصاً ورابط العرض للتفاصيل الكاملة
+            $summary = "التقرير اليومي — {$today}. افتح النظام لعرض التفاصيل والطباعة.";
+            if ($comm->sendEmail($u->email, $u->full_name, "التقرير اليومي — {$today}", $summary, 'notification', null, null)) {
+                $sent++;
+            }
+        }
+
+        return $sent;
     }
 }

@@ -12,6 +12,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\DailyReportController;
 use App\Http\Controllers\MeasurementController;
 use App\Http\Controllers\DevelopmentPlanController;
 use App\Http\Controllers\NotificationController;
@@ -116,6 +117,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/evaluations/{id}/return', [EvaluationController::class, 'returnEvaluation']);
 
     // ═══ التحليلات ═══
+    // التقرير اليومي — عرض ومستند للطباعة
+    Route::get('/daily-report', [DailyReportController::class, 'show']);
+    Route::get('/daily-report/document', [DailyReportController::class, 'document']);
+
     Route::get('/analytics/dashboard', [AnalyticsController::class, 'dashboard']);
     Route::get('/analytics/by-sector', [AnalyticsController::class, 'bySector']);
     Route::get('/analytics/competency-gaps', [AnalyticsController::class, 'competencyGaps']);
