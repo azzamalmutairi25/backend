@@ -160,6 +160,32 @@ class ScheduleController extends Controller
         return false;
     }
 
+    // GET /candidates/{id}/interviewers — مستشارو المقابلة المؤهّلون لهذا المرشّح
+    // (مقيّمو قطاعه الفعّالون)، لاختيار المستشار عند الجدولة بعد مراجعة السيرة.
+    public function interviewers(Request $request, int $id)
+    {
+        if (!$request->user()->hasPermission(Permissions::SCHEDULE_MANAGE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية إدارة الجدولة'], 403);
+        }
+        $candidate = $this->resolveCandidateInScope($request, $id);
+        if (!$candidate) {
+            $this->log($request, 'DENIED_CANDIDATE_OUT_OF_SCOPE', $id);
+            return response()->json(['error' => 'المرشح غير موجود'], 404);
+        }
+
+        $interviewers = User::whereHas('role', fn ($q) => $q->where('code', 'EVALUATOR'))
+            ->where('is_active', true)
+            ->where('sector_id', $candidate->sector_id)
+            ->orderBy('full_name')
+            ->get()
+            ->map(fn ($u) => ['id' => $u->id, 'name' => $u->full_name]);
+
+        return response()->json([
+            'interviewers' => $interviewers,
+            'hasCv' => $candidate->cv()->exists(), // هل توجد سيرة للمراجعة قبل التعيين
+        ]);
+    }
+
     public function store(Request $request)
     {
         if (!$request->user()->hasPermission(Permissions::SCHEDULE_MANAGE)) {
