@@ -113,6 +113,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ═══ التقييم ═══
     Route::get('/competencies', [EvaluationController::class, 'competencies']);
     Route::get('/competencies/framework', [CompetencyController::class, 'framework']);
+    Route::post('/competencies', [CompetencyController::class, 'store']);
     Route::put('/competencies/{id}', [CompetencyController::class, 'update']);
     Route::get('/activity-competencies', [ActivityCompetencyController::class, 'index']);
     Route::put('/activity-competencies/{activity}', [ActivityCompetencyController::class, 'update']);

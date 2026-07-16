@@ -4,7 +4,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Competency extends Model
 {
-    protected $fillable = ['name_ar', 'type', 'max_level', 'weight', 'target_upper', 'target_middle', 'sort_order'];
+    protected $fillable = ['name_ar', 'type', 'group', 'domain', 'max_level', 'weight', 'target_upper', 'target_middle', 'sort_order'];
     protected $casts = [
         'weight' => 'float', 'max_level' => 'integer',
         'target_upper' => 'integer', 'target_middle' => 'integer',
