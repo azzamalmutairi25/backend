@@ -384,4 +384,46 @@ class SettingsController extends Controller
             'message' => 'فشل الإرسال' . ($err ? ': ' . mb_substr($err, 0, 180) : ' — راجع سجل البريد'),
         ]);
     }
+
+    // ── التوزيع الأسبوعي: الحدّ لكل مقيّم في اليوم ──
+
+    public function getDistribution(Request $request)
+    {
+        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
+        }
+
+        return response()->json(['distribution' => [
+            'dailyCap' => (int) (Setting::find('distribution.daily_cap_per_evaluator')?->value ?? 5),
+        ]]);
+    }
+
+    public function saveDistribution(Request $request)
+    {
+        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
+        }
+
+        $validated = $request->validate(
+            ['dailyCap' => 'required|integer|min:1|max:50'],
+            ['dailyCap.min' => 'الحدّ الأدنى مرشّح واحد', 'dailyCap.max' => 'الحدّ الأقصى 50 مرشّحاً']
+        );
+
+        Setting::updateOrCreate(
+            ['key' => 'distribution.daily_cap_per_evaluator'],
+            ['value' => (string) $validated['dailyCap'], 'description' => 'عدد المرشحين لكل مقيّم في اليوم']
+        );
+
+        AuditLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'UPDATE_DISTRIBUTION_CAP',
+            'entity_type' => 'settings',
+            'entity_id' => '0',
+            'details' => ['dailyCap' => $validated['dailyCap']],
+            'ip_address' => $request->ip(),
+            'created_at' => now(),
+        ]);
+
+        return response()->json(['message' => 'تم حفظ الحدّ', 'dailyCap' => $validated['dailyCap']]);
+    }
 }

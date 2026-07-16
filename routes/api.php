@@ -13,6 +13,7 @@ use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\DailyReportController;
+use App\Http\Controllers\DistributionController;
 use App\Http\Controllers\MeasurementController;
 use App\Http\Controllers\DevelopmentPlanController;
 use App\Http\Controllers\NotificationController;
@@ -102,6 +103,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/sectors', [SectorController::class, 'index']);
     Route::put('/sectors/{id}/prefix', [SectorController::class, 'updatePrefix']);
 
+    Route::get('/settings/distribution', [SettingsController::class, 'getDistribution']);
+    Route::put('/settings/distribution', [SettingsController::class, 'saveDistribution']);
+
     // ═══ التقييم ═══
     Route::get('/competencies', [EvaluationController::class, 'competencies']);
     Route::get('/competencies/framework', [CompetencyController::class, 'framework']);
@@ -133,6 +137,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/schedules/{id}', [ScheduleController::class, 'destroy']);
     Route::get('/schedules/absences/{candidateId}', [ScheduleController::class, 'absences']);
     Route::post('/schedules/{id}/reschedule', [ScheduleController::class, 'reschedule']);
+
+    // التوزيع الأسبوعي
+    Route::get('/distribution', [DistributionController::class, 'index']);
+    Route::post('/distribution/propose', [DistributionController::class, 'propose']);
+    Route::post('/distribution/{id}/approve', [DistributionController::class, 'approve']);
+    Route::delete('/distribution/{id}', [DistributionController::class, 'destroy']);
 
     // ═══ أدوات القياس ═══
     Route::get('/measurements/{candidateId}', [MeasurementController::class, 'show']);
