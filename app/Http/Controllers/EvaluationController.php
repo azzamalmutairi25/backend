@@ -158,9 +158,10 @@ class EvaluationController extends Controller
                     'activity' => $validated['activity'],
                     'status' => 'draft',
                 ]);
-                // جمّد لقطة السيرة لهذه الدورة مرة واحدة عند أول تقييم
+                // جمّد لقطة السيرة عند أول تقييم — فقط إن كانت غير فارغة كي لا
+                // يُحبَس المرشح بلقطة فارغة لو بدأ المقيّم قبل أن يملأ سيرته
                 if ($assessmentId) {
-                    Assessment::with('candidate.cv')->find($assessmentId)?->freezeCvSnapshot();
+                    Assessment::with('candidate.cv')->find($assessmentId)?->freezeCvSnapshot(true);
                 }
                 return $e;
             });
@@ -190,7 +191,12 @@ class EvaluationController extends Controller
             return response()->json(['error' => 'ليس لديك صلاحية عرض التقييم'], 403);
         }
 
-        $evaluation = Evaluation::with('candidate', 'assessment')->findOrFail($id);
+        // find لا findOrFail: رد 404 موحّد لغير الموجود ولغير المصرَّح، فلا يفرّق
+        // المعرّف بينهما (لا يكون عرّاف وجود). العلاقات تُحمَّل مع السيرة الحيّة احتياطاً.
+        $evaluation = Evaluation::with('candidate.cv', 'assessment')->find($id);
+        if (!$evaluation) {
+            return response()->json(['error' => 'التقييم غير موجود'], 404);
+        }
 
         // النطاق: تصنيف المرشح ثم ملكية الجلسة — 404 لا 403 كي لا يكون المعرّف عرّافاً
         if (!in_array($evaluation->candidate->classification, $this->allowedClassifications($request))) {
@@ -206,7 +212,10 @@ class EvaluationController extends Controller
             return response()->json(['error' => 'السيرة غير متوفرة لهذا التقييم'], 404);
         }
 
-        $doc = $assessment->cv_snapshot ?? CandidateCv::emptyDoc(); // اللقطة المجمَّدة لا الحيّة
+        // اللقطة المجمَّدة إن وُجدت، وإلا الحيّة (تقييم مسودّة قبل التجميد) كي يرى المقيّم السيرة
+        $doc = $assessment->cv_snapshot
+            ?? $evaluation->candidate->cv?->data
+            ?? CandidateCv::emptyDoc();
         $canSeeNames = $user->hasPermission(Permissions::CANDIDATE_VIEW_NAMES);
         if (!$canSeeNames) {
             $doc = CvGuard::scrub($doc, $evaluation->candidate);

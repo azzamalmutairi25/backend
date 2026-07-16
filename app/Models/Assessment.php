@@ -39,19 +39,23 @@ class Assessment extends Model
         );
     }
 
-    // مجمَّدة = بدأ المقيّم أو تجاوزت الدورة مرحلة الرصد (لا الوصول — الوصول لا يقفل)
+    // مجمَّدة = التُقِطت لقطة فعلاً أو تجاوزت الدورة مرحلة الرصد. لا نقفل لمجرّد
+    // وجود مسودّة تقييم: لو بدأ المقيّم قبل أن يملأ المرشح سيرته لظلّ محبوساً بلقطة
+    // فارغة. التجميد يحدث عند البدء إن كانت السيرة غير فارغة، وحتماً عند الإرسال.
     public function cvFrozen(): bool
     {
-        return in_array($this->status, ['assessed', 'approved', 'completed'], true)
-            || $this->evaluations()->exists();
+        return $this->cv_snapshot_enc !== null
+            || in_array($this->status, ['assessed', 'approved', 'completed'], true);
     }
 
-    // التقاط السيرة الحيّة في هذه الدورة مرة واحدة عند التجميد
-    public function freezeCvSnapshot(): void
+    // التقاط السيرة الحيّة في هذه الدورة مرة واحدة عند التجميد.
+    // $onlyIfFilled: عند بدء التقييم لا نُجمّد سيرةً فارغة (نترك المرشح يُكملها).
+    public function freezeCvSnapshot(bool $onlyIfFilled = false): void
     {
         if ($this->cv_snapshot_enc !== null) return; // مجمَّدة مسبقاً — لا تُكتب فوقها أبداً
         $cv = $this->candidate->cv;
         $doc = $cv?->data ?? CandidateCv::emptyDoc();
+        if ($onlyIfFilled && CandidateCv::isEmptyDoc($doc)) return; // سيرة فارغة — أجّل التجميد
         $this->cv_snapshot_enc = Crypt::encryptString(json_encode($doc, JSON_UNESCAPED_UNICODE));
         $this->cv_snapshot_version = $cv?->version ?? 0;
         $this->cv_snapshotted_at = now();

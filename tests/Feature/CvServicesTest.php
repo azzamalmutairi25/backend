@@ -105,12 +105,40 @@ class CvServicesTest extends TestCase
         $this->assertSame('briefBio', CvGuard::directIdentifierHit($doc, $c));
     }
 
-    public function test_blocks_latin_transliteration_of_name(): void
+    public function test_latin_name_in_structured_field_is_scrubbed_not_blocked(): void
     {
         $c = $this->candidate('محمد عبدالله الشهري');
-        // اسم لاتيني في حقل منظّم (يُسمح فيه باللاتيني)
-        $doc = $this->doc(['certifications' => [['name' => 'Award to Mohammed', 'year' => 2018]]]);
-        $this->assertNotNull(CvGuard::directIdentifierHit($doc, $c));
+        // اسم لاتيني في حقل منظّم: لا يُحجب عند الحفظ (قد يكون اسم جهة)، لكن يُطمَس عند القراءة
+        $doc = $this->doc(['certifications' => [['name' => 'Award Mohammed', 'issuer' => 'X', 'year' => 2018]]]);
+        $this->assertNull(CvGuard::directIdentifierHit($doc, $c), 'الحقل المنظّم لا يُحجب على الحفظ');
+        $scrubbed = CvGuard::scrub($doc, $c);
+        $this->assertStringContainsString('«•••»', $scrubbed['certifications'][0]['name'], 'يُطمَس عند القراءة');
+    }
+
+    // ── حماية من تجاوزات المراجعة الخصمية ──
+
+    public function test_combining_marks_do_not_defeat_name_detection(): void
+    {
+        $c = $this->candidate('محمد العتيبي');
+        // علامة مركّبة U+0610 محقونة داخل «محمد» في حقل سردي
+        $doc = $this->doc(['briefBio' => "خبرة لدى مح\u{0610}مد المنشأة"]);
+        $this->assertSame('briefBio', CvGuard::directIdentifierHit($doc, $c), 'العلامة لا تُفلِت الاسم');
+        // وفي حقل منظّم يُطمَس عند القراءة
+        $doc2 = $this->doc(['experiences' => [['position' => "مدير", 'organization' => "مؤسسة العت\u{0610}يبي", 'fromYear' => 2010, 'current' => true, 'summary' => 'x']]]);
+        $scrubbed = CvGuard::scrub($doc2, $c);
+        $this->assertStringContainsString('«•••»', $scrubbed['experiences'][0]['organization']);
+    }
+
+    public function test_spaced_single_latin_letters_are_caught(): void
+    {
+        $c = $this->candidate('محمد العتيبي');
+        // «m o h a m m e d» في حقل منظّم — تُجمَع وتُطمَس عند القراءة
+        $doc = $this->doc(['certifications' => [['name' => 'cert m o h a m m e d here', 'issuer' => 'y', 'year' => 2019]]]);
+        $scrubbed = CvGuard::scrub($doc, $c);
+        $this->assertStringContainsString('«•••»', $scrubbed['certifications'][0]['name']);
+        // وفي النبذة السردية: أي حرف لاتيني مرفوض أصلاً على الحفظ
+        $this->expectException(ValidationException::class);
+        (new CvValidator())->clean($this->doc(['briefBio' => 'نبذة m o h a m m e d خبرة']));
     }
 
     public function test_blocks_national_id_and_mobile_and_email(): void

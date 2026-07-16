@@ -21,7 +21,9 @@ class CvValidator
         'qualifications' => 15, 'experiences' => 20, 'certifications' => 20,
     ];
 
-    public const MAX_BYTES = 24576; // سقف احتياطي على الوثيقة المعاد ترميزها
+    // سقف الوثيقة المعاد ترميزها — يغطّي أسوأ مجموع لحدود الحقول بالبايت (عربي
+    // متعدّد البايتات) مع هامش. كان 24576 أصغر من مجموع الحدود فيُرفض ما يمرّ التحقّق.
+    public const MAX_BYTES = 131072;
 
     private const DEGREES = ['diploma', 'bachelor', 'master', 'doctorate', 'fellowship'];
 
@@ -104,9 +106,11 @@ class CvValidator
         return $doc;
     }
 
+    // أي حرف لاتيني مرفوض في النصّ السردي — لا مجرّد تتابع حرفين. أحرف مفردة
+    // متباعدة (m o h a m m e d) كانت تفلت من قيد «حرفين متتاليين» فتنقل الاسم.
     private static function hasLatinRun(?string $s): bool
     {
-        return $s !== null && preg_match('/[A-Za-z]{2,}/', $s) === 1;
+        return $s !== null && preg_match('/[A-Za-z]/', $s) === 1;
     }
 
     // إعادة بناء الوثيقة من مفاتيح معروفة فقط، وتنظيف كل نصّ
