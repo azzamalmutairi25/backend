@@ -45,7 +45,8 @@ class ScoringService
                 'weight' => (float) ($c->weight ?? 1),
                 'avgScore' => round($avg, 2),
                 'maxLevel' => $max,
-                'pct' => $max > 0 ? round($avg / $max * 100, 2) : 0.0,
+                // تُقصَر على 100: لو خُفّض max_level بعد الرصد لتجاوزت النسبة 100٪
+                'pct' => $max > 0 ? round(min($avg, $max) / $max * 100, 2) : 0.0,
             ];
         })->filter()->values();
 

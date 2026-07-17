@@ -58,6 +58,17 @@ abstract class Controller
         }
     }
 
+    // ── تضييق المقيّم على مرشّح مفرد ──
+    // المقيّم/مستشار النقاش المحصور لا يرى إلا من قيّمهم هو. تُستعمل في مسارات
+    // تحلّ مرشّحاً بالمعرّف (score-preview/competency-gap) كي تطابق حصر القائمة.
+    protected function evaluatorNarrowedOut(Request $request, Candidate $candidate): bool
+    {
+        $user = $request->user();
+        return $user->isSectorBound() && $user->hasRole('EVALUATOR', 'DISCUSSION_EVAL')
+            && !\App\Models\Evaluation::where('evaluator_id', $user->id)
+                ->where('candidate_id', $candidate->id)->exists();
+    }
+
     // ── نطاق التقارير ──
     // القطاع حدّ أعلى لكل محصور. وداخله يضيق المقيّم أكثر: لا يرى إلا تقارير
     // من قيّمهم هو — فتقريرٌ لم يشارك في تقييمه ليس شأنه ولو كان في قطاعه.

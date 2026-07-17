@@ -97,7 +97,7 @@ class ReportController extends Controller
         // النطاق كاملاً — لا يُكتب/يُقرأ تقرير لمرشّح خارج قطاع المستخدم.
         // eligibleCandidates محصور، فكان يُخفي المرشّح ثم يقبله بمعرّفه.
         $candidate = $this->resolveCandidateInScope($request, $validated['candidateId']);
-        if (!$candidate) {
+        if (!$candidate || $this->evaluatorNarrowedOut($request, $candidate)) {
             return response()->json(['error' => 'المرشح غير موجود'], 404);
         }
         $assessment = $candidate->assessments()->orderByDesc('id')->first();
@@ -117,7 +117,7 @@ class ReportController extends Controller
         // النطاق كاملاً — لا يُكتب/يُقرأ تقرير لمرشّح خارج قطاع المستخدم.
         // eligibleCandidates محصور، فكان يُخفي المرشّح ثم يقبله بمعرّفه.
         $candidate = $this->resolveCandidateInScope($request, $validated['candidateId']);
-        if (!$candidate) {
+        if (!$candidate || $this->evaluatorNarrowedOut($request, $candidate)) {
             return response()->json(['error' => 'المرشح غير موجود'], 404);
         }
         $assessment = $candidate->assessments()->orderByDesc('id')->first();
@@ -487,10 +487,16 @@ class ReportController extends Controller
         }
 
         if ($submit) {
-            $this->notify->notifyRole('DEV_MANAGER', 'approval',
-                'تقرير جديد بانتظار الاعتماد',
-                "تقرير المرشح {$assessment->participant_code} بانتظار الاعتماد النهائي",
-                'report', (string) $report->id, $request->user()->id);
+            // إشعار دور المرحلة الأولى لا DEV_MANAGER (المرحلة الأخيرة): وإلا لا يُشعَر
+            // صاحب أول اعتماد فتتجمّد السلسلة، ويصل DEV_MANAGER إشعاراً كاذباً عن تقرير
+            // لم يبلغ مرحلته ولا يستطيع اعتماده. نفس نمط resubmit.
+            $first = $this->firstStage();
+            if ($first) {
+                $this->notify->notifyRole($first->role_code, 'approval',
+                    'تقرير جديد بانتظار اعتمادك',
+                    "تقرير المرشح {$assessment->participant_code} وصل مرحلة اعتمادك",
+                    'report', (string) $report->id, $request->user()->id);
+            }
         }
         $this->log($request, $submit ? 'CREATE_SUBMIT_REPORT' : 'CREATE_REPORT', $report->id,
             ['code' => $assessment->participant_code]);
@@ -507,8 +513,11 @@ class ReportController extends Controller
         if (!$request->user()->hasPermission(Permissions::REPORT_CREATE)) {
             return response()->json(['error' => 'ليس لديك صلاحية تعديل التقرير'], 403);
         }
-        $report = FinalReport::with('candidate', 'assessment')->findOrFail($id);
-        if (!in_array($report->candidate->classification, $this->allowedClassifications($request))) {
+        // النطاق كاملاً كبقية مسارات الكتابة (التصنيف + القطاع + ملكية المقيّم) — 404 لا 403.
+        // كان findOrFail + فحص تصنيف فقط، فيصل الكاتب لتقرير خارج قطاعه/ملكيّته
+        $report = $this->resolveReportInScope($request, $id, ['candidate', 'assessment']);
+        if (!$report) {
+            $this->log($request, 'DENIED_REPORT_OUT_OF_SCOPE', $id);
             return response()->json(['error' => 'التقرير غير موجود'], 404);
         }
         if (!$this->canEditReport($request, $report)) {
@@ -531,10 +540,14 @@ class ReportController extends Controller
         ]);
 
         if ($submit) {
-            $this->notify->notifyRole('DEV_MANAGER', 'approval',
-                'تقرير معدّل بانتظار الاعتماد',
-                "تقرير المرشح " . optional($report->assessment)->participant_code . " بانتظار الاعتماد",
-                'report', (string) $report->id, $request->user()->id);
+            // دور المرحلة الأولى لا DEV_MANAGER (انظر التعليق في store) — وإلا تتجمّد السلسلة
+            $first = $this->firstStage();
+            if ($first) {
+                $this->notify->notifyRole($first->role_code, 'approval',
+                    'تقرير معدّل بانتظار اعتمادك',
+                    "تقرير المرشح " . optional($report->assessment)->participant_code . " وصل مرحلة اعتمادك",
+                    'report', (string) $report->id, $request->user()->id);
+            }
         }
         $this->log($request, $submit ? 'UPDATE_SUBMIT_REPORT' : 'UPDATE_REPORT', $report->id);
 
@@ -585,7 +598,14 @@ class ReportController extends Controller
             return response()->json(['error' => 'ليس لديك صلاحية اعتماد هذه المرحلة'], 403);
         }
 
-        $report->update(['status' => $next, 'escalated_at' => null]);
+        // كتابة مشروطة بالحالة المقروءة — يمنع سباق TOCTOU: اعتمادٌ بحالة قديمة
+        // لا يطمس إرجاعاً/إلغاءً متزامناً، ولا يتقدّم مرتين. صفر صفوف = تغيّرت الحالة.
+        $affected = FinalReport::where('id', $report->id)->where('status', $from)
+            ->update(['status' => $next, 'escalated_at' => null]);
+        if ($affected === 0) {
+            return response()->json(['error' => 'تغيّرت حالة التقرير — أعد التحميل'], 409);
+        }
+        $report->status = $next; // مزامنة الذاكرة للآثار الجانبية أدناه
 
         $final = $next === WorkflowStage::FINAL_STATUS;
         if ($final) {
@@ -661,6 +681,7 @@ class ReportController extends Controller
 
         // «للمرحلة السابقة» ترجع خطوة واحدة؛ وعند أول مرحلة لا سابق لها فتؤول
         // للمسودة — البديل ردٌّ بلا أثر يُوهم المستخدم أن شيئاً حدث
+        $from = $report->status; // للكتابة المشروطة ضد السباق
         $target = $validated['target'] ?? 'draft';
         $newStatus = 'returned';
         if ($target === 'previous') {
@@ -668,7 +689,7 @@ class ReportController extends Controller
             $newStatus = $prev?->status_key ?? 'returned';
         }
 
-        $report->update([
+        $affected = FinalReport::where('id', $report->id)->where('status', $from)->update([
             'status' => $newStatus,
             'return_reason' => $validated['reason'],
             'return_count' => $report->return_count + 1,
@@ -677,6 +698,10 @@ class ReportController extends Controller
             // الرجوع للوراء حالة تأخّر جديدة — يُصعَّد من جديد إن تأخّر
             'escalated_at' => null,
         ]);
+        if ($affected === 0) { // تغيّرت الحالة متزامنةً — لا نطمس تحوّلاً آخر
+            return response()->json(['error' => 'تغيّرت حالة التقرير — أعد التحميل'], 409);
+        }
+        $report->return_count += 1; // مزامنة الذاكرة للرد/السجل
 
         if ($report->created_by) {
             $this->notify->notify($report->created_by, 'return',
@@ -737,12 +762,17 @@ class ReportController extends Controller
         if (in_array($report->status, ['approved', 'cancelled'], true)) {
             return response()->json(['error' => 'لا يمكن إلغاء تقرير معتمد أو ملغى مسبقاً'], 422);
         }
+        $from = $report->status;
 
-        $report->update([
+        // كتابة مشروطة بالحالة المقروءة — لا يُلغي تقريراً اعتُمد/تغيّر متزامناً
+        $affected = FinalReport::where('id', $report->id)->where('status', $from)->update([
             'status' => 'cancelled',
             'return_reason' => $validated['reason'],
             'escalated_at' => null,
         ]);
+        if ($affected === 0) {
+            return response()->json(['error' => 'تغيّرت حالة التقرير — أعد التحميل'], 409);
+        }
 
         // المرشّح يعود «مُقيَّم» فيُكتب له تقرير جديد — الإلغاء يفتح الباب لا يغلقه
         $report->candidate->setStatus('assessed');
@@ -800,7 +830,12 @@ class ReportController extends Controller
         if (!$first) {
             return response()->json(['error' => 'لا توجد مراحل اعتماد مفعّلة — راجع إعدادات سير العمل'], 422);
         }
-        $report->update(['status' => $first->status_key, 'escalated_at' => null]);
+        // مشروطة بـ«returned» — لا تتصادم مع إلغاء/تعديل متزامن
+        $affected = FinalReport::where('id', $report->id)->where('status', 'returned')
+            ->update(['status' => $first->status_key, 'escalated_at' => null]);
+        if ($affected === 0) {
+            return response()->json(['error' => 'تغيّرت حالة التقرير — أعد التحميل'], 409);
+        }
 
         $this->notify->notifyRole($first->role_code, 'approval',
             'تقرير معدّل بانتظار الاعتماد',
