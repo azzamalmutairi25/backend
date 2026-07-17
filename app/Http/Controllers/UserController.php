@@ -121,6 +121,32 @@ class UserController extends Controller
             ], 422);
         }
 
+        // ── سقف الامتيازات: بلا هذا يصير تفويض user.manage لغير مدير باباً لتوزيع
+        //    أي صلاحية على أي حساب، فتنهار حدود المصفوفة. ثلاث طبقات: ──
+        $actor = $request->user();
+        $actorHasStar = in_array('*', Permissions::forRole($actor->role->code), true);
+
+        // (١) صلاحيات إدارية للنظام لا تُمنح ولا تُسحب عبر الاستثناء إطلاقاً — بالدور فقط
+        $nonDelegable = $incoming->pluck('permission')->intersect(Permissions::NON_DELEGABLE);
+        if ($nonDelegable->isNotEmpty()) {
+            return response()->json(['errors' => ['overrides' => [
+                'هذه الصلاحيات تُدار بالدور لا بالاستثناء الفردي: ' . $nonDelegable->implode('، '),
+            ]]], 422);
+        }
+
+        // (٢) لا يُمنح ما لا يملكه المانح نفسه — لا يُفوَّض ما لا تملكه
+        $cannotGrant = $incoming->filter(fn ($o) => $o['granted'] && !$actor->hasPermission($o['permission']));
+        if ($cannotGrant->isNotEmpty()) {
+            return response()->json(['errors' => ['overrides' => [
+                'لا يمكنك منح صلاحية لا تملكها: ' . $cannotGrant->pluck('permission')->implode('، '),
+            ]]], 403);
+        }
+
+        // (٣) لا يُعدّل صلاحيات حامل '*' (مدير النظام) إلا حاملٌ لـ'*' مثله — منع قفل المدراء
+        if (in_array('*', Permissions::forRole($user->role->code), true) && !$actorHasStar) {
+            return response()->json(['error' => 'لا يمكنك تعديل صلاحيات مدير النظام'], 403);
+        }
+
         DB::transaction(function () use ($user, $incoming, $request) {
             $user->permissionOverrides()->delete();
             foreach ($incoming as $o) {
@@ -259,6 +285,51 @@ class UserController extends Controller
         return null;
     }
 
+    // هل المُسنِد مدير نظام ('*')؟ فقط دور ADMIN يحمل '*' (غير قابل للتفويض)
+    private function actorIsAdmin(User $actor): bool
+    {
+        return in_array('*', Permissions::forRole($actor->role->code), true);
+    }
+
+    // ── سقف إسناد الدور ──
+    // لا يُسنِد المستخدمُ دوراً يملك صلاحيةً لا يملكها هو، ولا دورَ مدير النظام
+    // إلا مديرُ نظام — وإلا صار تفويض USER_MANAGE لغير مدير باباً للترقية إلى ADMIN.
+    private function roleAssignmentError(User $actor, int $roleId): ?string
+    {
+        if ($this->actorIsAdmin($actor)) {
+            return null; // مدير النظام يُسند أي دور
+        }
+        $code = Role::whereKey($roleId)->value('code');
+        $rolePerms = Permissions::forRole($code ?? '');
+        if (in_array('*', $rolePerms, true)) {
+            return 'لا يمكنك إسناد دور مدير النظام';
+        }
+        foreach ($rolePerms as $p) {
+            if (!$actor->hasPermission($p)) {
+                return 'لا يمكنك إسناد دور بصلاحيات تفوق صلاحياتك';
+            }
+        }
+        return null;
+    }
+
+    // ── هل المستهدَف يفوق المُسنِد؟ (يحمل '*' أو صلاحيةً لا يملكها المُسنِد) ──
+    // يمنع مديرَ مستخدمين مفوَّضاً من تعطيل/إعادة تعيين/تعديل حساب أعلى منه رتبةً.
+    private function targetOutranksActor(User $actor, User $target): bool
+    {
+        if ($this->actorIsAdmin($actor)) {
+            return false; // مدير النظام يدير الجميع
+        }
+        if (in_array('*', Permissions::forRole($target->role->code), true)) {
+            return true; // المستهدف مدير نظام
+        }
+        foreach (Permissions::all() as $p) {
+            if ($target->hasPermission($p) && !$actor->hasPermission($p)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public function store(Request $request)
     {
         if (!$request->user()->hasPermission(Permissions::USER_MANAGE)) {
@@ -291,6 +362,10 @@ class UserController extends Controller
         }
         if ($err = $this->managerRuleError($validated['roleId'], $validated['managerId'] ?? null)) {
             return response()->json($err, 422);
+        }
+        // سقف الامتياز: لا تُنشئ حساباً بدور يفوق صلاحياتك (منع ترقية إلى ADMIN)
+        if ($err = $this->roleAssignmentError($request->user(), $validated['roleId'])) {
+            return response()->json(['error' => $err], 403);
         }
 
         $user = new User();
@@ -337,6 +412,13 @@ class UserController extends Controller
         if ($user->id === $request->user()->id && $user->role_id != $validated['roleId']) {
             return response()->json(['error' => 'لا يمكنك تغيير دورك الخاص'], 422);
         }
+        // لا تُعدّل حساباً يفوقك رتبةً، ولا تُرقّه لدور يفوق صلاحياتك
+        if ($this->targetOutranksActor($request->user(), $user)) {
+            return response()->json(['error' => 'لا يمكنك تعديل حساب أعلى صلاحيةً منك'], 403);
+        }
+        if ($err = $this->roleAssignmentError($request->user(), $validated['roleId'])) {
+            return response()->json(['error' => $err], 403);
+        }
 
         // تغيير الدور قد يجعله محصوراً بقطاع أو يخرجه من الحصر — تُعاد القاعدة على
         // الدور الجديد لا القديم، وإلا نشأ مقيّم بلا قطاع بترقية مستخدم قائم
@@ -365,6 +447,17 @@ class UserController extends Controller
             $user->tokens()->delete();
         }
 
+        // منحُ استثناءٍ اعتُمد على الدور القديم يجب ألا يتسلّل إلى الدور الجديد:
+        // EVALUATOR مُنِح report.approve ثم صار DISCUSSION_EVAL كان سيبقى معتمِداً نهائياً.
+        // نحذف المنوحات فقط (granted=true)؛ السحوبات تبقى فلا يُعاد امتياز أُسقط عمداً.
+        if ($roleChanged) {
+            $revoked = $user->permissionOverrides()->where('granted', true)->delete();
+            if ($revoked > 0) {
+                $this->log($request, 'CLEAR_GRANTED_OVERRIDES_ON_ROLE_CHANGE', $user->id,
+                    ['username' => $user->username, 'cleared' => $revoked]);
+            }
+        }
+
         $this->log($request, 'UPDATE_USER', $user->id, ['username' => $user->username]);
 
         return response()->json(['message' => 'تم تحديث المستخدم']);
@@ -380,6 +473,10 @@ class UserController extends Controller
 
         if ($user->id === $request->user()->id) {
             return response()->json(['error' => 'لا يمكنك تعطيل حسابك الخاص'], 422);
+        }
+        // لا يُعطِّل مديرُ مستخدمين مفوَّض حساباً أعلى منه رتبةً (تعطيل مدير النظام)
+        if ($this->targetOutranksActor($request->user(), $user)) {
+            return response()->json(['error' => 'لا يمكنك تعطيل حساب أعلى صلاحيةً منك'], 403);
         }
 
         $user->is_active = !$user->is_active;
@@ -412,6 +509,10 @@ class UserController extends Controller
         ]);
 
         $user = User::findOrFail($id);
+        // لا يُعيد مديرُ مستخدمين مفوَّض تعيينَ كلمة مرور حساب أعلى منه رتبةً (استيلاء على مدير النظام)
+        if ($this->targetOutranksActor($request->user(), $user)) {
+            return response()->json(['error' => 'لا يمكنك إعادة تعيين كلمة مرور حساب أعلى صلاحيةً منك'], 403);
+        }
         // مستخدم داخلي يُصادَق عبر AD بلا كلمة مرور محلية — إعادة تعيينها تحبسه في حلقة «غيّر كلمة المرور» لا يستطيع إتمامها
         if ($user->user_type === 'internal') {
             return response()->json([

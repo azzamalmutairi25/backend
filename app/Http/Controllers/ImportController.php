@@ -27,6 +27,12 @@ class ImportController extends Controller
 
         foreach ($request->rows as $i => $row) {
             $lineNum = $i + 1;
+            // سطر ليس كائناً (نصّ/رقم) يرمي TypeError قبل الحماية فيُسقط الدفعة نصفها —
+            // يُحوَّل لخطأ سطر ويُتابَع كبقية الأخطاء
+            if (!is_array($row)) {
+                $errors[] = "السطر {$lineNum}: تنسيق غير صحيح";
+                continue;
+            }
             $nationalId = trim($row['nationalId'] ?? '');
             $fullName = trim($row['fullName'] ?? '');
             $mobile = trim($row['mobile'] ?? '');
