@@ -18,11 +18,14 @@ class WorkflowStage extends Model
 
     protected $fillable = [
         'workflow', 'position', 'status_key', 'role_code', 'permission', 'label', 'is_active',
+        'blocks_self_authored', 'requires_team_authorship',
     ];
 
     protected $casts = [
         'position' => 'integer',
         'is_active' => 'boolean',
+        'blocks_self_authored' => 'boolean',
+        'requires_team_authorship' => 'boolean',
     ];
 
     public const FINAL_STATUS = 'approved';

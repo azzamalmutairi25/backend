@@ -80,6 +80,10 @@ class WorkflowController extends Controller
             'stages.*.id' => 'required|integer|exists:workflow_stages,id',
             'stages.*.position' => 'required|integer|min:1',
             'stages.*.isActive' => 'required|boolean',
+            // قابلة للتعديل: التسمية وقواعد المرحلة على الكاتب
+            'stages.*.label' => 'required|string|max:100',
+            'stages.*.blocksSelfAuthored' => 'required|boolean',
+            'stages.*.requiresTeamAuthorship' => 'required|boolean',
         ]);
 
         $incoming = collect($validated['stages'])->keyBy('id');
@@ -133,6 +137,9 @@ class WorkflowController extends Controller
                 $want = $incoming[$s->id];
                 $s->position = $want['position'];
                 $s->is_active = $want['isActive'];
+                $s->label = $want['label'];
+                $s->blocks_self_authored = $want['blocksSelfAuthored'];
+                $s->requires_team_authorship = $want['requiresTeamAuthorship'];
                 $s->save();
             }
         });
