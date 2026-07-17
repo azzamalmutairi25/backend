@@ -17,6 +17,19 @@ use App\Security\Permissions;
 
 class AuthController extends Controller
 {
+    // تجزئة وهمية ثابتة لمعادلة زمن التحقّق حين لا وجود للمستخدم — وإلا كشف الفرق
+    // الزمني (تخطّي bcrypt) أن الاسم غير موجود، فأمكن تعداد أسماء المستخدمين.
+    private const DUMMY_HASH = '$2y$12$YwqTC.sPbtHwy.Ov/nBvwOqNK2ft9pirSGve.bnpW/3zLFjzdduTS';
+
+    // ردّ عام موحّد — لا يفرّق بين اسم غير موجود، كلمة مرور خاطئة، أو حساب مقفل،
+    // كي لا يصير الردّ أداةَ تعداد لأسماء المستخدمين أو كشفٍ لحالة القفل.
+    private function invalidCredentials(): ValidationException
+    {
+        return ValidationException::withMessages([
+            'username' => ['اسم المستخدم أو كلمة المرور غير صحيحة'],
+        ]);
+    }
+
     // ── تسجيل الدخول ──
     public function login(Request $request)
     {
@@ -27,11 +40,9 @@ class AuthController extends Controller
 
         $user = User::where('username', $request->username)->where('is_active', true)->first();
 
+        // القفل يبقى مُنفَّذاً لكن بردّ عام — لا يُكشف أن الحساب موجود/مقفل ولا المدّة المتبقّية
         if ($user && $user->locked_until && $user->locked_until->isFuture()) {
-            $minutes = ceil(now()->diffInSeconds($user->locked_until) / 60);
-            throw ValidationException::withMessages([
-                'username' => ["الحساب مقفل مؤقتاً بسبب محاولات فاشلة. حاول بعد {$minutes} دقيقة"],
-            ]);
+            throw $this->invalidCredentials();
         }
 
         // التحقق من كلمة المرور: مستخدم داخلي عبر Active Directory، وإلا محليًا
@@ -42,14 +53,15 @@ class AuthController extends Controller
                 if ($adResult === null) {
                     // خلل تهيئة الدليل يُسجَّل خادمياً ولا يُكشف للعميل (تفادي كشف وجود/نوع الحساب)
                     \Illuminate\Support\Facades\Log::warning('AD authentication unavailable', ['username' => $user->username]);
-                    throw ValidationException::withMessages([
-                        'username' => ['اسم المستخدم أو كلمة المرور غير صحيحة'],
-                    ]);
+                    throw $this->invalidCredentials();
                 }
                 $passwordOk = $adResult === true;
             } else {
                 $passwordOk = Hash::check($request->password, $user->password);
             }
+        } else {
+            // اسم غير موجود: نُشغّل bcrypt على تجزئة وهمية لمعادلة الزمن مع «موجود بكلمة خاطئة»
+            Hash::check($request->password, self::DUMMY_HASH);
         }
 
         if (!$user || !$passwordOk) {
@@ -69,14 +81,11 @@ class AuthController extends Controller
                         'ip_address' => $request->ip(),
                         'created_at' => now(),
                     ]);
-                    throw ValidationException::withMessages([
-                        'username' => ['تم قفل الحساب ١٥ دقيقة بسبب ٥ محاولات فاشلة'],
-                    ]);
+                    // ردّ عام حتى عند القفل — لا يُكشف أن الحساب موجود وقُفل الآن
+                    throw $this->invalidCredentials();
                 }
             }
-            throw ValidationException::withMessages([
-                'username' => ['اسم المستخدم أو كلمة المرور غير صحيحة'],
-            ]);
+            throw $this->invalidCredentials();
         }
 
         $user->update([
@@ -156,6 +165,10 @@ class AuthController extends Controller
             'password' => $request->newPassword,
             'must_change_password' => false,
         ]);
+
+        // تغيير كلمة المرور يُبطل الجلسات الأخرى (يطرد أي جلسة مسروقة)، ويبقي الحالية
+        $current = $request->user()->currentAccessToken();
+        $user->tokens()->when($current, fn ($q) => $q->where('id', '!=', $current->id))->delete();
 
         AuditLog::create([
             'user_id' => $user->id,
