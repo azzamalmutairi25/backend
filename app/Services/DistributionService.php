@@ -61,13 +61,29 @@ class DistributionService
                 'created_by' => $actor->id,
             ]);
 
+            // مرشحون محجوزون في مسودّة توزيع أخرى (بلا جدولة/إسقاط بعد) — لا يُوزَّعون
+            // مرتين لو اعتُمدت المسودّتان (سباق أسبوعين متتاليين لا يزالان مسودّة)
+            $inOpenDraft = DistributionItem::whereHas('proposal', fn ($q) => $q->where('status', 'draft'))
+                ->whereNull('schedule_id')->whereNull('drop_reason')
+                ->pluck('candidate_id')->all();
+
             // المرشحون الجاهزون: معتمدون للتقييم بلا جلسة مقابلة في دورتهم الحالية
             $candidates = Candidate::with('sector')
                 ->where('status', 'scheduled')
                 ->whereDoesntHave('assessments.schedules', fn ($q) => $q->where('activity', 'interview'))
+                ->when(!empty($inOpenDraft), fn ($q) => $q->whereNotIn('id', $inOpenDraft))
                 ->orderBy('sector_id')->orderBy('id')
                 ->get()
                 ->groupBy('sector_id');
+
+            // جلسات المقابلة القائمة على أيام الأسبوع (يدوية) — تُخصَم من سعة كل مقيّم/يوم
+            $weekDates = array_map(fn ($d) => $d->toDateString(), $days);
+            $existing = Schedule::where('activity', 'interview')
+                ->whereIn('schedule_date', $weekDates)
+                ->whereNotNull('evaluator_id')
+                ->get(['evaluator_id', 'schedule_date'])
+                ->groupBy(fn ($s) => $s->evaluator_id . '|' . substr((string) $s->schedule_date, 0, 10))
+                ->map->count();
 
             foreach ($candidates as $sectorId => $sectorCandidates) {
                 // مقيّمو هذا القطاع الفعّالون
@@ -80,8 +96,8 @@ class DistributionService
                     continue; // قطاع بلا مقيّم — يُترك، ويظهر في «غير موزّعين»
                 }
 
-                // سعة الأسبوع = مقيّمون × أيام × حدّ. الزائد يُترك للأسبوع التالي.
-                $this->placeSector($proposal, $sectorId, $sectorCandidates->values(), $evaluators, $days, $cap);
+                // سعة الأسبوع = مقيّمون × أيام × حدّ (ناقص القائم). الزائد يُترك للأسبوع التالي.
+                $this->placeSector($proposal, $sectorId, $sectorCandidates->values(), $evaluators, $days, $cap, $existing);
             }
 
             return $proposal;
@@ -90,14 +106,17 @@ class DistributionService
 
     // يوزّع مرشّحي قطاع على مقيّميه وأيامه، بحدّ لكل مقيّم في اليوم.
     // خوارزمية دوّارة: يملأ (يوم، مقيّم) واحداً واحداً حتى ينفد الحدّ أو المرشحون.
-    private function placeSector($proposal, int $sectorId, $candidates, $evaluators, array $days, int $cap): void
+    private function placeSector($proposal, int $sectorId, $candidates, $evaluators, array $days, int $cap, $existing = null): void
     {
         $ci = 0;
         $total = $candidates->count();
 
         foreach ($days as $day) {
+            $dateStr = $day->toDateString();
             foreach ($evaluators as $evaluatorId) {
-                for ($slot = 0; $slot < $cap; $slot++) {
+                // نبدأ من عدد الجلسات القائمة لهذا المقيّم في هذا اليوم كي لا يُتجاوَز الحدّ
+                $used = $existing["$evaluatorId|$dateStr"] ?? 0;
+                for ($slot = $used; $slot < $cap; $slot++) {
                     if ($ci >= $total) {
                         return; // نفد مرشحو القطاع
                     }
@@ -132,6 +151,11 @@ class DistributionService
             $dropped = 0;
 
             foreach ($locked->items()->with('candidate')->get() as $item) {
+                // قفل صفّ المرشّح: يسلسل اعتمادين متزامنين لمرشّح واحد، فالثاني يرى
+                // جلسته أُنشئت ويُسقطه بدل جدولته مرتين (فحص «جُدوِل» يصير تحت القفل)
+                if ($item->candidate_id) {
+                    Candidate::whereKey($item->candidate_id)->lockForUpdate()->first();
+                }
                 $reason = $this->revalidate($item);
                 if ($reason) {
                     $item->update(['drop_reason' => $reason]);

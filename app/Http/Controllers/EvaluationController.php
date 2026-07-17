@@ -121,7 +121,8 @@ class EvaluationController extends Controller
             $this->log($request, 'DENIED_EVAL_CROSS_SECTOR', $candidate->id, [
                 'candidateSector' => $candidate->sector_id,
             ]);
-            return response()->json(['error' => 'هذا المرشح ليس من قطاعك'], 403);
+            // 404 لا 403: لا يفرّق الردّ بين «غير موجود» و«خارج قطاعك» فلا يكون عرّاف قطاع
+            return response()->json(['error' => 'المرشح غير موجود'], 404);
         }
 
         if (!in_array($candidate->status, ['scheduled', 'assessed'])) {
@@ -277,14 +278,11 @@ class EvaluationController extends Controller
         if (!$request->user()->hasPermission(Permissions::EVALUATION_INPUT)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدخال التقييم'], 403);
         }
-        $evaluation = Evaluation::with('candidate')->findOrFail($id);
-
-        if ($evaluation->evaluator_id !== $request->user()->id) {
-            return response()->json(['error' => 'هذه ليست جلستك'], 403);
-        }
-
-        if (!in_array($evaluation->candidate->classification, $this->allowedClassifications($request))) {
-            $this->log($request, 'DENIED_EVAL_CLASSIFIED', $id);
+        // find لا findOrFail: 404 موحّد لغير الموجود/غير المملوك/خارج التصنيف — لا عرّاف وجود
+        $evaluation = Evaluation::with('candidate')->find($id);
+        if (!$evaluation || $evaluation->evaluator_id !== $request->user()->id
+            || !in_array($evaluation->candidate->classification, $this->allowedClassifications($request))) {
+            $this->log($request, 'DENIED_EVAL_OUT_OF_SCOPE', $id);
             return response()->json(['error' => 'التقييم غير موجود'], 404);
         }
 
@@ -352,14 +350,11 @@ class EvaluationController extends Controller
         if (!$request->user()->hasPermission(Permissions::EVALUATION_INPUT)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدخال التقييم'], 403);
         }
-        $evaluation = Evaluation::with('candidate')->findOrFail($id);
-
-        if ($evaluation->evaluator_id !== $request->user()->id) {
-            return response()->json(['error' => 'هذه ليست جلستك'], 403);
-        }
-
-        if (!in_array($evaluation->candidate->classification, $this->allowedClassifications($request))) {
-            $this->log($request, 'DENIED_EVAL_CLASSIFIED', $id);
+        // find لا findOrFail: 404 موحّد لغير الموجود/غير المملوك/خارج التصنيف — لا عرّاف وجود
+        $evaluation = Evaluation::with('candidate')->find($id);
+        if (!$evaluation || $evaluation->evaluator_id !== $request->user()->id
+            || !in_array($evaluation->candidate->classification, $this->allowedClassifications($request))) {
+            $this->log($request, 'DENIED_EVAL_OUT_OF_SCOPE', $id);
             return response()->json(['error' => 'التقييم غير موجود'], 404);
         }
 
@@ -422,7 +417,14 @@ class EvaluationController extends Controller
             return response()->json(['error' => 'ليس لديك صلاحية الاعتماد'], 403);
         }
 
-        $evaluation = Evaluation::findOrFail($id);
+        // نطاق التصنيف والقطاع قبل الطفرة (الصلاحية قد تُفوَّض لمن هو محصور/بلا تصريح)
+        $evaluation = Evaluation::with('candidate')->find($id);
+        if (!$evaluation
+            || !in_array($evaluation->candidate->classification, $this->allowedClassifications($request))
+            || !$request->user()->coversSector($evaluation->candidate->sector_id)) {
+            $this->log($request, 'DENIED_EVAL_OUT_OF_SCOPE', $id);
+            return response()->json(['error' => 'التقييم غير موجود'], 404);
+        }
 
         if ($evaluation->status !== 'submitted') {
             return response()->json(['error' => 'لا يمكن اعتماد تقييم غير مُرسل'], 422);
@@ -452,7 +454,14 @@ class EvaluationController extends Controller
             'reason.min' => 'سبب الإرجاع قصير جداً',
         ]);
 
-        $evaluation = Evaluation::findOrFail($id);
+        // نطاق التصنيف والقطاع قبل الطفرة (كـapprove — الصلاحية قابلة للتفويض)
+        $evaluation = Evaluation::with('candidate')->find($id);
+        if (!$evaluation
+            || !in_array($evaluation->candidate->classification, $this->allowedClassifications($request))
+            || !$request->user()->coversSector($evaluation->candidate->sector_id)) {
+            $this->log($request, 'DENIED_EVAL_OUT_OF_SCOPE', $id);
+            return response()->json(['error' => 'التقييم غير موجود'], 404);
+        }
 
         if ($evaluation->status !== 'submitted') {
             return response()->json(['error' => 'لا يمكن إرجاع تقييم غير مُرسل'], 422);

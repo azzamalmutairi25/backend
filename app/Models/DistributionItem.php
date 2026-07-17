@@ -14,6 +14,7 @@ class DistributionItem extends Model
 
     protected $casts = ['scheduled_date' => 'date'];
 
+    public function proposal(): BelongsTo { return $this->belongsTo(DistributionProposal::class, 'proposal_id'); }
     public function candidate(): BelongsTo { return $this->belongsTo(Candidate::class); }
     public function evaluator(): BelongsTo { return $this->belongsTo(User::class, 'evaluator_id'); }
     public function sector(): BelongsTo { return $this->belongsTo(Sector::class); }

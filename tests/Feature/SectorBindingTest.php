@@ -121,8 +121,9 @@ class SectorBindingTest extends TestCase
         [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED']);
         $this->userIn('EVALUATOR', 'HO');
 
+        // 404 لا 403: لا يفرّق الردّ بين «غير موجود» و«خارج قطاعك» (لا عرّاف قطاع)
         $this->postJson('/api/evaluations/start', ['candidateId' => $c->id, 'activity' => 'interview'])
-            ->assertStatus(403);
+            ->assertStatus(404);
         $this->assertDatabaseHas('audit_logs', ['action' => 'DENIED_EVAL_CROSS_SECTOR']);
     }
 
