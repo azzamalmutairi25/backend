@@ -114,6 +114,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/settings/tier', [SettingsController::class, 'getTier']);
     Route::put('/settings/tier', [SettingsController::class, 'saveTier']);
 
+    // بوّابة التحقق من الهوية (تكامل خارجي) — الاختبار يفتح اتصالاً خارجياً فيُخنق
+    Route::get('/settings/idverify', [SettingsController::class, 'getIdVerify']);
+    Route::put('/settings/idverify', [SettingsController::class, 'saveIdVerify']);
+    Route::post('/settings/idverify/test', [SettingsController::class, 'testIdVerify'])->middleware('throttle:5,1');
+
     // ═══ التقييم ═══
     Route::get('/competencies', [EvaluationController::class, 'competencies']);
     Route::get('/competencies/framework', [CompetencyController::class, 'framework']);
@@ -136,6 +141,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/daily-report', [DailyReportController::class, 'show']);
     Route::get('/daily-report/document', [DailyReportController::class, 'document']);
 
+    Route::get('/analytics/executive', [AnalyticsController::class, 'executive']);
     Route::get('/analytics/dashboard', [AnalyticsController::class, 'dashboard']);
     Route::get('/analytics/by-sector', [AnalyticsController::class, 'bySector']);
     Route::get('/analytics/competency-gaps', [AnalyticsController::class, 'competencyGaps']);
