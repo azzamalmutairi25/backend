@@ -9,6 +9,7 @@ use App\Models\Attendance;
 use App\Models\EvaluationScore;
 use App\Models\Sector;
 use App\Security\Permissions;
+use App\Services\ExecutiveAnalyticsService;
 use Illuminate\Http\Request;
 
 // ════════════════════════════════════════════════════════════
@@ -74,6 +75,16 @@ class AnalyticsController extends Controller
             ],
             'upcomingSessions' => $upcoming,
         ]);
+    }
+
+    // GET /analytics/executive — الحمولة الكاملة للوحة التنفيذية (KPIs/خريطة/مقارنات/اتجاهات/رؤى)
+    public function executive(Request $request, ExecutiveAnalyticsService $svc)
+    {
+        if (!$this->gate($request)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض التحليلات'], 403);
+        }
+        $months = (int) ($request->input('months') ?: 6);
+        return response()->json($svc->executive($this->allowedClassifications($request), $months));
     }
 
     // GET /analytics/by-sector — تجميع حسب القطاع (عدد، مكتمل، متوسط توافق)
