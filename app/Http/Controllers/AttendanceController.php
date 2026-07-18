@@ -118,6 +118,13 @@ class AttendanceController extends Controller
             $this->log($request, 'DENIED_ATTENDANCE_CLASSIFIED', $scheduleId);
             return response()->json(['error' => 'الجدول غير موجود'], 404);
         }
+        // القطاع بُعدٌ من النطاق كالتصنيف: خارجه = «غير موجود» (404) قبل فحص الإسناد —
+        // وإلا صار فرق 403/404 مِكشافَ وجودٍ لجداول قطاعٍ آخر (كما في today/stats).
+        $actor = $request->user();
+        if ($actor->isSectorBound() && $schedule->candidate->sector_id !== $actor->sector_id) {
+            $this->log($request, 'DENIED_ATTENDANCE_OUT_OF_SECTOR', $scheduleId);
+            return response()->json(['error' => 'الجدول غير موجود'], 404);
+        }
 
         if (!$this->canRecordFor($request, $schedule)) {
             $this->log($request, 'DENIED_ATTENDANCE_NOT_ASSIGNED', $scheduleId);
@@ -166,6 +173,13 @@ class AttendanceController extends Controller
 
         if (!in_array($schedule->candidate->classification, $this->allowedClassifications($request))) {
             $this->log($request, 'DENIED_ATTENDANCE_CLASSIFIED', $scheduleId);
+            return response()->json(['error' => 'الجدول غير موجود'], 404);
+        }
+        // القطاع بُعدٌ من النطاق كالتصنيف: خارجه = «غير موجود» (404) قبل فحص الإسناد —
+        // وإلا صار فرق 403/404 مِكشافَ وجودٍ لجداول قطاعٍ آخر (كما في today/stats).
+        $actor = $request->user();
+        if ($actor->isSectorBound() && $schedule->candidate->sector_id !== $actor->sector_id) {
+            $this->log($request, 'DENIED_ATTENDANCE_OUT_OF_SECTOR', $scheduleId);
             return response()->json(['error' => 'الجدول غير موجود'], 404);
         }
 

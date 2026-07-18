@@ -8,11 +8,12 @@ class Schedule extends Model
 {
     protected $fillable = [
         'candidate_id', 'assessment_id', 'schedule_date', 'schedule_time',
-        'activity', 'evaluator_id', 'assistant_id', 'location',
+        'activity', 'evaluator_id', 'assistant_id', 'location', 'rescheduled_at',
     ];
 
     protected $casts = [
         'schedule_date' => 'date',
+        'rescheduled_at' => 'datetime',
     ];
 
     public function candidate()

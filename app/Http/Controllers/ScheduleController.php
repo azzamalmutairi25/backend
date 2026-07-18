@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\AuditLog;
 use App\Security\Permissions;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 // ════════════════════════════════════════════════════════════
 //  خدمة الجدولة — إنشاء/إدارة مواعيد جلسات التقييم
@@ -36,6 +37,18 @@ class ScheduleController extends Controller
             'ip_address' => $request->ip(),
             'created_at' => now(),
         ]);
+    }
+
+    // حدّ القطاع لجلسة محمّلة بالمعرّف: المحصور قطاعياً لا يمسّ جلسة قطاع آخر — كما
+    // في القوائم (index/absences). التصنيف + القطاع، وخارج النطاق = «غير موجودة» (لا
+    // كشف وجود). لازمٌ لأن schedule.manage/candidate.edit قابلتان للتفويض لدورٍ محصور.
+    private function scheduleOutOfScope(Request $request, Schedule $schedule): bool
+    {
+        $user = $request->user();
+        if (!in_array($schedule->candidate->classification, $this->allowedClassifications($request), true)) {
+            return true;
+        }
+        return $user->isSectorBound() && $schedule->candidate->sector_id !== $user->sector_id;
     }
 
     // GET /schedules — قائمة الجلسات (فلترة بالتاريخ/النشاط/المرشّح/المُقيّم)
@@ -69,7 +82,14 @@ class ScheduleController extends Controller
         if (!empty($validated['candidateId'])) { $query->where('candidate_id', $validated['candidateId']); }
         if (!empty($validated['evaluatorId'])) { $query->where('evaluator_id', $validated['evaluatorId']); }
 
-        $rows = $query->orderBy('schedule_date')->orderBy('schedule_time')->get()->map(fn ($s) => [
+        // بلا أي مُرشِّح حاصر كانت القائمة تُحمّل كل جلسات كل الدورات (تنمو بلا حدّ مع
+        // التاريخ). نافذة متدحرجة افتراضية (٦٠ يوماً للخلف فصاعداً) + سقف صلب.
+        $unfiltered = empty($validated['date']) && empty($validated['candidateId']) && empty($validated['evaluatorId']);
+        if ($unfiltered) {
+            $query->whereDate('schedule_date', '>=', now()->subDays(60)->toDateString());
+        }
+
+        $rows = $query->orderBy('schedule_date')->orderBy('schedule_time')->limit(2000)->get()->map(fn ($s) => [
             'id' => $s->id,
             'candidateId' => $s->candidate_id,
             'participantCode' => $s->candidate->participant_code,
@@ -197,9 +217,9 @@ class ScheduleController extends Controller
             $this->rules(true)
         ));
 
-        // حلّ المرشّح ضمن صلاحية التصنيف فقط (مصنّف خارج الصلاحية = «غير موجود»)
-        $candidate = Candidate::whereIn('classification', $this->allowedClassifications($request))
-            ->find($validated['candidateId']);
+        // النطاق كاملاً (التصنيف + القطاع). كان التصنيف وحده، فمن مُنح schedule.manage
+        // بالاستثناء وهو محصور قطاعياً كان يجدول مرشّح قطاع آخر (خارج النطاق = «غير موجود»).
+        $candidate = $this->resolveCandidateInScope($request, $validated['candidateId']);
         if (!$candidate) {
             return response()->json(['error' => 'المرشح غير موجود'], 404);
         }
@@ -254,7 +274,7 @@ class ScheduleController extends Controller
         if (!$schedule) {
             return response()->json(['error' => 'الجلسة غير موجودة'], 404);
         }
-        if (!in_array($schedule->candidate->classification, $this->allowedClassifications($request), true)) {
+        if ($this->scheduleOutOfScope($request, $schedule)) {
             return response()->json(['error' => 'الجلسة غير موجودة'], 404);
         }
         // القفل بعد تسجيل الحضور يبقى للجميع، إلا إدارة المرشحين (CANDIDATE_EDIT):
@@ -275,7 +295,9 @@ class ScheduleController extends Controller
 
         // تغيّر التاريخ أو الوقت يُبطل الحضور المسجّل: حضورٌ لجلسة موعدها تبدّل
         // لم يعد صحيحاً. تغيير المكان أو المُقيّم لا يمسّ الحضور.
-        $timeChanged = (isset($validated['date']) && $validated['date'] !== (string) $schedule->schedule_date)
+        // طبّع الجانبين: schedule_date مصبوب date فـ(string) يعطي «Y-m-d H:i:s»، فمقارنته
+        // بـ«Y-m-d» الخام كانت غير متساوية دائماً — يحذف حضوراً سليماً عند تعديلٍ لا يمسّ الموعد.
+        $timeChanged = (isset($validated['date']) && $validated['date'] !== $schedule->schedule_date->toDateString())
             || (array_key_exists('time', $validated) && $validated['time'] !== substr((string) $schedule->schedule_time, 0, 5));
 
         if (isset($validated['activity']))  { $schedule->activity = $validated['activity']; }
@@ -284,13 +306,17 @@ class ScheduleController extends Controller
         if (array_key_exists('location', $validated))    { $schedule->location = $validated['location']; }
         if (array_key_exists('evaluatorId', $validated)) { $schedule->evaluator_id = $validated['evaluatorId']; }
         if (array_key_exists('assistantId', $validated)) { $schedule->assistant_id = $validated['assistantId']; }
-        $schedule->save();
 
+        // الحفظ والإبطال في معاملة. الحذف مشروط بتغيّر الموعد فقط لا بقراءة $recorded
+        // السابقة: إدخال حضور متزامن بعد تلك القراءة كان ينجو من الحذف فيبقى حضورٌ
+        // لموعد تبدّل (TOCTOU).
         $attendanceCleared = false;
-        if ($recorded && $timeChanged) {
-            Attendance::where('schedule_id', $schedule->id)->delete();
-            $attendanceCleared = true;
-        }
+        DB::transaction(function () use ($schedule, $timeChanged, &$attendanceCleared) {
+            $schedule->save();
+            if ($timeChanged) {
+                $attendanceCleared = Attendance::where('schedule_id', $schedule->id)->delete() > 0;
+            }
+        });
 
         $action = $recorded ? 'UPDATE_SCHEDULE_OVERRIDE' : ($crossed ? 'UPDATE_SCHEDULE_CROSS_SECTOR' : 'UPDATE_SCHEDULE');
         $this->log($request, $action, $schedule->id, [
@@ -318,7 +344,7 @@ class ScheduleController extends Controller
         if (!$schedule) {
             return response()->json(['error' => 'الجلسة غير موجودة'], 404);
         }
-        if (!in_array($schedule->candidate->classification, $this->allowedClassifications($request), true)) {
+        if ($this->scheduleOutOfScope($request, $schedule)) {
             return response()->json(['error' => 'الجلسة غير موجودة'], 404);
         }
         if (Attendance::where('schedule_id', $schedule->id)->exists()) {
@@ -351,6 +377,7 @@ class ScheduleController extends Controller
 
         $rows = Schedule::with('attendance')
             ->where('candidate_id', $candidateId)
+            ->whereNull('rescheduled_at') // الغياب المُستهلَك لا يُعرض للإعادة ثانيةً
             ->whereHas('attendance', fn ($q) => $q->whereIn('status', ['absent_excused', 'absent_unexcused']))
             ->orderByDesc('schedule_date')
             ->get()
@@ -375,7 +402,7 @@ class ScheduleController extends Controller
         }
 
         $old = Schedule::with(['candidate', 'attendance'])->find($id);
-        if (!$old || !in_array($old->candidate->classification, $this->allowedClassifications($request), true)) {
+        if (!$old || $this->scheduleOutOfScope($request, $old)) {
             return response()->json(['error' => 'الجلسة غير موجودة'], 404);
         }
 
@@ -383,6 +410,16 @@ class ScheduleController extends Controller
         $status = $old->attendance?->status;
         if (!in_array($status, ['absent_excused', 'absent_unexcused'], true)) {
             return response()->json(['error' => 'لا تُعاد جدولة إلا جلسة سُجّل فيها غياب'], 422);
+        }
+
+        // نفس حرّاس store: لا نُنشئ جلسة حيّة لمرشّح غير مؤهّل أو داخل دورة منتهية.
+        // نربط بالدورة الحالية غير المكتملة لا بدورة القديمة (قد تكون أُغلقت).
+        if (!in_array($old->candidate->status, ['scheduled', 'assessed'], true)) {
+            return response()->json(['error' => 'لا يمكن إعادة جدولة مرشّح غير معتمد للتقييم'], 422);
+        }
+        $assessment = $old->candidate->assessments()->where('status', '!=', 'completed')->orderByDesc('id')->first();
+        if (!$assessment) {
+            return response()->json(['error' => 'لا توجد دورة تقييم نشطة للمرشّح'], 422);
         }
 
         $validated = $request->validate([
@@ -393,16 +430,31 @@ class ScheduleController extends Controller
             'date.after_or_equal' => 'تاريخ إعادة الجدولة يجب ألا يكون في الماضي',
         ]);
 
-        $new = Schedule::create([
-            'candidate_id' => $old->candidate_id,
-            'assessment_id' => $old->assessment_id,
-            'schedule_date' => $validated['date'],
-            'schedule_time' => $validated['time'] ?? $old->schedule_time,
-            'activity' => $old->activity,             // نفس النشاط الذي تغيّب عنه
-            'evaluator_id' => $old->evaluator_id,      // نفس الإسناد
-            'assistant_id' => $old->assistant_id,
-            'location' => $validated['location'] ?? $old->location,
-        ]);
+        // مرّة واحدة لكل غياب: نقفل الصف القديم ونضع rescheduled_at داخل معاملة.
+        // نداءان متكرّران/متزامنان كانا يُنشئان جلسات مكرّرة (لا عمود يستهلك الغياب).
+        $new = DB::transaction(function () use ($old, $assessment, $validated) {
+            $locked = Schedule::whereKey($old->id)->lockForUpdate()->first();
+            if ($locked->rescheduled_at !== null) {
+                return null; // استُهلك الغياب مسبقاً
+            }
+            $created = Schedule::create([
+                'candidate_id' => $old->candidate_id,
+                'assessment_id' => $assessment->id,        // الدورة الحالية لا القديمة
+                'schedule_date' => $validated['date'],
+                'schedule_time' => $validated['time'] ?? $old->schedule_time,
+                'activity' => $old->activity,              // نفس النشاط الذي تغيّب عنه
+                'evaluator_id' => $old->evaluator_id,       // نفس الإسناد
+                'assistant_id' => $old->assistant_id,
+                'location' => $validated['location'] ?? $old->location,
+            ]);
+            $locked->rescheduled_at = now();
+            $locked->save();
+            return $created;
+        });
+
+        if ($new === null) {
+            return response()->json(['error' => 'أُعيدت جدولة هذا الغياب مسبقاً'], 409);
+        }
 
         $this->log($request, 'RESCHEDULE_SESSION', $new->id, [
             'candidate' => $old->candidate->participant_code,
