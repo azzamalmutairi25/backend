@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\Notification;
 use App\Models\User;
+use App\Models\FinalReport;
+use App\Security\Permissions;
 
 // ════════════════════════════════════════════════════════════
 //  خدمة الإشعارات الداخلية
@@ -33,6 +35,11 @@ class NotificationService
             );
         }
 
+        // notifications.title = varchar(200). عنوان محادثة «رسالة جديدة من {full_name}»
+        // مع اسم طويل (full_name يبلغ 200) يتجاوز الحدّ فيرمي Postgres 22001 ⇒ 500،
+        // والرسالة تُنشأ قبل حلقة الإشعار فتبقى يتيمة. نقصّ دفاعياً لكل المنادين.
+        $title = mb_substr($title, 0, 200);
+
         Notification::create([
             'recipient_id' => $recipientId,
             'type' => $type,
@@ -55,13 +62,37 @@ class NotificationService
         ?string $entityId = null,
         ?int $createdBy = null
     ): void {
-        // جلب كل المستخدمين النشطين بهذا الدور
-        $userIds = User::whereHas('role', fn ($q) => $q->where('code', $roleCode))
+        // جلب كل المستخدمين النشطين بهذا الدور (مع الدور لفحص الحصر/الصلاحية)
+        $recipients = User::whereHas('role', fn ($q) => $q->where('code', $roleCode))
             ->where('is_active', true)
-            ->pluck('id');
+            ->with('role')
+            ->get();
 
-        foreach ($userIds as $uid) {
-            $this->notify($uid, $type, $title, $body, $entityType, $entityId, $createdBy);
+        // حصر إشعار «تقرير» على من يرى المرشّح فعلاً. بدونه كانت notifyRole تُذيع رمز
+        // المشارك (participant_code داخل المتن) لكل حاملي الدور بلا حدّ قطاع/تصنيف — فمرحلة
+        // المقيّم (EVALUATOR، محصور قطاعياً وبلا رؤية للمصنّفين) تُسرّب رمز مرشّح خارج
+        // القطاع أو مصنّفاً لمقيّمين يُحجب عنهم التقرير نفسه (scopeReports ⇒ 404).
+        // نُطابق حصر resolveCandidateInScope: التصنيف + القطاع للمحصورين.
+        if ($entityType === 'report' && $entityId !== null) {
+            $candidate = FinalReport::with('candidate')->find((int) $entityId)?->candidate;
+            if ($candidate) {
+                $recipients = $recipients->filter(function (User $u) use ($candidate) {
+                    // المصنّف يتطلّب صلاحية رؤية المصنّفين
+                    if ($candidate->classification !== 'normal'
+                        && !$u->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
+                        return false;
+                    }
+                    // المحصور قطاعياً لا يُشعَر بمرشّح خارج قطاعه
+                    if ($u->isSectorBound() && $u->sector_id !== $candidate->sector_id) {
+                        return false;
+                    }
+                    return true;
+                });
+            }
+        }
+
+        foreach ($recipients as $u) {
+            $this->notify($u->id, $type, $title, $body, $entityType, $entityId, $createdBy);
         }
     }
 }
