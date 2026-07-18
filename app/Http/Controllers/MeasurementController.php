@@ -83,16 +83,23 @@ class MeasurementController extends Controller
             return response()->json(['error' => 'لا توجد دورة تقييم نشطة للمرشّح'], 422);
         }
 
-        $m = MeasurementResult::updateOrCreate(
-            ['assessment_id' => $assessment->id],
-            [
-                'candidate_id' => $candidate->id,
-                'personality_score' => $validated['personalityScore'] ?? null,
-                'analytical_score' => $validated['analyticalScore'] ?? null,
-                'english_score' => $validated['englishScore'] ?? null,
-                'uploaded_by' => $request->user()->id,
-            ]
-        );
+        $attrs = [
+            'candidate_id' => $candidate->id,
+            'personality_score' => $validated['personalityScore'] ?? null,
+            'analytical_score' => $validated['analyticalScore'] ?? null,
+            'english_score' => $validated['englishScore'] ?? null,
+            'uploaded_by' => $request->user()->id,
+        ];
+        try {
+            $m = MeasurementResult::updateOrCreate(['assessment_id' => $assessment->id], $attrs);
+        } catch (\Illuminate\Database\QueryException $e) {
+            // رفعان متزامنان أوّلان: كلاهما لا يجد صفاً فيُدرج، والثاني ينتهك الفهرس
+            // الفريد (23505). أعِد المحاولة تحديثاً للصف الذي أدرجه الأوّل بدل 500.
+            if ($e->getCode() !== '23505' || !($m = MeasurementResult::where('assessment_id', $assessment->id)->first())) {
+                throw $e;
+            }
+            $m->update($attrs);
+        }
 
         $this->log($request, 'UPLOAD_MEASUREMENT', $m->id, ['candidate' => $candidate->participant_code]);
 
