@@ -27,8 +27,51 @@ class ExecutiveAnalyticsService
             'kpis' => $this->kpis($allowed),
             'heatmap' => $heatmap,
             'sectorComparison' => $sectors,
+            'tierComparison' => $this->tierComparison($allowed),
+            'readinessDistribution' => $this->readinessDistribution($allowed),
             'trends' => $trends,
             'insights' => $this->insights($allowed, $heatmap, $sectors, $trends),
+        ];
+    }
+
+    // ── مقارنة الفئتين القياديتين: العليا مقابل الوسطى ──
+    public function tierComparison(array $allowed): array
+    {
+        $out = [];
+        foreach (['upper' => 'القيادة العليا', 'middle' => 'القيادة الوسطى'] as $tier => $label) {
+            $base = Candidate::where('tier', $tier)->whereIn('classification', $allowed);
+            $approved = FinalReport::where('status', 'approved')
+                ->whereHas('candidate', fn ($q) => $q->where('tier', $tier)->whereIn('classification', $allowed));
+            $total = (clone $base)->count();
+            $out[] = [
+                'tier' => $tier,
+                'label' => $label,
+                'total' => $total,
+                'completed' => (clone $base)->where('status', 'completed')->count(),
+                'avgReadiness' => $this->avgReadiness($approved),
+            ];
+        }
+        return $out;
+    }
+
+    // ── توزيع جاهزية التقارير المعتمدة على شرائح (صحّة خطّ الكفاءات) ──
+    public function readinessDistribution(array $allowed): array
+    {
+        $r = "(coalesce(behavioral_fit,0) + coalesce(technical_fit,0)) / 2";
+        $row = FinalReport::where('status', 'approved')
+            ->whereHas('candidate', fn ($q) => $q->whereIn('classification', $allowed))
+            ->selectRaw("
+                count(*) filter (where {$r} >= 85) as excellent,
+                count(*) filter (where {$r} >= 70 and {$r} < 85) as good,
+                count(*) filter (where {$r} >= 55 and {$r} < 70) as fair,
+                count(*) filter (where {$r} < 55) as weak
+            ")->first();
+
+        return [
+            ['label' => 'ممتاز (٨٥+)', 'count' => (int) ($row->excellent ?? 0), 'tone' => 'excellent'],
+            ['label' => 'جيّد (٧٠–٨٥)', 'count' => (int) ($row->good ?? 0), 'tone' => 'good'],
+            ['label' => 'متوسّط (٥٥–٧٠)', 'count' => (int) ($row->fair ?? 0), 'tone' => 'fair'],
+            ['label' => 'يحتاج تطويراً (<٥٥)', 'count' => (int) ($row->weak ?? 0), 'tone' => 'weak'],
         ];
     }
 

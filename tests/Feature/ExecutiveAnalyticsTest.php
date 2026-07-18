@@ -67,11 +67,17 @@ class ExecutiveAnalyticsTest extends TestCase
             'kpis' => ['totalCandidates', 'activeAssessments', 'approvedReports', 'avgReadiness',
                 'deltas' => ['newCandidates', 'approvedReports', 'readiness']],
             'heatmap' => ['competencies', 'sectors', 'cells'],
-            'sectorComparison', 'trends', 'insights',
+            'sectorComparison', 'tierComparison', 'readinessDistribution', 'trends', 'insights',
         ]);
         $this->assertSame(3, $res->json('kpis.approvedReports'));
         // متوسط الجاهزية = (80+70)/2 = 75
         $this->assertEquals(75, $res->json('kpis.avgReadiness'));
+        // الفئتان القياديتان، وأربع شرائح جاهزية
+        $this->assertCount(2, $res->json('tierComparison'));
+        $this->assertCount(4, $res->json('readinessDistribution'));
+        // ٣ تقارير بجاهزية ٧٥ → كلها في شريحة «جيّد (٧٠–٨٥)»
+        $good = collect($res->json('readinessDistribution'))->firstWhere('tone', 'good');
+        $this->assertSame(3, $good['count']);
     }
 
     public function test_heatmap_and_sector_comparison_populated(): void
