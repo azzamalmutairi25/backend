@@ -110,6 +110,13 @@ class Candidate extends Model
 
     public static function classifyTier(string $rankLabel, bool $isMilitary): string
     {
+        // القائمة المُدارة (جدول ranks) أولاً: مطابقة صريحة تحسم الفئة.
+        // غير المُدرَج يسقط للمنطق القديم (قائمة الإعدادات + عتبة المرتبة المدنية).
+        $managed = Rank::tierFor($rankLabel, $isMilitary);
+        if ($managed !== null) {
+            return $managed;
+        }
+
         if ($isMilitary) {
             foreach (self::tierUpperRanks() as $r) {
                 if ($r !== '' && str_contains($rankLabel, $r)) return 'upper';
