@@ -169,19 +169,69 @@ class SmsGatewaySettingsTest extends TestCase
         $this->assertStringContainsString('401', $log->error_message);
     }
 
-    public function test_corrupt_key_disables_sending_instead_of_using_a_wrong_key(): void
+    public function test_5xx_gateway_error_is_retryable_and_throws(): void
+    {
+        // عطل مؤقّت في البوّابة (5xx) = عابر: يوسم failed ثم يرمي ليعيد الطابور المحاولة.
+        Http::fake(['api.provider.com/*' => Http::response('overloaded', 503)]);
+        $this->actingAsRole('ADMIN');
+        $this->putJson('/api/settings/sms', $this->validPayload())->assertOk();
+
+        $log = SmsLog::create([
+            'to_mobile' => '0501234567', 'message' => 'نص', 'sms_type' => 'notification',
+            'status' => 'pending', 'created_by' => null,
+        ]);
+
+        $threw = false;
+        try {
+            app(CommunicationService::class)->deliverPendingSms($log);
+        } catch (\RuntimeException $e) {
+            $threw = true;
+        }
+
+        $this->assertTrue($threw, '5xx يجب أن يرمي ليعيد الطابور المحاولة');
+        $this->assertSame('failed', $log->fresh()->status);
+    }
+
+    public function test_4xx_gateway_error_is_permanent_and_does_not_throw(): void
+    {
+        // طلب خاطئ (4xx) = دائم: يوسم failed ويُرجع false بلا رمي (لا جدوى من الإعادة).
+        Http::fake(['api.provider.com/*' => Http::response('bad request', 400)]);
+        $this->actingAsRole('ADMIN');
+        $this->putJson('/api/settings/sms', $this->validPayload())->assertOk();
+
+        $log = SmsLog::create([
+            'to_mobile' => '0501234567', 'message' => 'نص', 'sms_type' => 'notification',
+            'status' => 'pending', 'created_by' => null,
+        ]);
+
+        $result = app(CommunicationService::class)->deliverPendingSms($log);
+
+        $this->assertFalse($result, '4xx يجب ألا يرمي (لا إعادة محاولة)');
+        $this->assertSame('failed', $log->fresh()->status);
+    }
+
+    public function test_corrupt_key_fails_loudly_instead_of_faking_success(): void
     {
         Http::fake();
         $this->actingAsRole('ADMIN');
         $this->putJson('/api/settings/sms', $this->validPayload())->assertOk();
 
-        // قيمة لا تُفكّ (مفتاح تطبيق تغيّر مثلاً)
+        // قيمة لا تُفكّ (مفتاح تطبيق تغيّر مثلاً — يحدث عند التبديل لموقع التعافي)
         Setting::updateOrCreate(['key' => 'sms.key'], ['value' => 'not-a-valid-ciphertext']);
 
-        $this->assertSame('', CommunicationService::gatewayConfig()['key']);
+        // بوّابة مُعَدّة لكن مفتاحها لا يُفكّ: فشل حقيقي لا وضع تطوير.
+        $cfg = CommunicationService::gatewayConfig();
+        $this->assertSame('', $cfg['key']);
+        $this->assertTrue($cfg['key_error'], 'يجب تمييز فشل فكّ التشفير عن «غير مُعَدّ»');
+
         $ok = app(CommunicationService::class)->sendSms('0501234567', 'نص', 'notification', null, null);
-        $this->assertTrue($ok, 'يسقط لوضع التطوير');
+
+        // لا يُرسل بمفتاح خاطئ، ولا يُبلّغ «أُرسلت» زوراً بينما لا يصل المرشّح رابطه.
+        $this->assertFalse($ok, 'مفتاح تالف يجب أن يُخفق لا أن ينجح صامتاً');
         Http::assertNothingSent();
+        $log = SmsLog::latest('id')->first();
+        $this->assertSame('failed', $log->status);
+        $this->assertStringNotContainsString('وضع التطوير', (string) $log->error_message);
     }
 
     // ── الرجوع لمتغيّرات البيئة (تنصيب سابق لصفحة الإعدادات) ──

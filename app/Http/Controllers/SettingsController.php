@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Security\Permissions;
 use App\Services\ActiveDirectoryService;
 use App\Services\CommunicationService;
+use App\Services\IdentityVerificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -476,5 +477,149 @@ class SettingsController extends Controller
         ]);
 
         return response()->json(['message' => 'تم حفظ قواعد التصنيف']);
+    }
+
+    // ═══════════════ بوّابة التحقق من الهوية (تكامل خارجي) ═══════════════
+
+    public function getIdVerify(Request $request)
+    {
+        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
+        }
+
+        $g = IdentityVerificationService::config();
+
+        // المفتاح لا يُعاد أبداً — فقط ما إذا كان مضبوطاً
+        return response()->json(['idVerify' => [
+            'enabled' => $g['enabled'],
+            'url' => $g['url'],
+            'appId' => $g['app_id'],
+            'provider' => $g['provider'],
+            'keySet' => $g['key'] !== '',
+        ]]);
+    }
+
+    public function saveIdVerify(Request $request)
+    {
+        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
+        }
+
+        $validated = $request->validate([
+            'enabled' => 'required|boolean',
+            // https فقط: يمنع إرسال المفتاح على اتصال واضح، ويقصّ مخططات SSRF
+            'url' => 'required_if:enabled,true|nullable|url|starts_with:https://|max:255',
+            'apiKey' => 'nullable|string|max:500',
+            'appId' => 'nullable|string|max:100',
+            'provider' => ['nullable', \Illuminate\Validation\Rule::in(IdentityVerificationService::PROVIDERS)],
+        ], [
+            'url.required_if' => 'عنوان بوّابة التحقق مطلوب عند التفعيل',
+            'url.starts_with' => 'عنوان البوّابة يجب أن يبدأ بـ https:// (لا يُرسَل المفتاح على اتصال غير مشفّر)',
+        ]);
+
+        // مفتاح فارغ = «أبقِ الحالي» — الواجهة لا تملك المفتاح لتعيد إرساله
+        $newKey = trim((string) ($validated['apiKey'] ?? ''));
+        $hasExistingKey = IdentityVerificationService::config()['key'] !== '';
+
+        if ($validated['enabled'] && $newKey === '' && !$hasExistingKey) {
+            return response()->json([
+                'errors' => ['apiKey' => ['مفتاح البوّابة مطلوب عند التفعيل']],
+            ], 422);
+        }
+
+        $map = [
+            'idverify.enabled' => $validated['enabled'] ? 'true' : 'false',
+            'idverify.url' => $validated['url'] ?? '',
+            'idverify.app_id' => $validated['appId'] ?? '',
+            'idverify.provider' => $validated['provider'] ?? 'generic',
+        ];
+        if ($newKey !== '') {
+            $map['idverify.key'] = Crypt::encryptString($newKey);
+        }
+
+        // كل المفاتيح + التدقيق ذرّياً — وإلا تركت الأعطال الجزئية بوّابة نصف مُعدّة
+        DB::transaction(function () use ($map, $validated, $request, $newKey) {
+            foreach ($map as $key => $value) {
+                Setting::updateOrCreate(
+                    ['key' => $key],
+                    ['value' => $value, 'description' => 'إعداد بوّابة التحقق من الهوية', 'updated_at' => now()]
+                );
+            }
+
+            AuditLog::create([
+                'user_id' => $request->user()->id,
+                'action' => 'UPDATE_IDVERIFY_SETTINGS',
+                'entity_type' => 'settings',
+                'entity_id' => '0',
+                // لا يُسجَّل المفتاح — فقط ما إذا كان قد استُبدل
+                'details' => ['enabled' => $validated['enabled'], 'keyReplaced' => $newKey !== ''],
+                'ip_address' => $request->ip(),
+                'created_at' => now(),
+            ]);
+        });
+
+        return response()->json(['message' => 'تم حفظ إعدادات بوّابة التحقق من الهوية']);
+    }
+
+    public function testIdVerify(Request $request)
+    {
+        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية'], 403);
+        }
+
+        $validated = $request->validate([
+            'nationalId' => ['required', 'string', 'regex:/^[12][0-9]{9}$/'],
+        ], [
+            'nationalId.regex' => 'رقم الهوية يجب أن يكون 10 أرقام ويبدأ بـ 1 أو 2',
+        ]);
+
+        // تدقيق كل محاولة اختبار — الاختبار يستدعي المزوّد بتكلفة محتملة
+        AuditLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'TEST_IDVERIFY',
+            'entity_type' => 'settings',
+            'entity_id' => '0',
+            'details' => null, // لا يُسجَّل رقم الهوية المُختبَر
+            'ip_address' => $request->ip(),
+            'created_at' => now(),
+        ]);
+
+        $g = IdentityVerificationService::config();
+        if (!$g['enabled'] || $g['url'] === '' || $g['key'] === '') {
+            return response()->json([
+                'success' => false,
+                'message' => 'البوّابة غير مفعّلة أو غير مكتملة — احفظ الإعدادات أولاً',
+            ]);
+        }
+
+        $result = app(IdentityVerificationService::class)->verify($validated['nationalId']);
+
+        return response()->json([
+            'success' => $result['ok'],
+            'matched' => $result['matched'],
+            'message' => $result['message'],
+        ]);
+    }
+
+    // GET /settings/idverify/log — آخر محاولات التحقق (أثر تدقيقي)
+    public function idVerifyLog(Request $request)
+    {
+        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية'], 403);
+        }
+
+        $rows = \App\Models\IdentityVerification::with(['candidate:id,participant_code', 'checkedBy:id,full_name'])
+            ->orderByDesc('id')->limit(100)->get()
+            ->map(fn ($v) => [
+                'id' => $v->id,
+                'participantCode' => $v->candidate?->participant_code,
+                'status' => $v->status,
+                'provider' => $v->provider,
+                'detail' => $v->detail,
+                'checkedBy' => $v->checkedBy?->full_name,
+                'at' => $v->created_at,
+            ]);
+
+        return response()->json(['log' => $rows]);
     }
 }

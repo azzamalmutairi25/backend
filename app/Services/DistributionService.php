@@ -52,7 +52,15 @@ class DistributionService
         $days = $this->weekDays($start);
         $cap = $this->dailyCap();
 
-        return DB::transaction(function () use ($actor, $start, $days, $cap) {
+        // التصنيفات المسموحة للمُشغِّل: التوزيع الآلي يجب ألا يكشف مرشّحاً مصنّفاً
+        // لمسؤول جدولة بلا CANDIDATE_VIEW_CLASSIFIED (يملك DISTRIBUTION_MANAGE وحدها)،
+        // ولا يُسنده لمقيّم بلا تصريح. غير المصرَّح يُقصَر على 'normal'، ويُجدوَل
+        // المصنّفون يدوياً بمقيّم صريح. يطابق Controller::allowedClassifications.
+        $allowedClassifications = $actor->hasPermission(\App\Security\Permissions::CANDIDATE_VIEW_CLASSIFIED)
+            ? ['normal', 'secret', 'top_secret']
+            : ['normal'];
+
+        return DB::transaction(function () use ($actor, $start, $days, $cap, $allowedClassifications) {
             $proposal = DistributionProposal::create([
                 'week_start' => $start->toDateString(),
                 'week_end' => end($days)->toDateString(),
@@ -70,6 +78,7 @@ class DistributionService
             // المرشحون الجاهزون: معتمدون للتقييم بلا جلسة مقابلة في دورتهم الحالية
             $candidates = Candidate::with('sector')
                 ->where('status', 'scheduled')
+                ->whereIn('classification', $allowedClassifications)
                 ->whereDoesntHave('assessments.schedules', fn ($q) => $q->where('activity', 'interview'))
                 ->when(!empty($inOpenDraft), fn ($q) => $q->whereNotIn('id', $inOpenDraft))
                 ->orderBy('sector_id')->orderBy('id')

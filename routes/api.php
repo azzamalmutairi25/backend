@@ -12,6 +12,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DailyReportController;
 use App\Http\Controllers\DistributionController;
 use App\Http\Controllers\MeasurementController;
@@ -57,6 +58,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/change-password', [AuthController::class, 'changePassword']);
+
+    // ═══ لوحة البداية — صفحة الهبوط لكل دور (لا بوّابة صلاحية: الأقسام تُحجب فرادى) ═══
+    Route::get('/dashboard/overview', [DashboardController::class, 'overview']);
 
     // ═══ المرشحون ═══
     Route::get('/candidates', [CandidateController::class, 'index']);
@@ -113,6 +117,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/settings/distribution', [SettingsController::class, 'saveDistribution']);
     Route::get('/settings/tier', [SettingsController::class, 'getTier']);
     Route::put('/settings/tier', [SettingsController::class, 'saveTier']);
+
+    // بوّابة التحقق من الهوية (تكامل خارجي) — الاختبار يفتح اتصالاً خارجياً فيُخنق
+    Route::get('/settings/idverify', [SettingsController::class, 'getIdVerify']);
+    Route::put('/settings/idverify', [SettingsController::class, 'saveIdVerify']);
+    Route::post('/settings/idverify/test', [SettingsController::class, 'testIdVerify'])->middleware('throttle:5,1');
+    Route::get('/settings/idverify/log', [SettingsController::class, 'idVerifyLog']);
 
     // ═══ التقييم ═══
     Route::get('/competencies', [EvaluationController::class, 'competencies']);

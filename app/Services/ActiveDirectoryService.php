@@ -43,7 +43,11 @@ class ActiveDirectoryService
 
         ldap_set_option($conn, LDAP_OPT_PROTOCOL_VERSION, 3);
         ldap_set_option($conn, LDAP_OPT_REFERRALS, 0);
+        // NETWORK_TIMEOUT يغطّي إنشاء الاتصال فقط؛ TIMEOUT يحدّ انتظار ردّ العملية (bind).
+        // بدون الثاني: خادم AD يقبل TCP ثم لا يردّ ⇒ يتجمّد عامل PHP حتى max_execution_time
+        // لا 5ث — فيستنفد عمّال FPM عند دخول الموظفين صباحاً ويسقط النظام بعطل في AD.
         ldap_set_option($conn, LDAP_OPT_NETWORK_TIMEOUT, 5);
+        ldap_set_option($conn, LDAP_OPT_TIMEOUT, 5);
 
         $bindUser = $domain . '\\' . $adUsername;
         $bound = @ldap_bind($conn, $bindUser, $password);
@@ -78,7 +82,11 @@ class ActiveDirectoryService
 
         ldap_set_option($conn, LDAP_OPT_PROTOCOL_VERSION, 3);
         ldap_set_option($conn, LDAP_OPT_REFERRALS, 0);
+        // NETWORK_TIMEOUT يغطّي إنشاء الاتصال فقط؛ TIMEOUT يحدّ انتظار ردّ العملية (bind).
+        // بدون الثاني: خادم AD يقبل TCP ثم لا يردّ ⇒ يتجمّد عامل PHP حتى max_execution_time
+        // لا 5ث — فيستنفد عمّال FPM عند دخول الموظفين صباحاً ويسقط النظام بعطل في AD.
         ldap_set_option($conn, LDAP_OPT_NETWORK_TIMEOUT, 5);
+        ldap_set_option($conn, LDAP_OPT_TIMEOUT, 5);
 
         $bound = @ldap_bind($conn);
         $errno = $bound ? 0 : @ldap_errno($conn);
