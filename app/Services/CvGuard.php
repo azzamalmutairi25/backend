@@ -193,7 +193,27 @@ class CvGuard
                 if (mb_strlen($sk) >= 3 && in_array($sk, $ctx['skeletons'], true)) return true;
             }
         }
+        // نظير عربي: أحرف عربية مفردة متباعدة (م ح م د أو م.ح.م.د) تُجمَع وتُطابَق
+        foreach (self::arabicSpacedRuns($val) as $joined) {
+            foreach ($ctx['tokens'] as $tok) {
+                if (str_contains($joined, $tok)) return true;
+            }
+        }
         return false;
+    }
+
+    // سلاسل أحرف عربية مفردة يفصلها فراغ/علامة (م ح م د / م.ح.م.د) مجموعةً ومطبَّعة.
+    // نظير latinWords للعربية — يمنع تجاوز الطمس بتفتيت الاسم إلى أحرف.
+    private static function arabicSpacedRuns(string $val): array
+    {
+        $out = [];
+        $pat = '/(?<![\x{0621}-\x{064A}])(?:[\x{0621}-\x{064A}][^\p{L}\p{N}]+){2,}[\x{0621}-\x{064A}](?![\x{0621}-\x{064A}])/u';
+        if (preg_match_all($pat, $val, $m)) {
+            foreach ($m[0] as $run) {
+                $out[] = self::normalizeAr(preg_replace('/[^\x{0621}-\x{064A}]/u', '', $run));
+            }
+        }
+        return $out;
     }
 
     // كلمات لاتينية للمطابقة: الكلمات العادية + سلاسل الأحرف المفردة المتباعدة مجموعةً
@@ -239,10 +259,22 @@ class CvGuard
 
     private static function scrubText(string $val, array $ctx): string
     {
-        // بريد وروابط وأرقام طويلة
+        // بريد وروابط
         $val = preg_replace('/[\w.%+\-]+@[\w.\-]+\.[a-z]{2,}/iu', self::REDACT, $val);
         $val = preg_replace('#https?://\S+|www\.\S+#iu', self::REDACT, $val);
-        $val = preg_replace('/[0-9\x{0660}-\x{0669}]{9,}/u', self::REDACT, $val);
+
+        // أرقام طويلة — متتالية أو متباعدة بفواصل (١ ٢ ٣ …): تُجمَع ثم تُطابَق هوية/جوال
+        // أو ≥9 رقماً. يشمل الحالة المتتالية (الفواصل اختيارية) فيغني عن نمطٍ منفصل.
+        $val = preg_replace_callback('/[0-9\x{0660}-\x{0669}](?:[^\p{L}\p{N}]*[0-9\x{0660}-\x{0669}]){8,}/u', function ($m) use ($ctx) {
+            $digits = preg_replace('/\D/', '', strtr($m[0], [
+                '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4',
+                '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
+            ]));
+            $hit = ($ctx['id'] !== '' && str_contains($digits, $ctx['id']))
+                || ($ctx['mobile'] !== '' && mb_strlen($ctx['mobile']) >= 9 && str_contains($digits, $ctx['mobile']))
+                || mb_strlen($digits) >= 9;
+            return $hit ? self::REDACT : $m[0];
+        }, $val);
 
         // سلاسل أحرف مفردة متباعدة تُشكّل اسماً (m o h a m m e d) — تُطمَس كوحدة
         if ($ctx['skeletons']) {
@@ -251,6 +283,15 @@ class CvGuard
                 return (mb_strlen($sk) >= 3 && in_array($sk, $ctx['skeletons'], true)) ? self::REDACT : $m[0];
             }, $val);
         }
+
+        // نظير عربي: أحرف عربية مفردة متباعدة (م ح م د / م.ح.م.د) تُطمَس كوحدة
+        $val = preg_replace_callback('/(?<![\x{0621}-\x{064A}])(?:[\x{0621}-\x{064A}][^\p{L}\p{N}]+){2,}[\x{0621}-\x{064A}](?![\x{0621}-\x{064A}])/u', function ($m) use ($ctx) {
+            $joined = self::normalizeAr(preg_replace('/[^\x{0621}-\x{064A}]/u', '', $m[0]));
+            foreach ($ctx['tokens'] as $tok) {
+                if (str_contains($joined, $tok)) return self::REDACT;
+            }
+            return $m[0];
+        }, $val);
 
         // طمس الكلمات التي تطابق مقاطع الاسم (عربي أو لاتيني)، مع إبقاء الفواصل
         $parts = preg_split('/(\s+)/u', $val, -1, PREG_SPLIT_DELIM_CAPTURE);

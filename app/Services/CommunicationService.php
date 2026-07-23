@@ -27,14 +27,17 @@ class CommunicationService
         $s = Setting::whereIn('key', self::GATEWAY_KEYS)->pluck('value', 'key');
 
         // المفتاح مُخزَّن مشفّراً — لا يُترك واضحاً في القاعدة ولا في النسخ الاحتياطية
-        $key = (string) ($s->get('sms.key') ?? '');
-        if ($key !== '') {
+        // key_error: مفتاح مُخزَّن فعلاً لكن فكّ تشفيره فشل (APP_KEY مختلف/قيمة تالفة).
+        // نميّزه عن «غير مُعَدّ إطلاقاً» لأن الأول فشلٌ حقيقي لا وضع تطوير — انظر sendViaSms.
+        $storedKey = (string) ($s->get('sms.key') ?? '');
+        $key = '';
+        $keyError = false;
+        if ($storedKey !== '') {
             try {
-                $key = Crypt::decryptString($key);
+                $key = Crypt::decryptString($storedKey);
             } catch (\Throwable $e) {
-                // مفتاح تطبيق تغيّر أو قيمة تالفة — عطّل الإرسال بدل المحاولة بمفتاح خاطئ
-                Log::warning('sms gateway key decrypt failed: ' . $e->getMessage());
-                $key = '';
+                Log::error('sms gateway key decrypt failed (APP_KEY mismatch?): ' . $e->getMessage());
+                $keyError = true;
             }
         }
 
@@ -50,6 +53,7 @@ class CommunicationService
             'enabled' => $enabled,
             'url' => $url,
             'key' => $key,
+            'key_error' => $keyError,
             'sender' => (string) ($s->get('sms.sender_id') ?: config('services.sms.sender_id', 'Kafaat')),
             'support' => (string) ($s->get('sms.support_phone') ?? config('services.sms.support_phone', '')),
         ];
@@ -223,7 +227,36 @@ class CommunicationService
         return $this->sendSms($toMobile, $message, 'invitation', $candidateId, $createdBy);
     }
 
-    // ── إرسال رسالة نصية عامة ──
+    // ── إنشاء سجلّ رسالة معلّق (بلا إرسال) ثم جدولته على الطابور ──
+    // للمسار التلقائي (تأكيد المرشّح، الاستيراد الجماعي): لا نحبس عامل PHP-FPM
+    // بانتظار بوّابة قد تتأخّر 10ث أو تسقط. السجلّ يُنشأ فوراً (pending) فيبقى أثر،
+    // والعامل الخلفي يسلّمه عبر deliverPendingSms. في بيئة sync يُنفَّذ فوراً.
+    public function queueSms(
+        string $toMobile,
+        string $message,
+        string $smsType,
+        ?int $candidateId,
+        ?int $createdBy
+    ): bool {
+        try {
+            $log = SmsLog::create([
+                'to_mobile' => $toMobile,
+                'message' => $message,
+                'sms_type' => $smsType,
+                'candidate_id' => $candidateId,
+                'status' => 'pending',
+                'created_by' => $createdBy,
+            ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('sms log write failed: ' . $e->getMessage());
+            return false;
+        }
+
+        \App\Jobs\SendSmsJob::dispatch($log->id);
+        return true;
+    }
+
+    // ── إرسال رسالة نصية عامة (تزامني) — للدعوات واختبار البوّابة ──
     public function sendSms(
         string $toMobile,
         string $message,
@@ -246,19 +279,44 @@ class CommunicationService
             return false;
         }
 
+        // الطرف التزامني لا يُصعّد الأخطاء العابرة: يبتلعها ويُرجع false (السجلّ يوثّقها)
         try {
-            $g = self::gatewayConfig();
+            return $this->deliverPendingSms($log);
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
 
-            if (!$g['enabled'] || $g['url'] === '' || $g['key'] === '') {
-                // وضع التطوير: البوّابة معطّلة أو غير مكتملة
-                $log->update([
-                    'status' => 'sent',
-                    'sent_at' => now(),
-                    'error_message' => '(وضع التطوير: لم تُرسل فعلياً - أعدّ بوّابة الرسائل)',
-                ]);
-                return true;
-            }
+    // ── تسليم سجلّ رسالة معلّق عبر البوّابة ──
+    // يُستدعى تزامنياً من sendSms، أو خلفياً من SendSmsJob. عند الفشل العابر
+    // (اتصال/مهلة/5xx) يرمي RuntimeException ليعيد الطابور المحاولة؛ أمّا الفشل
+    // الدائم (مفتاح تالف/4xx) فيوسم failed ويُرجع false بلا رمي (لا جدوى من الإعادة).
+    public function deliverPendingSms(SmsLog $log): bool
+    {
+        $g = self::gatewayConfig();
 
+        // فشل حقيقي لا وضع تطوير: البوّابة مُعَدّة لكن تعذّر فكّ تشفير المفتاح
+        // (APP_KEY مختلف — يحدث تحديداً عند التبديل لموقع التعافي). لا نُبلّغ «أُرسلت»
+        // زوراً بينما لا يستلم المرشّح رابطه؛ نسجّل failed ليلتقطه الإنذار. دائم (لا إعادة).
+        if (! empty($g['key_error'])) {
+            $log->update([
+                'status' => 'failed',
+                'error_message' => 'فشل فكّ تشفير مفتاح البوّابة (تحقّق من تطابق APP_KEY)',
+            ]);
+            return false;
+        }
+
+        if (!$g['enabled'] || $g['url'] === '' || $g['key'] === '') {
+            // وضع التطوير: البوّابة معطّلة أو غير مكتملة (لا مفتاح مُخزَّن أصلاً)
+            $log->update([
+                'status' => 'sent',
+                'sent_at' => now(),
+                'error_message' => '(وضع التطوير: لم تُرسل فعلياً - أعدّ بوّابة الرسائل)',
+            ]);
+            return true;
+        }
+
+        try {
             // الاتصال ببوّابة الرسائل (شكل عام يصلح لمعظم المزوّدين مثل Unifonic)
             // مهلة صريحة: بوّابة معلّقة يجب ألا توقف خيط الطلب حتى المهلة الافتراضية (30ث)
             $response = Http::asJson()
@@ -267,24 +325,30 @@ class CommunicationService
                 ->post($g['url'], [
                     'appSid' => $g['key'],
                     'sender' => $g['sender'],
-                    'recipient' => $toMobile,
-                    'body' => $message,
+                    'recipient' => $toMobile = $log->to_mobile,
+                    'body' => $log->message,
                 ]);
-
-            if ($response->successful()) {
-                $log->update([
-                    'status' => 'sent',
-                    'sent_at' => now(),
-                    'provider_ref' => mb_substr($response->body(), 0, 100),
-                ]);
-                return true;
-            }
-
-            $log->update(['status' => 'failed', 'error_message' => 'HTTP ' . $response->status()]);
-            return false;
-        } catch (\Exception $e) {
-            $log->update(['status' => 'failed', 'error_message' => $e->getMessage()]);
-            return false;
+        } catch (\Throwable $e) {
+            // خطأ اتصال/مهلة = عابر: وسم failed ثم رمي ليعيد الطابور المحاولة
+            $log->update(['status' => 'failed', 'error_message' => mb_substr($e->getMessage(), 0, 500)]);
+            throw new \RuntimeException('SMS gateway transient error: ' . $e->getMessage(), 0, $e);
         }
+
+        if ($response->successful()) {
+            $log->update([
+                'status' => 'sent',
+                'sent_at' => now(),
+                'provider_ref' => mb_substr($response->body(), 0, 100),
+            ]);
+            return true;
+        }
+
+        $log->update(['status' => 'failed', 'error_message' => 'HTTP ' . $response->status()]);
+
+        // 5xx = عطل مؤقّت في البوّابة ⇒ عابر (أعد المحاولة)؛ 4xx = طلب خاطئ ⇒ دائم
+        if ($response->serverError()) {
+            throw new \RuntimeException('SMS gateway HTTP ' . $response->status());
+        }
+        return false;
     }
 }

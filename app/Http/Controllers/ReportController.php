@@ -585,11 +585,14 @@ class ReportController extends Controller
             $next = WorkflowStage::nextAfter($from);
         } elseif ($skipTo = $this->maySkipTo($user, $stage)) {
             // تجاوز مقصود: من يملك مرحلةً لاحقة يعتمد مباشرة دون انتظار من قبله.
-            // قواعد المرحلة التي يقفز إليها تُفحص أيضاً — وإلا صار التجاوز
-            // باباً خلفياً لاعتماد ما كتبه بنفسه.
-            if ($err = $this->stageRuleError($skipTo, $report, $user)) {
-                $this->log($request, 'DENIED_APPROVE_STAGE_RULE', $id, ['stage' => $skipTo->status_key]);
-                return response()->json(['error' => $err], 403);
+            // تُفحص قواعد المرحلة المُتخطّاة ($stage) نفسها والوجهة ($skipTo) معاً —
+            // وإلا صار التخطّي باباً خلفياً يلتفّ على «من يكتب لا يعتمد» للمرحلة
+            // التي قُفز فوقها (لو كانت هي حاملة blocks_self_authored).
+            foreach ([$stage, $skipTo] as $checkStage) {
+                if ($err = $this->stageRuleError($checkStage, $report, $user)) {
+                    $this->log($request, 'DENIED_APPROVE_STAGE_RULE', $id, ['stage' => $checkStage->status_key]);
+                    return response()->json(['error' => $err], 403);
+                }
             }
             // يقفز إلى ما بعد مرحلته هو (لا إليها) — وإلا اعتمد مرحلته مرتين.
             $next = WorkflowStage::nextAfter($skipTo->status_key);
