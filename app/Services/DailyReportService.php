@@ -18,14 +18,21 @@ use Illuminate\Support\Carbon;
 
 class DailyReportService
 {
-    // يجمّع أرقام يومٍ بعينه (اليوم افتراضاً)
-    public function gather(?string $date = null): array
+    // يجمّع أرقام يومٍ بعينه (اليوم افتراضاً).
+    // $allowedClassifications: حين يُمرَّر (مسار المتحكّم) تُحصَر الأرقام على تصنيفات
+    // المستخدم — فلا يكشف مَن مُنِح ANALYTICS_VIEW عبر استثناء (بلا تصريح مصنّف)
+    // وجودَ المصنّفين. null (مسار المهمة اليومية) = تقرير كامل للنظام.
+    public function gather(?string $date = null, ?array $allowedClassifications = null): array
     {
         $date = $date ?: now()->toDateString();
+        $scope = fn ($q) => $allowedClassifications === null
+            ? $q
+            : $q->whereIn('classification', $allowedClassifications);
 
         // جلسات اليوم + حضورها ومرشحوها — استعلام واحد
         $sessions = Schedule::with(['candidate.sector', 'attendance', 'evaluator'])
             ->whereDate('schedule_date', $date)
+            ->when($allowedClassifications !== null, fn ($q) => $q->whereHas('candidate', $scope))
             ->get();
 
         $present = $sessions->filter(fn ($s) => $s->attendance?->status === 'present');
@@ -34,6 +41,7 @@ class DailyReportService
 
         // درجات التقييم المُدخَلة اليوم — متوسط لكل جلسة قُيّمت
         $scoresToday = EvaluationScore::whereHas('evaluation', fn ($q) => $q->whereDate('updated_at', $date))
+            ->when($allowedClassifications !== null, fn ($q) => $q->whereHas('evaluation.candidate', $scope))
             ->with('evaluation.candidate.sector')
             ->get()
             ->groupBy(fn ($s) => $s->evaluation->id);
@@ -41,6 +49,7 @@ class DailyReportService
         // حالة التقارير النشطة اليوم (أُنشئت أو تحرّكت)
         $reports = FinalReport::with('candidate.sector')
             ->where(fn ($q) => $q->whereDate('created_at', $date)->orWhereDate('updated_at', $date))
+            ->when($allowedClassifications !== null, fn ($q) => $q->whereHas('candidate', $scope))
             ->get();
 
         return [

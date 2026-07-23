@@ -14,6 +14,7 @@ use App\Rules\SaudiNationalId;
 use App\Services\CommunicationService;
 use App\Services\CvGuard;
 use App\Services\CvValidator;
+use App\Services\IdentityVerificationService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -306,7 +307,16 @@ class CandidateController extends Controller
 
         $this->log($request, $isReturning ? 'REASSESS_CANDIDATE' : 'CREATE_CANDIDATE', $candidate->id, ['code' => $code]);
 
-        $smsSent = $this->sendConfirmationSms($candidate, $assessment, $request->user()->id);
+        // التحقق من الهوية عبر البوّابة الخارجية — فقط إن كانت مُعَدّة (وإلا لا أثر).
+        // fail-open: نتيجة سلبية/فشل لا توقف الإضافة (الدورة أُنشئت)، بل تُسجَّل وتُبلَّغ.
+        $idVerification = null;
+        if (IdentityVerificationService::isConfigured()) {
+            $r = app(IdentityVerificationService::class)
+                ->verifyAndLog($validated['nationalId'], $candidate->id, $request->user()->id);
+            $idVerification = ['status' => $r['status'], 'matched' => $r['matched']];
+        }
+
+        $smsQueued = $this->sendConfirmationSms($candidate, $assessment, $request->user()->id);
 
         return response()->json([
             'message' => $isReturning ? 'تمّت إضافة دورة تقييم جديدة لمرشح موجود' : 'تمت إضافة المرشح',
@@ -314,7 +324,8 @@ class CandidateController extends Controller
             'tier' => $tier,
             'isReturning' => $isReturning,
             'assessmentId' => $assessment->id,
-            'smsSent' => $smsSent,
+            'smsQueued' => $smsQueued,
+            'idVerification' => $idVerification,
         ], 201);
     }
 
@@ -331,13 +342,15 @@ class CandidateController extends Controller
             . " رمز المشارك: {$assessment->participant_code}."
             . " لتأكيد بياناتك وتسجيل الوصول: {$link}";
 
-        // فشل الاتصالات يجب ألا يُفشل إضافة المرشح (الدورة أُنشئت فعلاً)
+        // غير متزامن: لا نحبس دورة الطلب بانتظار البوّابة (قد تتأخّر 10ث أو تسقط).
+        // queueSms ينشئ سجلّاً معلّقاً ويجدول التسليم؛ يرجع true أي «جُدولت» لا «أُرسلت».
+        // فشل الجدولة (كتابة السجلّ) لا يُفشل إضافة المرشح (الدورة أُنشئت فعلاً).
         try {
-            return app(CommunicationService::class)->sendSms(
+            return app(CommunicationService::class)->queueSms(
                 $mobile, $message, 'invitation', $candidate->id, $actorId
             );
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('confirmation SMS failed: ' . $e->getMessage());
+            \Illuminate\Support\Facades\Log::warning('confirmation SMS queue failed: ' . $e->getMessage());
             return false;
         }
     }
@@ -585,8 +598,8 @@ class CandidateController extends Controller
         });
 
         $this->log($request, 'REASSESS_CANDIDATE', $candidate->id, ['code' => $code]);
-        $smsSent = $this->sendConfirmationSms($candidate, $assessment, $request->user()->id);
-        return response()->json(['message' => 'تمّت إضافة دورة تقييم جديدة', 'participantCode' => $code, 'smsSent' => $smsSent], 201);
+        $smsQueued = $this->sendConfirmationSms($candidate, $assessment, $request->user()->id);
+        return response()->json(['message' => 'تمّت إضافة دورة تقييم جديدة', 'participantCode' => $code, 'smsQueued' => $smsQueued], 201);
     }
 
     // ── رحلة المرشح: خط زمني كامل (إضافة → جدولة → حضور → تقييم → تقرير → اعتماد) ──

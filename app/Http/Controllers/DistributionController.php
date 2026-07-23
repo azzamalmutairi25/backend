@@ -43,7 +43,7 @@ class DistributionController extends Controller
             'weekStart' => $weekStart,
             'dailyCap' => $this->service->dailyCap(),
             'proposal' => $proposal ? $this->present($proposal) : null,
-            'readyCount' => $this->readyCandidatesQuery()->count(),
+            'readyCount' => $this->readyCandidatesQuery($request)->count(),
         ]);
     }
 
@@ -127,9 +127,11 @@ class DistributionController extends Controller
     }
 
     // مرشحون جاهزون للتوزيع: معتمدون للتقييم بلا جلسة مقابلة
-    private function readyCandidatesQuery()
+    // محصور بتصنيفات المُشغِّل: العدّ لا يكشف وجود مرشّح مصنّف لمن لا يملك تصريحه.
+    private function readyCandidatesQuery(Request $request)
     {
         return Candidate::where('status', 'scheduled')
+            ->whereIn('classification', $this->allowedClassifications($request))
             ->whereDoesntHave('assessments.schedules', fn ($q) => $q->where('activity', 'interview'));
     }
 
