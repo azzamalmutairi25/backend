@@ -48,10 +48,16 @@ class CvPortalTest extends TestCase
     private function validCv(array $over = []): array
     {
         return array_merge([
+            // البيانات الوظيفية إلزامية في نموذج المركز المعتمد
+            'birthDate' => '1982-04-11',
+            'appointmentDate' => '2006-09-01',
+            'rankLabel' => 'عميد',
+            'department' => 'الإدارة العامة للعمليات',
+            'region' => 'الرياض',
             'currentPosition' => 'مدير عام',
             'totalYearsExperience' => 15,
             'briefBio' => 'قيادي متمرّس في القطاع الحكومي',
-            'qualifications' => [['degree' => 'master', 'major' => 'إدارة أعمال', 'institution' => 'جامعة الملك سعود', 'gradYear' => 2008]],
+            'qualifications' => [['degree' => 'master', 'major' => 'إدارة أعمال', 'institution' => 'جامعة الملك سعود', 'studyPlace' => 'السعودية — الرياض', 'gradYear' => 2008]],
             'experiences' => [['position' => 'مدير إدارة', 'organization' => 'وزارة', 'fromYear' => 2010, 'toYear' => null, 'current' => true, 'summary' => 'قيادة الفريق']],
             'certifications' => [['name' => 'شهادة احترافية', 'issuer' => 'المعهد', 'year' => 2015]],
         ], $over);

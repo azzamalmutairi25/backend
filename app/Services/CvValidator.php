@@ -40,7 +40,20 @@ class CvValidator
         $yMin = 1950;
         $yMax = (int) date('Y');
 
+        // نافذة تاريخ الميلاد: من ٧٠ سنة إلى ١٨ سنة. تمنع الخطأ الشائع في
+        // مُنتقي التاريخ (سنة اليوم بدل سنة الميلاد) وتمنع تاريخاً مستحيلاً.
+        $bornAfter = date('Y-m-d', strtotime('-70 years'));
+        $bornBefore = date('Y-m-d', strtotime('-18 years'));
+        $today = date('Y-m-d');
+
         $v = Validator::make($in, [
+            // ── البيانات الوظيفية — إلزامية في نموذج المركز ──
+            'birthDate' => "required|date_format:Y-m-d|after_or_equal:$bornAfter|before_or_equal:$bornBefore",
+            'appointmentDate' => "required|date_format:Y-m-d|before_or_equal:$today",
+            'rankLabel' => 'required|string|max:50',
+            'department' => 'required|string|max:150',
+            'region' => 'required|string|max:100',
+
             'currentPosition' => 'nullable|string|max:150',
             'totalYearsExperience' => 'nullable|integer|min:0|max:60',
             'briefBio' => 'nullable|string|max:600',
@@ -49,6 +62,7 @@ class CvValidator
             'qualifications.*.degree' => 'required|in:' . implode(',', self::DEGREES),
             'qualifications.*.major' => 'nullable|string|max:120',
             'qualifications.*.institution' => 'required|string|max:150',
+            'qualifications.*.studyPlace' => 'required|string|max:120',
             'qualifications.*.gradYear' => "required|integer|min:$yMin|max:" . ($yMax + 1),
 
             'experiences' => 'nullable|array|max:20',
@@ -64,11 +78,28 @@ class CvValidator
             'certifications.*.issuer' => 'nullable|string|max:150',
             'certifications.*.year' => "required|integer|min:$yMin|max:$yMax",
         ], [
+            'birthDate.required' => 'أدخل تاريخ الميلاد',
+            'birthDate.date_format' => 'تاريخ الميلاد بالميلادي (سنة-شهر-يوم)',
+            'birthDate.after_or_equal' => 'تاريخ الميلاد غير منطقي — راجِعه',
+            'birthDate.before_or_equal' => 'تاريخ الميلاد غير منطقي — راجِعه',
+            'appointmentDate.required' => 'أدخل تاريخ التعيين',
+            'appointmentDate.date_format' => 'تاريخ التعيين بالميلادي (سنة-شهر-يوم)',
+            'appointmentDate.before_or_equal' => 'تاريخ التعيين لا يكون في المستقبل',
+            'rankLabel.required' => 'أدخل الرتبة أو المرتبة',
+            'department.required' => 'أدخل الإدارة',
+            'region.required' => 'أدخل المنطقة',
+            'qualifications.*.studyPlace.required' => 'أدخل مقر/دولة الدراسة',
             'qualifications.*.degree.in' => 'الدرجة العلمية غير معروفة',
             'qualifications.max' => 'عدد المؤهلات أكثر من المسموح',
             'experiences.max' => 'عدد الخبرات أكثر من المسموح',
             'certifications.max' => 'عدد الشهادات أكثر من المسموح',
         ])->validate();
+
+        // التعيين بعد الميلاد بثمانية عشر عاماً على الأقل — يكشف خلط الحقلين
+        if (!empty($v['birthDate']) && !empty($v['appointmentDate'])
+            && $v['appointmentDate'] < date('Y-m-d', strtotime($v['birthDate'] . ' +18 years'))) {
+            $this->fail('appointmentDate', 'تاريخ التعيين قبل بلوغ الثامنة عشرة — راجِع التاريخين');
+        }
 
         // النصّ السردي (النبذة وملخّص الخبرة) بالعربية فقط: يُرفض تتابع حرفين لاتينيين
         // فأكثر. النصّ اللاتيني يفلت من مطابِق الاسم العربي، فنُلزم العربية هنا حيث
@@ -117,6 +148,12 @@ class CvValidator
     private function rebuild(array $v): array
     {
         return [
+            'birthDate' => $v['birthDate'] ?? null,
+            'appointmentDate' => $v['appointmentDate'] ?? null,
+            'rankLabel' => CvGuard::sanitize($v['rankLabel'] ?? null),
+            'department' => CvGuard::sanitize($v['department'] ?? null),
+            'region' => CvGuard::sanitize($v['region'] ?? null),
+
             'currentPosition' => CvGuard::sanitize($v['currentPosition'] ?? null),
             'totalYearsExperience' => (int) ($v['totalYearsExperience'] ?? 0),
             'briefBio' => CvGuard::sanitize($v['briefBio'] ?? null),
@@ -125,6 +162,7 @@ class CvValidator
                 'degree' => $q['degree'],
                 'major' => CvGuard::sanitize($q['major'] ?? null),
                 'institution' => CvGuard::sanitize($q['institution']),
+                'studyPlace' => CvGuard::sanitize($q['studyPlace']),
                 'gradYear' => (int) $q['gradYear'],
             ], $v['qualifications'] ?? [])),
 

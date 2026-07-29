@@ -31,6 +31,17 @@ class CandidateCv extends Model
     public static function emptyDoc(): array
     {
         return [
+            // ── البيانات الوظيفية (نموذج المركز المعتمد) ──
+            // التاريخان ميلاديان بصيغة Y-m-d — يُنتقيان من مُنتقي تاريخ لا يُكتبان،
+            // فلا يقع خلط بين هجري وميلادي ولا صيغ يوم/شهر مقلوبة.
+            'birthDate' => null,        // يُشتقّ منه العمر عند العرض، فلا يقادم
+            'appointmentDate' => null,
+            // إقرار المرشّح برتبته وإدارته — لا يستبدل candidates.rank_label الرسمي.
+            // الرتبة تقود تصنيف الفئة القيادية، فتغييرها من بوّابة عامة يعبث بالتصنيف.
+            'rankLabel' => null,
+            'department' => null,
+            'region' => null,
+
             'currentPosition' => null,
             'totalYearsExperience' => 0,
             'briefBio' => null,
@@ -40,12 +51,29 @@ class CandidateCv extends Model
         ];
     }
 
+    // العمر من تاريخ الميلاد — يُحسب عند العرض ولا يُخزَّن
+    public static function ageFrom(?string $birthDate): ?int
+    {
+        if (!$birthDate) {
+            return null;
+        }
+        try {
+            return \Illuminate\Support\Carbon::parse($birthDate)->age;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
     // هل الوثيقة فارغة فعلاً؟ (يميّز «لا سيرة» عن «تعذّر التحميل» في الواجهات)
     // فحص صريح للفراغ — empty() يعتبر النصّ "0" فارغاً وهو محتوى صحيح
     public static function isEmptyDoc(array $d): bool
     {
         $blank = fn ($v) => $v === null || $v === '';
         return $blank($d['currentPosition'] ?? null) && $blank($d['briefBio'] ?? null)
+            // البيانات الوظيفية تُحسب هنا أيضاً: وثيقة لا تحمل غير الإدارة ليست فارغة
+            && $blank($d['birthDate'] ?? null) && $blank($d['appointmentDate'] ?? null)
+            && $blank($d['rankLabel'] ?? null) && $blank($d['department'] ?? null)
+            && $blank($d['region'] ?? null)
             && count($d['qualifications'] ?? []) === 0
             && count($d['experiences'] ?? []) === 0
             && count($d['certifications'] ?? []) === 0

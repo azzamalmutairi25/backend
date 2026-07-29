@@ -18,6 +18,11 @@ class Permissions
     const CANDIDATE_VIEW_CLASSIFIED = 'candidate.view_classified';   // رؤية المرشحين السرّيين
     const CANDIDATE_JOURNEY = 'candidate.journey';   // عرض رحلة المرشح (الخط الزمني)
     const CANDIDATE_CV_VIEW = 'candidate.cv_view';   // قراءة السيرة الذاتية بمعرّف المرشح (مسار الإدارة)
+    // رفع طلب تحديث بيانات مرشّح مسجّل — للمستخدم الخارجي الذي لا يملك التعديل.
+    // الطلب اقتراح لا كتابة: لا يمسّ السجلّ حتى يعتمده صاحب صلاحية.
+    const CANDIDATE_UPDATE_REQUEST = 'candidate.update_request';
+    // البتّ في طلبات التحديث (اعتماد/رفض) — سلطة تعديل بيانات المرشّح بالنيابة
+    const CANDIDATE_UPDATE_APPROVE = 'candidate.update_approve';
     // إسناد مرشّح لمقيّم من قطاع آخر — الأصل أن كل مقيّم لقطاعه
     const CROSS_SECTOR_ASSIGN = 'candidate.cross_sector';
 
@@ -25,6 +30,11 @@ class Permissions
     const SCHEDULE_MANAGE = 'schedule.manage';
     // التوزيع الأسبوعي: اقتراح واعتماد — لمسؤول الجدولة (إدارة المرشحين)
     const DISTRIBUTION_MANAGE = 'schedule.distribute';
+
+    // إسناد مشاركي اليوم لمجموعتَي الكشف (أ/ب) — بها يتحدّد مَن يبدأ بالمقابلة
+    // ومَن يبدأ بجلسة النقاش، فالمجموعتان تتبادلان الفترتين.
+    // طباعة الكشف نفسه تكفيها SCHEDULE_VIEW — الإسناد وحده هو القرار.
+    const ROSTER_MANAGE = 'roster.manage';
 
     const ATTENDANCE_VIEW = 'attendance.view';
     // تسجيل حضور الجلسات المُسنَدة للمستخدم (مقيّماً أو مساعداً) — «الذي يستقبله يسجّله»
@@ -96,7 +106,11 @@ class Permissions
             'SCHEDULER' => [
                 self::CANDIDATE_VIEW, self::CANDIDATE_CREATE, self::CANDIDATE_EDIT,
                 self::CANDIDATE_APPROVE, self::CANDIDATE_VIEW_NAMES, self::CANDIDATE_CV_VIEW, self::CROSS_SECTOR_ASSIGN,
+                // البتّ في طلبات التحديث الواردة من المستخدمين الخارجيين — هو مالك
+                // بيانات المرشحين (CANDIDATE_EDIT)، فالاعتماد امتداد لسلطته لا سلطة جديدة
+                self::CANDIDATE_UPDATE_APPROVE,
                 self::SCHEDULE_VIEW, self::SCHEDULE_MANAGE, self::DISTRIBUTION_MANAGE, self::ATTENDANCE_VIEW,
+                self::ROSTER_MANAGE,
                 self::SEND_INVITATION,
             ],
 
@@ -151,8 +165,11 @@ class Permissions
                 self::MEASUREMENT_VIEW, self::MEASUREMENT_UPLOAD,
             ],
 
+            // المستخدم الخارجي — يُدخل المرشّح ونموذج سيرته، ولا يقرأ القاعدة ولا
+            // يكتب فوق سجلٍّ قائم: المسجَّل مسبقاً يمرّ عبر «طلب تحديث» يُعتمد.
             'EXTERNAL_ADD' => [
                 self::CANDIDATE_CREATE,
+                self::CANDIDATE_UPDATE_REQUEST,
             ],
         ];
     }
@@ -189,6 +206,7 @@ class Permissions
         $groups = [
             'candidate' => 'المرشحون',
             'schedule' => 'الجدولة',
+            'roster' => 'مجموعات المشاركين',
             'attendance' => 'الحضور',
             'evaluation' => 'التقييم',
             'measurement' => 'أدوات القياس',

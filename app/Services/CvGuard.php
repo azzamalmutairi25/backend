@@ -241,9 +241,14 @@ class CvGuard
 
         $doc['currentPosition'] = $f($doc['currentPosition'] ?? null);
         $doc['briefBio'] = $f($doc['briefBio'] ?? null);
+        // البيانات الوظيفية نصّ حرّ كذلك — تمرّ بالطمس كأسماء الجهات
+        $doc['rankLabel'] = $f($doc['rankLabel'] ?? null);
+        $doc['department'] = $f($doc['department'] ?? null);
+        $doc['region'] = $f($doc['region'] ?? null);
         foreach (($doc['qualifications'] ?? []) as $i => $q) {
             $doc['qualifications'][$i]['major'] = $f($q['major'] ?? null);
             $doc['qualifications'][$i]['institution'] = $f($q['institution'] ?? null);
+            $doc['qualifications'][$i]['studyPlace'] = $f($q['studyPlace'] ?? null);
         }
         foreach (($doc['experiences'] ?? []) as $i => $e) {
             $doc['experiences'][$i]['position'] = $f($e['position'] ?? null);

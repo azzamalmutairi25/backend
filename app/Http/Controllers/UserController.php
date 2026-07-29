@@ -206,6 +206,8 @@ class UserController extends Controller
             'candidate.cv_view' => 'عرض السيرة الذاتية',
             'schedule.view' => 'عرض الجدولة',
             'schedule.manage' => 'إدارة الجدولة',
+            'schedule.distribute' => 'التوزيع الأسبوعي',
+            'roster.manage' => 'إسناد مجموعات المشاركين',
             'attendance.view' => 'عرض الحضور',
             'attendance.record' => 'تسجيل الحضور',
             'evaluation.view' => 'عرض التقييم',

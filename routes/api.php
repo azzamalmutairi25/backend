@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\WorkflowController;
 use App\Http\Controllers\CandidateController;
+use App\Http\Controllers\CandidateUpdateRequestController;
 use App\Http\Controllers\AuditController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\SettingsController;
@@ -11,6 +12,7 @@ use App\Http\Controllers\EvaluationController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\ScheduleController;
+use App\Http\Controllers\RosterController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DailyReportController;
@@ -67,6 +69,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/candidates', [CandidateController::class, 'store']);
     Route::get('/candidates/stats', [CandidateController::class, 'stats']);
     Route::get('/candidates/export', [CandidateController::class, 'export']);
+    // GET /candidates/cards — بطاقات المشاركين للطباعة. قبل {id} وإلا ابتلعها
+    Route::get('/candidates/cards', [CandidateController::class, 'cards']);
     Route::get('/candidates/{id}', [CandidateController::class, 'show']);
     Route::put('/candidates/{id}', [CandidateController::class, 'update']);
     Route::delete('/candidates/{id}', [CandidateController::class, 'destroy']);
@@ -78,10 +82,25 @@ Route::middleware('auth:sanctum')->group(function () {
     // السيرة الذاتية — مسار الإدارة (قراءة بصلاحية CANDIDATE_CV_VIEW، تعديل بـ CANDIDATE_EDIT)
     Route::get('/candidates/{id}/cv', [CandidateController::class, 'showCv']);
     Route::put('/candidates/{id}/cv', [CandidateController::class, 'saveCv']);
+    // GET /candidates/{id}/cv/document — نموذج السيرة المطبوع (المتصفّح → PDF)
+    Route::get('/candidates/{id}/cv/document', [CandidateController::class, 'cvDocument']);
     // مستشارو المقابلة المؤهّلون — لاختيار المستشار عند الجدولة بعد مراجعة السيرة
     Route::get('/candidates/{id}/interviewers', [ScheduleController::class, 'interviewers']);
     Route::post('/candidates/{id}/reassess', [CandidateController::class, 'reassess']);
     Route::get('/candidates/{id}/history', [AuditController::class, 'candidateHistory']);
+
+    // ═══ طلبات تحديث بيانات المرشحين ═══
+    // يرفعها المستخدم الخارجي حين يجد المرشّح مسجّلاً مسبقاً، ويبتّ فيها صاحب صلاحية.
+    // «mine» قبل «{id}» وإلا ابتلعها المسار ذو المعرّف.
+    Route::get('/candidate-update-requests', [CandidateUpdateRequestController::class, 'index']);
+    Route::get('/candidate-update-requests/mine', [CandidateUpdateRequestController::class, 'mine']);
+    // الرفع مفتوح لجهة خارجية ويحمل وثيقة كاملة — يُخنق بالمعدّل كبقية المسارات المكلفة
+    Route::post('/candidate-update-requests', [CandidateUpdateRequestController::class, 'store'])
+        ->middleware('throttle:30,1');
+    Route::get('/candidate-update-requests/{id}', [CandidateUpdateRequestController::class, 'show']);
+    Route::post('/candidate-update-requests/{id}/approve', [CandidateUpdateRequestController::class, 'approve']);
+    Route::post('/candidate-update-requests/{id}/reject', [CandidateUpdateRequestController::class, 'reject']);
+
     Route::get('/audit/log', [AuditController::class, 'systemLog']);
     Route::get('/users', [UserController::class, 'index']);
     Route::get('/users/roles', [UserController::class, 'roles']);
@@ -115,6 +134,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/settings/distribution', [SettingsController::class, 'getDistribution']);
     Route::put('/settings/distribution', [SettingsController::class, 'saveDistribution']);
+    // أوقات جلسات اليوم — خيارات حقل الوقت وأعمدة كشف الحضور
+    Route::get('/settings/session-times', [SettingsController::class, 'getSessionTimes']);
+    Route::put('/settings/session-times', [SettingsController::class, 'saveSessionTimes']);
     Route::get('/settings/tier', [SettingsController::class, 'getTier']);
     Route::put('/settings/tier', [SettingsController::class, 'saveTier']);
 
@@ -159,6 +181,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/schedules/{id}', [ScheduleController::class, 'destroy']);
     Route::get('/schedules/absences/{candidateId}', [ScheduleController::class, 'absences']);
     Route::post('/schedules/{id}/reschedule', [ScheduleController::class, 'reschedule']);
+
+    // مجموعتا كشف اليوم + الكشف المطبوع
+    // الإسناد وحده يلزمه roster.manage؛ العرض والطباعة تكفيهما schedule.view
+    Route::get('/roster', [RosterController::class, 'index']);
+    Route::post('/roster/assign', [RosterController::class, 'assign']);
+    Route::delete('/roster/assign', [RosterController::class, 'unassign']);
+    // GET /roster/document — كشف حضور المشاركين جاهز للطباعة (المتصفّح → PDF)
+    Route::get('/roster/document', [RosterController::class, 'document']);
 
     // التوزيع الأسبوعي
     Route::get('/distribution', [DistributionController::class, 'index']);

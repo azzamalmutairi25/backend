@@ -43,7 +43,7 @@ class AssessmentDataFixesTest extends TestCase
         [$otherSector] = $this->makeCandidate(['sectorCode' => 'HI', 'status' => 'assessed']);
         $this->postJson('/api/schedules', [
             'candidateId' => $otherSector->id, 'activity' => 'interview',
-            'date' => now()->addDay()->toDateString(),
+            'date' => now()->addDay()->toDateString(), 'time' => '09:30',
         ])->assertStatus(404);
     }
 

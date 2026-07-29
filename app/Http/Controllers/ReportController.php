@@ -1026,6 +1026,7 @@ class ReportController extends Controller
   .muted { color:#8a978f; }
   .sign { margin-top:44px; text-align:center; font-size:13px; color:#5b6a62; }
   .sign .line { display:inline-block; margin-top:44px; border-top:1px solid #b9c4bd; padding-top:6px; min-width:220px; }
+  .rights { margin-top:18px; padding-top:10px; border-top:1px solid #e8ece9; text-align:center; font-size:10px; color:#8a978f; }
   @media print { body{ background:#fff; } .sheet{ box-shadow:none; margin:0; max-width:none; } .print-bar{ display:none; } @page{ margin:14mm; } }
 </style></head>
 <body>
@@ -1048,6 +1049,7 @@ class ReportController extends Controller
   <h2>الملخّص التنفيذي</h2>
   <div class="summary">{$summary}</div>
   <div class="sign"><div class="line">مدير المركز</div></div>
+<div class="rights">جميع الحقوق محفوظة © إدارة تقنية المعلومات والذكاء الاصطناعي</div>
 </div>
 </body></html>
 HTML;
@@ -1139,6 +1141,7 @@ HTML;
   .sign { display:flex; justify-content:space-between; margin-top:44px; gap:24px; }
   .sign div { flex:1; text-align:center; font-size:13px; color:#5b6a62; }
   .sign .line { margin-top:44px; border-top:1px solid #b9c4bd; padding-top:6px; }
+  .rights { margin-top:18px; padding-top:10px; border-top:1px solid #e8ece9; text-align:center; font-size:10px; color:#8a978f; }
   @media print { body{ background:#fff; } .sheet{ box-shadow:none; margin:0; max-width:none; } .print-bar{ display:none; } @page{ margin:14mm; } }
 </style></head>
 <body>
@@ -1195,6 +1198,7 @@ HTML;
     <div><div class="line">إدارة تطوير الكفاءات</div></div>
     <div><div class="line">مدير المركز</div></div>
   </div>
+<div class="rights">جميع الحقوق محفوظة © إدارة تقنية المعلومات والذكاء الاصطناعي</div>
 </div>
 </body></html>
 HTML;

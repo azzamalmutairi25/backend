@@ -16,7 +16,17 @@ class SectorController extends Controller
         // البادئة إعداد إداري — تُعرض لمن يدير الإعدادات فقط
         $canManage = $request->user()->hasPermission(Permissions::SETTINGS_MANAGE);
 
-        $sectors = Sector::orderBy('name_ar')->get()->map(function ($s) use ($canManage) {
+        // عدد المرتبطين بكل قطاع — استعلامان مجمَّعان لا استعلام لكل صف.
+        // يُحسبان لمدير الإعدادات وحده: بهما يَعرف أيّ قطاع يُحذف وأيّه محمي،
+        // وهما رقمان يكشفان حجم كل قطاع فلا يُعرضان لغيره.
+        $linked = [];
+        if ($canManage) {
+            $cands = Candidate::selectRaw('sector_id, count(*) c')->groupBy('sector_id')->pluck('c', 'sector_id');
+            $users = User::whereNotNull('sector_id')->selectRaw('sector_id, count(*) c')->groupBy('sector_id')->pluck('c', 'sector_id');
+            $linked = ['candidates' => $cands, 'users' => $users];
+        }
+
+        $sectors = Sector::orderBy('name_ar')->get()->map(function ($s) use ($canManage, $linked) {
             $row = [
                 'id' => $s->id,
                 'code' => $s->code,
@@ -26,6 +36,8 @@ class SectorController extends Controller
             // البادئة تُعرض لمدير الإعدادات فقط — المفتاح غائب لسواه لا فارغ
             if ($canManage) {
                 $row['participantPrefix'] = $s->participant_prefix ?: strtoupper(substr($s->code, 0, 2));
+                $row['candidateCount'] = (int) ($linked['candidates'][$s->id] ?? 0);
+                $row['userCount'] = (int) ($linked['users'][$s->id] ?? 0);
             }
             return $row;
         });

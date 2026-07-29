@@ -60,6 +60,9 @@ class PublicAssessmentController extends Controller
             'name' => $a->candidate->full_name,
             'participantCode' => $a->participant_code,
             'sectorName' => optional($a->candidate->sector)->name_ar,
+            // الرتبة المسجّلة في ملفّه — قيمة ابتدائية لحقل الرتبة في السيرة.
+            // المرشّح يراها ويصحّحها، وإقراره يُخزَّن في السيرة ولا يستبدل ملفّه.
+            'rankLabel' => $a->candidate->rank_label,
             'assessmentType' => $a->assessment_type === 'executive' ? 'تنفيذي' : 'شامل',
             'confirmed' => (bool) $a->confirmed_at,
             'arrived' => (bool) $a->arrived_at,

@@ -30,7 +30,7 @@ class ScheduleTest extends TestCase
         [$c] = $this->makeCandidate(['status' => 'scheduled']);
         $this->actingAsRole('CENTER_MANAGER'); // SCHEDULE_VIEW فقط، لا MANAGE
         $this->postJson('/api/schedules', [
-            'candidateId' => $c->id, 'activity' => 'interview', 'date' => $this->tomorrow(),
+            'candidateId' => $c->id, 'activity' => 'interview', 'date' => $this->tomorrow(), 'time' => '09:30',
         ])->assertStatus(403);
     }
 
@@ -56,7 +56,7 @@ class ScheduleTest extends TestCase
         [$c] = $this->makeCandidate(['status' => 'draft']);
         $this->actingAsRole('SCHEDULER');
         $this->postJson('/api/schedules', [
-            'candidateId' => $c->id, 'activity' => 'interview', 'date' => $this->tomorrow(),
+            'candidateId' => $c->id, 'activity' => 'interview', 'date' => $this->tomorrow(), 'time' => '09:30',
         ])->assertStatus(422);
     }
 
@@ -75,7 +75,7 @@ class ScheduleTest extends TestCase
         [$c] = $this->makeCandidate(['status' => 'scheduled', 'classification' => 'secret']);
         $this->actingAsRole('SCHEDULER'); // لا VIEW_CLASSIFIED
         $this->postJson('/api/schedules', [
-            'candidateId' => $c->id, 'activity' => 'interview', 'date' => $this->tomorrow(),
+            'candidateId' => $c->id, 'activity' => 'interview', 'date' => $this->tomorrow(), 'time' => '09:30',
         ])->assertStatus(404);
     }
 
@@ -103,7 +103,7 @@ class ScheduleTest extends TestCase
         [$c] = $this->makeCandidate(['status' => 'scheduled']);
         $this->actingAsRole('SCHEDULER'); // يملك CANDIDATE_EDIT + SCHEDULE_MANAGE
         $id = $this->postJson('/api/schedules', [
-            'candidateId' => $c->id, 'activity' => 'interview', 'date' => $this->tomorrow(),
+            'candidateId' => $c->id, 'activity' => 'interview', 'date' => $this->tomorrow(), 'time' => '09:30',
         ])->assertCreated()->json('scheduleId');
         \App\Models\Attendance::create(['schedule_id' => $id, 'status' => 'present', 'recorded_by' => null]);
 
@@ -125,7 +125,7 @@ class ScheduleTest extends TestCase
         [$c] = $this->makeCandidate(['status' => 'scheduled']);
         $this->actingAsRole('SCHEDULER');
         $id = $this->postJson('/api/schedules', [
-            'candidateId' => $c->id, 'activity' => 'measurement', 'date' => $this->tomorrow(),
+            'candidateId' => $c->id, 'activity' => 'measurement', 'date' => $this->tomorrow(), 'time' => '09:30',
         ])->assertCreated()->json('scheduleId');
 
         $this->deleteJson("/api/schedules/{$id}")->assertOk();
@@ -137,7 +137,7 @@ class ScheduleTest extends TestCase
         [$c] = $this->makeCandidate(['status' => 'scheduled']);
         $this->actingAsRole('SCHEDULER');
         $this->postJson('/api/schedules', [
-            'candidateId' => $c->id, 'activity' => 'integration', 'date' => $this->tomorrow(),
+            'candidateId' => $c->id, 'activity' => 'integration', 'date' => $this->tomorrow(), 'time' => '09:30',
         ])->assertCreated();
 
         $res = $this->getJson('/api/schedules')->assertOk();
@@ -150,10 +150,11 @@ class ScheduleTest extends TestCase
         [$c] = $this->makeCandidate(['status' => 'scheduled']);
         $this->actingAsRole('SCHEDULER');
         $id = $this->postJson('/api/schedules', [
-            'candidateId' => $c->id, 'activity' => 'interview', 'date' => $this->tomorrow(), 'location' => 'قاعة 1',
+            'candidateId' => $c->id, 'activity' => 'interview', 'date' => $this->tomorrow(),
+            'time' => '09:30', 'location' => 'قاعة 1',
         ])->assertCreated()->json('scheduleId');
 
-        // تعديل الموقع فقط دون إرسال activity — يجب أن ينجح (تعديل جزئي)
+        // تعديل الموقع فقط دون إرسال activity ولا time — يجب أن ينجح (تعديل جزئي)
         $this->putJson("/api/schedules/{$id}", ['location' => 'قاعة 2'])->assertOk();
         $this->assertSame('قاعة 2', Schedule::find($id)->location);
         $this->assertSame('interview', Schedule::find($id)->activity); // لم يتغيّر

@@ -75,4 +75,33 @@ class SectorManagementTest extends TestCase
         $this->deleteJson("/api/sectors/{$s->id}")->assertOk();
         $this->assertDatabaseMissing('sectors', ['id' => $s->id]);
     }
+
+    // ── أعداد المرتبطين: بها تعرف الشاشة أيّ قطاع يُحذف وأيّه محمي ──
+    // وهي أرقام ترسم حجم كل قطاع، فتُعرض لمدير الإعدادات وحده كالبادئة.
+    public function test_link_counts_are_returned_to_settings_manager(): void
+    {
+        $this->makeCandidate(['sectorCode' => 'ED']);
+        $this->makeCandidate(['sectorCode' => 'ED']);
+        $this->actingAsRole('EVALUATOR', 'HO');   // مستخدم مربوط بقطاع HO
+
+        Sanctum::actingAs($this->admin());
+        $rows = collect($this->getJson('/api/sectors')->assertOk()->json('sectors'));
+
+        $this->assertSame(2, $rows->firstWhere('code', 'ED')['candidateCount']);
+        $this->assertSame(1, $rows->firstWhere('code', 'HO')['userCount']);
+        $this->assertSame(0, $rows->firstWhere('code', 'MA')['candidateCount']);
+    }
+
+    public function test_link_counts_are_hidden_from_others(): void
+    {
+        $this->makeCandidate(['sectorCode' => 'ED']);
+        $this->actingAsRole('EVALUATOR', 'ED');   // بلا settings.manage
+
+        $row = collect($this->getJson('/api/sectors')->assertOk()->json('sectors'))
+            ->firstWhere('code', 'ED');
+
+        $this->assertArrayNotHasKey('candidateCount', $row);
+        $this->assertArrayNotHasKey('userCount', $row);
+        $this->assertArrayNotHasKey('participantPrefix', $row);
+    }
 }

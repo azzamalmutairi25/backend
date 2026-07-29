@@ -116,7 +116,10 @@ class ScheduleController extends Controller
             // النشاط إلزامي عند الإنشاء، واختياري عند التعديل الجزئي (يُطبَّق فقط إن أُرسل)
             'activity' => ($creating ? 'required|' : 'sometimes|') . 'in:interview,discussion,measurement,integration',
             'date' => ($creating ? 'required|' : 'nullable|') . 'date|after_or_equal:today',
-            'time' => 'nullable|date_format:H:i',
+            // الوقت إلزامي عند الإنشاء: كشف الحضور المطبوع يوزّع الجلسات على أعمدة
+            // الأوقات المعتمدة، وجلسة بلا وقت لا مكان لها فيه. وعند التعديل الجزئي
+            // 'sometimes|required' يمنع إرسال null صراحةً فيمسح وقتاً مسجَّلاً.
+            'time' => ($creating ? 'required|' : 'sometimes|required|') . 'date_format:H:i',
             'location' => 'nullable|string|max:200',
             'evaluatorId' => 'nullable|integer|exists:users,id',
             'assistantId' => 'nullable|integer|exists:users,id',
@@ -241,7 +244,7 @@ class ScheduleController extends Controller
             'candidate_id' => $candidate->id,
             'assessment_id' => $assessment->id,
             'schedule_date' => $validated['date'],
-            'schedule_time' => $validated['time'] ?? null,
+            'schedule_time' => $validated['time'],
             'activity' => $validated['activity'],
             'evaluator_id' => $validated['evaluatorId'] ?? null,
             'assistant_id' => $validated['assistantId'] ?? null,
