@@ -24,3 +24,7 @@ yarn-error.log
 *.backup
 # نسخة قديمة من الخلفية بمستودع git خاص — المعتمَد هو backend-new نفسه
 /backend
+
+# اختبار الحمل: رموز وصول حيّة وتقارير قياس — لا تُودَع
+load-test/tokens.json
+load-test/report-*.json
