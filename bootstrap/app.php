@@ -15,19 +15,14 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // خلف الوسيط العكسي في الـ DMZ: بدون هذا يُفهرَس throttle على IP الوسيط
         // (فيقع كل الإنترنت في دلو واحد) ويُسجَّل ip_address الوسيط لا المرشّح.
-        // نثق بعناوين الوسطاء صراحةً من TRUSTED_PROXIES (مثال: 10.0.0.0/29)،
-        // لا بـ '*' لأنها تسمح بانتحال X-Forwarded-For. فارغ = لا نثق بأحد (سلوك التطوير).
-        $proxies = array_values(array_filter(array_map(
-            'trim',
-            explode(',', (string) env('TRUSTED_PROXIES', ''))
-        )));
-
-        $middleware->trustProxies(
-            at: $proxies,
-            headers: Request::HEADER_X_FORWARDED_FOR
-                | Request::HEADER_X_FORWARDED_HOST
-                | Request::HEADER_X_FORWARDED_PORT
-                | Request::HEADER_X_FORWARDED_PROTO,
+        //
+        // القائمة تُقرأ داخل الوسيط من config('security.trusted_proxies') لا هنا:
+        // هذا الملف يُنفَّذ قبل تحميل البيئة، ومع config:cache في الإنتاج لا يُقرأ
+        // .env إطلاقاً — فكانت env() هنا تُرجِع فارغاً على الخادم دائماً، ويسقط
+        // تقييد المعدّل وصحّة سجل التدقيق بصمت. راجع App\Http\Middleware\TrustProxies.
+        $middleware->replace(
+            \Illuminate\Http\Middleware\TrustProxies::class,
+            \App\Http\Middleware\TrustProxies::class,
         );
 
         // فرض تغيير كلمة المرور خادمياً (كان في الواجهة فقط). يُلحق بمجموعة api
