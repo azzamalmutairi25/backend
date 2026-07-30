@@ -235,7 +235,17 @@ class Permissions
         $matrix = self::matrix();
         if (!isset($matrix[$roleCode])) return false;
         $perms = $matrix[$roleCode];
-        return in_array('*', $perms, true) || in_array($permission, $perms, true);
+
+        // '*' يُفرَد على الصلاحيات المعرَّفة لا على أي نصّ. كان يمرّر أي سلسلة،
+        // فخطأ مطبعي في فحصٍ داخل متحكّم (hasPermission('candidate.viewww'))
+        // يمرّ لمدير النظام ويُمنع عن الجميع — عطلٌ لا يظهر في اختبار المدير.
+        // هذا أيضاً يوائم effectivePermissions() التي تفرد '*' إلى all() أصلاً،
+        // فلا تعد الواجهةُ بقائمة تختلف عمّا يفرضه الخادم.
+        if (in_array('*', $perms, true)) {
+            return in_array($permission, self::all(), true);
+        }
+
+        return in_array($permission, $perms, true);
     }
 
     // ── قائمة صلاحيات الدور (تُرسل للواجهة لضبط العرض) ──

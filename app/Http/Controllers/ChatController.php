@@ -80,15 +80,17 @@ class ChatController extends Controller
     // ── إرسال رسالة ──
     public function send(Request $request, int $threadId)
     {
-        $validated = $request->validate([
-            'message' => 'required|string|max:2000',
-        ]);
-
+        // الترخيص قبل التحقّق من المدخلات: كان التحقّق أولاً، فيتعلّم من لا يملك
+        // الوصول قواعدَ الحقل (اسمه وحدّه) من ردّ 422 قبل أن يُمنع أصلاً.
         $thread = ChatThread::findOrFail($threadId);
 
         if ($resp = $this->authorizeEntity($request, $thread->entity_type, $thread->entity_id)) {
             return $resp;
         }
+
+        $validated = $request->validate([
+            'message' => 'required|string|max:2000',
+        ]);
         if ($thread->is_closed) {
             return response()->json(['error' => 'المحادثة مغلقة'], 400);
         }

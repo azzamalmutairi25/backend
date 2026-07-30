@@ -558,6 +558,14 @@ class ReportController extends Controller
 
     public function approve(Request $request, int $id)
     {
+        // حارس أساسي قبل أي منطق: الاعتماد كان يتّكئ على صلاحية المرحلة وحدها،
+        // فكان مَن لا يملك من التقارير شيئاً يمرّ إلى ما بعد حلّ التقرير ويميّز
+        // بالردّ بين «غير موجود» (404) و«موجود بحالة لا تُعتمد» (422) — تعدادٌ
+        // لأرقام التقارير وحالاتها. كل من يعتمد مرحلةً يملك REPORT_VIEW أصلاً.
+        if (!$request->user()->hasPermission(Permissions::REPORT_VIEW)) {
+            return response()->json(['error' => 'التقرير غير موجود'], 404);
+        }
+
         // النطاق كاملاً قبل أي إفصاح: التصنيف والقطاع والملكية معاً.
         // 404 لا 403 — لا يفرّق الردّ بين «غير موجود» و«ليس لك».
         $report = $this->resolveReportInScope($request, $id);
