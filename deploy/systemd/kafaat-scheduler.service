@@ -1,0 +1,30 @@
+# ════════════════════════════════════════════════════════════
+#  مجدول لارافيل — /etc/systemd/system/kafaat-scheduler.service
+#  يُشغَّل بمؤقّت كل دقيقة (kafaat-scheduler.timer)، لا بـcron.
+#
+#  المجدول يحمل kafaat:daily في السادسة صباحاً: كشف الغياب التلقائي،
+#  تذكير جلسات الغد، وتصعيد التقارير المتأخّرة. تعطُّله لا يُصدر خطأً
+#  ظاهراً — تتوقّف الأتمتة بصمت. لذلك يُراقَب صراحةً (راجع deploy/README).
+# ════════════════════════════════════════════════════════════
+
+[Unit]
+Description=مجدول مهام كفاءات
+After=network.target
+
+[Service]
+Type=oneshot
+User=kafaat
+Group=kafaat
+WorkingDirectory=/srv/kafaat/current
+
+# schedule:run يُنفَّذ كل دقيقة ويقرّر بنفسه ما استحقّ التشغيل
+ExecStart=/usr/bin/php /srv/kafaat/current/artisan schedule:run --no-interaction
+
+StandardOutput=append:/var/log/kafaat/scheduler.log
+StandardError=append:/var/log/kafaat/scheduler.log
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/kafaat/shared /var/log/kafaat
