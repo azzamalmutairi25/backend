@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-05T21:17:41.670Z",
+  "updatedAt": "2026-08-05T21:36:38.322Z",
   "base": "http://localhost:5173",
   "screens": [
     {
@@ -18,7 +18,7 @@
       "id": "candidates",
       "title": "المشاركون",
       "file": "candidates.png",
-      "capturedAt": "2026-08-05T21:17:18.726Z"
+      "capturedAt": "2026-08-05T21:36:38.322Z"
     },
     {
       "id": "nominate",
@@ -66,7 +66,7 @@
       "id": "reports",
       "title": "التقارير",
       "file": "reports.png",
-      "capturedAt": "2026-08-05T21:17:41.670Z"
+      "capturedAt": "2026-08-05T21:36:38.322Z"
     },
     {
       "id": "development-plans",
@@ -126,7 +126,7 @@
       "id": "users",
       "title": "المستخدمون والصلاحيات",
       "file": "users.png",
-      "capturedAt": "2026-08-05T21:17:18.726Z"
+      "capturedAt": "2026-08-05T21:36:38.322Z"
     },
     {
       "id": "settings",
