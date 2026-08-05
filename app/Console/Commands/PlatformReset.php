@@ -166,25 +166,71 @@ class PlatformReset extends Command
 
         // ── ٥) التنفيذ ──
         $driver = DB::getDriverName();
-        DB::transaction(function () use ($toTruncate, $keepUser, $driver) {
+        // المرجعيات تُعامَل على حدة: `users.sector_id` يشير إلى `sectors`، و
+        // TRUNCATE … CASCADE في PostgreSQL لا يكتفي بتعطيل القيد بل يُفرِغ كل
+        // جدولٍ يشير إلى المُفرَّغ. فتفريغ القطاعات كان يمسح المستخدمين معها
+        // — بمن فيهم الحساب المطلوب إبقاؤه، فلا يبقى من يدخل النظام.
+        $refs = collect(self::REFERENCE)->intersect($actual)->values();
+        $bulk = $toTruncate->diff($refs)->values();
+
+        try {
+        DB::transaction(function () use ($bulk, $refs, $withRef, $keepUser, $driver, $actual) {
             if ($driver === 'pgsql') {
-                // TRUNCATE … CASCADE في عبارة واحدة: المفاتيح الأجنبية متشابكة،
-                // وحذفها جدولاً جدولاً يفشل بترتيبٍ ما مهما رُتِّب.
-                $list = $toTruncate->map(fn ($t) => '"' . $t . '"')->implode(', ');
-                DB::statement("TRUNCATE TABLE {$list} RESTART IDENTITY CASCADE");
-                if ($keepUser === '') {
-                    DB::statement('TRUNCATE TABLE "users" RESTART IDENTITY CASCADE');
-                } else {
-                    DB::table('users')->where('username', '!=', $keepUser)->delete();
+                if ($bulk->isNotEmpty()) {
+                    // بيانات التشغيل لا يشير إليها شيءٌ نُبقيه، فالتتالي آمن هنا
+                    $list = $bulk->map(fn ($t) => '"' . $t . '"')->implode(', ');
+                    DB::statement("TRUNCATE TABLE {$list} RESTART IDENTITY CASCADE");
                 }
             } else {
                 Schema::disableForeignKeyConstraints();
-                foreach ($toTruncate as $t) DB::table($t)->truncate();
-                if ($keepUser === '') DB::table('users')->truncate();
-                else DB::table('users')->where('username', '!=', $keepUser)->delete();
+                foreach ($bulk as $t) DB::table($t)->truncate();
                 Schema::enableForeignKeyConstraints();
             }
+
+            // المستخدمون قبل المرجعيات: يجب أن تُصفَّر إشاراتهم للقطاعات أولاً
+            if ($keepUser === '') {
+                DB::table('users')->delete();
+            } else {
+                DB::table('users')->where('username', '!=', $keepUser)->delete();
+            }
+
+            if ($withRef && $refs->isNotEmpty()) {
+                // القطاع مرجعٌ اختياري للمستخدم — يُصفَّر لا يُحذف صاحبه
+                if ($actual->contains('users')) {
+                    DB::table('users')->whereNotNull('sector_id')->update(['sector_id' => null]);
+                }
+                // DELETE لا TRUNCATE: يحترم المفاتيح الأجنبية ويُخفق صراحةً إن
+                // بقي ما يشير إليها، بدل أن يُفرِغه صامتاً. والترتيب من التابع
+                // إلى المتبوع: الربط قبل الكفاءات، والكفاءات قبل القطاعات.
+                foreach (['activity_competency', 'competencies', 'ranks', 'sectors'] as $t) {
+                    if ($refs->contains($t)) DB::table($t)->delete();
+                }
+                if ($driver === 'pgsql') {
+                    foreach ($refs as $t) {
+                        // التسلسل يبقى عالياً بعد DELETE — يُصفَّر ليبدأ الترقيم من ١
+                        DB::statement("SELECT setval(pg_get_serial_sequence('{$t}', 'id'), 1, false)");
+                    }
+                }
+            }
+
+            // شرطٌ لاحق داخل المعاملة: إن ضاع حساب الدخول رغم طلب إبقائه
+            // تُلغى المعاملة كلها. تفريغٌ ينجح ويترك النظام بلا دخول أسوأ من
+            // تفريغٍ يفشل — وهذا ما وقع فعلاً قبل هذا الحارس.
+            if ($keepUser !== '' && !DB::table('users')->where('username', $keepUser)->exists()) {
+                throw new \RuntimeException(
+                    "ضاع حساب «{$keepUser}» أثناء التفريغ — أُلغيت العملية بالكامل."
+                );
+            }
         });
+        } catch (\Throwable $e) {
+            // المُشغِّل ليس مطوّراً ولا يقرأ أثر استدعاءات: يُقال له ما جرى،
+            // وأن القاعدة لم تتغيّر، وكيف يستعيد الدخول إن لزم.
+            $this->newLine();
+            $this->error('أُوقف التفريغ ولم تتغيّر القاعدة.');
+            $this->line('  السبب: ' . $e->getMessage());
+            $this->line('  لاستعادة الدخول عند الحاجة: php artisan kafaat:create-admin admin');
+            return self::FAILURE;
+        }
 
         // ── ٦) أثرٌ للتفريغ نفسه: أول سطر في سجل التدقيق الجديد ──
         // سجل التدقيق مُسِح للتوّ، فيلزم أن يُفتح بما يفسّر خلوّه — وإلا بدا

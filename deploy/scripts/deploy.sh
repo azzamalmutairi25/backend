@@ -23,7 +23,11 @@ FRONTEND_REPO="${KAFAAT_FRONTEND_REPO:-git@github.com:azzamalmutairi25/kafaat-fr
 BRANCH="${KAFAAT_BRANCH:-Production}"
 KEEP=5
 PHP=/usr/bin/php
-FPM_SERVICE=php8.3-fpm
+# النسخة تُكتشف ولا تُثبَّت: الخادم يحمل 8.4 (يشترطها composer.lock)، وسكربتٌ
+# يُعيد تحميل خدمةً باسمٍ خاطئ ينشر شيفرةً جديدة على عمّالٍ يحملون القديمة
+# — بلا خطأ ظاهر، لأن opcache.validate_timestamps=0.
+PHPV=$(ls -1d /etc/php/*/fpm 2>/dev/null | sed 's|/etc/php/||;s|/fpm||' | sort -V | tail -1)
+FPM_SERVICE="php${PHPV:-8.4}-fpm"
 
 REF=""; ROLLBACK=0; DRY=0
 for a in "$@"; do

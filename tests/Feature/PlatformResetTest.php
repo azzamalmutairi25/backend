@@ -84,6 +84,51 @@ class PlatformResetTest extends TestCase
         $this->assertGreaterThan(0, Role::count(), 'الأدوار ليست مرجعية قابلة للمسح');
     }
 
+    // الاختبار الذي كان غيابه يكلّف الدخول إلى النظام كلّه:
+    // `users.sector_id` يشير إلى `sectors`، وTRUNCATE … CASCADE في PostgreSQL
+    // يُفرِغ الجداول المشيرة أيضاً — فكان تفريغ القطاعات يمسح المستخدمين معها.
+    // اختبار «إبقاء الحساب» كان يمرّ لأنه لا يُمرّر --with-reference إطلاقاً.
+    public function test_the_kept_account_survives_a_reference_wipe(): void
+    {
+        $d = $this->seedMinimal();
+        // مستخدم مرتبط بقطاع — أشدّ الحالات: الإشارة قائمة وقت حذف القطاع
+        $d['keeper']->update(['sector_id' => $d['sector']->id]);
+
+        $this->artisan('platform:reset --force --skip-backup --with-reference --keep-user=admin')
+            ->assertSuccessful();
+
+        $keeper = User::where('username', 'admin')->first();
+        $this->assertNotNull($keeper, 'مُسح حساب الدخول مع القطاعات — لا سبيل لدخول النظام');
+        $this->assertNull($keeper->sector_id, 'بقيت إشارة إلى قطاع محذوف');
+        $this->assertSame(0, Sector::count());
+    }
+
+    public function test_it_rolls_everything_back_if_the_kept_account_would_be_lost(): void
+    {
+        $d = $this->seedMinimal();
+        $d['keeper']->update(['sector_id' => $d['sector']->id]);
+
+        // مُشغِّلٌ يمحو المستخدمين عند حذف أي قطاع — يُحاكي أثر التتالي الذي
+        // أوقع العطل، وأيّ مسارٍ مستقبلي يؤدّي إليه. المطلوب أن تُلغى المعاملة
+        // كاملةً: تفريغٌ ينجح ويترك النظام بلا دخول أسوأ من تفريغٍ يفشل.
+        DB::statement('CREATE OR REPLACE FUNCTION kill_users() RETURNS trigger AS $$
+            BEGIN DELETE FROM users; RETURN OLD; END; $$ LANGUAGE plpgsql');
+        DB::statement('CREATE TRIGGER t_kill_users AFTER DELETE ON sectors
+            FOR EACH STATEMENT EXECUTE FUNCTION kill_users()');
+
+        try {
+            $this->artisan('platform:reset --force --skip-backup --with-reference --keep-user=admin')
+                ->assertFailed();
+
+            $this->assertNotNull(User::where('username', 'admin')->first(), 'لم تُلغَ المعاملة');
+            $this->assertSame(1, Candidate::count(), 'مُسحت بيانات رغم إلغاء المعاملة');
+            $this->assertSame(1, Sector::count());
+        } finally {
+            DB::statement('DROP TRIGGER IF EXISTS t_kill_users ON sectors');
+            DB::statement('DROP FUNCTION IF EXISTS kill_users()');
+        }
+    }
+
     public function test_it_resets_the_participant_code_counter(): void
     {
         $this->seedMinimal();
