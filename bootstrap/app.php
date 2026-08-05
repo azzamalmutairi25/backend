@@ -33,6 +33,17 @@ return Application::configure(basePath: dirname(__DIR__))
         // يسدّ غياب الحدّ عن الـ85 مساراً المحمية؛ الحدود الأخصّ (login 10/د، البوّابة
         // 20/د) تبقى وتغلب لأنها أصرم.
         $middleware->throttleApi();
+
+        // لا مسار باسم «login» في تطبيق واجهةٍ برمجية محضة، ووسيط المصادقة
+        // يستدعي route('login') فوراً لبناء وجهة التحويل — فيرمي
+        // RouteNotFoundException قبل أن يصل الاستثناء إلى المُصيِّر أصلاً.
+        // النتيجة: كل طلب غير مُصادَق لا يحمل Accept: application/json يعود
+        // بـ500 بدل 401 — أي أنّ ماسحاً أمنياً أو فاحص جاهزية يرى «عطل خادم»
+        // على نظامٍ سليم يرفض الدخول رفضاً صحيحاً.
+        // إرجاع null يُسقط التحويل، فيتولّى shouldRenderJsonWhen أدناه الردّ.
+        $middleware->redirectGuestsTo(
+            fn (Request $request) => $request->is('api/*') ? null : '/',
+        );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

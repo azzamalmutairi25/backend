@@ -1,0 +1,150 @@
+{
+  "updatedAt": "2026-08-05T21:17:41.670Z",
+  "base": "http://localhost:5173",
+  "screens": [
+    {
+      "id": "login",
+      "title": "تسجيل الدخول",
+      "file": "login.png",
+      "capturedAt": "2026-08-05T21:17:18.726Z"
+    },
+    {
+      "id": "dashboard",
+      "title": "اللوحة الرئيسة",
+      "file": "dashboard.png",
+      "capturedAt": "2026-08-05T21:17:18.726Z"
+    },
+    {
+      "id": "candidates",
+      "title": "المشاركون",
+      "file": "candidates.png",
+      "capturedAt": "2026-08-05T21:17:18.726Z"
+    },
+    {
+      "id": "nominate",
+      "title": "ترشيح مشارك (الجهات الخارجية)",
+      "file": "nominate.png",
+      "capturedAt": "2026-08-05T21:17:18.726Z"
+    },
+    {
+      "id": "update-requests",
+      "title": "طلبات تحديث البيانات",
+      "file": "update-requests.png",
+      "capturedAt": "2026-08-05T21:17:18.726Z"
+    },
+    {
+      "id": "schedules",
+      "title": "الجدولة",
+      "file": "schedules.png",
+      "capturedAt": "2026-08-05T21:17:18.726Z"
+    },
+    {
+      "id": "distribution",
+      "title": "توزيع المقيّمين",
+      "file": "distribution.png",
+      "capturedAt": "2026-08-05T21:17:18.726Z"
+    },
+    {
+      "id": "attendance",
+      "title": "الحضور",
+      "file": "attendance.png",
+      "capturedAt": "2026-08-05T21:17:18.726Z"
+    },
+    {
+      "id": "assessment",
+      "title": "التقييم",
+      "file": "assessment.png",
+      "capturedAt": "2026-08-05T21:17:18.726Z"
+    },
+    {
+      "id": "measurements",
+      "title": "أدوات القياس",
+      "file": "measurements.png",
+      "capturedAt": "2026-08-05T21:17:18.726Z"
+    },
+    {
+      "id": "reports",
+      "title": "التقارير",
+      "file": "reports.png",
+      "capturedAt": "2026-08-05T21:17:41.670Z"
+    },
+    {
+      "id": "development-plans",
+      "title": "خطط التطوير",
+      "file": "development-plans.png",
+      "capturedAt": "2026-08-05T21:17:18.726Z"
+    },
+    {
+      "id": "competency-framework",
+      "title": "إطار الكفاءات",
+      "file": "competency-framework.png",
+      "capturedAt": "2026-08-05T21:17:18.726Z"
+    },
+    {
+      "id": "competency-map",
+      "title": "خريطة الكفاءات والأنشطة",
+      "file": "competency-map.png",
+      "capturedAt": "2026-08-05T21:17:18.726Z"
+    },
+    {
+      "id": "analytics",
+      "title": "التحليلات",
+      "file": "analytics.png",
+      "capturedAt": "2026-08-05T21:17:18.726Z"
+    },
+    {
+      "id": "executive",
+      "title": "لوحة القيادة التنفيذية",
+      "file": "executive.png",
+      "capturedAt": "2026-08-05T21:17:18.726Z"
+    },
+    {
+      "id": "daily-report",
+      "title": "التقرير اليومي",
+      "file": "daily-report.png",
+      "capturedAt": "2026-08-05T21:17:18.726Z"
+    },
+    {
+      "id": "chat",
+      "title": "المراسلات",
+      "file": "chat.png",
+      "capturedAt": "2026-08-05T21:17:18.726Z"
+    },
+    {
+      "id": "notifications",
+      "title": "الإشعارات",
+      "file": "notifications.png",
+      "capturedAt": "2026-08-05T21:17:18.726Z"
+    },
+    {
+      "id": "workflow",
+      "title": "مراحل الاعتماد",
+      "file": "workflow.png",
+      "capturedAt": "2026-08-05T21:17:18.726Z"
+    },
+    {
+      "id": "users",
+      "title": "المستخدمون والصلاحيات",
+      "file": "users.png",
+      "capturedAt": "2026-08-05T21:17:18.726Z"
+    },
+    {
+      "id": "settings",
+      "title": "الإعدادات",
+      "file": "settings.png",
+      "capturedAt": "2026-08-05T21:17:18.726Z"
+    },
+    {
+      "id": "audit",
+      "title": "سجل التدقيق",
+      "file": "audit.png",
+      "capturedAt": "2026-08-05T21:17:18.726Z"
+    },
+    {
+      "id": "change-password",
+      "title": "تغيير كلمة المرور",
+      "file": "change-password.png",
+      "capturedAt": "2026-08-05T21:17:18.726Z"
+    }
+  ]
+}
