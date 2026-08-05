@@ -11,14 +11,29 @@
 set -uo pipefail
 
 APP=/srv/kafaat/current
-PHP=/usr/bin/php
 VERBOSE=0
 [[ "${1:-}" == "--verbose" ]] && VERBOSE=1
 
+# إصدار PHP يُكتشف ولا يُثبَّت: الخادم قد يحمل 8.3 أو 8.4 أو أحدث، وسكربتٌ
+# يفترض إصداراً بعينه يُخفق على الجميع عداه.
+PHPV=$(ls -1d /etc/php/*/fpm 2>/dev/null | sed 's|/etc/php/||;s|/fpm||' | sort -V | tail -1)
+PHPV=${PHPV:-8.4}
+PHP=$(command -v "php$PHPV" || command -v php)
+FPM_SERVICE="php${PHPV}-fpm"
+FPM_CONFD="/etc/php/${PHPV}/fpm/conf.d"
+
+# بعض الفحوص تلزمها صلاحية الجذر (ufw، قراءة إعدادات). إن لم تتوفّر نُعلنها
+# «غير مفحوصة» ولا نُعلنها فاشلة — إنذارٌ كاذب يُفقد السكربت مصداقيته كلها.
+SUDO=""
+sudo -n true 2>/dev/null && SUDO="sudo -n"
+
 PASS=0; FAIL=0; WARN=0
-ok()   { printf '  \e[32m✓\e[0m %s\n' "$1"; ((PASS++)); }
-bad()  { printf '  \e[31m✗\e[0m %s\n' "$1"; [[ -n "${2:-}" ]] && printf '      %s\n' "$2"; ((FAIL++)); }
-soft() { printf '  \e[33m!\e[0m %s\n' "$1"; [[ -n "${2:-}" ]] && printf '      %s\n' "$2"; ((WARN++)); }
+# ⚠ لا تستعمل ((PASS++)) هنا: الزيادة اللاحقة تُرجِع القيمة القديمة كحالة خروج،
+# فأول نجاح (PASS=0) يُرجِع 1 فيُنفَّذ فرع «||» بعده — فتُطبع ✓ ثم ✗ للبند نفسه.
+# وهو ما وقع فعلاً: «PHP 8.4.24 ✓» يتلوها «php غير موجود ✗».
+ok()   { printf '  \e[32m✓\e[0m %s\n' "$1"; PASS=$((PASS+1)); }
+bad()  { printf '  \e[31m✗\e[0m %s\n' "$1"; [[ -n "${2:-}" ]] && printf '      %s\n' "$2"; FAIL=$((FAIL+1)); return 0; }
+soft() { printf '  \e[33m!\e[0m %s\n' "$1"; [[ -n "${2:-}" ]] && printf '      %s\n' "$2"; WARN=$((WARN+1)); return 0; }
 sec()  { printf '\n\e[1m── %s ──\e[0m\n' "$1"; }
 
 envv() { grep -E "^$1=" "$APP/.env" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"'; }
@@ -37,15 +52,21 @@ for ext in intl pdo_pgsql redis mbstring openssl curl dom; do
   fi
 done
 
-if $PHP -i 2>/dev/null | grep -q 'opcache.enable => On'; then
-  ok "opcache مفعّل"
-  if $PHP -i 2>/dev/null | grep -q 'opcache.validate_timestamps => Off'; then
-    ok "opcache.validate_timestamps مطفأ (أداء الإنتاج)"
-  else
-    soft "opcache.validate_timestamps مفعّل" "يفحص كل ملف في كل طلب — أطفئه وأعد تحميل fpm عند النشر"
-  fi
+# ⚠ إعدادات opcache تُقرأ من ملفات FPM لا من `php -i`: الأخيرة تعرض إعدادات
+# سطر الأوامر، وopcache مطفأ فيها عمداً (enable_cli=0). فحصُ CLI يُنذر كذباً
+# بأن الإنتاج بلا opcache وهو مفعّل — وهو ما وقع فعلاً في أول تشغيل.
+if $PHP -m 2>/dev/null | grep -qi 'Zend OPcache'; then
+  ok "امتداد opcache محمَّل"
+  vt=$(grep -rhoP '^\s*opcache\.validate_timestamps\s*=\s*\K\S+' "$FPM_CONFD" 2>/dev/null | tail -1)
+  case "${vt:-}" in
+    0|off|Off|OFF) ok "opcache.validate_timestamps مطفأ في FPM (أداء الإنتاج)" ;;
+    "")            soft "لم تُضبط opcache.validate_timestamps في $FPM_CONFD" "الافتراضي يفحص كل ملف في كل طلب" ;;
+    *)             soft "opcache.validate_timestamps=$vt في FPM" "أطفئه (=0) وأعد تحميل fpm عند كل نشر" ;;
+  esac
+  en=$(grep -rhoP '^\s*opcache\.enable\s*=\s*\K\S+' "$FPM_CONFD" 2>/dev/null | tail -1)
+  [[ "${en:-1}" =~ ^(0|off|Off)$ ]] && bad "opcache مطفأ في FPM" "أكبر فارق أداء منفرد"
 else
-  bad "opcache مطفأ" "أكبر فارق أداء منفرد — تُعاد ترجمة كل ملف في كل طلب"
+  bad "امتداد opcache غير محمَّل" "تُعاد ترجمة كل ملف PHP في كل طلب"
 fi
 
 sec "إعدادات التطبيق"
@@ -99,27 +120,39 @@ fi
 if $PHP "$APP/artisan" db:show >/dev/null 2>&1; then ok "الاتصال بقاعدة البيانات"
 else bad "تعذّر الاتصال بقاعدة البيانات"; fi
 
-pending=$($PHP "$APP/artisan" migrate:status 2>/dev/null | grep -c "Pending" || echo 0)
-[[ "$pending" == "0" ]] && ok "لا هجرات معلّقة" || bad "$pending هجرة معلّقة"
+# grep -c يرجع صفراً بحالة خروج 1 حين لا يجد شيئاً، فـ`|| echo 0` كان يُلحق
+# صفراً ثانياً فيصير الناتج "0\n0" ولا يساوي "0" — إخفاقٌ كاذب دائم.
+pending=$($PHP "$APP/artisan" migrate:status 2>/dev/null | grep -c "Pending" || true)
+pending=${pending:-0}
+[[ "$pending" -eq 0 ]] && ok "لا هجرات معلّقة" || bad "$pending هجرة معلّقة"
 
-for svc in php8.3-fpm nginx kafaat-scheduler.timer; do
+for svc in "$FPM_SERVICE" nginx kafaat-scheduler.timer; do
   systemctl is-active --quiet "$svc" && ok "الخدمة $svc تعمل" || bad "الخدمة $svc متوقّفة"
 done
 qw=$(systemctl list-units 'kafaat-queue@*' --state=running --no-legend 2>/dev/null | wc -l)
 [[ "$qw" -ge 1 ]] && ok "$qw عامل طابور يعمل" || bad "لا عمّال طابور" "الرسائل لن تُرسَل أبداً"
 
 sec "أذونات الملفات"
-[[ "$(stat -c %a "$APP/.env" 2>/dev/null || stat -c %a "$(readlink -f "$APP/.env")")" == "600" ]] \
-  && ok ".env بصلاحية 600" || bad ".env ليس 600" "يحوي مفتاح التشفير وكلمة قاعدة البيانات"
+# -L إلزامية: .env رابط رمزي للمشترك، وstat بلا -L يقيس الرابط نفسه (777 دائماً)
+envmode=$(stat -Lc %a "$APP/.env" 2>/dev/null || echo "?")
+[[ "$envmode" == "600" ]] \
+  && ok ".env بصلاحية 600" || bad ".env بصلاحية $envmode لا 600" "يحوي مفتاح التشفير وكلمة قاعدة البيانات"
 [[ -w "$APP/storage/logs" ]] && ok "storage/logs قابل للكتابة" || bad "storage/logs غير قابل للكتابة"
 [[ -L "$APP/storage" ]] && ok "storage رابط للمشترك (ينجو من النشر)" || bad "storage ليس رابطاً" "السجلّات تضيع مع كل نشر"
 
 sec "الشبكة والجدار الناري"
-if command -v ufw >/dev/null && ufw status 2>/dev/null | grep -q "Status: active"; then
+# ufw status يلزمه الجذر. بلا sudo نُعلنها «غير مفحوصة» لا «غير مفعّلة» —
+# الحكم بالغياب على ما لم يُقرأ إنذارٌ كاذب.
+if ! command -v ufw >/dev/null; then
+  soft "ufw غير منصَّب"
+elif [[ -z "$SUDO" ]]; then
+  soft "تعذّر فحص ufw (يلزمه sudo)" "شغّل: sudo ufw status"
+elif $SUDO ufw status 2>/dev/null | grep -q "Status: active"; then
   ok "ufw مفعّل"
-  ufw status 2>/dev/null | grep -q "5432" && soft "منفذ 5432 مفتوح في ufw" "قاعدة البيانات يجب ألّا تُرى إلا من خادم التطبيق"
+  $SUDO ufw status 2>/dev/null | grep -qE "^(5432|6379)" \
+    && soft "منفذ قاعدة/Redis مفتوح في ufw" "يجب ألّا يُرى إلا محلياً"
 else
-  soft "ufw غير مفعّل"
+  bad "ufw غير مفعّل" "الخادم مكشوف على كل منافذه"
 fi
 ss -lntp 2>/dev/null | grep -q '127.0.0.1:6379' && ok "Redis على الواجهة المحلية فقط" \
   || soft "راجِع ربط Redis" "يجب ألّا يستمع على 0.0.0.0"
