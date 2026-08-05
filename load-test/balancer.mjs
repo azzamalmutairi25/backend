@@ -33,7 +33,14 @@ if (BACKENDS.length === 0) {
   process.exit(1)
 }
 
-const state = BACKENDS.map((b) => ({ target: b, healthy: true, served: 0, failed: 0 }))
+// خادمٌ مشغول ليس خادماً ميتاً. فحصُ صحّةٍ بمهلةٍ ضيّقة يسحب العقدة من
+// الدوران لحظةَ الذروة — فيتكدّس الحمل على الباقي فتسقط هي الأخرى، حتى
+// يردّ الموزّع 503 على نظامٍ يعمل. الحماية: عتبة إخفاقات متتالية قبل الحكم،
+// ومهلة أوسع، وسقوطٌ فوري للرفض الصريح (اتصال مرفوض) وحده.
+const UNHEALTHY_AFTER = 3   // إخفاقات متتالية قبل الإخراج من الدوران
+const PROBE_TIMEOUT = 8000
+
+const state = BACKENDS.map((b) => ({ target: b, healthy: true, served: 0, failed: 0, misses: 0 }))
 let cursor = 0
 
 // تحذير واحد لكل سبب: طباعة سطر لكل طلب فاشل تحت الضغط تُغرق الطرفية
@@ -131,17 +138,30 @@ process.on('uncaughtException', (e) => {
 })
 
 // ── فحص الصحّة الدوري ──
+function markUp(s) {
+  s.misses = 0
+  if (!s.healthy) { s.healthy = true; console.log(`  ✓ عاد  ${s.target}`) }
+}
+
+// hard=true للرفض الصريح (العملية ساقطة يقيناً)، وإلا تراكمٌ حتى العتبة
+function markDown(s, reason, hard = false) {
+  s.misses++
+  if (s.healthy && (hard || s.misses >= UNHEALTHY_AFTER)) {
+    s.healthy = false
+    console.log(`  ✗ سقط  ${s.target} (${reason})`)
+  }
+}
+
 function probe(s) {
   const [host, port] = s.target.split(':')
-  const req = http.request({ host, port, path: '/api/me', method: 'GET', timeout: 2000 }, (r) => {
+  const req = http.request({ host, port, path: '/api/me', method: 'GET', timeout: PROBE_TIMEOUT }, (r) => {
     // أي ردّ (حتى 401) يعني أن PHP يستجيب — المطلوب حياة العملية لا نجاح المصادقة
-    const alive = (r.statusCode ?? 0) > 0
-    if (alive !== s.healthy) console.log(`  ${alive ? '✓ عاد' : '✗ سقط'}  ${s.target}`)
-    s.healthy = alive
+    markUp(s)
     r.resume()
   })
-  req.on('error', () => { if (s.healthy) console.log(`  ✗ سقط  ${s.target}`); s.healthy = false })
-  req.on('timeout', () => req.destroy())
+  // الرفض الصريح يقين: لا عملية تستمع. غيره (مهلة/انقطاع) قد يكون انشغالاً.
+  req.on('error', (e) => markDown(s, e.code ?? 'error', e.code === 'ECONNREFUSED'))
+  req.on('timeout', () => { markDown(s, 'مهلة الفحص — قد يكون مشغولاً'); req.destroy() })
   req.end()
 }
 

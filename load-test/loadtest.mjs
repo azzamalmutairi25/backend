@@ -250,16 +250,28 @@ else {
     console.error('✗ لا رموز كتابة في الملف — أعد التحضير بـ--writers=10'); process.exit(1)
   }
 
-  // فحص حياة الهدف قبل إطلاق العمّال — أفضل من تقرير مليء بأخطاء شبكة
+  // فحص حياة الهدف قبل إطلاق العمّال — أفضل من تقرير مليء بأخطاء شبكة.
+  // المهلة هي مهلة الطلب نفسها لا رقماً أقصر: أول طلب على خادم بارد يدفع
+  // ثمن الإقلاع كاملاً، ومهلةٌ ضيّقة تعلن «الهدف ساقط» وهو يعمل.
+  const t0 = Date.now()
   try {
     const probe = await fetch(opts.url + '/api/me', {
       headers: { Accept: 'application/json', Authorization: `Bearer ${readerTokens[0] ?? ''}` },
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(opts.timeout),
     })
     if (probe.status >= 500) throw new Error(`الهدف يرجع ${probe.status}`)
   } catch (e) {
     console.error(`✗ الهدف لا يستجيب: ${opts.url}\n  ${e.message}`)
+    if (/localhost/.test(opts.url)) {
+      console.error('  جرّب 127.0.0.1 بدل localhost: حلّ الاسم قد يتعثّر ثوانيَ على IPv6 فيبدو الهدف ساقطاً.')
+    }
     process.exit(1)
+  }
+  // تعثّر حلّ الاسم يضيف ثوانيَ لكل اتصال جديد فيُفسد القياس نفسه لا الفحص وحده
+  const probeMs = Date.now() - t0
+  if (probeMs > 2000) {
+    console.warn(`⚠ الطلب الأول استغرق ${probeMs}ms — تعثّرُ حلّ اسمٍ أو خادمٌ بارد. الأرقام قد تتضخّم.`)
+    if (/localhost/.test(opts.url)) console.warn('  استعمل 127.0.0.1 لتفادي تعثّر حلّ localhost.')
   }
 
   const nWorkers = Math.max(1, Math.min(opts.workers, opts.vus))
