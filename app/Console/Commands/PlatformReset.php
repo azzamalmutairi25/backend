@@ -205,12 +205,11 @@ class PlatformReset extends Command
                 foreach (['activity_competency', 'competencies', 'ranks', 'sectors'] as $t) {
                     if ($refs->contains($t)) DB::table($t)->delete();
                 }
-                if ($driver === 'pgsql') {
-                    foreach ($refs as $t) {
-                        // التسلسل يبقى عالياً بعد DELETE — يُصفَّر ليبدأ الترقيم من ١
-                        DB::statement("SELECT setval(pg_get_serial_sequence('{$t}', 'id'), 1, false)");
-                    }
-                }
+                // ⚠ لا تصفير للتسلسلات هنا. setval في PostgreSQL غير معامِلاتي:
+                // يبقى أثره وإن أُلغيت المعاملة، فيكسر الخاصيّة التي يقوم عليها
+                // هذا الأمر كلّه — «إمّا تمّ كلّه أو لم يُمَسّ شيء». وقيمة المعرّف
+                // الابتدائية تجميلية بحتة: لا تظهر للمستخدم ولا يعتمد عليها شيء،
+                // بخلاف عدّاد رمز المشارك الذي يُصفَّر بـTRUNCATE ضمن المعاملة.
             }
 
             // شرطٌ لاحق داخل المعاملة: إن ضاع حساب الدخول رغم طلب إبقائه

@@ -13,36 +13,48 @@ use Tests\TestCase;
 //  إرشاد التهيئة الأولى. خطؤه صنفان: أن يختفي على منصّة ناقصة فيُترك
 //  المستخدم أمام شاشاتٍ فارغة لا تقول شيئاً، أو أن يبقى بعد اكتمالها
 //  فيصير ضجيجاً دائماً على لوحة تُفتح كل يوم.
+//
+//  ⚠ قاعدة الاختبار مبذورة مرّة واحدة لكل تشغيل (RefreshDatabase + $seed)،
+//  والبذر يُثبَّت خارج معاملة الاختبار. فـ«منصّة فارغة» حالةٌ تُصنَع صراحةً
+//  هنا لا يُفترَض وجودها — وافتراضُها كان يُنجح الاختبارات منفردةً ويُخفقها
+//  في التشغيل الكامل.
 // ════════════════════════════════════════════════════════════
 class SetupStatusTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected $seed = true;
+
     private function admin(): User
     {
-        $role = Role::updateOrCreate(['code' => 'ADMIN'], ['name_ar' => 'مدير النظام']);
+        $role = Role::where('code', 'ADMIN')->firstOrFail();
 
         return User::create([
-            'username' => 'admin', 'full_name' => 'مدير', 'email' => 'a@k.local',
+            'username' => 'setup_admin', 'full_name' => 'مدير', 'email' => 'setup@k.local',
             'password' => 'Secret@12345', 'role_id' => $role->id, 'is_active' => true,
+            'must_change_password' => false,
         ]);
     }
 
-    private function evaluator(): User
+    /** منصّة كما تُسلَّم بعد platform:reset — لا مرجعيات ولا موظّفين ولا مشاركين */
+    private function emptyPlatform(User $keep): void
     {
-        $role = Role::updateOrCreate(['code' => 'EVALUATOR'], ['name_ar' => 'مستشار المقابلة']);
-
-        return User::create([
-            'username' => 'ev', 'full_name' => 'مستشار', 'email' => 'e@k.local',
-            'password' => 'Secret@12345', 'role_id' => $role->id, 'is_active' => true,
-        ]);
+        DB::table('activity_competency')->delete();
+        DB::table('candidates')->delete();
+        DB::table('competencies')->delete();
+        DB::table('ranks')->delete();
+        DB::table('users')->whereNotNull('sector_id')->update(['sector_id' => null]);
+        DB::table('users')->where('id', '!=', $keep->id)->delete();
+        DB::table('sectors')->delete();
     }
 
     public function test_a_fresh_platform_reports_incomplete_setup(): void
     {
-        $res = $this->actingAs($this->admin())->getJson('/api/setup-status');
+        $admin = $this->admin();
+        $this->emptyPlatform($admin);
 
-        $res->assertOk()
+        $this->actingAs($admin)->getJson('/api/setup-status')
+            ->assertOk()
             ->assertJson(['applicable' => true, 'complete' => false, 'doneCount' => 0]);
     }
 
@@ -71,9 +83,11 @@ class SetupStatusTest extends TestCase
 
     public function test_a_completed_step_is_marked_done_with_its_count(): void
     {
+        $admin = $this->admin();
+        $this->emptyPlatform($admin);
         Sector::create(['code' => 'TS', 'name_ar' => 'قطاع', 'is_military' => false]);
 
-        $res = $this->actingAs($this->admin())->getJson('/api/setup-status');
+        $res = $this->actingAs($admin)->getJson('/api/setup-status');
 
         $sectors = collect($res->json('steps'))->firstWhere('key', 'sectors');
         $this->assertTrue($sectors['done']);
@@ -85,7 +99,10 @@ class SetupStatusTest extends TestCase
     {
         // منصّةٌ فيها مدير واحد لم تُسلَّم بعد — عدّه موظّفاً يُعلن الخطوة
         // مكتملةً وهي لم تبدأ
-        $res = $this->actingAs($this->admin())->getJson('/api/setup-status');
+        $admin = $this->admin();
+        $this->emptyPlatform($admin);
+
+        $res = $this->actingAs($admin)->getJson('/api/setup-status');
 
         $staff = collect($res->json('steps'))->firstWhere('key', 'staff');
         $this->assertFalse($staff['done']);
@@ -94,9 +111,11 @@ class SetupStatusTest extends TestCase
 
     public function test_it_reports_complete_once_every_required_step_is_done(): void
     {
+        $admin = $this->admin();
+        $this->emptyPlatform($admin);
         $this->seedRequiredSteps();
 
-        $res = $this->actingAs($this->admin())->getJson('/api/setup-status');
+        $res = $this->actingAs($admin)->getJson('/api/setup-status');
 
         // المشاركون غير إلزاميين: منصّة مهيّأة بلا مشاركين بعدُ جاهزة للعمل،
         // وإبقاء الإرشاد لأجلهم يجعله لافتةً دائمة على اللوحة.
@@ -106,11 +125,14 @@ class SetupStatusTest extends TestCase
         $this->assertFalse($candidates['required']);
     }
 
-    public function test_it_is_not_applicable_to_a_user_who_cannot_perform_the_steps(): void
+    public function test_it_is_refused_to_a_user_who_cannot_perform_the_steps(): void
     {
-        $res = $this->actingAs($this->evaluator())->getJson('/api/setup-status');
+        $this->actingAsRole('EVALUATOR');
+        $res = $this->getJson('/api/setup-status');
 
-        $res->assertOk()->assertJson(['applicable' => false]);
+        // 403 لا 200 بجسمٍ فارغ: مسارٌ يردّ 2xx لكل مُصادَق يوسّع السطح المتاح
+        // لأدنى الأدوار خطوةً خطوة، وهو ما يحرسه RouteAuthorizationSweepTest.
+        $res->assertStatus(403);
         // ولا يُسرّب عدّادات القاعدة لمن لا يملك الإعدادات
         $this->assertNull($res->json('steps'));
     }
@@ -133,11 +155,11 @@ class SetupStatusTest extends TestCase
         ]);
         DB::table('activity_competency')->insert(['activity' => 'interview', 'competency_id' => $cid]);
 
-        $role = Role::updateOrCreate(['code' => 'EVALUATOR'], ['name_ar' => 'مستشار المقابلة']);
+        $role = Role::where('code', 'EVALUATOR')->firstOrFail();
         User::create([
-            'username' => 'staff1', 'full_name' => 'موظّف', 'email' => 's@k.local',
+            'username' => 'setup_staff', 'full_name' => 'موظّف', 'email' => 'staff@k.local',
             'password' => 'Secret@12345', 'role_id' => $role->id, 'is_active' => true,
-            'sector_id' => $sector->id,
+            'sector_id' => $sector->id, 'must_change_password' => false,
         ]);
     }
 }

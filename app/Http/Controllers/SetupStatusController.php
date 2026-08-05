@@ -22,9 +22,13 @@ class SetupStatusController extends Controller
     {
         // الإرشاد لمن يستطيع تنفيذه. غيره يرى شاشاتٍ فارغة لأن العمل لم يبدأ
         // بعد، ولا فائدة من إرشاده إلى شاشات لا يملكها.
+        //
+        // 403 لا 200 بجسمٍ فارغ: كانت تُرجِع 200 للجميع، فصار مسارٌ جديد يبلغه
+        // أدنى الأدوار بنجاح — وهو ما أمسكه RouteAuthorizationSweepTest. القاعدة
+        // في هذا النظام أن كل مسار يُصرّح بحارسه، فلا يتسع السطح خطوةً خطوة.
         $user = $request->user();
         if (!$user->hasPermission(Permissions::SETTINGS_MANAGE)) {
-            return response()->json(['applicable' => false]);
+            return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
         }
 
         $sectors = DB::table('sectors')->count();
