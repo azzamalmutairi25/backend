@@ -13,6 +13,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\RosterController;
+use App\Http\Controllers\ReceptionController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DailyReportController;
@@ -199,6 +200,24 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/distribution/propose', [DistributionController::class, 'propose']);
     Route::post('/distribution/{id}/approve', [DistributionController::class, 'approve']);
     Route::delete('/distribution/{id}', [DistributionController::class, 'destroy']);
+
+    // ═══ استقبال الموظفين ═══
+    // كل مسار يفرض صلاحية مرحلته وحدها (reception.view/record/assign/decide/approve)
+    Route::get('/reception', [ReceptionController::class, 'index']);
+    // «evaluators» قبل أي مسار بمعرّف على المستوى نفسه
+    Route::get('/reception/evaluators', [ReceptionController::class, 'evaluators']);
+    Route::post('/reception/arrive', [ReceptionController::class, 'arrive']);
+    Route::patch('/reception/visits/{id}/arrival', [ReceptionController::class, 'updateArrival']);
+    // التوقيع يحمل صورة — يُخنق بالمعدّل كبقية المسارات المكلفة
+    Route::post('/reception/visits/{id}/sign', [ReceptionController::class, 'sign'])
+        ->middleware('throttle:60,1');
+    Route::get('/reception/visits/{id}/cv', [ReceptionController::class, 'visitCv']);
+    Route::post('/reception/visits/{id}/assign', [ReceptionController::class, 'assign']);
+    Route::post('/reception/visits/{id}/approve', [ReceptionController::class, 'approve']);
+    Route::delete('/reception/assignments/{id}', [ReceptionController::class, 'withdraw']);
+    Route::post('/reception/assignments/{id}/accept', [ReceptionController::class, 'accept']);
+    Route::post('/reception/assignments/{id}/reject', [ReceptionController::class, 'reject']);
+    Route::get('/reception/assignments/{id}/cv', [ReceptionController::class, 'assignmentCv']);
 
     // ═══ أدوات القياس ═══
     Route::get('/measurements/{candidateId}', [MeasurementController::class, 'show']);

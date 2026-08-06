@@ -19,14 +19,15 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // ── الأدوار الأحد عشر ──
+        // ── الأدوار ──
         // updateOrCreate لا Role::create: البذر قابل لإعادة التشغيل (roles.code فريد،
         // فإعادة db:seed كانت تفشل)، ويضيف EXTERNAL_ADD للقواعد التي بُذرت قبله.
         $roles = [
             ['code' => 'ADMIN', 'name_ar' => 'مدير النظام'],
             ['code' => 'CENTER_MANAGER', 'name_ar' => 'مدير المركز'],
             ['code' => 'SCHEDULER', 'name_ar' => 'مسؤول الجدولة'],
-            ['code' => 'RECEPTIONIST', 'name_ar' => 'مسؤول الاستقبال'],
+            ['code' => 'RECEPTIONIST', 'name_ar' => 'مسؤول استقبال الموظفين'],
+            ['code' => 'OPERATIONS', 'name_ar' => 'مسؤول العمليات'],
             ['code' => 'ASSESS_MANAGER', 'name_ar' => 'مدير إدارة التقييم'],
             ['code' => 'EVALUATOR', 'name_ar' => 'مستشار المقابلة'],
             ['code' => 'DISCUSSION_EVAL', 'name_ar' => 'مستشار حلقة النقاش'],

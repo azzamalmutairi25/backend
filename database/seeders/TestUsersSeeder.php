@@ -20,7 +20,8 @@ class TestUsersSeeder extends Seeder
             'admin'      => 'ADMIN',            // كل الصلاحيات
             'center'     => 'CENTER_MANAGER',   // إشراف عام (عرض) + تحليلات + تدقيق
             'scheduler'  => 'SCHEDULER',        // إضافة/اعتماد مرشّح + جدولة + دعوات
-            'reception'  => 'RECEPTIONIST',     // تسجيل حضور + دعوات
+            'reception'  => 'RECEPTIONIST',     // استقبال الموظفين: وصول + توقيع + توزيع
+            'operations' => 'OPERATIONS',       // اعتماد الاستقبال وإعادة إسناد المردود
             'assess'     => 'ASSESS_MANAGER',   // اعتماد التقييم + إنشاء/تعديل التقارير + تحليلات
             'evaluator'  => 'EVALUATOR',        // إدخال تقييم المقابلة
             'discussion' => 'DISCUSSION_EVAL',  // إدخال تقييم حلقة النقاش

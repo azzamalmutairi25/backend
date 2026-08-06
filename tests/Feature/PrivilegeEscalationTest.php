@@ -87,12 +87,17 @@ class PrivilegeEscalationTest extends TestCase
     {
         $actor = $this->userManagerWithoutAdmin('SCHEDULER');
 
-        // ينقص مسؤولَ الجدولة تسجيلُ الحضور — وهو من صلاحيات الاستقبال
+        // ينقص مسؤولَ الجدولة تسجيلُ الحضور وتسجيلُ الوصول — وكلاهما للاستقبال
         $this->assertFalse($actor->hasPermission(Permissions::ATTENDANCE_RECORD));
+        $this->assertFalse($actor->hasPermission(Permissions::RECEPTION_RECORD));
         $this->postJson('/api/users', $this->makeUserPayload(['roleId' => $this->roleId('RECEPTIONIST')]))
             ->assertStatus(403);
 
-        foreach ([Permissions::ATTENDANCE_RECORD, Permissions::ATTENDANCE_RECORD_ANY] as $perm) {
+        foreach ([
+            Permissions::ATTENDANCE_RECORD,
+            Permissions::ATTENDANCE_RECORD_ANY,
+            Permissions::RECEPTION_RECORD,
+        ] as $perm) {
             UserPermissionOverride::create([
                 'user_id' => $actor->id, 'permission' => $perm, 'granted' => true, 'created_by' => null,
             ]);

@@ -39,7 +39,9 @@ const SCREENS = [
   { id: 'dashboard',            path: '/dashboard',                         wait: 'main',        title: 'اللوحة الرئيسة' },
   { id: 'candidates',           path: '/candidates',                        wait: 'main',        title: 'المشاركون' },
   { id: 'nominate',             path: '/nominate',                          wait: 'main',        title: 'ترشيح مشارك (الجهات الخارجية)' },
-  { id: 'update-requests',      path: '/update-requests',                   wait: 'main',        title: 'طلبات تحديث البيانات' },
+  // طلبات تحديث البيانات مُخفاة بمفتاح تشغيل (features.js) — المسار يعيد
+  // إلى لوحة التحكم، فلا لقطة لها حتى تُعاد
+  { id: 'reception',            path: '/reception',                         wait: 'main',        title: 'استقبال الموظفين' },
   { id: 'schedules',            path: '/schedules',                         wait: 'main',        title: 'الجدولة' },
   { id: 'distribution',         path: '/distribution',                      wait: 'main',        title: 'توزيع المقيّمين' },
   { id: 'attendance',           path: '/attendance',                        wait: 'main',        title: 'الحضور' },

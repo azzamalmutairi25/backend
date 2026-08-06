@@ -95,4 +95,36 @@ class NotificationService
             $this->notify($u->id, $type, $title, $body, $entityType, $entityId, $createdBy);
         }
     }
+
+    // ── إشعار لكل من يملك صلاحية معيّنة، أياً كان دوره ──
+    //
+    // نظير notifyRole حين يكون المقصود **من يستطيع التصرّف** لا من يحمل اسم
+    // دورٍ بعينه. الفرق ليس تجميلاً: إشعارٌ موجَّه إلى رمز دور يذهب إلى لا أحد
+    // إن لم يُنشِئ المركز ذلك الدور، فيقف المرشّح في منتصف المسار بلا أن يعلم
+    // أحد. والصلاحية تُصيب أيضاً من مُنحها استثناءً فوق دوره.
+    //
+    // $excludeId: لا يُشعَر فاعل الحدث بفعل نفسه.
+    public function notifyPermission(
+        string $permission,
+        string $type,
+        string $title,
+        ?string $body = null,
+        ?string $entityType = null,
+        ?string $entityId = null,
+        ?int $createdBy = null,
+        ?int $excludeId = null
+    ): int {
+        // permissionOverrides محمَّلة مسبقاً — hasPermission تستعلم لكل مستخدم بدونها
+        $recipients = User::with('role', 'permissionOverrides')
+            ->where('is_active', true)
+            ->when($excludeId !== null, fn ($q) => $q->where('id', '!=', $excludeId))
+            ->get()
+            ->filter(fn (User $u) => $u->role && $u->hasPermission($permission));
+
+        foreach ($recipients as $u) {
+            $this->notify($u->id, $type, $title, $body, $entityType, $entityId, $createdBy);
+        }
+
+        return $recipients->count();
+    }
 }

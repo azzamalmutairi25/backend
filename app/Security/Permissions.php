@@ -42,6 +42,16 @@ class Permissions
     // تسجيل أي جلسة بلا إسناد — للاستقبال ومشرف القياس: يستقبلان من لا جلسة لهما فيه
     const ATTENDANCE_RECORD_ANY = 'attendance.record_any';
 
+    // ── استقبال الموظفين ──
+    // صلاحية مستقلّة لكل مرحلة من مراحل المسار، لا صلاحية واحدة للشاشة كلها:
+    // مَن يسجّل الوصول ليس بالضرورة مَن يوزّع، ومَن يوزّع ليس مَن يقبل، ومَن
+    // يقبل ليس مَن يعتمد. جمعُها في واحدة يجعل كلَّ من فتح الشاشة يملك المسار كاملاً.
+    const RECEPTION_VIEW = 'reception.view';        // فتح شاشة الاستقبال وقراءة كشف اليوم
+    const RECEPTION_RECORD = 'reception.record';    // تسجيل الوصول وتعديل وقته وأخذ التوقيع والإقرار
+    const RECEPTION_ASSIGN = 'reception.assign';    // توزيع المرشّح على مقابلة/حلقة نقاش/أدوات قياس
+    const RECEPTION_DECIDE = 'reception.decide';    // قرار المقيّم: استلام المرشّح أو ردّه
+    const RECEPTION_APPROVE = 'reception.approve';  // اعتماد العمليات وترحيل الجلسات إلى الجدول
+
     const EVALUATION_VIEW = 'evaluation.view';
     const EVALUATION_INPUT = 'evaluation.input';
     const EVALUATION_APPROVE = 'evaluation.approve';
@@ -112,13 +122,34 @@ class Permissions
                 self::SCHEDULE_VIEW, self::SCHEDULE_MANAGE, self::DISTRIBUTION_MANAGE, self::ATTENDANCE_VIEW,
                 self::ROSTER_MANAGE,
                 self::SEND_INVITATION,
+                // العمليات: يستقبل المردود فيعيد إسناده، ويعتمد البيانات ويُرحّلها
+                // للجدول. لا RECEPTION_RECORD — الوصول والتوقيع عند الاستقبال.
+                self::RECEPTION_VIEW, self::RECEPTION_ASSIGN, self::RECEPTION_APPROVE,
             ],
 
-            // مسؤول الاستقبال — يستقبل كل داخل فيسجّل أي جلسة
+            // مسؤول استقبال الموظفين — يستقبل كل داخل فيسجّل أي جلسة، ويأخذ
+            // توقيعه وإقراره، ويوزّعه على المقابلة أو حلقة النقاش أو أدوات القياس.
+            // لا RECEPTION_APPROVE: من يوزّع لا يعتمد توزيعه بنفسه.
+            // بلا CANDIDATE_CV_VIEW: تلك تفتح سيرة **أي** مرشّح في القاعدة بمعرّفه.
+            // سيرة من يستقبله اليوم تُقرأ من مسار الاستقبال بـRECEPTION_RECORD،
+            // وهو محصور بزيارةٍ قائمة في يومها — فرقٌ بين «يقرأ سيرة من أمامه»
+            // و«يتصفّح سِيَر المرشحين».
             'RECEPTIONIST' => [
                 self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_NAMES,
                 self::ATTENDANCE_VIEW, self::ATTENDANCE_RECORD, self::ATTENDANCE_RECORD_ANY,
                 self::SEND_INVITATION,
+                self::RECEPTION_VIEW, self::RECEPTION_RECORD, self::RECEPTION_ASSIGN,
+            ],
+
+            // مسؤول العمليات — طرف المسار الآخر: يستقبل المردود من المقيّمين
+            // فيعيد إسناده، ويعتمد بيانات المرشّح فتُرحَّل جلساته إلى الجدول.
+            // قراره إجرائي (مَن يقابل مَن) لا محتوائي، فيعمل بالرمز: بلا
+            // CANDIDATE_VIEW_NAMES ولا CANDIDATE_CV_VIEW. قائمة قارئي الأسماء
+            // مغلقة تُراجَع بالعين، ولا يُضاف إليها دورٌ لا يحتاجها.
+            'OPERATIONS' => [
+                self::CANDIDATE_VIEW,
+                self::SCHEDULE_VIEW, self::ATTENDANCE_VIEW,
+                self::RECEPTION_VIEW, self::RECEPTION_ASSIGN, self::RECEPTION_APPROVE,
             ],
 
             // مدير إدارة التقييم — يكتب التقرير، ويعتمد المرحلة الثانية
@@ -136,12 +167,15 @@ class Permissions
                 self::CANDIDATE_VIEW, self::EVALUATION_VIEW, self::EVALUATION_INPUT,
                 self::ATTENDANCE_VIEW, self::ATTENDANCE_RECORD,
                 self::REPORT_VIEW, self::REPORT_APPROVE_EVALUATOR,
+                // يرى المُسنَد إليه وحده ويقرّر فيه — بلا RECEPTION_ASSIGN
+                self::RECEPTION_VIEW, self::RECEPTION_DECIDE,
             ],
 
             // مستشار حلقة النقاش — يسجّل حضور حلقاته
             'DISCUSSION_EVAL' => [
                 self::CANDIDATE_VIEW, self::EVALUATION_VIEW, self::EVALUATION_INPUT,
                 self::ATTENDANCE_VIEW, self::ATTENDANCE_RECORD,
+                self::RECEPTION_VIEW, self::RECEPTION_DECIDE,
             ],
 
             // مساعد التقييم — يرصد، ويكتب التقرير، ويسجّل حضور جلساته
@@ -163,6 +197,7 @@ class Permissions
             'MEASURE_SUPER' => [
                 self::CANDIDATE_VIEW, self::ATTENDANCE_VIEW, self::ATTENDANCE_RECORD, self::ATTENDANCE_RECORD_ANY,
                 self::MEASUREMENT_VIEW, self::MEASUREMENT_UPLOAD,
+                self::RECEPTION_VIEW, self::RECEPTION_DECIDE,
             ],
 
             // المستخدم الخارجي — يُدخل المرشّح ونموذج سيرته، ولا يقرأ القاعدة ولا
@@ -207,6 +242,7 @@ class Permissions
             'candidate' => 'المرشحون',
             'schedule' => 'الجدولة',
             'roster' => 'مجموعات المشاركين',
+            'reception' => 'استقبال الموظفين',
             'attendance' => 'الحضور',
             'evaluation' => 'التقييم',
             'measurement' => 'أدوات القياس',

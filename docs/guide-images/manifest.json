@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-06T08:15:02.098Z",
+  "updatedAt": "2026-08-06T10:42:05.748Z",
   "base": "http://localhost:5173",
   "screens": [
     {
@@ -12,7 +12,7 @@
       "id": "dashboard",
       "title": "اللوحة الرئيسة",
       "file": "dashboard.png",
-      "capturedAt": "2026-08-06T08:15:02.098Z"
+      "capturedAt": "2026-08-06T10:42:05.748Z"
     },
     {
       "id": "candidates",
@@ -27,10 +27,10 @@
       "capturedAt": "2026-08-06T08:15:02.098Z"
     },
     {
-      "id": "update-requests",
-      "title": "طلبات تحديث البيانات",
-      "file": "update-requests.png",
-      "capturedAt": "2026-08-06T08:15:02.098Z"
+      "id": "reception",
+      "title": "استقبال الموظفين",
+      "file": "reception.png",
+      "capturedAt": "2026-08-06T10:42:05.748Z"
     },
     {
       "id": "schedules",
@@ -90,19 +90,19 @@
       "id": "analytics",
       "title": "التحليلات",
       "file": "analytics.png",
-      "capturedAt": "2026-08-06T08:15:02.098Z"
+      "capturedAt": "2026-08-06T10:42:05.748Z"
     },
     {
       "id": "executive",
       "title": "لوحة القيادة التنفيذية",
       "file": "executive.png",
-      "capturedAt": "2026-08-06T08:15:02.098Z"
+      "capturedAt": "2026-08-06T10:42:05.748Z"
     },
     {
       "id": "daily-report",
       "title": "التقرير اليومي",
       "file": "daily-report.png",
-      "capturedAt": "2026-08-06T08:15:02.098Z"
+      "capturedAt": "2026-08-06T10:42:05.748Z"
     },
     {
       "id": "chat",

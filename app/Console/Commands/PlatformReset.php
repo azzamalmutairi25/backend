@@ -66,6 +66,8 @@ class PlatformReset extends Command
         'measurement_results',
         'notifications',
         'participant_code_counters', // وإلا بدأ ترقيم المشاركين الحقيقي من رقم التجارب
+        'reception_assignments',
+        'reception_visits',          // يحمل تواقيع المرشحين — لا يبقى بعد التفريغ
         'roster_groups',
         'schedules',
         'sms_logs',
