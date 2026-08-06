@@ -88,6 +88,16 @@ class Permissions
     const SETTINGS_MANAGE = 'settings.manage';
     const ANALYTICS_VIEW = 'analytics.view';
 
+    // ── صلاحية مستقلّة لكل شاشة ──
+    // كانت خمس صلاحيات تحرس إحدى عشرة شاشة: من ملك «التحليلات» ملك اللوحة
+    // التنفيذية والتقرير اليومي معه، ومن ملك «التقارير» ملك خطط التطوير،
+    // ومن ملك «الإعدادات» ملك سير العمل. فلم يكن يمكن منح شاشةٍ دون أختها.
+    const ANALYTICS_EXECUTIVE = 'analytics.executive';      // اللوحة التنفيذية
+    const ANALYTICS_DAILY_REPORT = 'analytics.daily_report'; // التقرير اليومي
+    const DEVELOPMENT_PLAN_VIEW = 'development_plan.view';   // خطط التطوير
+    const CHAT_VIEW = 'chat.view';                           // المحادثات
+    const WORKFLOW_MANAGE = 'workflow.manage';               // مراحل الاعتماد
+
     // ════════════════════════════════════════════════════════
     //  مصفوفة الأدوار والصلاحيات
     // ════════════════════════════════════════════════════════
@@ -97,19 +107,30 @@ class Permissions
             // مدير النظام — كل الصلاحيات
             'ADMIN' => ['*'],
 
-            // مدير المركز — إشراف عام (عرض)، وهو أحد اثنين يريان الاسم في المستند المطبوع.
-            // بلا CANDIDATE_VIEW_NAMES: الاسم محجوب عنه في الشاشات كغيره؛ الاستثناء
-            // للمستند وحده لأنه وثيقة رسمية تُوقَّع، لا لتصفّح بيانات المرشحين.
+            // مدير المركز — يطّلع على كل شيء ويتحكّم في التشغيل، ولا يتحكّم في
+            // المستخدمين ولا الإعدادات ولا مراحل الاعتماد: تلك سلطات نظام
+            // تُدار من حساب مدير النظام وحده، وفصلُها يبقي من يشرف غير من يضبط.
+            //
+            // بلا CANDIDATE_VIEW_NAMES عمداً: أسماء المرشحين محجوبة عنه في
+            // الشاشات كغيره — حياد التقييم مبنيّ على ذلك — والاستثناء للمستند
+            // المطبوع وحده (REPORT_VIEW_NAMES) لأنه وثيقة رسمية تُوقَّع.
+            // ولمن أراد غير ذلك: تُمنَح من شاشة «الأدوار والصلاحيات».
             'CENTER_MANAGER' => [
-                // السلطة النهائية (اعتماد pending_center + الملخّص التنفيذي) تلزمها رؤية
-                // المصنّفين، وإلا اختفى عنه تقرير مرشّح مصنّف يصل لمرحلته فتعذّر اعتماده
                 self::CANDIDATE_VIEW, self::CANDIDATE_JOURNEY, self::CANDIDATE_CV_VIEW, self::CANDIDATE_VIEW_CLASSIFIED,
-                self::SCHEDULE_VIEW, self::ATTENDANCE_VIEW,
-                self::EVALUATION_VIEW, self::MEASUREMENT_VIEW, self::REPORT_VIEW,
+                self::CANDIDATE_EDIT, self::CANDIDATE_APPROVE,
+                self::SCHEDULE_VIEW, self::SCHEDULE_MANAGE, self::DISTRIBUTION_MANAGE, self::ROSTER_MANAGE,
+                self::RECEPTION_VIEW, self::RECEPTION_ASSIGN, self::RECEPTION_APPROVE,
+                self::ATTENDANCE_VIEW, self::ATTENDANCE_RECORD_ANY,
+                self::EVALUATION_VIEW, self::EVALUATION_APPROVE,
+                self::MEASUREMENT_VIEW, self::MEASUREMENT_UPLOAD,
+                self::REPORT_VIEW, self::REPORT_CREATE, self::REPORT_EDIT_ANY,
                 self::REPORT_APPROVE_CENTER, self::REPORT_RETURN, self::REPORT_CANCEL,
-                self::REPORT_EXEC_SUMMARY,
-                self::REPORT_VIEW_NAMES, self::REPORT_EXPORT, self::COMPETENCY_VIEW,
-                self::AUDIT_VIEW, self::ANALYTICS_VIEW,
+                self::REPORT_EXEC_SUMMARY, self::REPORT_VIEW_NAMES, self::REPORT_EXPORT,
+                self::DEVELOPMENT_PLAN_VIEW,
+                self::COMPETENCY_VIEW, self::COMPETENCY_MANAGE,
+                self::SEND_INVITATION, self::CHAT_VIEW,
+                self::AUDIT_VIEW,
+                self::ANALYTICS_VIEW, self::ANALYTICS_EXECUTIVE, self::ANALYTICS_DAILY_REPORT,
             ],
 
             // مسؤول الجدولة — يملك إدارة المرشحين، فله وحده تجاوز حدّ القطاع (بتحذير وتدقيق)
@@ -121,7 +142,7 @@ class Permissions
                 self::CANDIDATE_UPDATE_APPROVE,
                 self::SCHEDULE_VIEW, self::SCHEDULE_MANAGE, self::DISTRIBUTION_MANAGE, self::ATTENDANCE_VIEW,
                 self::ROSTER_MANAGE,
-                self::SEND_INVITATION,
+                self::SEND_INVITATION, self::CHAT_VIEW,
                 // العمليات: يستقبل المردود فيعيد إسناده، ويعتمد البيانات ويُرحّلها
                 // للجدول. لا RECEPTION_RECORD — الوصول والتوقيع عند الاستقبال.
                 self::RECEPTION_VIEW, self::RECEPTION_ASSIGN, self::RECEPTION_APPROVE,
@@ -137,7 +158,7 @@ class Permissions
             'RECEPTIONIST' => [
                 self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_NAMES,
                 self::ATTENDANCE_VIEW, self::ATTENDANCE_RECORD, self::ATTENDANCE_RECORD_ANY,
-                self::SEND_INVITATION,
+                self::SEND_INVITATION, self::CHAT_VIEW,
                 self::RECEPTION_VIEW, self::RECEPTION_RECORD, self::RECEPTION_ASSIGN,
             ],
 
@@ -158,7 +179,9 @@ class Permissions
                 self::ATTENDANCE_VIEW, self::EVALUATION_VIEW, self::EVALUATION_APPROVE,
                 self::MEASUREMENT_VIEW, self::REPORT_VIEW, self::REPORT_CREATE,
                 self::REPORT_EDIT_ANY, self::REPORT_APPROVE_MANAGER,
-                self::REPORT_EXPORT, self::COMPETENCY_VIEW, self::ANALYTICS_VIEW,
+                self::REPORT_EXPORT, self::COMPETENCY_VIEW,
+                self::ANALYTICS_VIEW, self::ANALYTICS_EXECUTIVE, self::ANALYTICS_DAILY_REPORT,
+                self::DEVELOPMENT_PLAN_VIEW, self::CHAT_VIEW,
             ],
 
             // مستشار المقابلة — يعتمد المرحلة الأولى، ويسجّل حضور جلساته
@@ -167,6 +190,7 @@ class Permissions
                 self::CANDIDATE_VIEW, self::EVALUATION_VIEW, self::EVALUATION_INPUT,
                 self::ATTENDANCE_VIEW, self::ATTENDANCE_RECORD,
                 self::REPORT_VIEW, self::REPORT_APPROVE_EVALUATOR,
+                self::DEVELOPMENT_PLAN_VIEW, self::CHAT_VIEW,
                 // يرى المُسنَد إليه وحده ويقرّر فيه — بلا RECEPTION_ASSIGN
                 self::RECEPTION_VIEW, self::RECEPTION_DECIDE,
             ],
@@ -175,6 +199,7 @@ class Permissions
             'DISCUSSION_EVAL' => [
                 self::CANDIDATE_VIEW, self::EVALUATION_VIEW, self::EVALUATION_INPUT,
                 self::ATTENDANCE_VIEW, self::ATTENDANCE_RECORD,
+                self::CHAT_VIEW,
                 self::RECEPTION_VIEW, self::RECEPTION_DECIDE,
             ],
 
@@ -184,19 +209,22 @@ class Permissions
                 self::CANDIDATE_VIEW, self::EVALUATION_VIEW, self::EVALUATION_ASSIST,
                 self::ATTENDANCE_VIEW, self::ATTENDANCE_RECORD,
                 self::MEASUREMENT_VIEW, self::REPORT_VIEW, self::REPORT_CREATE,
+                self::DEVELOPMENT_PLAN_VIEW, self::CHAT_VIEW,
             ],
 
             // إدارة تطوير الكفاءات — الاعتماد النهائي
             'DEV_MANAGER' => [
                 self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_CLASSIFIED, self::CANDIDATE_JOURNEY, self::CANDIDATE_CV_VIEW, self::EVALUATION_VIEW, self::MEASUREMENT_VIEW,
                 self::REPORT_VIEW, self::REPORT_APPROVE,
-                self::REPORT_EXPORT, self::COMPETENCY_VIEW, self::COMPETENCY_MANAGE, self::ANALYTICS_VIEW,
+                self::REPORT_EXPORT, self::COMPETENCY_VIEW, self::COMPETENCY_MANAGE,
+                self::ANALYTICS_VIEW, self::ANALYTICS_EXECUTIVE, self::ANALYTICS_DAILY_REPORT,
+                self::DEVELOPMENT_PLAN_VIEW, self::CHAT_VIEW,
             ],
 
             // مشرف أدوات القياس — يشرف على جلسات القياس كلها لا جلسة بعينها
             'MEASURE_SUPER' => [
                 self::CANDIDATE_VIEW, self::ATTENDANCE_VIEW, self::ATTENDANCE_RECORD, self::ATTENDANCE_RECORD_ANY,
-                self::MEASUREMENT_VIEW, self::MEASUREMENT_UPLOAD,
+                self::MEASUREMENT_VIEW, self::MEASUREMENT_UPLOAD, self::CHAT_VIEW,
                 self::RECEPTION_VIEW, self::RECEPTION_DECIDE,
             ],
 
@@ -229,10 +257,91 @@ class Permissions
         }
         $consts = (new \ReflectionClass(self::class))->getConstants();
 
+        // نمطٌ صارم لا مجرّد «فيه نقطة». الانعكاس يقرأ **كل** ثوابت الصنف بما
+        // فيها ما ليس صلاحية؛ ومفتاح ذاكرة اسمه 'kafaat.rolePermissions' كان
+        // يمرّ بالفحص القديم فيصير صلاحيةً وهمية تظهر مربّعَ اختيارٍ في شاشة
+        // صلاحيات الأدوار. الشكل الحقيقي: مجموعة.فعل بحروف صغيرة وشرطة سفلية.
         return $cache = array_values(array_filter(
             $consts,
-            fn ($v) => is_string($v) && str_contains($v, '.')
+            fn ($v) => is_string($v) && preg_match('/^[a-z][a-z_]*\.[a-z][a-z_]*$/', $v) === 1
         ));
+    }
+
+    // ── وصف عربي لكل صلاحية ──
+    // شاشة صلاحيات الأدوار يقرؤها مدير المركز لا مبرمج. «candidate.cross_sector»
+    // لا تقول له شيئاً، و«إسناد مرشّح لمقيّم من قطاع آخر» تقول كل شيء — والفرق
+    // بينهما هو الفرق بين ضبطٍ واعٍ ونقرٍ على المجهول.
+    public const LABELS = [
+        // المرشحون
+        'candidate.view' => 'عرض المرشحين',
+        'candidate.create' => 'إضافة مرشّح',
+        'candidate.edit' => 'تعديل بيانات مرشّح',
+        'candidate.approve' => 'اعتماد ترشيح',
+        'candidate.view_names' => 'رؤية أسماء المرشحين (حسّاسة)',
+        'candidate.view_classified' => 'رؤية المرشحين المصنَّفين (حسّاسة)',
+        'candidate.journey' => 'عرض رحلة المرشّح',
+        'candidate.cv_view' => 'قراءة السيرة الذاتية',
+        'candidate.update_request' => 'رفع طلب تحديث بيانات',
+        'candidate.update_approve' => 'البتّ في طلبات التحديث',
+        'candidate.cross_sector' => 'الإسناد عبر القطاعات',
+        // الجدولة
+        'schedule.view' => 'عرض الجدول',
+        'schedule.manage' => 'إدارة الجدولة',
+        'schedule.distribute' => 'التوزيع الأسبوعي',
+        'roster.manage' => 'إسناد مجموعات كشف اليوم',
+        // استقبال الموظفين
+        'reception.view' => 'فتح شاشة استقبال الموظفين',
+        'reception.record' => 'تسجيل الوصول وأخذ التوقيع والإقرار',
+        'reception.assign' => 'توزيع المرشحين على الأنشطة',
+        'reception.decide' => 'استلام المرشّح أو ردّه (للمقيّم)',
+        'reception.approve' => 'اعتماد الاستقبال وترحيل الجلسات',
+        // الحضور
+        'attendance.view' => 'عرض الحضور',
+        'attendance.record' => 'تسجيل حضور جلساته',
+        'attendance.record_any' => 'تسجيل حضور أي جلسة',
+        // التقييم
+        'evaluation.view' => 'عرض التقييم',
+        'evaluation.input' => 'إدخال التقييم',
+        'evaluation.assist' => 'الرصد المساعد',
+        'evaluation.approve' => 'اعتماد التقييم',
+        // أدوات القياس
+        'measurement.view' => 'عرض أدوات القياس',
+        'measurement.upload' => 'رفع نتائج القياس',
+        // التقارير
+        'report.view' => 'عرض التقارير',
+        'report.create' => 'كتابة تقرير',
+        'report.edit_any' => 'تعديل تقرير كتبه غيره',
+        'report.approve_evaluator' => 'اعتماد: مستشار المقابلة',
+        'report.approve_manager' => 'اعتماد: مدير إدارة التقييم',
+        'report.approve' => 'اعتماد: إدارة تطوير الكفاءات',
+        'report.approve_center' => 'اعتماد: مدير المركز (نهائي)',
+        'report.return' => 'إرجاع تقرير',
+        'report.cancel' => 'إلغاء تقرير',
+        'report.export' => 'تصدير التقارير',
+        'report.view_names' => 'اسم المرشّح في المستند المطبوع (حسّاسة)',
+        'report.exec_summary' => 'كتابة الملخّص التنفيذي',
+        // خطط التطوير
+        'development_plan.view' => 'خطط التطوير الفردية',
+        // الكفاءات
+        'competency.view' => 'عرض إطار الكفاءات',
+        'competency.manage' => 'إدارة الكفاءات وربطها بالأنشطة',
+        // المراسلات
+        'communication.invite' => 'إرسال الدعوات',
+        'chat.view' => 'المحادثات',
+        // التحليلات
+        'analytics.view' => 'شاشة التحليلات',
+        'analytics.executive' => 'اللوحة التنفيذية',
+        'analytics.daily_report' => 'التقرير اليومي',
+        // سلطات النظام
+        'workflow.manage' => 'ضبط مراحل الاعتماد',
+        'user.manage' => 'إدارة المستخدمين والأدوار',
+        'settings.manage' => 'إدارة الإعدادات',
+        'audit.view' => 'سجل التدقيق',
+    ];
+
+    public static function label(string $permission): string
+    {
+        return self::LABELS[$permission] ?? $permission;
     }
 
     // ── الصلاحيات مجمّعة للعرض ──
@@ -247,12 +356,15 @@ class Permissions
             'evaluation' => 'التقييم',
             'measurement' => 'أدوات القياس',
             'report' => 'التقارير',
+            'development_plan' => 'خطط التطوير',
             'competency' => 'الكفاءات',
             'communication' => 'المراسلات',
+            'chat' => 'المحادثات',
+            'analytics' => 'التحليلات',
+            'workflow' => 'مراحل الاعتماد',
             'user' => 'المستخدمون',
             'audit' => 'التدقيق',
             'settings' => 'الإعدادات',
-            'analytics' => 'التحليلات',
         ];
 
         $out = [];
@@ -262,15 +374,72 @@ class Permissions
             $out[$prefix]['permissions'][] = $p;
         }
 
-        return $out;
+        // الترتيب بترتيب $groups لا بترتيب ثوابت الصنف. الانعكاس يُرجعها بترتيب
+        // التعريف، فتظهر «سلطات النظام» في وسط الشاشة وتتفرّق مجموعةٌ أُضيفت
+        // متأخّرة عن أخواتها — والشاشة تُقرأ بالعين لا بالترتيب الداخلي.
+        $ordered = [];
+        foreach (array_keys($groups) as $key) {
+            if (isset($out[$key])) $ordered[$key] = $out[$key];
+        }
+        // مجموعة بلا مدخل في $groups تبقى ظاهرة في الذيل لا تختفي صامتة
+        foreach ($out as $key => $g) {
+            if (!isset($ordered[$key])) $ordered[$key] = $g;
+        }
+
+        return $ordered;
+    }
+
+    // ════════════════════════════════════════════════════════
+    //  مصدر الصلاحيات: الجدول أولاً، والمصفوفة افتراضياً
+    // ════════════════════════════════════════════════════════
+    //
+    // matrix() صارت **القيمة الافتراضية** التي يُبذَر بها كل دور أول مرّة، لا
+    // المرجع الوحيد. المرجع هو جدول role_permissions كي يُحرّره المدير من
+    // الشاشة بلا نشر. ودورٌ لا صفوف له يقع على المصفوفة — فتنصيبٌ لم يُبذَر
+    // بعد، أو دورٌ أُضيف في الشيفرة ولم يُبذَر، يبقى عاملاً لا مشلولاً.
+    //
+    // التخزين على الحاوية لا في متغيّر ساكن: الحاوية تُبنى من جديد لكل طلب
+    // ولكل اختبار، أمّا الساكن فيعيش مع العملية — فتقرأ اختباراتٌ تالية
+    // صلاحياتِ اختبارٍ سابق.
+    private const CACHE_KEY = 'kafaat.rolePermissions';
+
+    private static function dbMap(): array
+    {
+        $app = app();
+        if ($app->bound(self::CACHE_KEY)) {
+            return $app->make(self::CACHE_KEY);
+        }
+
+        $map = [];
+        try {
+            $rows = \Illuminate\Support\Facades\DB::table('role_permissions')
+                ->join('roles', 'roles.id', '=', 'role_permissions.role_id')
+                ->select('roles.code', 'role_permissions.permission')
+                ->get();
+            foreach ($rows as $r) {
+                $map[$r->code][] = $r->permission;
+            }
+        } catch (\Throwable) {
+            // القاعدة غير مهيّأة بعد (هجرة أولى، أو أمر console قبل الترحيل):
+            // نقع على المصفوفة بدل أن نُسقط الطلب
+            $map = [];
+        }
+
+        $app->instance(self::CACHE_KEY, $map);
+        return $map;
+    }
+
+    // تُستدعى بعد كل كتابة على صلاحيات الأدوار — وإلا خدم بقيةُ الطلب قيمةً قديمة
+    public static function forgetCache(): void
+    {
+        app()->forgetInstance(self::CACHE_KEY);
     }
 
     // ── التحقق: هل الدور يملك الصلاحية؟ ──
     public static function roleHasPermission(string $roleCode, string $permission): bool
     {
-        $matrix = self::matrix();
-        if (!isset($matrix[$roleCode])) return false;
-        $perms = $matrix[$roleCode];
+        $perms = self::forRole($roleCode);
+        if ($perms === []) return false;
 
         // '*' يُفرَد على الصلاحيات المعرَّفة لا على أي نصّ. كان يمرّر أي سلسلة،
         // فخطأ مطبعي في فحصٍ داخل متحكّم (hasPermission('candidate.viewww'))
@@ -285,8 +454,29 @@ class Permissions
     }
 
     // ── قائمة صلاحيات الدور (تُرسل للواجهة لضبط العرض) ──
+    //
+    // الجدول أولاً. ودورٌ لا صفوف له يقع على المصفوفة — لا على قائمة فارغة:
+    // دورٌ بلا صلاحيات إطلاقاً يعني حساباً لا يفتح شيئاً، وهو عطلٌ صامت لا
+    // إعدادٌ مقصود. أمّا الفراغ المقصود (دور جُرّد عمداً) فيُمثَّل بصفٍّ
+    // واحد هو PLACEHOLDER — انظر RoleController::savePermissions.
     public static function forRole(string $roleCode): array
     {
+        $map = self::dbMap();
+        if (array_key_exists($roleCode, $map)) {
+            return array_values(array_diff($map[$roleCode], [self::PLACEHOLDER]));
+        }
+
         return self::matrix()[$roleCode] ?? [];
+    }
+
+    // علامة «هذا الدور مضبوط عمداً على لا شيء». بدونها كان تجريد دورٍ من كل
+    // صلاحياته يحذف صفوفه، فيقع على المصفوفة ويستعيد صلاحياته الافتراضية —
+    // أي أنّ السحب الكامل كان ينقلب إلى استعادةٍ صامتة.
+    public const PLACEHOLDER = '__none__';
+
+    // هل صلاحيات هذا الدور محرَّرة في القاعدة (لا مأخوذة من المصفوفة)؟
+    public static function roleIsCustomised(string $roleCode): bool
+    {
+        return array_key_exists($roleCode, self::dbMap());
     }
 }

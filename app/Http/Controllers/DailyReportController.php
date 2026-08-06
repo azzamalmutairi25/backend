@@ -15,7 +15,10 @@ class DailyReportController extends Controller
     // من يرى التقرير: حامل التحليلات (مدير المركز والمديرون)
     private function authorize(Request $request): bool
     {
-        return $request->user()->hasPermission(Permissions::ANALYTICS_VIEW);
+        // صلاحيته المستقلّة، أو صلاحية التحليلات العامّة — الثانية إبقاءٌ على
+        // ما كان يعمل قبل الفصل: من ملك التحليلات كان يفتح هذه الشاشة
+        return $request->user()->hasPermission(Permissions::ANALYTICS_DAILY_REPORT)
+            || $request->user()->hasPermission(Permissions::ANALYTICS_VIEW);
     }
 
     private function date(Request $request): string

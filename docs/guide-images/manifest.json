@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-06T10:42:05.748Z",
+  "updatedAt": "2026-08-06T13:39:03.394Z",
   "base": "http://localhost:5173",
   "screens": [
     {
@@ -127,6 +127,12 @@
       "title": "المستخدمون والصلاحيات",
       "file": "users.png",
       "capturedAt": "2026-08-06T08:15:02.098Z"
+    },
+    {
+      "id": "roles",
+      "title": "الأدوار والصلاحيات",
+      "file": "roles.png",
+      "capturedAt": "2026-08-06T13:39:03.394Z"
     },
     {
       "id": "settings",

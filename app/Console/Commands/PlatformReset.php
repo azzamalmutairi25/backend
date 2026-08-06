@@ -33,6 +33,9 @@ class PlatformReset extends Command
     private const KEEP = [
         'migrations',        // سجل الهجرات — مسحه يعيد تشغيلها كلها
         'roles',             // الأكواد مقترنة بـ Permissions::forRole()
+        // ضبط صلاحيات الأدوار إعدادُ نظامٍ لا بيانات تشغيل. مسحُه يُعيد كل دور
+        // إلى افتراضي المصفوفة، فيمحو ضبطاً اختاره صاحب المنصّة بيده.
+        'role_permissions',
         'workflow_stages',   // سلسلة اعتماد التقرير
         'settings',          // قوالب الرسائل وأوقات الجلسات
     ];

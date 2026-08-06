@@ -55,6 +55,9 @@ class PermissionMatrixInvariantsTest extends TestCase
     private const ADMIN_ONLY = [
         Permissions::USER_MANAGE,
         Permissions::SETTINGS_MANAGE,
+        // ضبط مراحل الاعتماد سلطة نظام كنظيرتيها. فُصلت عن settings.manage
+        // كي تُمنَح وحدها من شاشة الأدوار عند الحاجة، ولا تُبذَر لأحد.
+        Permissions::WORKFLOW_MANAGE,
     ];
 
     public function test_every_declared_permission_is_held_by_at_least_one_role(): void

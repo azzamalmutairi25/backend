@@ -58,6 +58,7 @@ const SCREENS = [
   { id: 'notifications',        path: '/notifications',                     wait: 'main',        title: 'الإشعارات' },
   { id: 'workflow',             path: '/workflow',                          wait: 'main',        title: 'مراحل الاعتماد' },
   { id: 'users',                path: '/users',                             wait: 'main',        title: 'المستخدمون والصلاحيات' },
+  { id: 'roles',                path: '/roles',                             wait: 'main',        title: 'الأدوار والصلاحيات' },
   { id: 'settings',             path: '/settings',                          wait: 'main',        title: 'الإعدادات' },
   { id: 'audit',                path: '/audit',                             wait: 'main',        title: 'سجل التدقيق' },
   { id: 'change-password',      path: '/change-password',                   wait: 'main',        title: 'تغيير كلمة المرور' },

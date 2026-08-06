@@ -38,6 +38,26 @@ class DatabaseSeeder extends Seeder
         ];
         foreach ($roles as $r) Role::updateOrCreate(['code' => $r['code']], $r);
 
+        // ── صلاحيات الأدوار: تُبذَر من المصفوفة مرّة، ثم يملكها المدير ──
+        // البذر لدورٍ **لا صفوف له** فقط. دورٌ حُرِّرت صلاحياته من الشاشة لا
+        // يُعاد إلى الافتراضي بإعادة تشغيل البذر — وإلا محا كلُّ بذرٍ ضبطاً
+        // اختاره صاحب المنصّة بلا إنذار، وهو نفس عطل حساب admin.
+        if (\Illuminate\Support\Facades\Schema::hasTable('role_permissions')) {
+            $seeded = 0;
+            foreach (\App\Security\Permissions::matrix() as $code => $perms) {
+                $role = Role::where('code', $code)->first();
+                if (!$role) continue;
+                if (\App\Models\RolePermission::where('role_id', $role->id)->exists()) continue;
+
+                foreach ($perms as $p) {
+                    \App\Models\RolePermission::create(['role_id' => $role->id, 'permission' => $p]);
+                }
+                $seeded++;
+            }
+            \App\Security\Permissions::forgetCache();
+            if ($seeded > 0) echo "✓ بُذرت صلاحيات {$seeded} دور\n";
+        }
+
         // ── القطاعات الثمانية ──
         $sectors = [
             ['code' => 'DA', 'name_ar' => 'الدفاع', 'is_military' => true],

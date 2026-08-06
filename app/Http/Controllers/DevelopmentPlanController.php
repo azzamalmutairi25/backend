@@ -63,7 +63,9 @@ class DevelopmentPlanController extends Controller
     // GET /development-plans/{candidateId} — بنود الدورة الحالية
     public function index(Request $request, int $candidateId)
     {
-        if (!$request->user()->hasPermission(Permissions::REPORT_VIEW)) {
+        // صلاحيتها المستقلّة أو صلاحية التقارير — الثانية إبقاءٌ على ما كان
+        if (!$request->user()->hasPermission(Permissions::DEVELOPMENT_PLAN_VIEW)
+            && !$request->user()->hasPermission(Permissions::REPORT_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض خطة التطوير'], 403);
         }
         // المقيّم المحصور لا يرى إلا من قيّمهم هو — كما competencyGap/scorePreview.

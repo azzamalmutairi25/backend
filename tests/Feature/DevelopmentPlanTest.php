@@ -24,7 +24,7 @@ class DevelopmentPlanTest extends TestCase
     public function test_create_requires_report_create(): void
     {
         [$c] = $this->makeCandidate(['status' => 'assessed']);
-        $this->actingAsRole('CENTER_MANAGER'); // REPORT_VIEW فقط
+        $this->actingAsRole('EVALUATOR'); // REPORT_VIEW فقط، لا CREATE
         $this->postJson('/api/development-plans', ['candidateId' => $c->id, 'area' => 'التفويض'])
             ->assertStatus(403);
     }

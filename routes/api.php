@@ -14,6 +14,7 @@ use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\RosterController;
 use App\Http\Controllers\ReceptionController;
+use App\Http\Controllers\RoleController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DailyReportController;
@@ -104,6 +105,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/candidate-update-requests/{id}/reject', [CandidateUpdateRequestController::class, 'reject']);
 
     Route::get('/audit/log', [AuditController::class, 'systemLog']);
+    // ═══ الأدوار وصلاحياتها — يحرّرها مدير النظام من الشاشة ═══
+    // «roles» هنا لا في UserController: الدور كيانٌ قائم بذاته يُنشأ ويُعدَّل
+    // ويُحذف، لا حقلٌ في نموذج المستخدم.
+    Route::get('/roles', [RoleController::class, 'index']);
+    Route::post('/roles', [RoleController::class, 'store']);
+    Route::get('/roles/{id}/permissions', [RoleController::class, 'permissions']);
+    Route::put('/roles/{id}/permissions', [RoleController::class, 'savePermissions']);
+    Route::post('/roles/{id}/reset', [RoleController::class, 'reset']);
+    Route::put('/roles/{id}', [RoleController::class, 'update']);
+    Route::delete('/roles/{id}', [RoleController::class, 'destroy']);
+
     Route::get('/users', [UserController::class, 'index']);
     Route::get('/users/roles', [UserController::class, 'roles']);
     Route::get('/users/role-permissions', [UserController::class, 'rolePermissions']);

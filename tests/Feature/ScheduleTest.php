@@ -28,7 +28,7 @@ class ScheduleTest extends TestCase
     public function test_create_requires_schedule_manage(): void
     {
         [$c] = $this->makeCandidate(['status' => 'scheduled']);
-        $this->actingAsRole('CENTER_MANAGER'); // SCHEDULE_VIEW فقط، لا MANAGE
+        $this->actingAsRole('OPERATIONS'); // SCHEDULE_VIEW فقط، لا MANAGE
         $this->postJson('/api/schedules', [
             'candidateId' => $c->id, 'activity' => 'interview', 'date' => $this->tomorrow(), 'time' => '09:30',
         ])->assertStatus(403);
