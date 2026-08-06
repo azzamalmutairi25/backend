@@ -56,6 +56,18 @@ remote_read() { ssh "$SSH_USER@$HOST" "export SUDO_ASKPASS=$ASKPASS; $*"; }
 # sudo كمستخدم التطبيق — الملفات يجب أن تُولد بملكيته لا بملكية حساب الدخول
 as_app() { remote "sudo -A -u kafaat bash -c '$*'"; }
 
+# ── سرد الإصدارات، الأحدث أولاً ──
+#
+# التوسيع داخل bash المرفوعة بـsudo لا خارجها. حساب الدخول (tamkeenadmin) لا
+# يقرأ $RELEASES، فكان `ls $RELEASES/*/` يتوسّع إلى لا شيء ويُخرج «Permission
+# denied» إلى stderr ويُرجع سلسلة فارغة — بلا أن يفشل الأمر.
+#
+# الأثر لم يكن تجميلياً: `--rollback` كان يقرأ فراغاً فيقول «لا يوجد إصدار
+# سابق» ويخرج. أي أنّ **الرجوع كان معطّلاً**، ومعه الرجوع التلقائي عند فشل
+# فحص الصحّة — وهو الحارس الذي يُفترض أن يعمل في أسوأ لحظة بالضبط.
+# وتنظيف الإصدارات القديمة كان معطّلاً كذلك (تراكمت ستّة والحدّ خمسة).
+releases_desc() { remote_read "sudo -A bash -c 'ls -1dt $RELEASES/*/ 2>/dev/null'"; }
+
 # ── تحقّق مبكّر: بيئة الدفع سليمة قبل أن نلمس الخادم ──
 command -v rsync >/dev/null || die "rsync غير موجود على هذا الجهاز"
 ssh -o ConnectTimeout=8 -o BatchMode=yes "$SSH_USER@$HOST" true 2>/dev/null \
@@ -70,7 +82,7 @@ log "PHP على الخادم: $PHPV"
 
 # ── الرجوع: مُقدَّم لأنّ وقت الحاجة إليه ليس وقت قراءة سكربت ──
 if [[ $ROLLBACK == 1 ]]; then
-  prev=$(remote_read "ls -1dt $RELEASES/*/ | sed -n 2p" || true)
+  prev=$(releases_desc | sed -n 2p || true)
   [[ -n "${prev:-}" ]] || die "لا يوجد إصدار سابق"
   log "الرجوع إلى $(basename "${prev%/}")"
   as_app "ln -sfn ${prev%/} $CURRENT.tmp && mv -Tf $CURRENT.tmp $CURRENT"
@@ -131,7 +143,7 @@ remote "sudo -A mkdir -p $NEW && sudo -A cp -a $STAGE/. $NEW/ && sudo -A chown -
 
 # vendor: نسخة الإصدار السابق بروابط صلبة ثم مصالحة بـcomposer — أسرع بكثير
 # من تنزيلٍ كامل، والمصالحة تضمن مطابقة composer.lock تماماً.
-PREV=$(remote_read "ls -1dt $RELEASES/*/ | sed -n 2p" || true)
+PREV=$(releases_desc | sed -n 2p || true)
 if [[ -n "${PREV:-}" && $DRY == 0 ]]; then
   log "نسخ vendor من $(basename "${PREV%/}") ثم المصالحة…"
   as_app "cp -al ${PREV%/}/vendor $NEW/vendor 2>/dev/null || cp -a ${PREV%/}/vendor $NEW/vendor"
@@ -180,6 +192,6 @@ if [[ $DRY == 0 ]]; then
 fi
 
 # ── ١٠) تنظيف الإصدارات القديمة ──
-remote "ls -1dt $RELEASES/*/ | tail -n +$((KEEP+1)) | xargs -r sudo -A rm -rf"
+remote "sudo -A bash -c 'ls -1dt $RELEASES/*/' | tail -n +$((KEEP+1)) | xargs -r sudo -A rm -rf"
 
 log "تمّ النشر: $TS"

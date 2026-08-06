@@ -73,7 +73,15 @@ class DatabaseSeeder extends Seeder
 
         if (app()->environment('production')) {
             $adminPassword = (string) env('ADMIN_INITIAL_PASSWORD', '');
-            if ($adminPassword !== '') {
+            // حسابٌ قائم لا يُمَسّ. كان updateOrCreate يكتب فوقه، فإعادةُ تشغيل
+            // البذر لسببٍ آخر — إضافة دور أو قطاع — تُعيد كلمة مرور مدير النظام
+            // إلى قيمة البيئة وتُلزمه بالتغيير. أي أنّ أمراً يبدو مرجعياً بحتاً
+            // كان ينتزع من صاحب المنصّة كلمةَ مروره التي اختارها، بلا إنذار.
+            // الإنشاء لأول مرة فقط؛ وإعادة الضبط لها أمرها الصريح:
+            //     php artisan kafaat:create-admin admin --reset
+            if (User::where('username', 'admin')->exists()) {
+                echo "• حساب admin قائم — لم يُمَسّ (استعمل kafaat:create-admin --reset لإعادة الضبط)\n";
+            } elseif ($adminPassword !== '') {
                 User::updateOrCreate(
                     ['username' => 'admin'],
                     [
