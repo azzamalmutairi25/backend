@@ -78,10 +78,14 @@ class AnalyticsController extends Controller
     }
 
     // GET /analytics/executive — الحمولة الكاملة للوحة التنفيذية (KPIs/خريطة/مقارنات/اتجاهات/رؤى)
+    //
+    // بصلاحيتها المستقلّة لا بصلاحية التحليلات العامّة: اللوحة التنفيذية شاشة
+    // قائمة بذاتها في الشريط الجانبي، وسحبُها من دورٍ في شاشة الأدوار يجب أن
+    // يُغلق مسارها لا أن يُخفي رابطها وحده.
     public function executive(Request $request, ExecutiveAnalyticsService $svc)
     {
-        if (!$this->gate($request)) {
-            return response()->json(['error' => 'ليس لديك صلاحية عرض التحليلات'], 403);
+        if (!$request->user()->hasPermission(Permissions::ANALYTICS_EXECUTIVE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض اللوحة التنفيذية'], 403);
         }
         $months = (int) ($request->input('months') ?: 6);
         return response()->json($svc->executive($this->allowedClassifications($request), $months));

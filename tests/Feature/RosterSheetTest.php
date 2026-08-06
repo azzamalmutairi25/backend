@@ -113,8 +113,9 @@ class RosterSheetTest extends TestCase
     {
         $c = $this->participant();
         $nid = $c->national_id;
-        // مدير المركز يرى الجدولة ولا يملك candidate.view_names
-        $this->actingAsRole('CENTER_MANAGER');
+        // مسؤول العمليات يرى الجدولة ولا يملك candidate.view_names —
+        // قراره إجرائي فيعمل بالرمز (كان مدير المركز حتى مُنح الأسماء)
+        $this->actingAsRole('OPERATIONS');
 
         $html = $this->get('/api/roster/document?date=' . self::DAY . '&showNationalId=1')
             ->assertOk()->getContent();

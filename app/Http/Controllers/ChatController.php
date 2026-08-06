@@ -21,6 +21,13 @@ class ChatController extends Controller
     // يتحقق أن للمستخدم صلاحية الوصول لكيان المحادثة (نفس بوابة الكيان الأصلي)
     private function authorizeEntity(Request $request, string $entityType, int $entityId)
     {
+        // بوّابتان لا واحدة: CHAT_VIEW تفتح الميزة نفسها، وبوّابة الكيان تفتح
+        // محادثةً بعينها. كانت الأولى غائبة، فكان سحبُها من دورٍ في شاشة
+        // الأدوار يُخفي الشاشة ويترك مسارها مفتوحاً لكل من يقرأ التقارير.
+        if (!$request->user()->hasPermission(Permissions::CHAT_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية المحادثات'], 403);
+        }
+
         if ($entityType === 'report') {
             if (!$request->user()->hasPermission(Permissions::REPORT_VIEW)) {
                 return response()->json(['error' => 'ليس لديك صلاحية الوصول لهذه المحادثة'], 403);

@@ -117,9 +117,9 @@ class ExecutiveAnalyticsTest extends TestCase
 
     public function test_executive_respects_classification_scope(): void
     {
-        // مدير جدولة مُنِح analytics.view لكنه بلا رؤية للمصنّفين
+        // مدير جدولة مُنِح اللوحة التنفيذية لكنه بلا رؤية للمصنّفين
         $u = $this->actingAsRole('SCHEDULER');
-        $u->permissionOverrides()->create(['permission' => 'analytics.view', 'granted' => true]);
+        $u->permissionOverrides()->create(['permission' => 'analytics.executive', 'granted' => true]);
         $ev = $this->evaluator();
         $comp = Competency::first();
 

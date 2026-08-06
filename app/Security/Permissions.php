@@ -111,12 +111,14 @@ class Permissions
             // المستخدمين ولا الإعدادات ولا مراحل الاعتماد: تلك سلطات نظام
             // تُدار من حساب مدير النظام وحده، وفصلُها يبقي من يشرف غير من يضبط.
             //
-            // بلا CANDIDATE_VIEW_NAMES عمداً: أسماء المرشحين محجوبة عنه في
-            // الشاشات كغيره — حياد التقييم مبنيّ على ذلك — والاستثناء للمستند
-            // المطبوع وحده (REPORT_VIEW_NAMES) لأنه وثيقة رسمية تُوقَّع.
-            // ولمن أراد غير ذلك: تُمنَح من شاشة «الأدوار والصلاحيات».
+            // ومعه CANDIDATE_VIEW_NAMES بقرارٍ صريح من صاحب المنصّة: مدير
+            // المركز مسؤولٌ عن المرشّح أمام الجهة، فيقرأ الاسم حيث يقرأ الرمز.
+            // وحياد التقييم يبقى محفوظاً لأنه لا يرصد ولا يُدخل درجة —
+            // المقيّم ومساعده وحدهما من يرصد، وهما بلا أسماء (انظر EVALUATOR
+            // وASSISTANT). حجبُ الاسم عمّن لا يرصد لم يكن يحمي شيئاً.
             'CENTER_MANAGER' => [
-                self::CANDIDATE_VIEW, self::CANDIDATE_JOURNEY, self::CANDIDATE_CV_VIEW, self::CANDIDATE_VIEW_CLASSIFIED,
+                self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_NAMES,
+                self::CANDIDATE_JOURNEY, self::CANDIDATE_CV_VIEW, self::CANDIDATE_VIEW_CLASSIFIED,
                 self::CANDIDATE_EDIT, self::CANDIDATE_APPROVE,
                 self::SCHEDULE_VIEW, self::SCHEDULE_MANAGE, self::DISTRIBUTION_MANAGE, self::ROSTER_MANAGE,
                 self::RECEPTION_VIEW, self::RECEPTION_ASSIGN, self::RECEPTION_APPROVE,

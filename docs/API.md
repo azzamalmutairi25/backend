@@ -2,6 +2,8 @@
 
 مرجعٌ للـ REST API الخلفي (Laravel 13). كل المسارات تحت البادئة `/api`.
 
+> **تبني تكاملاً؟** ابدأ بـ[**دليل المستخدم**](API_GUIDE.md) — أمثلة عاملة ووصفات كاملة وأخطاء شائعة. هذا الملف مرجعُ المسارات تعود إليه بعده.
+
 ---
 
 ## المصادقة (Authentication)
@@ -37,7 +39,7 @@
 
 ## نموذج الصلاحيات (Permissions)
 
-- كل دور يملك مجموعة صلاحيات (`app/Security/Permissions.php` — `matrix()`). `ADMIN` يملك `*` (كل شيء).
+- كل دور يملك مجموعة صلاحيات. **المرجع جدول `role_permissions`** يحرّره مدير النظام من شاشة «الأدوار والصلاحيات» فيسري فوراً بلا نشر؛ و`Permissions::matrix()` هي الافتراضي الذي يُبذَر منه كل دور أول مرّة ويُرجَع إليه عند «إعادة الافتراضي». `ADMIN` يملك `*` (كل شيء).
 - **استثناءات المستخدم** (`user_permission_overrides`): تمنح/تمنع صلاحية فوق الدور. المنع يغلب المنح.
 - **غير قابلة للتفويض** (`NON_DELEGABLE`): `user.manage`, `settings.manage`, `audit.view` — تُدار بالدور فقط.
 - الواجهة تقرأ الصلاحيات من كائن المستخدم (`GET /me`)؛ لكن **الخادم هو المرجع** ويفرضها على كل طلب.
@@ -74,6 +76,37 @@
 | POST | `/candidates/{id}/reassess` | `candidate.edit` | دورة تقييم جديدة |
 | GET | `/candidates/{id}/history` | `audit.view` | سجل تدقيق المرشح |
 | GET | `/candidates/{id}/interviewers` | `schedule.manage` | مستشارو المقابلة المؤهّلون |
+| GET | `/candidates/cards` | `candidate.view` | بطاقات المشاركين للطباعة |
+
+### طلبات تحديث بيانات المرشحين (Update Requests)
+> يرفعها المستخدم الخارجي حين يجد المرشّح مسجّلاً مسبقاً — الكتابة فوق سجلٍّ قائم ممنوعة من الخارج.
+
+| الطريقة | المسار | الصلاحية | الغرض |
+|---|---|---|---|
+| POST | `/candidate-update-requests` | `candidate.update_request` (٣٠/دقيقة) | رفع طلب تحديث |
+| GET | `/candidate-update-requests/mine` | `candidate.update_request` | متابعة طلباتي وحالتها |
+| GET | `/candidate-update-requests` | `candidate.update_approve` | الطلبات الواردة |
+| GET | `/candidate-update-requests/{id}` | `candidate.update_approve` | تفاصيل طلب |
+| POST | `/candidate-update-requests/{id}/approve` | `candidate.update_approve` | اعتماد (يُطبَّق على السجل) |
+| POST | `/candidate-update-requests/{id}/reject` | `candidate.update_approve` | رفض بسبب |
+
+### استقبال الموظفين (Reception)
+> مسار المرشّح من باب المركز إلى جدول المقابلات — **صلاحية لكل مرحلة**، ولا تُتخطّى مرحلة.
+
+| الطريقة | المسار | الصلاحية | الغرض |
+|---|---|---|---|
+| GET | `/reception` | `reception.view` | كشف اليوم + مهامّي (يتشكّل بالصلاحية) — `?date`، `?q` |
+| POST | `/reception/arrive` | `reception.record` | تسجيل وصول (وقت تلقائي) |
+| PATCH | `/reception/visits/{id}/arrival` | `reception.record` | تعديل وقت الوصول (`HH:MM`) |
+| POST | `/reception/visits/{id}/sign` | `reception.record` (٦٠/دقيقة) | توقيع المرشح وإقراره — PNG بترميز `data:` ≤٤٠٠ك محرف |
+| GET | `/reception/visits/{id}/cv` | `reception.view` + (`reception.record` أو `candidate.cv_view`) | سيرة من أمامك اليوم |
+| GET | `/reception/evaluators` | `reception.assign` | **من يستطيع الاستلام فعلاً** — `?activity`، `?sectorId` |
+| POST | `/reception/visits/{id}/assign` | `reception.assign` | توزيع على `interview`/`discussion`/`measurement` (بعد التوقيع) |
+| DELETE | `/reception/assignments/{id}` | `reception.assign` | سحب إسناد |
+| GET | `/reception/assignments/{id}/cv` | `reception.decide` | **سيرة بالرمز — بلا اسم ولا هوية أبداً** (قاعدة إجراء لا صلاحية) |
+| POST | `/reception/assignments/{id}/accept` | `reception.decide` | قبول المرشح |
+| POST | `/reception/assignments/{id}/reject` | `reception.decide` | ردّه للعمليات بسبب (٣–٥٠٠ حرف) |
+| POST | `/reception/visits/{id}/approve` | `reception.approve` | اعتماد البيانات وترحيلها للجدول (يشترط التوقيع) |
 
 ### السيرة الذاتية (CV)
 | الطريقة | المسار | الصلاحية | الغرض |
@@ -103,6 +136,9 @@
 | DELETE | `/schedules/{id}` | `schedule.manage` | حذف (يُمنع بعد الحضور) |
 | GET | `/schedules/absences/{candidateId}` | `schedule.view` | جلسات غياب قابلة لإعادة الجدولة |
 | POST | `/schedules/{id}/reschedule` | `candidate.edit` | إعادة جدولة غياب (مرّة واحدة) |
+| GET | `/roster` | `schedule.view` | مجموعتا كشف اليوم (أ/ب) |
+| POST · DELETE | `/roster/assign` | `roster.manage` | إسناد/إلغاء إسناد مجموعة |
+| GET | `/roster/document` | `schedule.view` | كشف الحضور المطبوع — `?date`، و`&showNationalId=1` لحاملي `candidate.view_names` وحدهم |
 
 ### الحضور (Attendance)
 | الطريقة | المسار | الصلاحية | الغرض |
@@ -141,7 +177,7 @@
 ### خطط التطوير (Development Plans)
 | الطريقة | المسار | الصلاحية | الغرض |
 |---|---|---|---|
-| GET | `/development-plans/{candidateId}` | `report.view` | بنود خطة الدورة |
+| GET | `/development-plans/{candidateId}` | `development_plan.view` | بنود خطة الدورة |
 | POST | `/development-plans` | `report.create` | إضافة بند |
 | POST | `/development-plans/seed` | `report.create` | توليد من مجالات التقرير (مرّة واحدة) |
 | PUT | `/development-plan-items/{id}` | `report.create` | تحديث بند |
@@ -150,17 +186,19 @@
 ### التحليلات (Analytics)
 | الطريقة | المسار | الصلاحية | الغرض |
 |---|---|---|---|
-| GET | `/analytics/executive` | `analytics.view` | **اللوحة التنفيذية الكاملة**: مؤشرات بفروقات، خريطة حرارية كفاءة×قطاع، اتجاهات، مقارنة قطاعات، مقارنة فئات قيادية، توزيع جاهزية، رؤى تلقائية. المُعامِل `?months` (٦ افتراضاً) |
+| GET | `/analytics/executive` | `analytics.executive` | **اللوحة التنفيذية الكاملة**: مؤشرات بفروقات، خريطة حرارية كفاءة×قطاع، اتجاهات، مقارنة قطاعات، مقارنة فئات قيادية، توزيع جاهزية، رؤى تلقائية. المُعامِل `?months` (٦ افتراضاً) |
 | GET | `/analytics/dashboard` | `analytics.view` | نظرة موحّدة مختصرة |
 | GET | `/analytics/by-sector` | `analytics.view` | تجميع حسب القطاع |
 | GET | `/analytics/competency-gaps` | `analytics.view` | فجوات الكفاءات (الأضعف أولاً) |
 | GET | `/analytics/trends` | `analytics.view` | التقارير المعتمدة شهرياً |
+| GET | `/daily-report` | `analytics.daily_report` | يوم المركز مجمَّعاً — `?date` |
+| GET | `/daily-report/document` | `analytics.daily_report` | التقرير اليومي مطبوعاً |
 
 ### المحادثات والإشعارات (Chat & Notifications)
 | الطريقة | المسار | الصلاحية | الغرض |
 |---|---|---|---|
-| GET | `/chat/{entityType}/{entityId}` | `report.view` (+نطاق) | محادثة كيان (تقرير) |
-| POST | `/chat/{threadId}/message` | `report.view` (+نطاق) | إرسال رسالة |
+| GET | `/chat/{entityType}/{entityId}` | `chat.view` + `report.view` (+نطاق) | محادثة كيان (تقرير) |
+| POST | `/chat/{threadId}/message` | `chat.view` + `report.view` (+نطاق) | إرسال رسالة |
 | GET | `/notifications` | مُصادَق | إشعاراتي (مُرقّمة) |
 | GET | `/notifications/unread-count` | مُصادَق | عدّاد غير المقروء |
 | PATCH | `/notifications/{id}/read` | مُصادَق | تعليم كمقروء |
@@ -189,6 +227,19 @@
 | POST | `/communications/invite` | `send_invitation` | إرسال دعوة (رابط بوّابة عبر SMS) |
 | GET | `/communications/history/{candidateId}` | `send_invitation` | سجل الرسائل |
 
+### الأدوار وصلاحياتها (Roles) — `user.manage`
+> المرجع الحيّ للصلاحيات. أربعة حرّاس ترفض بـ٤٢٢: دور `ADMIN` محميّ، ولا تعدّل دورك، ولا تمنح ما لا تملك، والصلاحيات غير القابلة للتفويض لا تُمسّ.
+
+| الطريقة | المسار | الغرض |
+|---|---|---|
+| GET | `/roles` | الأدوار وعدد صلاحيات كلٍّ ومن يحمله |
+| GET | `/roles/{id}/permissions` | صلاحيات الدور + الكتالوج مجموعاً + أسباب القفل |
+| PUT | `/roles/{id}/permissions` | حفظ الصلاحيات — **استبدال لا إضافة**: ما لا تُرسله يُسحَب |
+| POST | `/roles` | إنشاء دور |
+| PUT | `/roles/{id}` | تعديل اسم الدور |
+| DELETE | `/roles/{id}` | حذف دور (صلاحياته تتبعه) |
+| POST | `/roles/{id}/reset` | إعادة الدور إلى افتراضي المنصّة |
+
 ### المستخدمون (Users) — إدارة
 | الطريقة | المسار | الصلاحية | الغرض |
 |---|---|---|---|
@@ -205,7 +256,9 @@
 ### الإعدادات (Settings) — `settings.manage`
 `GET/PUT /settings/ldap` · `/sms` · `/smtp` · `/distribution` · `/tier` · `/idverify` — قراءة/حفظ.
 `POST /settings/{ldap,sms,smtp,idverify}/test` — اختبار تكامل خارجي (٥/دقيقة). `GET /settings/idverify/log` — سجل التحقق.
-`GET /sectors` · `PUT /sectors/{id}/prefix` — القطاعات ورموزها. `GET/PUT /workflow/report` — ترتيب سلسلة الاعتماد.
+`GET /sectors` · `PUT /sectors/{id}/prefix` — القطاعات ورموزها.
+`GET/PUT /workflow/report` — ترتيب سلسلة الاعتماد وتفعيل مراحلها (`workflow.manage` أو `settings.manage`).
+`GET /settings/session-times` · `PUT` — أوقات جلسات اليوم. `GET /setup-status` — ما بقي من خطوات التهيئة على منصّة جديدة.
 
 ### التدقيق (Audit) — `audit.view`
 `GET /audit/log` — السجل الموحّد (يحجب تفاصيل المرشحين المصنّفين عن غير المصرَّح له). `GET /candidates/{id}/history`.
@@ -220,4 +273,4 @@
 
 ---
 
-*مرجعٌ حيّ — يُحدَّث مع تطوّر الـ API. للتفاصيل الحقلية لكل مسار، انظر المتحكّم المقابل في `app/Http/Controllers/`.*
+*مرجعٌ حيّ — يُحدَّث مع تطوّر الـ API. للتفاصيل الحقلية لكل مسار، انظر المتحكّم المقابل في `app/Http/Controllers/`. وللأمثلة العاملة والوصفات الكاملة: [دليل المستخدم](API_GUIDE.md).*
