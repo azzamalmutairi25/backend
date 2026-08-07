@@ -57,12 +57,20 @@ class CandidateController extends Controller
             $query->where('participant_code', 'like', '%' . $request->search . '%');
         }
 
+        // نسخةٌ من الاستعلام المحصور قبل تنفيذه — تُستعمل استعلاماً فرعياً أدناه
+        $scopedIds = (clone $query)->select('candidates.id');
+
         $candidates = $query->orderBy('participant_code')->get();
 
         // المرشحون الذين لهم جلسة غياب مسجّلة — استعلام واحد لا N+1.
         // يظهر لهم في الواجهة علم غياب وخيار إعادة الجدولة بتاريخ جديد.
+        //
+        // استعلامٌ فرعي لا قائمة معرّفات: كان يُمرّر pluck('id') فيُبنى شرط
+        // IN بعدد صفوف القائمة كلّها. على مركزٍ فيه عشرون ألف مرشّح يصير
+        // نصّ الاستعلام وحده مئات الكيلوبايتات تُرسَل في كل فتحة للشاشة.
+        // القاعدة تحصر بنفسها هنا، فلا تعبر المعرّفات الشبكة أصلاً.
         $absentIds = \App\Models\Schedule::query()
-            ->whereIn('candidate_id', $candidates->pluck('id'))
+            ->whereIn('candidate_id', $scopedIds)
             ->whereHas('attendance', fn ($q) => $q->whereIn('status', ['absent_excused', 'absent_unexcused']))
             ->pluck('candidate_id')->unique()->flip();
 

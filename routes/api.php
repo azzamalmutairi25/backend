@@ -128,7 +128,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/users/{id}/password', [UserController::class, 'resetPassword']);
     Route::get('/settings/ldap', [SettingsController::class, 'getLdap']);
     Route::put('/settings/ldap', [SettingsController::class, 'saveLdap']);
-    Route::post('/settings/ldap/test', [SettingsController::class, 'testLdap']);
+    // يفتح اتصالاً خارجياً بمضيفٍ يختاره الطالب — يُخنق كأخواته الثلاث.
+    // المنفذ محصور بمنافذ LDAP والمحاولة مُدقَّقة، وكان الحدّ وحده ناقصاً:
+    // بلا سقفٍ يصير الاختبار ماسحَ مضيفاتٍ داخلية، يكشف الموجود من المعدوم
+    // بفارق زمن الردّ. الدفاع الثالث من ثلاثة.
+    Route::post('/settings/ldap/test', [SettingsController::class, 'testLdap'])
+        ->middleware('throttle:5,1');
 
     Route::get('/settings/sms', [SettingsController::class, 'getSms']);
     Route::put('/settings/sms', [SettingsController::class, 'saveSms']);

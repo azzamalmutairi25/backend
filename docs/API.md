@@ -113,6 +113,7 @@
 |---|---|---|---|
 | GET | `/candidates/{id}/cv` | `candidate.cv_view` | عرض السيرة (إدارة) |
 | PUT | `/candidates/{id}/cv` | `candidate.edit` | حفظ/تعديل السيرة |
+| GET | `/candidates/{id}/cv/document` | `candidate.cv_view` | نموذج السيرة مطبوعاً (المتصفّح → PDF) |
 | GET | `/evaluations/{id}/cv` | `evaluation.view` | سيرة مُجهّلة للمقيّم (لقطة مجمّدة) |
 
 ### التقييم (Evaluations)
@@ -172,7 +173,8 @@
 | POST | `/reports/{id}/resubmit` | `report.create` | إعادة إرسال |
 | POST | `/reports/{id}/cancel` | `report.cancel` | إلغاء |
 | POST | `/reports/{id}/executive-summary` | `report.exec_summary` | الملخص التنفيذي (مدير المركز) |
-| GET | `/reports/{id}/document` · `/brief` | `report.view` | مستند HTML للطباعة (مُهرَّب) |
+| GET | `/reports/{id}/document` | `report.view` | التقرير الكامل مطبوعاً (HTML مُهرَّب) |
+| GET | `/reports/{id}/brief` | `report.view` | الموجز مطبوعاً |
 
 ### خطط التطوير (Development Plans)
 | الطريقة | المسار | الصلاحية | الغرض |
@@ -253,15 +255,46 @@
 | GET | `/users/{id}/permissions` | `user.manage` | استثناءات المستخدم |
 | PUT | `/users/{id}/permissions` | `user.manage` | حفظ الاستثناءات (بسقف ثلاثي) |
 
+### القوائم المرجعية (Reference) — مُصادَق، بلا صلاحية
+> يحتاجها كل من يملأ نموذجاً — ومنه المستخدم الخارجي: `sectorId` و`rankLabel` حقلان إلزاميان في إنشاء المرشّح.
+> كلتاهما **تُشكّل استجابتها بالصلاحية**: البادئات وأعداد المرتبطين — وهي أرقام تكشف حجم كل قطاع — لا تُرسَل إلا لحامل `settings.manage`، ويُرسَل معها `canManage`.
+
+| الطريقة | المسار | الغرض |
+|---|---|---|
+| GET | `/sectors` | القطاعات (+ البادئات والأعداد لمدير الإعدادات) |
+| GET | `/ranks` | الرتب/المراتب — غير النشطة تظهر لمدير الإعدادات وحده |
+| GET | `/dashboard/overview` | لوحة البداية — أقسامها تُحجب فرادى بحسب صلاحية القارئ |
+
 ### الإعدادات (Settings) — `settings.manage`
-`GET/PUT /settings/ldap` · `/sms` · `/smtp` · `/distribution` · `/tier` · `/idverify` — قراءة/حفظ.
-`POST /settings/{ldap,sms,smtp,idverify}/test` — اختبار تكامل خارجي (٥/دقيقة). `GET /settings/idverify/log` — سجل التحقق.
-`GET /sectors` · `PUT /sectors/{id}/prefix` — القطاعات ورموزها.
-`GET/PUT /workflow/report` — ترتيب سلسلة الاعتماد وتفعيل مراحلها (`workflow.manage` أو `settings.manage`).
-`GET /settings/session-times` · `PUT` — أوقات جلسات اليوم. `GET /setup-status` — ما بقي من خطوات التهيئة على منصّة جديدة.
+| الطريقة | المسار | الغرض |
+|---|---|---|
+| GET · PUT | `/settings/ldap` | ربط الدليل النشط |
+| POST | `/settings/ldap/test` | اختبار الاتصال (٥/دقيقة) |
+| GET · PUT | `/settings/sms` | بوّابة الرسائل النصية |
+| POST | `/settings/sms/test` | إرسال رسالة اختبار — **بتكلفة** (٥/دقيقة) |
+| GET · PUT | `/settings/smtp` | البريد الصادر |
+| POST | `/settings/smtp/test` | اختبار الإرسال (٥/دقيقة) |
+| GET · PUT | `/settings/idverify` | بوّابة التحقق من الهوية |
+| POST | `/settings/idverify/test` | اختبار البوّابة (٥/دقيقة) |
+| GET | `/settings/idverify/log` | سجل عمليات التحقق |
+| GET · PUT | `/settings/distribution` | ضوابط التوزيع الأسبوعي |
+| GET · PUT | `/settings/tier` | حدود الفئات القيادية |
+| GET · PUT | `/settings/session-times` | أوقات جلسات اليوم (خيارات الحقل وأعمدة الكشف) |
+| GET | `/setup-status` | ما بقي من خطوات التهيئة على منصّة جديدة |
+| PUT | `/sectors/{id}/prefix` | بادئة رمز المشارك للقطاع |
+| POST · PUT · DELETE | `/sectors` · `/sectors/{id}` | إدارة القطاعات |
+| POST · PUT · DELETE | `/ranks` · `/ranks/{id}` | إدارة الرتب — **تقود تصنيف الفئة القيادية** |
+| GET · PUT | `/workflow/report` | ترتيب سلسلة الاعتماد وتفعيل مراحلها (`workflow.manage` أو `settings.manage`) |
+
+> مسارات القطاعات والرتب الإدارية مسجَّلة في `routes/config.php` لا `routes/api.php`.
 
 ### التدقيق (Audit) — `audit.view`
-`GET /audit/log` — السجل الموحّد (يحجب تفاصيل المرشحين المصنّفين عن غير المصرَّح له). `GET /candidates/{id}/history`.
+> **لا يُفوَّض** بالاستثناء الفردي — يُدار بالدور وحده.
+
+| الطريقة | المسار | الغرض |
+|---|---|---|
+| GET | `/audit/log` | السجل الموحّد — يحجب تفاصيل المرشحين المصنّفين عمّن لا يملك التصريح |
+| GET | `/candidates/{id}/history` | سجل مرشّح بعينه |
 
 ### البوّابة العامة (Public Portal) — بلا مصادقة، ٢٠/دقيقة
 | الطريقة | المسار | الغرض |
