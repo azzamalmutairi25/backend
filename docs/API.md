@@ -61,7 +61,7 @@
 ### المرشحون (Candidates)
 | الطريقة | المسار | الصلاحية | الغرض |
 |---|---|---|---|
-| GET | `/candidates` | `candidate.view` | قائمة المرشحين (محصورة بالنطاق) |
+| GET | `/candidates` | `candidate.view` | قائمة المرشحين (محصورة بالنطاق) — انظر **الترقيم والفرز** أدناه |
 | GET | `/candidates/stats` | `candidate.view` | إحصاءات مطابقة لحصر القائمة |
 | POST | `/candidates` | `candidate.create` | إضافة مرشح (+ دورة تقييم) |
 | POST | `/candidates/import` · `/import/candidates` | `candidate.create` | استيراد جماعي |
@@ -77,6 +77,30 @@
 | GET | `/candidates/{id}/history` | `audit.view` | سجل تدقيق المرشح |
 | GET | `/candidates/{id}/interviewers` | `schedule.manage` | مستشارو المقابلة المؤهّلون |
 | GET | `/candidates/cards` | `candidate.view` | بطاقات المشاركين للطباعة |
+
+#### الترقيم والفرز — `GET /candidates`
+
+| المُعامِل | القيم | الافتراضي |
+|---|---|---|
+| `page` | ≥ ١ — صفحةٌ تجاوزت الآخر **تُشدّ إلى الأخيرة** لا تعود فارغة | — |
+| `perPage` | ١–٢٠٠ | ٥٠ عند طلب صفحة |
+| `sort` | `code` · `sector` · `rank` · `tier` · `status` · `classification` · `created` — وغيرها ٤٢٢ | `code` |
+| `dir` | `asc` · `desc` | `asc` |
+
+**الترقيم بطلبٍ صريح.** بلا `page` ولا `perPage` تعود القائمة **كاملةً كما كانت** — فلا ينكسر عميلٌ قائم بصمت. وفي هذه الحالة يُطبَّق سقفٌ صلب (٥٠٠٠ صفّ) يُعلَن في `meta.truncated`.
+
+الاستجابة تحمل `meta` **إضافةً** لا بديلاً عن `candidates`:
+
+```json
+{
+  "candidates": [ … ],
+  "meta": { "total": 1240, "shown": 50, "page": 1, "perPage": 50,
+            "lastPage": 25, "sort": "code", "dir": "asc", "truncated": false }
+}
+```
+
+`total` يعكس **الفلاتر والحصر** لا الجدول كلّه — عدد ما يطابق بحثك في نطاقك.
+والفرز على أي عمودٍ غير الرمز يُذيَّل بالرمز فاصلاً ثابتاً: صفوفٌ متساوية ترتيبها غير محدَّد في postgres، فبلا الفاصل يظهر صفٌّ في صفحتين ويغيب آخر.
 
 ### طلبات تحديث بيانات المرشحين (Update Requests)
 > يرفعها المستخدم الخارجي حين يجد المرشّح مسجّلاً مسبقاً — الكتابة فوق سجلٍّ قائم ممنوعة من الخارج.

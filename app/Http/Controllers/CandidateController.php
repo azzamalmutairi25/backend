@@ -23,12 +23,40 @@ use Illuminate\Validation\ValidationException;
 
 class CandidateController extends Controller
 {
+    // ── الفرز: أسماء الواجهة ← أعمدة القاعدة ──
+    //
+    // قائمةٌ مغلقة لا تمرير مباشر: `orderBy($request->sort)` يضع نصّاً من
+    // المستخدم في جملة SQL. والقائمة تُعرَّف هنا لا في التحقّق وحده كي يبقى
+    // المفتاحان — المسموح والمترجَم — شيئاً واحداً لا شيئين يفترقان.
+    private const SORTABLE = [
+        'code' => 'participant_code',
+        'rank' => 'rank_label',
+        'tier' => 'tier',
+        'status' => 'status',
+        'classification' => 'classification',
+        'created' => 'created_at',
+        'sector' => null,   // اسم القطاع — يُفرَز باستعلامٍ مرتبط (انظر أدناه)
+    ];
+
+    // سقفٌ صلب حين لا يطلب العميل صفحة — يبقى السلوك القديم كما هو لمن
+    // يعتمد عليه، ولا يُخرِج المنصّة عن الخدمة لو صار في المركز عشرات الآلاف.
+    // من بلغه يعرف: `meta.truncated` تقولها صراحةً بدل صمتٍ يُوهم الاكتمال.
+    private const HARD_CAP = 5000;
+    private const DEFAULT_PER_PAGE = 50;
+    private const MAX_PER_PAGE = 200;
 
     public function index(Request $request)
     {
         if (!$request->user()->hasPermission(Permissions::CANDIDATE_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض المرشحين'], 403);
         }
+
+        $paging = $request->validate([
+            'page' => 'nullable|integer|min:1',
+            'perPage' => 'nullable|integer|min:1|max:' . self::MAX_PER_PAGE,
+            'sort' => 'nullable|string|in:' . implode(',', array_keys(self::SORTABLE)),
+            'dir' => 'nullable|string|in:asc,desc',
+        ]);
 
         $query = Candidate::with('sector');
         $query->whereIn('classification', $this->allowedClassifications($request));
@@ -60,7 +88,53 @@ class CandidateController extends Controller
         // نسخةٌ من الاستعلام المحصور قبل تنفيذه — تُستعمل استعلاماً فرعياً أدناه
         $scopedIds = (clone $query)->select('candidates.id');
 
-        $candidates = $query->orderBy('participant_code')->get();
+        // ── الفرز ──
+        $sort = $paging['sort'] ?? 'code';
+        $dir = ($paging['dir'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
+
+        if ($sort === 'sector') {
+            // اسم القطاع لا معرّفه — الترتيب الهجائي هو ما يراه المستخدم.
+            // استعلامٌ مرتبط لا انضمام: الانضمام يُدخِل أعمدة sectors في
+            // النتيجة فيتصادم `id` مع `candidates.id` بصمت.
+            $query->orderBy(
+                Sector::select('name_ar')->whereColumn('sectors.id', 'candidates.sector_id'),
+                $dir
+            );
+        } else {
+            $query->orderBy(self::SORTABLE[$sort], $dir);
+        }
+        // فاصلٌ ثابت بعد كل فرز: صفوفٌ متساوية في عمود الفرز ترتيبها غير
+        // محدَّد في postgres، فتتنقّل بين الصفحات فيُرى صفٌّ مرّتين ويغيب آخر
+        if ($sort !== 'code') {
+            $query->orderBy('participant_code', 'asc');
+        }
+
+        $total = (clone $query)->toBase()->getCountForPagination();
+
+        // ── الترقيم: بطلبٍ صريح لا افتراضاً ──
+        //
+        // غياب page وperPage يُبقي السلوك القديم كما هو — قائمةٌ كاملة —
+        // فلا ينكسر عميلٌ قائم بصمت حين يرى خمسين صفّاً مكان ألف ويظنّها كلّ
+        // ما في المركز. من أراد الترقيم طلبه، والواجهة تطلبه.
+        $wantsPage = isset($paging['page']) || isset($paging['perPage']);
+        $truncated = false;
+
+        if ($wantsPage) {
+            $perPage = (int) ($paging['perPage'] ?? self::DEFAULT_PER_PAGE);
+            $lastPage = max(1, (int) ceil($total / $perPage));
+            // صفحةٌ تجاوزت الآخر (حُذف صفٌّ فقصرت القائمة) تُشدّ إلى الأخيرة
+            // بدل أن تعود فارغةً فيظنّ المستخدم أنّ بحثه لا نتيجة له
+            $page = min(max(1, (int) ($paging['page'] ?? 1)), $lastPage);
+            $query->forPage($page, $perPage);
+        } else {
+            $perPage = null;
+            $page = 1;
+            $lastPage = 1;
+            $truncated = $total > self::HARD_CAP;
+            $query->limit(self::HARD_CAP);
+        }
+
+        $candidates = $query->get();
 
         // المرشحون الذين لهم جلسة غياب مسجّلة — استعلام واحد لا N+1.
         // يظهر لهم في الواجهة علم غياب وخيار إعادة الجدولة بتاريخ جديد.
@@ -87,7 +161,20 @@ class CandidateController extends Controller
             'hasAbsence' => $absentIds->has($c->id),
         ]);
 
-        return response()->json(['candidates' => $rows]);
+        return response()->json([
+            'candidates' => $rows,
+            // مُضافة لا بديلة: العميل القديم يقرأ candidates ويتجاهل هذه
+            'meta' => [
+                'total' => $total,
+                'shown' => $rows->count(),
+                'page' => $page,
+                'perPage' => $perPage,
+                'lastPage' => $lastPage,
+                'sort' => $sort,
+                'dir' => $dir,
+                'truncated' => $truncated,
+            ],
+        ]);
     }
 
     public function show(Request $request, int $id)
