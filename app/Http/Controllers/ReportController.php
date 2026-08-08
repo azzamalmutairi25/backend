@@ -168,7 +168,7 @@ class ReportController extends Controller
             'recommendation' => 'nullable|string|max:120',
             'dateFrom' => 'nullable|date',
             'dateTo' => 'nullable|date',
-        ]);
+        ] + $this->listPagingRules($this->sortable()));
 
         $query = FinalReport::with('candidate.sector');
         $this->scopeReports($request, $query);
@@ -178,7 +178,10 @@ class ReportController extends Controller
         $userId = $request->user()->id;
         $canEditAny = $request->user()->hasPermission(Permissions::REPORT_EDIT_ANY);
 
-        $reports = $query->orderByDesc('created_at')->get()->map(fn ($r) => [
+        // desc افتراضاً: القائمة كانت `orderByDesc('created_at')` — الأحدث أولاً
+        $meta = $this->applyListPaging($request, $query, $this->sortable(), 'created', 'id', 'desc');
+
+        $reports = $query->get()->map(fn ($r) => [
             'id' => $r->id,
             'candidateId' => $r->candidate_id,
             'participantCode' => $r->candidate->participant_code,
@@ -193,9 +196,35 @@ class ReportController extends Controller
             'canEdit' => $canEditAny || $r->created_by === $userId,
         ]);
 
-        $this->log($request, 'VIEW_REPORTS', 0, ['count' => $reports->count()]);
+        // العدد الكلي لا عدد الصفحة: السجل يوثّق كم تقريراً فُتح له الوصول
+        $this->log($request, 'VIEW_REPORTS', 0, ['count' => $meta['total']]);
 
-        return response()->json(['reports' => $reports]);
+        return response()->json([
+            'reports' => $reports,
+            'meta' => $meta + ['shown' => $reports->count()],
+        ]);
+    }
+
+    // ── الفرز: أسماء الواجهة ← أعمدة القاعدة ──
+    // الافتراضي `created` تنازلياً — الأحدث أولاً كما كان قبل الترقيم.
+    // والفاصل `id` لا الرمز: التقرير قد يشترك مع غيره في تاريخ الإنشاء
+    // بالثانية، ولا عمود فريد فيه غير المفتاح.
+    private function sortable(): array
+    {
+        return [
+            'created' => 'created_at',
+            'status' => 'status',
+            'recommendation' => 'recommendation',
+            'behavioral' => 'behavioral_fit',
+            'technical' => 'technical_fit',
+            'returns' => 'return_count',
+            // رمز المشارك وقطاعه في جدول المرشحين — استعلامٌ مرتبط لا انضمام
+            'code' => fn ($q, $dir) => $q->orderBy(
+                \App\Models\Candidate::select('participant_code')
+                    ->whereColumn('candidates.id', 'final_reports.candidate_id'),
+                $dir
+            ),
+        ];
     }
 
     public function stats(Request $request)

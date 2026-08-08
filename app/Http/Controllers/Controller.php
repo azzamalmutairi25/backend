@@ -88,4 +88,99 @@ abstract class Controller
             );
         }
     }
+
+    // ════════════════════════════════════════════════════════
+    //  ترقيم القوائم وفرزها — واحدة تُستدعى لا نمطٌ يُعاد كتابته
+    // ════════════════════════════════════════════════════════
+    //
+    // أربع شاشات تحتاجها، ولكلٍّ منها فخّاها نفسه: فرزٌ بلا فاصلٍ ثابت يُظهر
+    // الصفّ في صفحتين، وعمود فرزٍ يأتي من المستخدم يدخل جملة SQL، وعميلٌ قديم
+    // ينكسر بصمت لو صار الترقيم افتراضاً. تُحلّ مرّةً هنا.
+
+    protected const LIST_HARD_CAP = 5000;
+    protected const LIST_DEFAULT_PER_PAGE = 50;
+    protected const LIST_MAX_PER_PAGE = 200;
+
+    /** قواعد التحقّق — تُشتقّ من خريطة الفرز فلا يفترق المسموح عن المترجَم */
+    protected function listPagingRules(array $sortable): array
+    {
+        return [
+            'page' => 'nullable|integer|min:1',
+            'perPage' => 'nullable|integer|min:1|max:' . self::LIST_MAX_PER_PAGE,
+            'sort' => 'nullable|string|in:' . implode(',', array_keys($sortable)),
+            'dir' => 'nullable|string|in:asc,desc',
+        ];
+    }
+
+    /**
+     * يُطبّق الفرز والترقيم على الاستعلام ويرجع `meta`.
+     *
+     * @param array  $sortable   مفتاح الواجهة ⇐ عمودٌ نصّاً، أو دالّة($query,$dir) للفرز الخاص
+     * @param string $default    مفتاح الفرز الافتراضي
+     * @param string $tie        عمود الفصل الثابت — يُذيَّل بكل فرزٍ سواه
+     * @param string $defaultDir اتجاه الفرز حين لا يطلبه العميل. لا يُترك «تصاعدياً»
+     *                           دائماً: قائمةٌ كانت تعرض الأحدث أولاً تنقلب إلى
+     *                           الأقدم أولاً بلا أن يطلب أحد — وذلك تغيير سلوك
+     */
+    protected function applyListPaging(
+        Request $request,
+        $query,
+        array $sortable,
+        string $default,
+        string $tie,
+        string $defaultDir = 'asc'
+    ): array {
+        $sort = $request->input('sort') ?: $default;
+        $dir = $request->input('dir') ?: $defaultDir;
+        $dir = $dir === 'desc' ? 'desc' : 'asc';
+
+        $column = $sortable[$sort] ?? $sortable[$default];
+        if (is_callable($column)) {
+            $column($query, $dir);
+        } else {
+            $query->orderBy($column, $dir);
+        }
+
+        // صفوفٌ متساوية في عمود الفرز ترتيبها غير محدَّد في postgres، فتتنقّل
+        // بين الصفحات: يُرى صفٌّ مرّتين ويغيب آخر. الفاصل يجعل الترتيب تامّاً.
+        //
+        // ويتبع اتجاه الفرز لا يثبت على «تصاعدي»: قائمةٌ بالأحدث أولاً فيها
+        // صفّان في الثانية نفسها يجب أن يتقدّم أحدثُهما، وثباتُ الفاصل
+        // تصاعدياً يُقدّم الأقدم داخل كل تعادل — ترتيبٌ ثابت لكنّه مقلوب.
+        if (($sortable[$sort] ?? null) !== $tie) {
+            $query->orderBy($tie, $dir);
+        }
+
+        $total = (clone $query)->toBase()->getCountForPagination();
+
+        // الترقيم بطلبٍ صريح: غيابه يُبقي القائمة كاملةً كما كانت، فلا ينكسر
+        // عميلٌ قائم بصمت حين يرى خمسين صفّاً مكان ألف ويظنّها كلّ ما عنده.
+        $wantsPage = $request->filled('page') || $request->filled('perPage');
+        $truncated = false;
+
+        if ($wantsPage) {
+            $perPage = (int) ($request->input('perPage') ?: self::LIST_DEFAULT_PER_PAGE);
+            $lastPage = max(1, (int) ceil($total / $perPage));
+            // صفحةٌ تجاوزت الآخر تُشدّ إلى الأخيرة بدل أن تعود فارغةً فيُقرأ
+            // ذلك «لا نتيجة» وهي موجودة
+            $page = min(max(1, (int) ($request->input('page') ?: 1)), $lastPage);
+            $query->forPage($page, $perPage);
+        } else {
+            $perPage = null;
+            $page = 1;
+            $lastPage = 1;
+            $truncated = $total > self::LIST_HARD_CAP;
+            $query->limit(self::LIST_HARD_CAP);
+        }
+
+        return [
+            'total' => $total,
+            'page' => $page,
+            'perPage' => $perPage,
+            'lastPage' => $lastPage,
+            'sort' => $sort,
+            'dir' => $dir,
+            'truncated' => $truncated,
+        ];
+    }
 }

@@ -20,7 +20,12 @@ class UserController extends Controller
             return response()->json(['error' => 'ليس لديك صلاحية إدارة المستخدمين'], 403);
         }
 
-        $users = User::with(['role', 'sector', 'manager'])->orderBy('full_name')->get()->map(fn ($u) => [
+        $request->validate($this->listPagingRules($this->sortable()));
+
+        $query = User::with(['role', 'sector', 'manager']);
+        $meta = $this->applyListPaging($request, $query, $this->sortable(), 'name', 'id');
+
+        $users = $query->get()->map(fn ($u) => [
             'id' => $u->id,
             'username' => $u->username,
             'fullName' => $u->full_name,
@@ -41,7 +46,28 @@ class UserController extends Controller
             'isSelf' => $u->id === $request->user()->id,
         ]);
 
-        return response()->json(['users' => $users]);
+        return response()->json([
+            'users' => $users,
+            'meta' => $meta + ['shown' => $users->count()],
+        ]);
+    }
+
+    // ── الفرز ──
+    // الافتراضي `full_name` تصاعدياً كما كان قبل الترقيم. (وهو نصٌّ صريح هنا
+    // بخلاف اسم المرشّح المشفَّر — حسابات الموظفين ليست بيانات المرشحين.)
+    private function sortable(): array
+    {
+        return [
+            'name' => 'full_name',
+            'username' => 'username',
+            'active' => 'is_active',
+            'lastLogin' => 'last_login_at',
+            'created' => 'created_at',
+            'role' => fn ($q, $dir) => $q->orderBy(
+                \App\Models\Role::select('name_ar')->whereColumn('roles.id', 'users.role_id'),
+                $dir
+            ),
+        ];
     }
 
     // GET /users/{id}/permissions — الصلاحيات الفعلية + مصدر كل واحدة

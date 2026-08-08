@@ -78,14 +78,23 @@
 | GET | `/candidates/{id}/interviewers` | `schedule.manage` | مستشارو المقابلة المؤهّلون |
 | GET | `/candidates/cards` | `candidate.view` | بطاقات المشاركين للطباعة |
 
-#### الترقيم والفرز — `GET /candidates`
+#### الترقيم والفرز — أربع قوائم
 
-| المُعامِل | القيم | الافتراضي |
+تقبلها `GET /candidates` و`/reports` و`/evaluations` و`/users` بالسلوك نفسه:
+
+| المُعامِل | القيم |
+|---|---|
+| `page` | ≥ ١ — صفحةٌ تجاوزت الآخر **تُشدّ إلى الأخيرة** لا تعود فارغة |
+| `perPage` | ١–٢٠٠ (٥٠ عند طلب صفحة بلا تحديد) |
+| `sort` | من قائمة كل مسار أدناه — وغيرها ٤٢٢ |
+| `dir` | `asc` · `desc` |
+
+| المسار | أعمدة الفرز | الافتراضي |
 |---|---|---|
-| `page` | ≥ ١ — صفحةٌ تجاوزت الآخر **تُشدّ إلى الأخيرة** لا تعود فارغة | — |
-| `perPage` | ١–٢٠٠ | ٥٠ عند طلب صفحة |
-| `sort` | `code` · `sector` · `rank` · `tier` · `status` · `classification` · `created` — وغيرها ٤٢٢ | `code` |
-| `dir` | `asc` · `desc` | `asc` |
+| `/candidates` | `code` · `sector` · `rank` · `tier` · `status` · `classification` · `created` | `code` تصاعدياً |
+| `/reports` | `created` · `code` · `status` · `recommendation` · `behavioral` · `technical` · `returns` | `created` **تنازلياً** |
+| `/evaluations` | `updated` · `code` · `status` · `activity` | `updated` **تنازلياً** |
+| `/users` | `name` · `username` · `role` · `active` · `lastLogin` · `created` | `name` تصاعدياً |
 
 **الترقيم بطلبٍ صريح.** بلا `page` ولا `perPage` تعود القائمة **كاملةً كما كانت** — فلا ينكسر عميلٌ قائم بصمت. وفي هذه الحالة يُطبَّق سقفٌ صلب (٥٠٠٠ صفّ) يُعلَن في `meta.truncated`.
 

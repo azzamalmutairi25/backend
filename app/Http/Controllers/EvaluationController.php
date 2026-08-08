@@ -70,20 +70,29 @@ class EvaluationController extends Controller
 
         $validated = $request->validate([
             'status' => 'nullable|in:draft,submitted,approved',
-        ]);
+        ] + $this->listPagingRules($this->sortable()));
 
         $allowed = $this->allowedClassifications($request);
 
         $query = Evaluation::with(['candidate', 'assessment'])
             ->withCount('scores')
-            ->where('evaluator_id', $request->user()->id);
+            ->where('evaluator_id', $request->user()->id)
+            // حصر التصنيف في SQL لا بعد الجلب.
+            //
+            // كان `->get()->filter(...)` يقصّ الصفوف **بعد** خروجها من
+            // القاعدة. مع الترقيم يصير ذلك خطأً لا بطئاً: تُجلب خمسون فيُقصّ
+            // منها ثلاثون فتُعرَض عشرون على أنّها صفحةٌ كاملة، والعدد الكلي
+            // يحسب المحجوبين. الحصر في مكانه الصحيح يُصلح الاثنين.
+            ->whereHas('candidate', fn ($q) => $q->whereIn('classification', $allowed));
 
         if (!empty($validated['status'])) {
             $query->where('status', $validated['status']);
         }
 
-        $evaluations = $query->latest('updated_at')->get()
-            ->filter(fn ($e) => in_array($e->candidate->classification, $allowed))
+        // desc افتراضاً: القائمة كانت `latest('updated_at')` — الأحدث أولاً
+        $meta = $this->applyListPaging($request, $query, $this->sortable(), 'updated', 'id', 'desc');
+
+        $evaluations = $query->get()
             ->map(fn ($e) => [
                 'id' => $e->id,
                 // رمز دورة التقييم (مجمّد) لا رمز المرشح الحالي — وإلا ظهر رمز دورة أحدث بعد reassess
@@ -94,7 +103,27 @@ class EvaluationController extends Controller
                 'updatedAt' => $e->updated_at,
             ])->values();
 
-        return response()->json(['evaluations' => $evaluations]);
+        return response()->json([
+            'evaluations' => $evaluations,
+            'meta' => $meta + ['shown' => $evaluations->count()],
+        ]);
+    }
+
+    // ── الفرز ──
+    // الفاصل `id` لا رمز المرشّح: المقيّم قد يقيّم المرشّح نفسه في نشاطين،
+    // فالرمز غير فريد هنا.
+    private function sortable(): array
+    {
+        return [
+            'updated' => 'updated_at',
+            'status' => 'status',
+            'activity' => 'activity',
+            'code' => fn ($q, $dir) => $q->orderBy(
+                \App\Models\Assessment::select('participant_code')
+                    ->whereColumn('assessments.id', 'evaluations.assessment_id'),
+                $dir
+            ),
+        ];
     }
 
     public function start(Request $request)
