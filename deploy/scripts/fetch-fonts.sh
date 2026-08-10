@@ -6,7 +6,7 @@ set -Eeuo pipefail
 
 OUT="$1"                 # مجلّد الوجهة (frontend/public/fonts)
 UA='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
-CSS_URL='https://fonts.googleapis.com/css2?family=Amiri:wght@700&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Tajawal:wght@500;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap'
+CSS_URL='https://fonts.googleapis.com/css2?family=Amiri:wght@700&family=Cairo:wght@400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Tajawal:wght@500;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap'
 
 mkdir -p "$OUT/files"
 raw="$OUT/.google.css"

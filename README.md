@@ -39,7 +39,10 @@ php artisan test
 
 | الملف | لمن |
 |---|---|
-| [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) | مستخدمو المنصّة — كل شاشة بالصور |
+| [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) | مستخدمو المنصّة — دليل كل دور وكل شاشة بالصور |
+| `docs/USER_GUIDE.docx` | **نسخة Word** — للتحرير والتعليق والدمج في مستندات الجهة |
+| [`docs/USER_GUIDE.html`](docs/USER_GUIDE.html) | ملف واحد بصوره، يعمل بلا شبكة — للتسليم في شبكة مغلقة |
+| `docs/USER_GUIDE.pdf` | نسخة الطباعة والتوزيع الرسمي |
 | [`docs/API_GUIDE.md`](docs/API_GUIDE.md) | **من يبني تكاملاً** — أمثلة عاملة ووصفات كاملة |
 | [`docs/API.md`](docs/API.md) | مرجع المسارات وصلاحياتها |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | بنية المنصّة |
