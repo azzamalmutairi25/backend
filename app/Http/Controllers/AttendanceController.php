@@ -67,6 +67,12 @@ class AttendanceController extends Controller
                     'activity' => $sch->activity,
                     'status' => $att?->status ?? 'pending',
                     'checkInTime' => $att?->check_in_time?->format('H:i'),
+                    // موعد الجلسة ومكانها — تبني عليهما الشاشة خطّ اليوم الزمني
+                    // ومؤشّر التأخّر (موعدٌ مضى والمرشّح لم يُسجَّل بعد)
+                    'scheduleTime' => $sch->schedule_time
+                        ? substr((string) $sch->schedule_time, 0, 5)
+                        : null,
+                    'location' => $sch->location,
                     // الواجهة تُظهر الأزرار على هذا — الخادم يفرضه على أي حال
                     'canRecord' => $canRecord && $this->canRecordFor($request, $sch),
                 ];

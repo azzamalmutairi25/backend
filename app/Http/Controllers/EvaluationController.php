@@ -56,6 +56,9 @@ class EvaluationController extends Controller
             'nameAr' => $c->name_ar,
             'type' => $c->type,
             'maxLevel' => $c->max_level,
+            // سلّم المستويات بأسمائه وأوصافه — الشاشة تبني عليه بطاقات
+            // الـrubric، فيقيس المقيّمون بالمرساة نفسها لا بتقديرهم الشخصي
+            'scale' => $c->levelScale(),
         ]);
 
         return response()->json(['competencies' => $list]);

@@ -105,6 +105,7 @@ class DashboardService
                     $cand()->where('created_at', '>=', $p1)->count(),
                     $cand()->whereBetween('created_at', [$p2, $p1])->count()
                 ),
+                'spark' => $this->spark($cand, 'created_at', $now),
             ];
 
             $completed = $cand()->where('status', 'completed')->count();
@@ -162,6 +163,7 @@ class DashboardService
                     $ev()->where('submitted_at', '>=', $p1)->count(),
                     $ev()->whereBetween('submitted_at', [$p2, $p1])->count()
                 ),
+                'spark' => $this->spark($ev, 'submitted_at', $now),
             ];
         }
 
@@ -177,6 +179,7 @@ class DashboardService
                     $approved()->where('updated_at', '>=', $p1)->count(),
                     $approved()->whereBetween('updated_at', [$p2, $p1])->count()
                 ),
+                'spark' => $this->spark($approved, 'updated_at', $now),
             ];
 
             // «معلّق» = السلسلة كاملة لا مرحلتها الأخيرة (يطابق ReportController::stats)
@@ -192,10 +195,47 @@ class DashboardService
                     0,
                     true
                 ),
+                'spark' => $this->spark($pending, 'updated_at', $now),
+                // عمر أقدم تقرير في الطابور — الرقم يقول «كم ينتظر»،
+                // وهذا يقول «منذ متى ينتظر أطولُهم». الثاني هو ما يُقاس عليه
+                // الالتزام، فطابورٌ من ثلاثة أقدمُها شهرٌ أسوأ من عشرةٍ عمرُها يوم.
+                // diffInDays في Carbon 3 موقَّعة، والأقدم في الماضي فتخرج سالبة —
+                // abs() تُعيدها عمراً كما تُقرأ
+                'oldestDays' => ($oldest = $pending()->min('created_at'))
+                    ? (int) abs($now->copy()->startOfDay()->diffInDays(
+                        \Illuminate\Support\Carbon::parse($oldest)->startOfDay()
+                    ))
+                    : null,
             ];
         }
 
         return $out;
+    }
+
+    /**
+     * سلسلة ثمانية أسابيع لخطّ الاتجاه المصغّر داخل بطاقة المؤشّر.
+     *
+     * الرقم وحده يقول «كم»، والفرق يقول «مقارنةً بماذا»، ولا يقول أحدهما
+     * «كيف وصلنا». صعودٌ مطّرد وقفزةٌ في أسبوعٍ واحد يعطيان الفرق نفسه
+     * ويعنيان شيئين مختلفين تماماً.
+     *
+     * استعلامٌ واحد مجمَّع لكل مؤشّر (لا ثمانية)، والأسابيع الفارغة تُملأ
+     * بصفر حتى لا يقفز الخطّ فوق فجوةٍ فيبدو اتصالاً.
+     */
+    private function spark(callable $q, string $column, $now): array
+    {
+        $since = $now->copy()->startOfWeek()->subWeeks(7);
+
+        $rows = $q()
+            ->whereNotNull($column)
+            ->where($column, '>=', $since)
+            ->selectRaw("to_char(date_trunc('week', {$column}), 'YYYY-MM-DD') wk, count(*) c")
+            ->groupBy('wk')->pluck('c', 'wk');
+
+        return array_map(function (int $i) use ($since, $rows) {
+            $key = $since->copy()->addWeeks($i)->toDateString();
+            return (int) ($rows[$key] ?? 0);
+        }, range(0, 7));
     }
 
     // ═══════════════ الجاهزية: الربع الحالي مقابل السابق (بالنقاط) ═══════════════
