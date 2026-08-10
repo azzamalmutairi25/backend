@@ -154,24 +154,52 @@ as_app "cd $NEW && composer install --no-dev --no-interaction --prefer-dist --op
 log "ربط .env وstorage…"
 as_app "rm -rf $NEW/storage && ln -s $SHARED/storage $NEW/storage && ln -s $SHARED/.env $NEW/.env"
 
-# ── ٦) الهجرات ──
+# ── ٦) لقطة القاعدة قبل الهجرة ──
+# الرجوع في هذا السكربت يبدّل رابطاً رمزياً — والهجرات لا تُرجَع معه. فما لم
+# تُؤخَذ لقطة هنا، فكل نشرة تحمل هجرةً هي عمليةٌ بلا رجعة. النسخ الاحتياطي
+# اليومي لا يكفي: هو أقدم من كل ما وقع بين منتصف الليل والآن.
+#
+# تُؤخذ من خادم التطبيق عبر pg_dump على الشبكة (لا حاجة لدخول خادم القاعدة)،
+# ويُفشَل النشر إن لم تُكتب — لأن نشرةً بلا شبكة أمان أسوأ من نشرةٍ مؤجَّلة.
+if [[ $DRY == 1 ]]; then
+  printf '   [dry] لقطة قاعدة إلى %s\n' "$SHARED/backups/pre-release-$TS.dump"
+else
+  log "لقطة القاعدة قبل الهجرة…"
+  as_app "mkdir -p $SHARED/backups && cd $NEW && \
+    set -a && . $SHARED/.env && set +a && \
+    PGPASSWORD=\"\$DB_PASSWORD\" pg_dump -Fc \
+      -h \"\$DB_HOST\" -p \"\${DB_PORT:-5432}\" -U \"\$DB_USERNAME\" \"\$DB_DATABASE\" \
+      > $SHARED/backups/pre-release-$TS.dump"
+
+  SNAP_BYTES=$(remote_read "sudo -A stat -c%s $SHARED/backups/pre-release-$TS.dump 2>/dev/null" || echo 0)
+  # مِلفٌّ أصغر من ١٠٠ كيلوبايت ليس قاعدةَ إنتاج: غالباً pg_dump سقط وكتب
+  # ترويسةً فارغة. نتوقّف قبل الهجرة، والإصدار الجديد لم يُقدَّم بعد.
+  [[ ${SNAP_BYTES:-0} -gt 102400 ]] \
+    || die "اللقطة لم تُكتب أو حجمها مريب (${SNAP_BYTES:-0} بايت) — أوقفتُ النشر قبل الهجرة"
+  log "اللقطة: $((SNAP_BYTES/1024/1024))MB في $SHARED/backups/pre-release-$TS.dump"
+
+  # يُحتفَظ بآخر عشر لقطات — تحمل بياناتٍ شخصية، فلا تُترك تتراكم بلا حدّ
+  remote "sudo -A bash -c 'ls -1dt $SHARED/backups/pre-release-*.dump 2>/dev/null | tail -n +11 | xargs -r rm -f'" || true
+fi
+
+# ── ٧) الهجرات ──
 log "الهجرات…"
 as_app "cd $NEW && php artisan migrate --force --no-interaction 2>&1 | tail -5"
 
-# ── ٧) خبز الذاكرة ──
+# ── ٨) خبز الذاكرة ──
 # يُخبَز على الإصدار الجديد قبل التبديل: خبزُه بعده يترك نافذةً يُقدَّم فيها
 # الإصدار الجديد بإعدادات غير مخبوزة.
 log "خبز الإعدادات والمسارات…"
 as_app "cd $NEW && php artisan config:cache && php artisan route:cache && php artisan view:cache"
 
-# ── ٨) التبديل الذرّي ──
+# ── ٩) التبديل الذرّي ──
 log "تبديل الرابط…"
 as_app "ln -sfn $NEW $CURRENT.tmp && mv -Tf $CURRENT.tmp $CURRENT"
 # إلزامي مع opcache.validate_timestamps=0: بدونه يبقى العمّال على شيفرة قديمة
 remote "sudo -A systemctl reload $FPM_SERVICE"
 as_app "cd $CURRENT && php artisan queue:restart"
 
-# ── ٩) فحص الصحّة، ورجوعٌ تلقائي عند الفشل ──
+# ── ١٠) فحص الصحّة، ورجوعٌ تلقائي عند الفشل ──
 if [[ $DRY == 0 ]]; then
   log "فحص الصحّة…"
   sleep 2
@@ -191,7 +219,7 @@ if [[ $DRY == 0 ]]; then
   fi
 fi
 
-# ── ١٠) تنظيف الإصدارات القديمة ──
+# ── ١١) تنظيف الإصدارات القديمة ──
 remote "sudo -A bash -c 'ls -1dt $RELEASES/*/' | tail -n +$((KEEP+1)) | xargs -r sudo -A rm -rf"
 
 log "تمّ النشر: $TS"
