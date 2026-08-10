@@ -28,3 +28,9 @@ yarn-error.log
 # اختبار الحمل: رموز وصول حيّة وتقارير قياس — لا تُودَع
 load-test/tokens.json
 load-test/report-*.json
+
+# صور مؤقتة يولّدها docs/build-guide.mjs — تُعاد بناؤها بأمر واحد
+docs/.guide-build-cache/
+
+# ملفات القفل التي يتركها Word مفتوحاً على مستند
+~$*
