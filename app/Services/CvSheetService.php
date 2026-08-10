@@ -94,6 +94,7 @@ class CvSheetService
         $ageTxt = $age !== null ? e($age) : '—';
         $years = e((string) ($doc['totalYearsExperience'] ?? 0));
         $appointment = $this->bothCalendars($doc['appointmentDate'] ?? null);
+        $attestBlock = $this->attestBlock($session['attest'] ?? null);
 
         return <<<HTML
 <!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">
@@ -118,6 +119,16 @@ class CvSheetService
  .foot { margin-top:8mm; }
  .foot img { width:100%; height:auto; display:block; }
  .rights { margin-top:18px; padding-top:10px; border-top:1px solid #e8ece9; text-align:center; font-size:10px; color:#8a978f; }
+ .attest { font-size:8.5pt; line-height:1.9; margin-bottom:3mm; }
+ .sigwrap { display:flex; justify-content:flex-start; }
+ .sigcell { width:70mm; text-align:center; }
+ .siglbl { font-size:8.5pt; font-weight:700; margin-bottom:1.5mm; }
+ .sigbox { height:22mm; border-bottom:1px solid #1a1a1a; display:flex; align-items:flex-end; justify-content:center; }
+ .sigbox.empty { height:22mm; }
+ /* التوقيع مرسومٌ بحبر داكن على شفافية — يُحصر بالارتفاع لا بالعرض كي لا
+    يُشوَّه توقيعٌ عريض، ويُمنع من تجاوز الخانة على الأجهزة العالية الكثافة */
+ img.sig { max-height:20mm; max-width:100%; object-fit:contain; }
+ .sigdate { font-size:8pt; margin-top:1.5mm; color:#333; }
  @media print { body{ background:#fff; } .sheet{ box-shadow:none; margin:0; width:auto; } .print-bar{ display:none; } @page{ size:A4; margin:12mm; } }
 </style></head><body>
 <div class="print-bar"><button onclick="window.print()">طباعة / حفظ PDF</button></div>
@@ -174,9 +185,48 @@ class CvSheetService
   {$courseRows}
  </table>
 
+ {$attestBlock}
+
  {$footerImg}
  <div class="rights">جميع الحقوق محفوظة © إدارة تقنية المعلومات والذكاء الاصطناعي</div>
 </div></body></html>
+HTML;
+    }
+
+    // ── الإقرار والتوقيع ──
+    //
+    // النموذج يُطبع ليُقرّ المرشّح بصحّة بياناته، والاستقبال يلتقط توقيعه
+    // مرسوماً ويحفظه مشفَّراً — ثم لا يظهر التوقيع على الورقة التي وقّع
+    // عليها. فيُطبع النموذجُ فارغَ خانةِ التوقيع ويُوقَّع يدوياً مرّة ثانية،
+    // أو يُحفظ التوقيعُ الرقمي بلا مستندٍ يشهد عليه.
+    //
+    // فإن وُجد توقيعٌ مقترن بإقرار طُبع بتاريخه، وإلا طُبعت خانةٌ فارغة كما
+    // كان النموذج الورقي. ولا نطبع توقيعاً بلا إقرار: رسمٌ على لوحة ليس
+    // إقراراً بشيء.
+    private function attestBlock(?array $attest): string
+    {
+        $signed = $attest && !empty($attest['signature']) && !empty($attest['at']);
+
+        // صورة التوقيع data:image/png فقط — أي مخطّط آخر (وخاصةً data:text/html
+        // أو javascript:) يُصيّر الوسمَ ثغرةَ حقنٍ في صفحةٍ تُفتح بنافذة جديدة
+        $img = '';
+        if ($signed && preg_match('#^data:image/png;base64,[A-Za-z0-9+/=]+$#', $attest['signature'])) {
+            $img = '<img class="sig" src="' . e($attest['signature']) . '" alt="التوقيع" />';
+        }
+
+        $when = $signed ? $this->bothCalendars(substr((string) $attest['at'], 0, 10)) : '';
+        $stamp = $img
+            ? '<div class="sigbox">' . $img . '</div><div class="sigdate">وُقِّع إلكترونياً في ' . $when . '</div>'
+            : '<div class="sigbox empty"></div><div class="sigdate">التاريخ: ……/……/…… هـ</div>';
+
+        return <<<HTML
+ <div class="sechd">الإقرار</div>
+ <table class="cv"><tr><td style="height:auto; padding:3mm">
+  <div class="attest">أُقرّ بأن جميع البيانات الواردة في هذا النموذج صحيحة، وأتحمّل مسؤولية أي معلومة غير صحيحة.</div>
+  <div class="sigwrap">
+   <div class="sigcell"><div class="siglbl">توقيع المشارك</div>{$stamp}</div>
+  </div>
+ </td></tr></table>
 HTML;
     }
 

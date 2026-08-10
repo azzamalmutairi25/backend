@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Assessment;
 use App\Models\Candidate;
 use App\Models\Evaluation;
 use App\Models\FinalReport;
@@ -58,6 +59,12 @@ class DashboardController extends Controller
             },
             'schedules' => function () use ($request) {
                 $q = Schedule::query();
+                $this->scopeViaCandidate($request, $q);
+                return $q;
+            },
+            // مسار المرشّح: نفس حصر الجداول — التقييم يحمل candidate_id أيضاً
+            'assessments' => function () use ($request) {
+                $q = Assessment::query();
                 $this->scopeViaCandidate($request, $q);
                 return $q;
             },

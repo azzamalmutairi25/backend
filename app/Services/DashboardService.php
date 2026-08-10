@@ -77,7 +77,60 @@ class DashboardService
             'weekHeatmap' => $can['analytics'] ? $this->weekHeatmap($scope) : null,
             'todaySchedule' => $can['schedule'] ? $this->todaySchedule($scope, $now) : null,
             'insights' => $can['analytics'] ? $this->insights($scope) : null,
+            'funnel' => $can['candidate'] ? $this->funnel($scope) : null,
         ];
+    }
+
+    // ═══════════════ مسار المرشّح ═══════════════
+    // ست مراحل يمرّ بها كلّ مرشّح من ترشيحه إلى اعتماد تقريره. اللوحة كانت
+    // تعرض المجاميع منفصلةً — كم مرشّحاً، كم تقييماً، كم اعتماداً — ولا تُظهر
+    // أين يتوقّف الناس. المسار يُظهر الفاقد بين كلّ مرحلتين، وهو السؤال
+    // التشغيلي الوحيد الذي تُسأله الإدارة كلّ أسبوع.
+    //
+    // العدّ تراكميّ: «بلغ المرحلة» لا «هو فيها الآن». الحالة قيمة واحدة في
+    // العمود، فبلوغُ «قُيِّم» يُقاس برتبة الحالة لا بمساواتها — وإلا ظهر
+    // المعتمَدون خارج مرحلة التقييم التي مرّوا بها فعلاً.
+    //
+    // استعلام واحد بتجميعات شرطية لا ستّة: الجدول يُمسح مرّة واحدة.
+    private const STATUS_RANK = ['draft' => 0, 'scheduled' => 1, 'assessed' => 2, 'approved' => 3, 'completed' => 4];
+
+    private function funnel(array $scope): array
+    {
+        // لا مغلّف assessments لدى نداءٍ قديم لم يُحدَّث — لا نُسقط اللوحة كلّها
+        if (!isset($scope['assessments'])) return ['stages' => []];
+
+        // الحالات التي تعني «بلغ هذه الرتبة أو تجاوزها»
+        $atLeast = fn (int $rank) => array_keys(array_filter(self::STATUS_RANK, fn ($r) => $r >= $rank));
+        // `= ANY(?)` لا يقبل مصفوفة PHP عبر PDO — نبني علامات الاستفهام بعددها.
+        // القيم من ثابتٍ في الصنف لا من الطلب، والربط هنا انضباطٌ لا حاجة.
+        $marks = fn (array $v) => implode(',', array_fill(0, count($v), '?'));
+
+        [$s1, $s2, $s3] = [$atLeast(1), $atLeast(2), $atLeast(3)];
+
+        $row = $scope['assessments']()
+            ->selectRaw('COUNT(*) AS nominated')
+            ->selectRaw("COUNT(*) FILTER (WHERE status IN ({$marks($s1)})) AS scheduled", $s1)
+            ->selectRaw('COUNT(*) FILTER (WHERE confirmed_at IS NOT NULL) AS confirmed')
+            ->selectRaw('COUNT(*) FILTER (WHERE arrived_at IS NOT NULL) AS arrived')
+            ->selectRaw("COUNT(*) FILTER (WHERE status IN ({$marks($s2)})) AS assessed", $s2)
+            ->selectRaw("COUNT(*) FILTER (WHERE status IN ({$marks($s3)})) AS approved", $s3)
+            ->first();
+
+        $labels = [
+            'nominated' => 'مُرشَّح',
+            'scheduled' => 'مجدول',
+            'confirmed' => 'أكّد بياناته',
+            'arrived' => 'حضر',
+            'assessed' => 'قُيِّم',
+            'approved' => 'اعتُمد تقريره',
+        ];
+
+        $stages = [];
+        foreach ($labels as $key => $label) {
+            $stages[] = ['key' => $key, 'label' => $label, 'count' => (int) ($row->$key ?? 0)];
+        }
+
+        return ['stages' => $stages];
     }
 
     // ═══════════════ المؤشرات الرئيسية ═══════════════

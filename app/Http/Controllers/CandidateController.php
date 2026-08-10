@@ -973,7 +973,8 @@ class CandidateController extends Controller
         }
 
         $doc = $candidate->cv?->data ?? CandidateCv::emptyDoc();
-        if (!$request->user()->hasPermission(Permissions::CANDIDATE_VIEW_NAMES)) {
+        $canSeeNames = $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_NAMES);
+        if (!$canSeeNames) {
             $doc = CvGuard::scrub($doc, $candidate);
         }
 
@@ -983,11 +984,35 @@ class CandidateController extends Controller
             ->orderBy('schedule_date')
             ->first();
 
-        $this->log($request, 'PRINT_CV_SHEET', $id, ['code' => $candidate->participant_code]);
+        // ── إقرار المرشّح وتوقيعه ──
+        // من آخر زيارة استقبال موقّعة. `isSigned()` يشترط التوقيع والإقرار
+        // معاً، فلا يُطبع رسمٌ على لوحة بلا إقرارٍ خلفه.
+        //
+        // ⚠ التوقيع محجوز على صلاحية الأسماء لا على صلاحية السيرة: التوقيع
+        // اسمُ صاحبه مكتوباً بخطّ يده. من لا يملك رؤية الأسماء تُنقّى له
+        // السيرة نصّاً (CvGuard::scrub) ثم يقرأ الاسم من صورة التوقيع — فيسقط
+        // إخفاءُ الهوية الذي تقوم عليه المنصّة كلّها من بابٍ خلفي.
+        // ومن لا يملكها تُطبع له خانة توقيعٍ فارغة كما كان النموذج الورقي.
+        //
+        // وفكّ التشفير هنا لا في الخدمة: المفتاح يُستعمل في أضيق نطاق ممكن.
+        $attest = null;
+        if ($canSeeNames) {
+            $visit = \App\Models\ReceptionVisit::where('candidate_id', $candidate->id)
+                ->whereNotNull('signed_at')
+                ->where('attested', true)
+                ->orderByDesc('signed_at')
+                ->first();
+            if ($visit && $visit->isSigned()) {
+                $attest = ['signature' => $visit->signature, 'at' => optional($visit->signed_at)->toIso8601String()];
+            }
+        }
+
+        $this->log($request, 'PRINT_CV_SHEET', $id, ['code' => $candidate->participant_code, 'signed' => (bool) $attest]);
 
         $html = app(\App\Services\CvSheetService::class)->renderHtml($candidate, $doc, [
             'date' => $session?->schedule_date?->toDateString(),
             'time' => $session?->schedule_time ? substr((string) $session->schedule_time, 0, 5) : null,
+            'attest' => $attest,
         ]);
 
         return response($html, 200)->header('Content-Type', 'text/html; charset=UTF-8');
