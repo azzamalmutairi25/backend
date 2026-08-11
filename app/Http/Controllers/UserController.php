@@ -547,16 +547,43 @@ class UserController extends Controller
                 'error' => 'هذا مستخدم يُصادَق عبر الدليل النشط (AD) ولا يملك كلمة مرور محلية',
             ], 422);
         }
+        // ── فكّ القفل جزءٌ من إعادة التعيين لا خطوةٌ منفصلة ──
+        //
+        // قفلُ المحاولات الخاطئة (خمسٌ ⇒ ربع ساعة) كان يبقى بعد إعادة التعيين،
+        // و`locked_until` لا تُمسح في الشيفرة كلّها إلا عند دخولٍ ناجح — وهو
+        // مستحيل أثناء القفل. فلم يكن لمسؤولٍ سبيلٌ إلى فكّ قفل حساب البتّة.
+        //
+        // والأثر أسوأ من الانتظار: المسؤول يُعيد التعيين، ويقول للموظّف «جرّب
+        // الآن»، فيفشل الدخول بالرسالة العامة نفسها التي تُخفي السبب عمداً.
+        // فيظنّان كلمة المرور لم تُحفظ، ويُعيدان الكرّة، فتُضاف محاولاتٌ خاطئة
+        // تُجدّد القفل — حلقةٌ لا تنكسر إلا بصمتٍ ربعَ ساعة.
+        //
+        // وإعادةُ التعيين قرارُ مسؤولٍ صريح، وهو أقوى من قفلٍ آليّ ضدّ التخمين:
+        // من يملك تغيير كلمة المرور يملك فتح الحساب من بابٍ آخر أصلاً.
+        $wasLocked = $user->locked_until && $user->locked_until->isFuture();
+
         $user->password = $validated['password'];
         $user->must_change_password = true;
+        $user->locked_until = null;
+        $user->failed_attempts = 0;
         $user->save();
 
         // إعادة تعيين كلمة المرور تُبطل كل الجلسات القائمة (طرد أي مُخترِق محتمل)
         $user->tokens()->delete();
 
-        $this->log($request, 'RESET_PASSWORD', $user->id, ['username' => $user->username]);
+        $this->log($request, 'RESET_PASSWORD', $user->id, [
+            'username' => $user->username,
+            'wasLocked' => $wasLocked,
+        ]);
 
-        return response()->json(['message' => 'تم إعادة تعيين كلمة المرور']);
+        // يُقال للمسؤول إن الحساب كان مقفلاً: القفل أثرُ تخمينٍ متكرّر، وهو
+        // خبرٌ أمنيّ يستحقّ أن يُرى لا أن يُمحى بصمت.
+        return response()->json([
+            'message' => $wasLocked
+                ? 'تم إعادة تعيين كلمة المرور وفكّ قفل الحساب — كان مقفلاً بعد محاولات دخول خاطئة'
+                : 'تم إعادة تعيين كلمة المرور',
+            'wasLocked' => $wasLocked,
+        ]);
     }
 
     private function log(Request $request, string $action, int $entityId, array $details = []): void
