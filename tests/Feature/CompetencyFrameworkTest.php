@@ -32,7 +32,7 @@ class CompetencyFrameworkTest extends TestCase
     public function test_update_requires_competency_manage(): void
     {
         $c = $this->comp('behavioral', 5);
-        $this->actingAsRole('CENTER_MANAGER'); // COMPETENCY_VIEW فقط
+        $this->actingAsRole('ASSESS_MANAGER'); // COMPETENCY_VIEW فقط، لا MANAGE
         $this->putJson("/api/competencies/{$c->id}", [
             'nameAr' => 'x', 'maxLevel' => 5, 'weight' => 1,
         ])->assertStatus(403);

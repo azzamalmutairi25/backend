@@ -40,7 +40,10 @@ class CandidateLifecycleTest extends TestCase
         $this->assertSame('scheduled', $c->fresh()->status);
         $this->assertSame('scheduled', $a->fresh()->status);
 
-        // 2) تقييم كامل ثم إرسال: scheduled → assessed
+        // 2) المقيّم يُجري التقييم — لا مدير النظام:
+        // المقيّم لا يرى ولا يعتمد إلا تقارير من قيّمهم هو، فلو قيّمه ADMIN
+        // لما رأى المقيّمُ التقريرَ عند مرحلته.
+        $ev = $this->actingAsRole('EVALUATOR', 'ED');
         $evalId = $this->postJson('/api/evaluations/start', ['candidateId' => $c->id, 'activity' => 'interview'])
             ->assertCreated()->json('evaluation.id') ?? Evaluation::latest('id')->value('id');
         $this->postJson("/api/evaluations/{$evalId}/scores", ['scores' => [
@@ -50,15 +53,37 @@ class CandidateLifecycleTest extends TestCase
         $this->assertSame('assessed', $c->fresh()->status);
         $this->assertSame('assessed', $a->fresh()->status);
 
-        // 3) إنشاء التقرير وإرساله للاعتماد
+        // 3) المساعد يكتب التقرير ويرسله — لا مدير النظام:
+        // مرحلة مدير التقييم تمنع كاتب التقرير من اعتمادها («من يكتب لا يعتمد»)،
+        // فلو كتبه الفاعل نفسه لعلق عندها. هذا هو المسار الحقيقي أصلاً.
+        $mgr = $this->actingAsRole('ASSESS_MANAGER');
+        $this->actingAsRole('ASSISTANT', 'ED', $mgr);
+
         $reportId = $this->postJson('/api/reports', [
             'candidateId' => $c->id, 'recommendation' => 'مرشّح قوي',
             'behavioralFit' => 88.5, 'technicalFit' => 77.0, 'submit' => true,
         ])->assertCreated()->json('reportId') ?? FinalReport::latest('id')->value('id');
-        $this->assertSame('pending_dev_approval', FinalReport::find($reportId)->status);
+        $this->assertSame('pending_evaluator', FinalReport::find($reportId)->status);
 
-        // 4) اعتماد التقرير: المرشح + الدورة → completed
-        $this->postJson("/api/reports/{$reportId}/approve")->assertOk();
+        // 4) سلسلة الاعتماد كاملة — تُقرأ من workflow_stages، فيصمد الاختبار إن
+        // أُعيد ترتيبها من الشاشة. كل مرحلة يعتمدها صاحبها.
+        $chain = \App\Models\WorkflowStage::chain();
+        foreach ($chain as $stage) {
+            $this->assertSame($stage->status_key, FinalReport::find($reportId)->status,
+                "التقرير عند المرحلة {$stage->position}");
+            $this->assertSame('assessed', $c->fresh()->status, 'المرشح لا يكتمل قبل نهاية السلسلة');
+
+            // يُعاد استعمال الفاعلَين لا إنشاء غيرهما: المقيّم هو من قيّم المرشّح
+            // (وإلا لم يرَ تقريره)، والمدير هو مدير كاتب التقرير (تشترطه قاعدة
+            // الفريق). المراحل الأخرى غير محصورة فيكفيها دورٌ جديد.
+            if ($stage->role_code === 'EVALUATOR')          { \Laravel\Sanctum\Sanctum::actingAs($ev); }
+            elseif ($stage->role_code === 'ASSESS_MANAGER') { \Laravel\Sanctum\Sanctum::actingAs($mgr); }
+            else                                            { $this->actingAsRole($stage->role_code); }
+
+            $this->postJson("/api/reports/{$reportId}/approve")->assertOk();
+        }
+
+        // 5) بعد آخر مرحلة: المرشح + الدورة → completed
         $this->assertSame('approved', FinalReport::find($reportId)->status);
         $this->assertSame('completed', $c->fresh()->status);
         $this->assertSame('completed', $a->fresh()->status);

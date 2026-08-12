@@ -48,14 +48,20 @@ class DailyMaintenance extends Command
             $reminders++;
         }
 
-        // 3) تصعيد التقارير المتأخرة (بانتظار الاعتماد أطول من المهلة)
+        // 3) تصعيد التقارير المتأخرة في أي مرحلة اعتماد
+        // كل مرحلة تُصعَّد لصاحبها هو — تقرير عالق عند المقيّم لا يفيد إشعار تطوير الكفاءات به
         $cutoff = now()->subDays((int) $this->option('days'));
         $escalated = 0;
-        // مرّة واحدة لكل حالة تأخّر (whereNull escalated_at) — يمنع إعادة إشعار DEV_MANAGER يومياً بلا حدّ
-        foreach (FinalReport::where('status', 'pending_dev_approval')
+        $owners = [
+            'pending_evaluator' => 'EVALUATOR',
+            'pending_manager' => 'ASSESS_MANAGER',
+            'pending_dev_approval' => 'DEV_MANAGER',
+        ];
+        // مرّة واحدة لكل حالة تأخّر (whereNull escalated_at) — يمنع إعادة الإشعار يومياً بلا حدّ
+        foreach (FinalReport::whereIn('status', array_keys($owners))
                      ->where('updated_at', '<', $cutoff)->whereNull('escalated_at')
                      ->with('candidate')->get() as $r) {
-            $notify->notifyRole('DEV_MANAGER', 'approval', 'تقرير متأخر بانتظار الاعتماد',
+            $notify->notifyRole($owners[$r->status], 'approval', 'تقرير متأخر بانتظار الاعتماد',
                 "تجاوز تقرير المشارك {$r->candidate->participant_code} مهلة الاعتماد — يرجى المراجعة",
                 'report', (string) $r->id, null);
             // طابع التصعيد دون لمس updated_at (query builder لا يشغّل طوابع Eloquent)
@@ -63,8 +69,40 @@ class DailyMaintenance extends Command
             $escalated++;
         }
 
-        $this->info("noShows={$noShows} reminders={$reminders} escalated={$escalated}");
+        // 4) التقرير اليومي بالبريد لمدير المركز
+        $mailed = $this->mailDailyReport($today);
+
+        $this->info("noShows={$noShows} reminders={$reminders} escalated={$escalated} dailyReport={$mailed}");
 
         return self::SUCCESS;
+    }
+
+    // يرسل تقرير اليوم لكل من يحمل دور مدير المركز وله بريد.
+    // يُبنى من نفس الخدمة التي تعرضه في الصفحة، فلا يتباعد المُرسَل عن المعروض.
+    private function mailDailyReport(string $today): int
+    {
+        $recipients = \App\Models\User::whereHas('role', fn ($q) => $q->where('code', 'CENTER_MANAGER'))
+            ->where('is_active', true)
+            ->whereNotNull('email')
+            ->get();
+
+        if ($recipients->isEmpty()) {
+            return 0;
+        }
+
+        $service = app(\App\Services\DailyReportService::class);
+        $comm = app(\App\Services\CommunicationService::class);
+        $html = $service->renderHtml($service->gather($today));
+
+        $sent = 0;
+        foreach ($recipients as $u) {
+            // البريد نصّي في هذا النظام؛ نُرسل ملخّصاً ورابط العرض للتفاصيل الكاملة
+            $summary = "التقرير اليومي — {$today}. افتح النظام لعرض التفاصيل والطباعة.";
+            if ($comm->sendEmail($u->email, $u->full_name, "التقرير اليومي — {$today}", $summary, 'notification', null, null)) {
+                $sent++;
+            }
+        }
+
+        return $sent;
     }
 }

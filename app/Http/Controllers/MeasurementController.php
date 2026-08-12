@@ -14,11 +14,6 @@ use Illuminate\Http\Request;
 
 class MeasurementController extends Controller
 {
-    private function allowedClassifications(Request $request): array
-    {
-        return $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)
-            ? ['normal', 'secret', 'top_secret'] : ['normal'];
-    }
 
     private function log(Request $request, string $action, int $entityId, array $details = []): void
     {
@@ -50,8 +45,8 @@ class MeasurementController extends Controller
         if (!$request->user()->hasPermission(Permissions::MEASUREMENT_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض القياس'], 403);
         }
-        $candidate = Candidate::whereIn('classification', $this->allowedClassifications($request))
-            ->find($candidateId);
+        // النطاق كاملاً — كان التصنيف وحده، فكانت نتائج القياس مفتوحة لكل قطاع
+        $candidate = $this->resolveCandidateInScope($request, $candidateId);
         if (!$candidate) {
             return response()->json(['error' => 'المرشح غير موجود'], 404);
         }
@@ -77,8 +72,8 @@ class MeasurementController extends Controller
             'englishScore' => 'nullable|numeric|min:0|max:100',
         ]);
 
-        $candidate = Candidate::whereIn('classification', $this->allowedClassifications($request))
-            ->find($validated['candidateId']);
+        // النطاق كاملاً — كان التصنيف وحده، فكانت نتائج القياس مفتوحة لكل قطاع
+        $candidate = $this->resolveCandidateInScope($request, $validated['candidateId']);
         if (!$candidate) {
             return response()->json(['error' => 'المرشح غير موجود'], 404);
         }
@@ -88,16 +83,23 @@ class MeasurementController extends Controller
             return response()->json(['error' => 'لا توجد دورة تقييم نشطة للمرشّح'], 422);
         }
 
-        $m = MeasurementResult::updateOrCreate(
-            ['assessment_id' => $assessment->id],
-            [
-                'candidate_id' => $candidate->id,
-                'personality_score' => $validated['personalityScore'] ?? null,
-                'analytical_score' => $validated['analyticalScore'] ?? null,
-                'english_score' => $validated['englishScore'] ?? null,
-                'uploaded_by' => $request->user()->id,
-            ]
-        );
+        $attrs = [
+            'candidate_id' => $candidate->id,
+            'personality_score' => $validated['personalityScore'] ?? null,
+            'analytical_score' => $validated['analyticalScore'] ?? null,
+            'english_score' => $validated['englishScore'] ?? null,
+            'uploaded_by' => $request->user()->id,
+        ];
+        try {
+            $m = MeasurementResult::updateOrCreate(['assessment_id' => $assessment->id], $attrs);
+        } catch (\Illuminate\Database\QueryException $e) {
+            // رفعان متزامنان أوّلان: كلاهما لا يجد صفاً فيُدرج، والثاني ينتهك الفهرس
+            // الفريد (23505). أعِد المحاولة تحديثاً للصف الذي أدرجه الأوّل بدل 500.
+            if ($e->getCode() !== '23505' || !($m = MeasurementResult::where('assessment_id', $assessment->id)->first())) {
+                throw $e;
+            }
+            $m->update($attrs);
+        }
 
         $this->log($request, 'UPLOAD_MEASUREMENT', $m->id, ['candidate' => $candidate->participant_code]);
 

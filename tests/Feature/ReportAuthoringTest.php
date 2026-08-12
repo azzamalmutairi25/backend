@@ -38,14 +38,14 @@ class ReportAuthoringTest extends TestCase
     public function test_only_author_or_manager_can_edit_a_report(): void
     {
         [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed']);
-        $author = $this->actingAsRole('EVALUATOR');
+        $author = $this->actingAsRole('ASSISTANT'); // مساعد التقييم هو كاتب التقرير
         $report = FinalReport::create([
             'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'يوصى به',
             'status' => 'draft', 'created_by' => $author->id,
         ]);
 
-        // a DIFFERENT evaluator cannot edit
-        $this->actingAsRole('EVALUATOR');
+        // a DIFFERENT assistant cannot edit
+        $this->actingAsRole('ASSISTANT');
         $this->putJson("/api/reports/{$report->id}", ['recommendation' => 'محاولة'])->assertStatus(403);
 
         // the author can
@@ -60,13 +60,14 @@ class ReportAuthoringTest extends TestCase
     public function test_classified_candidate_report_create_is_404_for_uncleared_author(): void
     {
         [$c] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed', 'classification' => 'secret']);
-        $this->actingAsRole('EVALUATOR'); // report.create, no view_classified
+        $this->actingAsRole('ASSISTANT'); // report.create, no view_classified
 
         $this->postJson('/api/reports', ['candidateId' => $c->id, 'recommendation' => 'يوصى به'])
             ->assertStatus(404);
     }
 
-    public function test_submit_moves_report_to_pending_approval(): void
+    // الإرسال يدخل أول السلسلة (المقيّم) لا آخرها
+    public function test_submit_moves_report_to_the_first_approval_stage(): void
     {
         [$c] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed']);
         $this->actingAsRole('ASSESS_MANAGER');
@@ -76,7 +77,7 @@ class ReportAuthoringTest extends TestCase
         ])->assertCreated();
 
         $this->assertDatabaseHas('final_reports', [
-            'id' => $res->json('id'), 'status' => 'pending_dev_approval',
+            'id' => $res->json('id'), 'status' => 'pending_evaluator',
         ]);
     }
 }

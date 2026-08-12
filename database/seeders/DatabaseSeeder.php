@@ -19,12 +19,15 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // ── الأدوار العشرة ──
+        // ── الأدوار ──
+        // updateOrCreate لا Role::create: البذر قابل لإعادة التشغيل (roles.code فريد،
+        // فإعادة db:seed كانت تفشل)، ويضيف EXTERNAL_ADD للقواعد التي بُذرت قبله.
         $roles = [
             ['code' => 'ADMIN', 'name_ar' => 'مدير النظام'],
             ['code' => 'CENTER_MANAGER', 'name_ar' => 'مدير المركز'],
             ['code' => 'SCHEDULER', 'name_ar' => 'مسؤول الجدولة'],
-            ['code' => 'RECEPTIONIST', 'name_ar' => 'مسؤول الاستقبال'],
+            ['code' => 'RECEPTIONIST', 'name_ar' => 'مسؤول استقبال الموظفين'],
+            ['code' => 'OPERATIONS', 'name_ar' => 'مسؤول العمليات'],
             ['code' => 'ASSESS_MANAGER', 'name_ar' => 'مدير إدارة التقييم'],
             ['code' => 'EVALUATOR', 'name_ar' => 'مستشار المقابلة'],
             ['code' => 'DISCUSSION_EVAL', 'name_ar' => 'مستشار حلقة النقاش'],
@@ -33,7 +36,27 @@ class DatabaseSeeder extends Seeder
             ['code' => 'MEASURE_SUPER', 'name_ar' => 'مشرف أدوات القياس'],
             ['code' => 'EXTERNAL_ADD', 'name_ar' => 'مستخدم خارجي (إضافة مرشحين)'],
         ];
-        foreach ($roles as $r) Role::create($r);
+        foreach ($roles as $r) Role::updateOrCreate(['code' => $r['code']], $r);
+
+        // ── صلاحيات الأدوار: تُبذَر من المصفوفة مرّة، ثم يملكها المدير ──
+        // البذر لدورٍ **لا صفوف له** فقط. دورٌ حُرِّرت صلاحياته من الشاشة لا
+        // يُعاد إلى الافتراضي بإعادة تشغيل البذر — وإلا محا كلُّ بذرٍ ضبطاً
+        // اختاره صاحب المنصّة بلا إنذار، وهو نفس عطل حساب admin.
+        if (\Illuminate\Support\Facades\Schema::hasTable('role_permissions')) {
+            $seeded = 0;
+            foreach (\App\Security\Permissions::matrix() as $code => $perms) {
+                $role = Role::where('code', $code)->first();
+                if (!$role) continue;
+                if (\App\Models\RolePermission::where('role_id', $role->id)->exists()) continue;
+
+                foreach ($perms as $p) {
+                    \App\Models\RolePermission::create(['role_id' => $role->id, 'permission' => $p]);
+                }
+                $seeded++;
+            }
+            \App\Security\Permissions::forgetCache();
+            if ($seeded > 0) echo "✓ بُذرت صلاحيات {$seeded} دور\n";
+        }
 
         // ── القطاعات الثمانية ──
         $sectors = [
@@ -46,7 +69,7 @@ class DatabaseSeeder extends Seeder
             ['code' => 'HO', 'name_ar' => 'الإسكان', 'is_military' => false],
             ['code' => 'CO', 'name_ar' => 'الاتصالات', 'is_military' => false],
         ];
-        foreach ($sectors as $s) Sector::create($s);
+        foreach ($sectors as $s) Sector::updateOrCreate(['code' => $s['code']], $s);
 
         // ── الكفاءات ──
         $competencies = [
@@ -59,34 +82,67 @@ class DatabaseSeeder extends Seeder
             ['name_ar' => 'حل المشكلات', 'type' => 'technical', 'max_level' => 5, 'sort_order' => 7],
             ['name_ar' => 'المرونة والتكيّف', 'type' => 'behavioral', 'max_level' => 5, 'sort_order' => 8],
         ];
-        foreach ($competencies as $c) Competency::create($c);
+        foreach ($competencies as $c) Competency::updateOrCreate(['name_ar' => $c['name_ar']], $c);
 
-        // ── حسابات تجريبية (كلمة المرور: Kafaat@2026) ──
+        // ── حسابات المستخدمين ──
+        // في الإنتاج: لا تُنشأ حسابات تجريبية بكلمة مرور منشورة إطلاقاً. يُنشأ مدير
+        // واحد فقط بكلمة مرور من البيئة (ADMIN_INITIAL_PASSWORD) مع إلزام تغييرها؛
+        // وإن غابت المتغيّرة يُتخطّى الإنشاء بتحذير صريح. أمّا خارج الإنتاج
+        // (local/testing) فتُنشأ حسابات العرض كما هي — تعتمد عليها الاختبارات.
         $adminRole = Role::where('code', 'ADMIN')->first();
-        $evalRole = Role::where('code', 'EVALUATOR')->first();
-        $devRole = Role::where('code', 'DEV_MANAGER')->first();
 
-        User::create([
-            'username' => 'admin', 'full_name' => 'مدير النظام',
-            'email' => 'admin@kafaat.local', 'password' => 'Kafaat@2026',
-            'role_id' => $adminRole->id, 'is_active' => true, 'must_change_password' => false,
-        ]);
-        User::create([
-            'username' => 'evaluator', 'full_name' => 'مستشار تجريبي',
-            'email' => 'eval@kafaat.local', 'password' => 'Kafaat@2026',
-            'role_id' => $evalRole->id, 'is_active' => true, 'must_change_password' => false,
-        ]);
-        User::create([
-            'username' => 'devmanager', 'full_name' => 'مدير تطوير الكفاءات',
-            'email' => 'dev@kafaat.local', 'password' => 'Kafaat@2026',
-            'role_id' => $devRole->id, 'is_active' => true, 'must_change_password' => false,
-        ]);
+        if (app()->environment('production')) {
+            $adminPassword = (string) env('ADMIN_INITIAL_PASSWORD', '');
+            // حسابٌ قائم لا يُمَسّ. كان updateOrCreate يكتب فوقه، فإعادةُ تشغيل
+            // البذر لسببٍ آخر — إضافة دور أو قطاع — تُعيد كلمة مرور مدير النظام
+            // إلى قيمة البيئة وتُلزمه بالتغيير. أي أنّ أمراً يبدو مرجعياً بحتاً
+            // كان ينتزع من صاحب المنصّة كلمةَ مروره التي اختارها، بلا إنذار.
+            // الإنشاء لأول مرة فقط؛ وإعادة الضبط لها أمرها الصريح:
+            //     php artisan kafaat:create-admin admin --reset
+            if (User::where('username', 'admin')->exists()) {
+                echo "• حساب admin قائم — لم يُمَسّ (استعمل kafaat:create-admin --reset لإعادة الضبط)\n";
+            } elseif ($adminPassword !== '') {
+                User::updateOrCreate(
+                    ['username' => 'admin'],
+                    [
+                        'full_name' => 'مدير النظام',
+                        'email' => (string) env('ADMIN_INITIAL_EMAIL', 'admin@kafaat.local'),
+                        'password' => $adminPassword,
+                        'role_id' => $adminRole->id,
+                        'is_active' => true,
+                        'must_change_password' => true, // إلزام التغيير عند أول دخول
+                    ]
+                );
+                echo "✓ أُنشئ حساب admin (يجب تغيير كلمة المرور عند أول دخول)\n";
+            } else {
+                echo "⚠ لم يُنشأ أي حساب: اضبط ADMIN_INITIAL_PASSWORD ثم أعد التشغيل، أو أنشئ المدير يدوياً.\n";
+            }
+        } else {
+            // بيئات غير إنتاجية فقط — كلمة مرور موحّدة معروفة للتطوير والاختبار
+            $evalRole = Role::where('code', 'EVALUATOR')->first();
+            $devRole = Role::where('code', 'DEV_MANAGER')->first();
+            $demo = [
+                ['username' => 'admin', 'full_name' => 'مدير النظام', 'email' => 'admin@kafaat.local', 'role_id' => $adminRole->id],
+                ['username' => 'evaluator', 'full_name' => 'مستشار تجريبي', 'email' => 'eval@kafaat.local', 'role_id' => $evalRole->id],
+                ['username' => 'devmanager', 'full_name' => 'مدير تطوير الكفاءات', 'email' => 'dev@kafaat.local', 'role_id' => $devRole->id],
+            ];
+            foreach ($demo as $u) {
+                User::updateOrCreate(
+                    ['username' => $u['username']],
+                    $u + ['password' => 'Kafaat@2026', 'is_active' => true, 'must_change_password' => false]
+                );
+            }
+        }
 
-        // ── الإعدادات (قوالب البريد والرسائل) ──
-        DB::table('settings')->insert([
-            ['key' => 'email.invitation.subject', 'value' => 'دعوة لجلسة تقييم الكفاءات القيادية', 'description' => 'عنوان بريد الدعوة', 'updated_at' => now()],
-            ['key' => 'sms.invitation.template', 'value' => 'مركز تمكين الكفاءات: لديك جلسة تقييم بتاريخ {date} الساعة {time} في {location}', 'description' => 'قالب رسالة الدعوة', 'updated_at' => now()],
-        ]);
+        // ── الإعدادات (قوالب البريد والرسائل) — idempotent ──
+        DB::table('settings')->updateOrInsert(
+            ['key' => 'email.invitation.subject'],
+            ['value' => 'دعوة لجلسة تقييم الكفاءات القيادية', 'description' => 'عنوان بريد الدعوة', 'updated_at' => now()]
+        );
+        DB::table('settings')->updateOrInsert(
+            ['key' => 'sms.invitation.template'],
+            ['value' => 'مركز تمكين الكفاءات: لديك جلسة تقييم بتاريخ {date} الساعة {time} في {location}', 'description' => 'قالب رسالة الدعوة', 'updated_at' => now()]
+        );
 
         echo "✓ تمت تعبئة البيانات الأولية\n";
     }

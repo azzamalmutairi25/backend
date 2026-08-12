@@ -18,6 +18,12 @@ class AuditController extends Controller
         'IMPORT_CANDIDATES' => 'استيراد جماعي',
         'EXPORT_CANDIDATES' => 'تصدير القائمة',
         'RECLASSIFY_CANDIDATE' => 'تغيير تصنيف السرّية',
+        'CV_UPDATE' => 'تعديل السيرة الذاتية',
+        'DUPLICATE_CANDIDATE_ADD' => 'محاولة إضافة مرشح مسجّل مسبقاً',
+        'REQUEST_CANDIDATE_UPDATE' => 'طلب تحديث بيانات مرشح',
+        'VIEW_CANDIDATE_UPDATE_REQUEST' => 'عرض طلب تحديث بيانات',
+        'APPROVE_CANDIDATE_UPDATE' => 'اعتماد طلب تحديث بيانات',
+        'REJECT_CANDIDATE_UPDATE' => 'رفض طلب تحديث بيانات',
         'DENIED_CLASSIFIED_ACCESS' => 'محاولة وصول مرفوضة (مصنّف)',
         'CREATE_USER' => 'إضافة مستخدم',
         'UPDATE_USER' => 'تعديل مستخدم',
@@ -63,9 +69,12 @@ class AuditController extends Controller
 
     public function candidateHistory(Request $request, int $id)
     {
+        // سجل التدقيق — لا عرض المرشح. كان محروساً بـCANDIDATE_VIEW فقرأه عشرة
+        // أدوار من أحد عشر، بينما شقيقه systemLog على الجدول نفسه محروس بـAUDIT_VIEW.
+        // السجل يكشف من فعل ماذا ومتى: من رأى بيانات المرشّح، ومن حاول ورُفض.
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::CANDIDATE_VIEW)) {
-            return response()->json(['error' => 'ليس لديك صلاحية عرض سجل المرشح'], 403);
+        if (!$user->hasPermission(Permissions::AUDIT_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض سجل التدقيق'], 403);
         }
         // احترام تصنيف المرشح — فشل مغلق: مرشح محذوف قد يكون كان مصنّفاً
         $candidate = \App\Models\Candidate::find($id);
@@ -123,9 +132,13 @@ class AuditController extends Controller
         $userIds = $logs->pluck('user_id')->unique()->filter();
         $users = User::whereIn('id', $userIds)->get()->keyBy('id');
 
-        // إخفاء تفاصيل المرشحين المصنّفين عمّن لا يملك التصريح (منع تسريب التصنيف عبر السجل)
-        // فشل مغلق: نُظهر فقط سجلّات المرشحين «العاديين الموجودين»؛ المصنّف أو المحذوف يُحجب
+        // إخفاء تفاصيل المرشحين المصنّفين عمّن لا يملك التصريح (منع تسريب التصنيف عبر السجل).
+        // فشل مغلق: يُظهر فقط سجلّات المرشح «العادي الموجود». صفّ candidate يُميَّز بالمعرّف.
+        // أما الكيانات المرتبطة بمرشّح (تقرير/تقييم/جدولة/حضور/قياس/خطة/توزيع) فتحمل رمز
+        // المشارك في details تحت مفاتيح غير موحّدة (candidate/code/candidateSector)، فحجب
+        // صفوف candidate وحدها كان يُسرّب رمز مرشّح مصنّف عبر صفوف أشقّائه — نُغلق على تفاصيلها كلها.
         $canSeeClassified = $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED);
+        $candidateLinked = ['candidate', 'evaluation', 'report', 'schedule', 'attendance', 'measurement', 'development_plan', 'distribution'];
         $visibleCandidateIds = [];
         if (!$canSeeClassified) {
             $candIds = $logs->where('entity_type', 'candidate')->pluck('entity_id')->unique()->filter();
@@ -137,14 +150,20 @@ class AuditController extends Controller
         $sensitive = ['VIEW_CANDIDATE_PII', 'RECLASSIFY_CANDIDATE', 'DELETE_CANDIDATE',
             'EXPORT_CANDIDATES', 'RESET_PASSWORD', 'DISABLE_USER'];
 
-        $entries = $logs->map(function ($log) use ($users, $canSeeClassified, $visibleCandidateIds, $sensitive) {
+        $entries = $logs->map(function ($log) use ($users, $canSeeClassified, $candidateLinked, $visibleCandidateIds, $sensitive) {
             $user = $users->get($log->user_id);
-            // لا تُعامَل الإجراءات الجماعية (entity_id='0'/null مثل EXPORT_CANDIDATES) كسجل مرشح مصنّف فتُحجب دائماً
-            $redact = !$canSeeClassified
-                && $log->entity_type === 'candidate'
+            // الإجراءات الجماعية (entity_id='0'/null) لا تخصّ مرشّحاً بعينه فلا تُحجب. صفّ
+            // candidate يُظهر العادي الموجود؛ صفوف الأشقّاء تُحجب تفاصيلها كلها (schema غير
+            // موحّد) — يبقى الفعل/الفاعل/الوقت/الIP، ويغيب رمز/تفاصيل المرشّح.
+            $redact = false;
+            if (!$canSeeClassified
+                && in_array($log->entity_type, $candidateLinked, true)
                 && $log->entity_id !== null
-                && $log->entity_id !== '0'
-                && !in_array((string) $log->entity_id, $visibleCandidateIds, true);
+                && $log->entity_id !== '0') {
+                $redact = $log->entity_type === 'candidate'
+                    ? !in_array((string) $log->entity_id, $visibleCandidateIds, true)
+                    : true;
+            }
             return [
                 'id' => $log->id,
                 'action' => $this->label($log->action),

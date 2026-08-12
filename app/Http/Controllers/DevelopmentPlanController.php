@@ -8,6 +8,7 @@ use App\Models\FinalReport;
 use App\Models\AuditLog;
 use App\Security\Permissions;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 // ════════════════════════════════════════════════════════════
 //  خطة التطوير الفردية — بنود متابعة مشتقّة من مجالات التطوير
@@ -15,11 +16,6 @@ use Illuminate\Http\Request;
 
 class DevelopmentPlanController extends Controller
 {
-    private function allowedClassifications(Request $request): array
-    {
-        return $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)
-            ? ['normal', 'secret', 'top_secret'] : ['normal'];
-    }
 
     private function log(Request $request, string $action, int $entityId, array $details = []): void
     {
@@ -35,9 +31,21 @@ class DevelopmentPlanController extends Controller
     }
 
     // يحلّ المرشّح ضمن التصنيف المسموح (مصنّف خارج الصلاحية = «غير موجود»)
+    // النطاق كاملاً: التصنيف + القطاع. كان التصنيف وحده، فكان المحصور بقطاع
+    // يقرأ ويكتب ويحذف خطط تطوير مرشحي القطاعات الأخرى — وكل مسارات هذا
+    // المتحكّم تمرّ من هنا، فالحارس واحد يغطّيها.
     private function resolveCandidate(Request $request, int $candidateId): ?Candidate
     {
-        return Candidate::whereIn('classification', $this->allowedClassifications($request))->find($candidateId);
+        return $this->resolveCandidateInScope($request, $candidateId);
+    }
+
+    // بند ضمن نطاق المستخدم — النطاق عبر علاقة candidate لأن الحلّ بمعرّف البند
+    private function resolveItemInScope(Request $request, int $id): ?DevelopmentPlanItem
+    {
+        $q = DevelopmentPlanItem::with('candidate');
+        $this->scopeViaCandidate($request, $q);
+
+        return $q->find($id);
     }
 
     private function present(DevelopmentPlanItem $i): array
@@ -55,11 +63,15 @@ class DevelopmentPlanController extends Controller
     // GET /development-plans/{candidateId} — بنود الدورة الحالية
     public function index(Request $request, int $candidateId)
     {
-        if (!$request->user()->hasPermission(Permissions::REPORT_VIEW)) {
+        // صلاحيتها وحدها: شاشة قائمة بذاتها، وقبولُ REPORT_VIEW بديلاً كان
+        // يُبقي المسار مفتوحاً لمن سُحبت عنه الصلاحية من شاشة الأدوار
+        if (!$request->user()->hasPermission(Permissions::DEVELOPMENT_PLAN_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض خطة التطوير'], 403);
         }
+        // المقيّم المحصور لا يرى إلا من قيّمهم هو — كما competencyGap/scorePreview.
+        // بدونه كان يقرأ بنود خطة (مشتقّة من التقرير) لمرشّح قطاعه لم يقيّمه.
         $candidate = $this->resolveCandidate($request, $candidateId);
-        if (!$candidate) {
+        if (!$candidate || $this->evaluatorNarrowedOut($request, $candidate)) {
             return response()->json(['error' => 'المرشح غير موجود'], 404);
         }
         $assessment = $candidate->assessments()->orderByDesc('id')->first();
@@ -113,8 +125,9 @@ class DevelopmentPlanController extends Controller
         if (!$request->user()->hasPermission(Permissions::REPORT_CREATE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة خطة التطوير'], 403);
         }
-        $item = DevelopmentPlanItem::with('candidate')->find($id);
-        if (!$item || !in_array($item->candidate->classification, $this->allowedClassifications($request), true)) {
+        // يُحلّ بمعرّف البند لا المرشح، فالنطاق يُطبَّق عبر علاقة candidate
+        $item = $this->resolveItemInScope($request, $id);
+        if (!$item) {
             return response()->json(['error' => 'البند غير موجود'], 404);
         }
         $validated = $request->validate([
@@ -142,8 +155,9 @@ class DevelopmentPlanController extends Controller
         if (!$request->user()->hasPermission(Permissions::REPORT_CREATE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة خطة التطوير'], 403);
         }
-        $item = DevelopmentPlanItem::with('candidate')->find($id);
-        if (!$item || !in_array($item->candidate->classification, $this->allowedClassifications($request), true)) {
+        // يُحلّ بمعرّف البند لا المرشح، فالنطاق يُطبَّق عبر علاقة candidate
+        $item = $this->resolveItemInScope($request, $id);
+        if (!$item) {
             return response()->json(['error' => 'البند غير موجود'], 404);
         }
         $item->delete();
@@ -170,23 +184,27 @@ class DevelopmentPlanController extends Controller
             return response()->json(['error' => 'لا توجد مجالات تطوير في تقرير هذه الدورة'], 422);
         }
 
-        // لا نُكرّر بنداً موجوداً لنفس المجال في هذه الدورة
-        $existing = DevelopmentPlanItem::where('candidate_id', $candidate->id)
-            ->where('assessment_id', $assessment->id)->pluck('area')->all();
+        // نداءان متزامنان لـseed كانا يقرآن نفس $existing (الفارغ) فيُدرجان كامل المجالات
+        // مكرّرةً. نُسلسل بقفل صف المرشّح ونعيد قراءة الموجود داخل القفل — دون فهرس فريد
+        // على (candidate,assessment,area) كي لا نكسر إضافة store اليدوية لبندين بنفس المجال.
         $created = 0;
-        // array_unique يمنع تكرار المجال المتطابق داخل نفس التشغيل، والإلحاق بـ $existing تحصينٌ إضافي
-        foreach (array_unique($areas) as $area) {
-            if (in_array($area, $existing, true)) continue;
-            DevelopmentPlanItem::create([
-                'candidate_id' => $candidate->id,
-                'assessment_id' => $assessment->id,
-                'area' => $area,
-                'status' => 'pending',
-                'created_by' => $request->user()->id,
-            ]);
-            $existing[] = $area;
-            $created++;
-        }
+        DB::transaction(function () use ($candidate, $assessment, $areas, $request, &$created) {
+            Candidate::whereKey($candidate->id)->lockForUpdate()->first();
+            $existing = DevelopmentPlanItem::where('candidate_id', $candidate->id)
+                ->where('assessment_id', $assessment->id)->pluck('area')->all();
+            foreach (array_unique($areas) as $area) {
+                if (in_array($area, $existing, true)) continue;
+                DevelopmentPlanItem::create([
+                    'candidate_id' => $candidate->id,
+                    'assessment_id' => $assessment->id,
+                    'area' => $area,
+                    'status' => 'pending',
+                    'created_by' => $request->user()->id,
+                ]);
+                $existing[] = $area;
+                $created++;
+            }
+        });
 
         $this->log($request, 'SEED_DEV_PLAN', $candidate->id, ['created' => $created]);
 

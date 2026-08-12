@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Support\Facades\Crypt;
 
@@ -78,6 +79,12 @@ class Candidate extends Model
         return $this->hasMany(Assessment::class);
     }
 
+    // السيرة الذاتية — وثيقة واحدة لكل مرشح (يدخلها المرشح عبر البوّابة)
+    public function cv(): HasOne
+    {
+        return $this->hasOne(CandidateCv::class);
+    }
+
     // تحديث حالة الشخص + مزامنتها على دورته الحالية (الأحدث)
     public function setStatus(string $status): void
     {
@@ -96,21 +103,44 @@ class Candidate extends Model
         return $q->exists();
     }
 
+    // القواعد قابلة للضبط من الإعدادات (رتب عسكرية عليا + عتبة الرتبة المدنية)،
+    // مع رجوع لقيم افتراضية إن لم تُضبط بعد.
+    public const DEFAULT_UPPER_RANKS = ['عميد', 'لواء', 'فريق', 'مشير'];
+    public const DEFAULT_UPPER_GRADE = 13;
+
     public static function classifyTier(string $rankLabel, bool $isMilitary): string
     {
+        // القائمة المُدارة (جدول ranks) أولاً: مطابقة صريحة تحسم الفئة.
+        // غير المُدرَج يسقط للمنطق القديم (قائمة الإعدادات + عتبة المرتبة المدنية).
+        $managed = Rank::tierFor($rankLabel, $isMilitary);
+        if ($managed !== null) {
+            return $managed;
+        }
+
         if ($isMilitary) {
-            $upperRanks = ['عميد', 'لواء', 'فريق', 'مشير'];
-            foreach ($upperRanks as $r) {
-                if (str_contains($rankLabel, $r)) return 'upper';
-            }
-            return 'middle';
-        } else {
-            if (preg_match('/م-?(\d+)/u', $rankLabel, $m)) {
-                $grade = (int) $m[1];
-                return $grade >= 13 ? 'upper' : 'middle';
+            foreach (self::tierUpperRanks() as $r) {
+                if ($r !== '' && str_contains($rankLabel, $r)) return 'upper';
             }
             return 'middle';
         }
+        if (preg_match('/م-?(\d+)/u', $rankLabel, $m)) {
+            return (int) $m[1] >= self::tierUpperGrade() ? 'upper' : 'middle';
+        }
+        return 'middle';
+    }
+
+    public static function tierUpperRanks(): array
+    {
+        $raw = Setting::find('tier.military_upper_ranks')?->value;
+        if ($raw === null || trim($raw) === '') return self::DEFAULT_UPPER_RANKS;
+        return array_values(array_filter(array_map('trim', explode(',', $raw)), fn ($r) => $r !== ''));
+    }
+
+    public static function tierUpperGrade(): int
+    {
+        // قيمة غير رقمية (تلف) ترجع للافتراضي 13 لا إلى 1
+        $v = Setting::find('tier.civilian_upper_grade')?->value;
+        return is_numeric($v) ? max(1, (int) $v) : self::DEFAULT_UPPER_GRADE;
     }
 
     public static function generateParticipantCode(Sector $sector): string

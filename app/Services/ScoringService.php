@@ -40,10 +40,13 @@ class ScoringService
                 'competencyId' => $c->id,
                 'name' => $c->name_ar,
                 'type' => $c->type,
+                'group' => $c->group,   // تجميع سلوكي (سلوكية/تميز/إحساس)
+                'domain' => $c->domain, // مجال فنّي
                 'weight' => (float) ($c->weight ?? 1),
                 'avgScore' => round($avg, 2),
                 'maxLevel' => $max,
-                'pct' => $max > 0 ? round($avg / $max * 100, 2) : 0.0,
+                // تُقصَر على 100: لو خُفّض max_level بعد الرصد لتجاوزت النسبة 100٪
+                'pct' => $max > 0 ? round(min($avg, $max) / $max * 100, 2) : 0.0,
             ];
         })->filter()->values();
 
@@ -57,9 +60,20 @@ class ScoringService
         ];
     }
 
+    private const TIERS = ['upper', 'middle'];
+
     // تحليل الفجوة: المستوى المُحقَّق مقابل المطلوب لفئة المرشّح، لكل كفاءة لها مستوى مطلوب
     public function computeGap(Assessment $assessment, string $tier): array
     {
+        // فئة مجهولة كانت تقع صامتة على target_middle ثم تُعاد كما هي في الرد،
+        // فينتج ردّ يقول tier=X بأرقام middle. الفئة تأتي من classifyTier (upper|middle)
+        // فهذا خطأ برمجي لا مُدخَل مستخدم — يُرفض بدل أن يُخمَّن.
+        if (!in_array($tier, self::TIERS, true)) {
+            throw new \InvalidArgumentException(
+                "فئة قيادية غير معروفة: '{$tier}'. المسموح: " . implode(', ', self::TIERS)
+            );
+        }
+
         $targetCol = $tier === 'upper' ? 'target_upper' : 'target_middle';
         $competencies = Competency::whereNotNull($targetCol)->orderBy('sort_order')->get();
 

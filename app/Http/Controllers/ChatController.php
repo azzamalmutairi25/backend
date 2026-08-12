@@ -17,25 +17,29 @@ class ChatController extends Controller
 {
     public function __construct(private NotificationService $notify) {}
 
-    private function allowedClassifications(Request $request): array
-    {
-        return $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)
-            ? ['normal', 'secret', 'top_secret'] : ['normal'];
-    }
 
     // يتحقق أن للمستخدم صلاحية الوصول لكيان المحادثة (نفس بوابة الكيان الأصلي)
     private function authorizeEntity(Request $request, string $entityType, int $entityId)
     {
+        // بوّابتان لا واحدة: CHAT_VIEW تفتح الميزة نفسها، وبوّابة الكيان تفتح
+        // محادثةً بعينها. كانت الأولى غائبة، فكان سحبُها من دورٍ في شاشة
+        // الأدوار يُخفي الشاشة ويترك مسارها مفتوحاً لكل من يقرأ التقارير.
+        if (!$request->user()->hasPermission(Permissions::CHAT_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية المحادثات'], 403);
+        }
+
         if ($entityType === 'report') {
             if (!$request->user()->hasPermission(Permissions::REPORT_VIEW)) {
                 return response()->json(['error' => 'ليس لديك صلاحية الوصول لهذه المحادثة'], 403);
             }
-            $report = FinalReport::with('candidate')->find($entityId);
-            if (!$report) {
-                return response()->json(['error' => 'المحادثة غير موجودة'], 404);
-            }
-            // مصنّف خارج الصلاحية = نفس ردّ «غير موجودة» (لا كشف وجود)
-            if ($report->candidate && !in_array($report->candidate->classification, $this->allowedClassifications($request))) {
+            // نطاق التقرير نفسه لا نصفه: كان يفحص التصنيف وحده، فكانت محادثة
+            // تقريرٍ من قطاع آخر مفتوحةً بمعرّفه — والمحادثة تحمل سبب الإرجاع
+            // ونقاش المقيّمين، أي مضمون التقرير المحجوب.
+            // مصنّف أو خارج النطاق = «غير موجودة» (لا كشف وجود)
+            $q = FinalReport::with('candidate');
+            $this->scopeReports($request, $q);
+
+            if (!$q->find($entityId)) {
                 return response()->json(['error' => 'المحادثة غير موجودة'], 404);
             }
             return null;
@@ -83,15 +87,17 @@ class ChatController extends Controller
     // ── إرسال رسالة ──
     public function send(Request $request, int $threadId)
     {
-        $validated = $request->validate([
-            'message' => 'required|string|max:2000',
-        ]);
-
+        // الترخيص قبل التحقّق من المدخلات: كان التحقّق أولاً، فيتعلّم من لا يملك
+        // الوصول قواعدَ الحقل (اسمه وحدّه) من ردّ 422 قبل أن يُمنع أصلاً.
         $thread = ChatThread::findOrFail($threadId);
 
         if ($resp = $this->authorizeEntity($request, $thread->entity_type, $thread->entity_id)) {
             return $resp;
         }
+
+        $validated = $request->validate([
+            'message' => 'required|string|max:2000',
+        ]);
         if ($thread->is_closed) {
             return response()->json(['error' => 'المحادثة مغلقة'], 400);
         }

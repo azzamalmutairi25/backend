@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\EmailLog;
 use App\Models\SmsLog;
 use App\Models\Setting;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Http;
 
@@ -14,6 +16,126 @@ use Illuminate\Support\Facades\Http;
 
 class CommunicationService
 {
+    public const GATEWAY_KEYS = [
+        'sms.enabled', 'sms.url', 'sms.key', 'sms.sender_id', 'sms.support_phone',
+    ];
+
+    // ── إعداد بوّابة الرسائل: جدول settings أولاً، ثم متغيّرات البيئة ──
+    // الرجوع للبيئة يُبقي التنصيبات القائمة (المضبوطة عبر .env) شغّالة بلا تدخّل.
+    public static function gatewayConfig(): array
+    {
+        $s = Setting::whereIn('key', self::GATEWAY_KEYS)->pluck('value', 'key');
+
+        // المفتاح مُخزَّن مشفّراً — لا يُترك واضحاً في القاعدة ولا في النسخ الاحتياطية
+        // key_error: مفتاح مُخزَّن فعلاً لكن فكّ تشفيره فشل (APP_KEY مختلف/قيمة تالفة).
+        // نميّزه عن «غير مُعَدّ إطلاقاً» لأن الأول فشلٌ حقيقي لا وضع تطوير — انظر sendViaSms.
+        $storedKey = (string) ($s->get('sms.key') ?? '');
+        $key = '';
+        $keyError = false;
+        if ($storedKey !== '') {
+            try {
+                $key = Crypt::decryptString($storedKey);
+            } catch (\Throwable $e) {
+                Log::error('sms gateway key decrypt failed (APP_KEY mismatch?): ' . $e->getMessage());
+                $keyError = true;
+            }
+        }
+
+        $url = (string) ($s->get('sms.url') ?: config('services.sms.url', ''));
+        $key = $key ?: (string) config('services.sms.key', '');
+
+        // لا مفتاح «enabled» مخزَّن (تنصيب سابق لصفحة الإعدادات) => استنتجه من اكتمال الإعداد
+        $enabled = $s->has('sms.enabled')
+            ? $s->get('sms.enabled') === 'true'
+            : ($url !== '' && $key !== '');
+
+        return [
+            'enabled' => $enabled,
+            'url' => $url,
+            'key' => $key,
+            'key_error' => $keyError,
+            'sender' => (string) ($s->get('sms.sender_id') ?: config('services.sms.sender_id', 'Kafaat')),
+            'support' => (string) ($s->get('sms.support_phone') ?? config('services.sms.support_phone', '')),
+        ];
+    }
+
+    // ════════════════ خادم البريد (SMTP) ════════════════
+
+    public const SMTP_KEYS = [
+        'smtp.enabled', 'smtp.host', 'smtp.port', 'smtp.encryption',
+        'smtp.username', 'smtp.password', 'smtp.from_address', 'smtp.from_name',
+    ];
+
+    // تعيين نوع التشفير إلى مخطّط Symfony:
+    // smtps = TLS ضمني (٤٦٥)، smtp = اتصال عادي يرقّى بـSTARTTLS عند دعم الخادم (٥٨٧/٢٥)
+    private const SCHEMES = ['ssl' => 'smtps', 'tls' => 'smtp', 'none' => 'smtp'];
+
+    // ── إعداد خادم البريد: جدول settings أولاً، ثم متغيّرات البيئة ──
+    public static function smtpConfig(): array
+    {
+        $s = Setting::whereIn('key', self::SMTP_KEYS)->pluck('value', 'key');
+
+        $pass = (string) ($s->get('smtp.password') ?? '');
+        if ($pass !== '') {
+            try {
+                $pass = Crypt::decryptString($pass);
+            } catch (\Throwable $e) {
+                // مفتاح تطبيق تغيّر أو قيمة تالفة — عطّل بدل المصادقة بكلمة خاطئة
+                Log::warning('smtp password decrypt failed: ' . $e->getMessage());
+                $pass = '';
+            }
+        }
+
+        $host = (string) ($s->get('smtp.host') ?: config('mail.mailers.smtp.host', ''));
+        $enc = (string) ($s->get('smtp.encryption') ?: 'tls');
+
+        // لا مفتاح «enabled» مخزَّن (تنصيب سابق لهذه الصفحة) => لا تتدخّل، اترك mail.php للبيئة
+        $enabled = $s->has('smtp.enabled') ? $s->get('smtp.enabled') === 'true' : false;
+
+        return [
+            'enabled' => $enabled,
+            'host' => $host,
+            'port' => (int) ($s->get('smtp.port') ?: config('mail.mailers.smtp.port', 587)),
+            'encryption' => isset(self::SCHEMES[$enc]) ? $enc : 'tls',
+            'username' => (string) ($s->get('smtp.username') ?? config('mail.mailers.smtp.username', '')),
+            'password' => $pass ?: (string) config('mail.mailers.smtp.password', ''),
+            'fromAddress' => (string) ($s->get('smtp.from_address') ?: config('mail.from.address', '')),
+            'fromName' => (string) ($s->get('smtp.from_name') ?: config('mail.from.name', '')),
+        ];
+    }
+
+    // ── تركيب المُرسِل من الإعدادات المحفوظة قبل كل إرسال ──
+    // نضبط config ثم ننادي Mail::raw العادي، ولا نستعمل Mail::build:
+    // MailFake لا يعرّف build() فيُمرّرها __call للمدير الحقيقي، فيفتح اختبارٌ
+    // مُزيَّف اتصالاً فعلياً بخادم البريد. المسار هنا يبقى قابلاً للتزييف.
+    private static function applySmtpConfig(): bool
+    {
+        $c = self::smtpConfig();
+        if (!$c['enabled'] || $c['host'] === '') {
+            return false; // اترك المُرسِل الافتراضي (log/array حسب البيئة)
+        }
+
+        config([
+            'mail.mailers.smtp.transport' => 'smtp',
+            'mail.mailers.smtp.scheme' => self::SCHEMES[$c['encryption']],
+            'mail.mailers.smtp.host' => $c['host'],
+            'mail.mailers.smtp.port' => $c['port'],
+            'mail.mailers.smtp.username' => $c['username'] ?: null,
+            'mail.mailers.smtp.password' => $c['password'] ?: null,
+            // خادم بريد معلّق يجب ألا يوقف خيط الطلب إلى ما لا نهاية
+            'mail.mailers.smtp.timeout' => 10,
+            'mail.default' => 'smtp',
+        ]);
+        if ($c['fromAddress'] !== '') {
+            config(['mail.from.address' => $c['fromAddress'], 'mail.from.name' => $c['fromName']]);
+        }
+
+        // المدير يخزّن المُرسِل بعد أول تركيب — بلا إبطال يبقى الإعداد القديم حيّاً
+        Mail::purge('smtp');
+
+        return true;
+    }
+
     // ════════════════ البريد الإلكتروني ════════════════
 
     // ── إرسال دعوة بالبريد ──
@@ -69,15 +191,19 @@ class CommunicationService
         }
 
         try {
-            // إرسال فعلي عبر Laravel Mail
+            // يركّب المُرسِل من إعدادات SMTP المحفوظة؛ وإن كانت معطّلة يبقى الافتراضي
+            self::applySmtpConfig();
+
             Mail::raw($body, function ($message) use ($toEmail, $toName, $subject) {
                 $message->to($toEmail, $toName)->subject($subject);
             });
 
             $log->update(['status' => 'sent', 'sent_at' => now()]);
             return true;
-        } catch (\Exception $e) {
-            $log->update(['status' => 'failed', 'error_message' => $e->getMessage()]);
+        } catch (\Throwable $e) {
+            // Throwable لا Exception: أخطاء نقل Symfony قد تأتي كـError، وتسريبها
+            // يُصعّد 500 لطرف النداء بدل الفشل اللطيف الذي يوثّقه السجل
+            $log->update(['status' => 'failed', 'error_message' => mb_substr($e->getMessage(), 0, 500)]);
             return false;
         }
     }
@@ -89,7 +215,7 @@ class CommunicationService
     {
         $template = Setting::find('sms.invitation.template')?->value
             ?? 'لديك جلسة تقييم بتاريخ {date} الساعة {time}';
-        $phone = config('services.sms.support_phone', '');
+        $phone = self::gatewayConfig()['support'];
 
         $message = strtr($template, [
             '{date}' => $data['date'] ?? '',
@@ -101,7 +227,36 @@ class CommunicationService
         return $this->sendSms($toMobile, $message, 'invitation', $candidateId, $createdBy);
     }
 
-    // ── إرسال رسالة نصية عامة ──
+    // ── إنشاء سجلّ رسالة معلّق (بلا إرسال) ثم جدولته على الطابور ──
+    // للمسار التلقائي (تأكيد المرشّح، الاستيراد الجماعي): لا نحبس عامل PHP-FPM
+    // بانتظار بوّابة قد تتأخّر 10ث أو تسقط. السجلّ يُنشأ فوراً (pending) فيبقى أثر،
+    // والعامل الخلفي يسلّمه عبر deliverPendingSms. في بيئة sync يُنفَّذ فوراً.
+    public function queueSms(
+        string $toMobile,
+        string $message,
+        string $smsType,
+        ?int $candidateId,
+        ?int $createdBy
+    ): bool {
+        try {
+            $log = SmsLog::create([
+                'to_mobile' => $toMobile,
+                'message' => $message,
+                'sms_type' => $smsType,
+                'candidate_id' => $candidateId,
+                'status' => 'pending',
+                'created_by' => $createdBy,
+            ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('sms log write failed: ' . $e->getMessage());
+            return false;
+        }
+
+        \App\Jobs\SendSmsJob::dispatch($log->id);
+        return true;
+    }
+
+    // ── إرسال رسالة نصية عامة (تزامني) — للدعوات واختبار البوّابة ──
     public function sendSms(
         string $toMobile,
         string $message,
@@ -124,42 +279,76 @@ class CommunicationService
             return false;
         }
 
+        // الطرف التزامني لا يُصعّد الأخطاء العابرة: يبتلعها ويُرجع false (السجلّ يوثّقها)
         try {
-            $apiUrl = config('services.sms.url');
-            $apiKey = config('services.sms.key');
-
-            if (empty($apiUrl) || empty($apiKey)) {
-                // وضع التطوير: لا مزوّد مُعدّ
-                $log->update([
-                    'status' => 'sent',
-                    'sent_at' => now(),
-                    'error_message' => '(وضع التطوير: لم تُرسل فعلياً - أعدّ مزوّد الرسائل)',
-                ]);
-                return true;
-            }
-
-            // الاتصال بمزوّد الرسائل (مثال عام يصلح لمعظم المزوّدين مثل Unifonic)
-            $response = Http::asJson()->post($apiUrl, [
-                'appSid' => $apiKey,
-                'sender' => config('services.sms.sender_id', 'Kafaat'),
-                'recipient' => $toMobile,
-                'body' => $message,
-            ]);
-
-            if ($response->successful()) {
-                $log->update([
-                    'status' => 'sent',
-                    'sent_at' => now(),
-                    'provider_ref' => mb_substr($response->body(), 0, 100),
-                ]);
-                return true;
-            }
-
-            $log->update(['status' => 'failed', 'error_message' => 'HTTP ' . $response->status()]);
-            return false;
-        } catch (\Exception $e) {
-            $log->update(['status' => 'failed', 'error_message' => $e->getMessage()]);
+            return $this->deliverPendingSms($log);
+        } catch (\Throwable $e) {
             return false;
         }
+    }
+
+    // ── تسليم سجلّ رسالة معلّق عبر البوّابة ──
+    // يُستدعى تزامنياً من sendSms، أو خلفياً من SendSmsJob. عند الفشل العابر
+    // (اتصال/مهلة/5xx) يرمي RuntimeException ليعيد الطابور المحاولة؛ أمّا الفشل
+    // الدائم (مفتاح تالف/4xx) فيوسم failed ويُرجع false بلا رمي (لا جدوى من الإعادة).
+    public function deliverPendingSms(SmsLog $log): bool
+    {
+        $g = self::gatewayConfig();
+
+        // فشل حقيقي لا وضع تطوير: البوّابة مُعَدّة لكن تعذّر فكّ تشفير المفتاح
+        // (APP_KEY مختلف — يحدث تحديداً عند التبديل لموقع التعافي). لا نُبلّغ «أُرسلت»
+        // زوراً بينما لا يستلم المرشّح رابطه؛ نسجّل failed ليلتقطه الإنذار. دائم (لا إعادة).
+        if (! empty($g['key_error'])) {
+            $log->update([
+                'status' => 'failed',
+                'error_message' => 'فشل فكّ تشفير مفتاح البوّابة (تحقّق من تطابق APP_KEY)',
+            ]);
+            return false;
+        }
+
+        if (!$g['enabled'] || $g['url'] === '' || $g['key'] === '') {
+            // وضع التطوير: البوّابة معطّلة أو غير مكتملة (لا مفتاح مُخزَّن أصلاً)
+            $log->update([
+                'status' => 'sent',
+                'sent_at' => now(),
+                'error_message' => '(وضع التطوير: لم تُرسل فعلياً - أعدّ بوّابة الرسائل)',
+            ]);
+            return true;
+        }
+
+        try {
+            // الاتصال ببوّابة الرسائل (شكل عام يصلح لمعظم المزوّدين مثل Unifonic)
+            // مهلة صريحة: بوّابة معلّقة يجب ألا توقف خيط الطلب حتى المهلة الافتراضية (30ث)
+            $response = Http::asJson()
+                ->connectTimeout(5)
+                ->timeout(10)
+                ->post($g['url'], [
+                    'appSid' => $g['key'],
+                    'sender' => $g['sender'],
+                    'recipient' => $toMobile = $log->to_mobile,
+                    'body' => $log->message,
+                ]);
+        } catch (\Throwable $e) {
+            // خطأ اتصال/مهلة = عابر: وسم failed ثم رمي ليعيد الطابور المحاولة
+            $log->update(['status' => 'failed', 'error_message' => mb_substr($e->getMessage(), 0, 500)]);
+            throw new \RuntimeException('SMS gateway transient error: ' . $e->getMessage(), 0, $e);
+        }
+
+        if ($response->successful()) {
+            $log->update([
+                'status' => 'sent',
+                'sent_at' => now(),
+                'provider_ref' => mb_substr($response->body(), 0, 100),
+            ]);
+            return true;
+        }
+
+        $log->update(['status' => 'failed', 'error_message' => 'HTTP ' . $response->status()]);
+
+        // 5xx = عطل مؤقّت في البوّابة ⇒ عابر (أعد المحاولة)؛ 4xx = طلب خاطئ ⇒ دائم
+        if ($response->serverError()) {
+            throw new \RuntimeException('SMS gateway HTTP ' . $response->status());
+        }
+        return false;
     }
 }

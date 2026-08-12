@@ -1,0 +1,17 @@
+# /etc/systemd/system/kafaat-scheduler.timer
+#   systemctl enable --now kafaat-scheduler.timer
+
+[Unit]
+Description=تشغيل مجدول كفاءات كل دقيقة
+
+[Timer]
+OnCalendar=*:0/1
+# لا تُراكم التشغيلات الفائتة بعد إعادة تشغيل الخادم — دقيقةٌ فاتت لا تُقضى
+Persistent=false
+# تشتيت بسيط يمنع تزامن المجدول مع مهام النظام الأخرى على الدقيقة نفسها
+RandomizedDelaySec=5
+AccuracySec=1s
+Unit=kafaat-scheduler.service
+
+[Install]
+WantedBy=timers.target

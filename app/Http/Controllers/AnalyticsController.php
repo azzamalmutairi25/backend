@@ -9,6 +9,7 @@ use App\Models\Attendance;
 use App\Models\EvaluationScore;
 use App\Models\Sector;
 use App\Security\Permissions;
+use App\Services\ExecutiveAnalyticsService;
 use Illuminate\Http\Request;
 
 // ════════════════════════════════════════════════════════════
@@ -17,11 +18,6 @@ use Illuminate\Http\Request;
 
 class AnalyticsController extends Controller
 {
-    private function allowedClassifications(Request $request): array
-    {
-        return $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)
-            ? ['normal', 'secret', 'top_secret'] : ['normal'];
-    }
 
     private function gate(Request $request): bool
     {
@@ -65,7 +61,9 @@ class AnalyticsController extends Controller
                 'byClassification' => $this->fill($byClass, ['normal', 'secret', 'top_secret']),
             ],
             'reports' => [
-                'byStatus' => $this->fill($reportsByStatus, ['draft', 'pending_dev_approval', 'returned', 'approved']),
+                'byStatus' => $this->fill($reportsByStatus, [
+                    'draft', 'pending_evaluator', 'pending_manager', 'pending_dev_approval', 'returned', 'approved',
+                ]),
                 'avgBehavioralFit' => $this->round1((clone $approved)->avg('behavioral_fit')),
                 'avgTechnicalFit' => $this->round1((clone $approved)->avg('technical_fit')),
             ],
@@ -77,6 +75,20 @@ class AnalyticsController extends Controller
             ],
             'upcomingSessions' => $upcoming,
         ]);
+    }
+
+    // GET /analytics/executive — الحمولة الكاملة للوحة التنفيذية (KPIs/خريطة/مقارنات/اتجاهات/رؤى)
+    //
+    // بصلاحيتها المستقلّة لا بصلاحية التحليلات العامّة: اللوحة التنفيذية شاشة
+    // قائمة بذاتها في الشريط الجانبي، وسحبُها من دورٍ في شاشة الأدوار يجب أن
+    // يُغلق مسارها لا أن يُخفي رابطها وحده.
+    public function executive(Request $request, ExecutiveAnalyticsService $svc)
+    {
+        if (!$request->user()->hasPermission(Permissions::ANALYTICS_EXECUTIVE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض اللوحة التنفيذية'], 403);
+        }
+        $months = (int) ($request->input('months') ?: 6);
+        return response()->json($svc->executive($this->allowedClassifications($request), $months));
     }
 
     // GET /analytics/by-sector — تجميع حسب القطاع (عدد، مكتمل، متوسط توافق)

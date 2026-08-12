@@ -10,10 +10,19 @@ use Illuminate\Http\Request;
 
 class AttendanceController extends Controller
 {
-    private function allowedClassifications(Request $request): array
+
+    // ── من يستقبل المرشح يسجّل حضوره ──
+    // المقيّم/المساعد يسجّلان الجلسات المُسنَدة لهما وحدها؛ والاستقبال ومشرف
+    // القياس يسجّلان أي جلسة (ATTENDANCE_RECORD_ANY) لأنهما يستقبلان من لا
+    // إسناد لهما فيه. بلا هذا التمييز إمّا عجز المقيّم عن تسجيل جلسته، أو
+    // سجّل أيُّ مقيّم حضور مرشّح لم يره.
+    private function canRecordFor(Request $request, Schedule $schedule): bool
     {
-        $canSeeClassified = $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED);
-        return $canSeeClassified ? ['normal', 'secret', 'top_secret'] : ['normal'];
+        $user = $request->user();
+        if ($user->hasPermission(Permissions::ATTENDANCE_RECORD_ANY)) {
+            return true;
+        }
+        return $schedule->evaluator_id === $user->id || $schedule->assistant_id === $user->id;
     }
 
     private function log(Request $request, string $action, int $entityId, array $details = []): void
@@ -38,11 +47,18 @@ class AttendanceController extends Controller
         $today = now()->toDateString();
         $allowed = $this->allowedClassifications($request);
 
+        $canRecord = $request->user()->hasPermission(Permissions::ATTENDANCE_RECORD);
+
+        $user = $request->user();
+
         $rows = Schedule::with(['candidate.sector', 'attendance'])
             ->whereDate('schedule_date', $today)
             ->whereHas('candidate', fn ($q) => $q->whereIn('classification', $allowed))
+            // المحصور بقطاع لا يرى حضور قطاع آخر
+            ->when($user->isSectorBound(), fn ($q) => $q->whereHas('candidate',
+                fn ($c) => $c->where('sector_id', $user->sector_id)))
             ->get()
-            ->map(function ($sch) {
+            ->map(function ($sch) use ($request, $canRecord) {
                 $att = $sch->attendance; // eager-loaded — لا N+1
                 return [
                     'id' => $sch->id,
@@ -51,6 +67,14 @@ class AttendanceController extends Controller
                     'activity' => $sch->activity,
                     'status' => $att?->status ?? 'pending',
                     'checkInTime' => $att?->check_in_time?->format('H:i'),
+                    // موعد الجلسة ومكانها — تبني عليهما الشاشة خطّ اليوم الزمني
+                    // ومؤشّر التأخّر (موعدٌ مضى والمرشّح لم يُسجَّل بعد)
+                    'scheduleTime' => $sch->schedule_time
+                        ? substr((string) $sch->schedule_time, 0, 5)
+                        : null,
+                    'location' => $sch->location,
+                    // الواجهة تُظهر الأزرار على هذا — الخادم يفرضه على أي حال
+                    'canRecord' => $canRecord && $this->canRecordFor($request, $sch),
                 ];
             });
 
@@ -65,8 +89,12 @@ class AttendanceController extends Controller
 
         $today = now()->toDateString();
         $allowed = $this->allowedClassifications($request);
+        $user = $request->user();
+        // نفس حصر القطاع في today() — وإلا عدّ المؤشّر ما لا تعرضه القائمة
         $scheduleIds = Schedule::whereDate('schedule_date', $today)
             ->whereHas('candidate', fn ($q) => $q->whereIn('classification', $allowed))
+            ->when($user->isSectorBound(), fn ($q) => $q->whereHas('candidate',
+                fn ($c) => $c->where('sector_id', $user->sector_id)))
             ->pluck('id');
         $total = $scheduleIds->count();
         $present = Attendance::whereIn('schedule_id', $scheduleIds)->where('status', 'present')->count();
@@ -95,6 +123,18 @@ class AttendanceController extends Controller
         if (!in_array($schedule->candidate->classification, $this->allowedClassifications($request))) {
             $this->log($request, 'DENIED_ATTENDANCE_CLASSIFIED', $scheduleId);
             return response()->json(['error' => 'الجدول غير موجود'], 404);
+        }
+        // القطاع بُعدٌ من النطاق كالتصنيف: خارجه = «غير موجود» (404) قبل فحص الإسناد —
+        // وإلا صار فرق 403/404 مِكشافَ وجودٍ لجداول قطاعٍ آخر (كما في today/stats).
+        $actor = $request->user();
+        if ($actor->isSectorBound() && $schedule->candidate->sector_id !== $actor->sector_id) {
+            $this->log($request, 'DENIED_ATTENDANCE_OUT_OF_SECTOR', $scheduleId);
+            return response()->json(['error' => 'الجدول غير موجود'], 404);
+        }
+
+        if (!$this->canRecordFor($request, $schedule)) {
+            $this->log($request, 'DENIED_ATTENDANCE_NOT_ASSIGNED', $scheduleId);
+            return response()->json(['error' => 'هذه الجلسة ليست مُسنَدة لك'], 403);
         }
 
         if ($schedule->schedule_date->toDateString() !== now()->toDateString()) {
@@ -140,6 +180,18 @@ class AttendanceController extends Controller
         if (!in_array($schedule->candidate->classification, $this->allowedClassifications($request))) {
             $this->log($request, 'DENIED_ATTENDANCE_CLASSIFIED', $scheduleId);
             return response()->json(['error' => 'الجدول غير موجود'], 404);
+        }
+        // القطاع بُعدٌ من النطاق كالتصنيف: خارجه = «غير موجود» (404) قبل فحص الإسناد —
+        // وإلا صار فرق 403/404 مِكشافَ وجودٍ لجداول قطاعٍ آخر (كما في today/stats).
+        $actor = $request->user();
+        if ($actor->isSectorBound() && $schedule->candidate->sector_id !== $actor->sector_id) {
+            $this->log($request, 'DENIED_ATTENDANCE_OUT_OF_SECTOR', $scheduleId);
+            return response()->json(['error' => 'الجدول غير موجود'], 404);
+        }
+
+        if (!$this->canRecordFor($request, $schedule)) {
+            $this->log($request, 'DENIED_ATTENDANCE_NOT_ASSIGNED', $scheduleId);
+            return response()->json(['error' => 'هذه الجلسة ليست مُسنَدة لك'], 403);
         }
 
         if ($schedule->schedule_date->toDateString() !== now()->toDateString()) {

@@ -1,0 +1,1526 @@
+{
+  "updatedAt": "2026-08-10T06:23:05.003Z",
+  "base": "http://localhost:5173",
+  "screens": [
+    {
+      "id": "login",
+      "title": "تسجيل الدخول",
+      "file": "login.png",
+      "route": "/login",
+      "role": "admin",
+      "capturedAt": "2026-08-10T06:11:32.400Z"
+    },
+    {
+      "id": "dashboard",
+      "title": "اللوحة الرئيسة",
+      "file": "dashboard.png",
+      "route": "/dashboard",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "candidates",
+      "title": "المشاركون",
+      "file": "candidates.png",
+      "route": "/candidates",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "nominate",
+      "title": "ترشيح مشارك",
+      "file": "nominate.png",
+      "route": "/nominate",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "reception",
+      "title": "استقبال الموظفين",
+      "file": "reception.png",
+      "route": "/reception",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "schedules",
+      "title": "الجدولة",
+      "file": "schedules.png",
+      "route": "/schedules",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "distribution",
+      "title": "التوزيع الأسبوعي",
+      "file": "distribution.png",
+      "route": "/distribution",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "attendance",
+      "title": "الحضور",
+      "file": "attendance.png",
+      "route": "/attendance",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "assessment",
+      "title": "التقييم",
+      "file": "assessment.png",
+      "route": "/assessment",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "measurements",
+      "title": "أدوات القياس",
+      "file": "measurements.png",
+      "route": "/measurements",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "reports",
+      "title": "التقارير",
+      "file": "reports.png",
+      "route": "/reports",
+      "role": "admin",
+      "capturedAt": "2026-08-10T06:11:32.400Z"
+    },
+    {
+      "id": "development-plans",
+      "title": "خطط التطوير",
+      "file": "development-plans.png",
+      "route": "/development-plans",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "competency-framework",
+      "title": "إطار الكفاءات",
+      "file": "competency-framework.png",
+      "route": "/competency-framework",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "competency-map",
+      "title": "خريطة الكفاءات والأنشطة",
+      "file": "competency-map.png",
+      "route": "/competency-map",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "analytics",
+      "title": "التحليلات",
+      "file": "analytics.png",
+      "route": "/analytics",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "executive",
+      "title": "لوحة القيادة التنفيذية",
+      "file": "executive.png",
+      "route": "/executive",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "daily-report",
+      "title": "التقرير اليومي",
+      "file": "daily-report.png",
+      "route": "/daily-report",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "chat",
+      "title": "المراسلات",
+      "file": "chat.png",
+      "route": "/chat",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "notifications",
+      "title": "الإشعارات",
+      "file": "notifications.png",
+      "route": "/notifications",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "workflow",
+      "title": "مراحل الاعتماد",
+      "file": "workflow.png",
+      "route": "/workflow",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "users",
+      "title": "المستخدمون والصلاحيات",
+      "file": "users.png",
+      "route": "/users",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "roles",
+      "title": "الأدوار والصلاحيات",
+      "file": "roles.png",
+      "route": "/roles",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "settings",
+      "title": "الإعدادات",
+      "file": "settings.png",
+      "route": "/settings",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "audit",
+      "title": "سجل التدقيق",
+      "file": "audit.png",
+      "route": "/audit",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "change-password",
+      "title": "تغيير كلمة المرور",
+      "file": "change-password.png",
+      "route": "/change-password",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "nav-admin",
+      "title": "قائمة مدير النظام",
+      "file": "nav-admin.png",
+      "route": "/dashboard",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "nav-center",
+      "title": "قائمة مدير المركز",
+      "file": "nav-center.png",
+      "route": "/dashboard",
+      "role": "center",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "nav-scheduler",
+      "title": "قائمة مسؤول الجدولة",
+      "file": "nav-scheduler.png",
+      "route": "/dashboard",
+      "role": "scheduler",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "nav-reception",
+      "title": "قائمة مسؤول الاستقبال",
+      "file": "nav-reception.png",
+      "route": "/dashboard",
+      "role": "reception",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "nav-operations",
+      "title": "قائمة مسؤول العمليات",
+      "file": "nav-operations.png",
+      "route": "/dashboard",
+      "role": "operations",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "nav-assess",
+      "title": "قائمة مدير إدارة التقييم",
+      "file": "nav-assess.png",
+      "route": "/dashboard",
+      "role": "assess",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "nav-evaluator",
+      "title": "قائمة مستشار المقابلة",
+      "file": "nav-evaluator.png",
+      "route": "/dashboard",
+      "role": "evaluator",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "nav-discussion",
+      "title": "قائمة مستشار حلقة النقاش",
+      "file": "nav-discussion.png",
+      "route": "/dashboard",
+      "role": "discussion",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "nav-assistant",
+      "title": "قائمة مساعد التقييم",
+      "file": "nav-assistant.png",
+      "route": "/dashboard",
+      "role": "assistant",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "nav-devmanager",
+      "title": "قائمة إدارة تطوير الكفاءات",
+      "file": "nav-devmanager.png",
+      "route": "/dashboard",
+      "role": "devmanager",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "nav-measure",
+      "title": "قائمة مشرف أدوات القياس",
+      "file": "nav-measure.png",
+      "route": "/dashboard",
+      "role": "measure",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "nav-external",
+      "title": "قائمة المستخدم الخارجي",
+      "file": "nav-external.png",
+      "route": "/dashboard",
+      "role": "external",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "candidates-evaluator",
+      "title": "قاعدة المرشحين كما يراها المقيّم",
+      "file": "candidates-evaluator.png",
+      "route": "/candidates",
+      "role": "evaluator",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "reception-receptionist",
+      "title": "الاستقبال كما يراه مسؤول الاستقبال",
+      "file": "reception-receptionist.png",
+      "route": "/reception",
+      "role": "reception",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "reception-evaluator",
+      "title": "الاستقبال كما يراه المقيّم",
+      "file": "reception-evaluator.png",
+      "route": "/reception",
+      "role": "evaluator",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "reception-operations",
+      "title": "الاستقبال كما يراه مسؤول العمليات",
+      "file": "reception-operations.png",
+      "route": "/reception",
+      "role": "operations",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "candidates-add",
+      "title": "نافذة إضافة مرشح",
+      "file": "candidates-add.png",
+      "route": "/candidates",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "candidates-details",
+      "title": "تفاصيل المرشح",
+      "file": "candidates-details.png",
+      "route": "/candidates",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "candidates-cv",
+      "title": "السيرة الذاتية",
+      "file": "candidates-cv.png",
+      "route": "/candidates",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "report-document",
+      "title": "المستند الرسمي للتقرير",
+      "file": "report-document.png",
+      "route": "/reports",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "report-document-center",
+      "title": "المستند نفسه كما يراه مدير المركز — بالاسم",
+      "file": "report-document-center.png",
+      "route": "/reports",
+      "role": "center",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "report-document-assess",
+      "title": "المستند نفسه كما يراه مدير إدارة التقييم — بالرمز",
+      "file": "report-document-assess.png",
+      "route": "/reports",
+      "role": "assess",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "roles-open",
+      "title": "صلاحيات دورٍ مفتوح",
+      "file": "roles-open.png",
+      "route": "/roles",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "users-add",
+      "title": "نافذة إضافة مستخدم",
+      "file": "users-add.png",
+      "route": "/users",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "users-perms",
+      "title": "استثناءات صلاحيات مستخدم",
+      "file": "users-perms.png",
+      "route": "/users",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "ui-topbar",
+      "title": "الشريط العلوي",
+      "file": "ui-topbar.png",
+      "route": "/dashboard",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "ui-filters",
+      "title": "شريط التصفية والبحث",
+      "file": "ui-filters.png",
+      "route": "/candidates",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "ui-pager",
+      "title": "شريط الترقيم",
+      "file": "ui-pager.png",
+      "route": "/candidates",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "ui-sidebar-collapsed",
+      "title": "القائمة المطويّة",
+      "file": "ui-sidebar-collapsed.png",
+      "route": "/dashboard",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "ui-dark",
+      "title": "الوضع الداكن",
+      "file": "ui-dark.png",
+      "route": "/dashboard",
+      "role": "admin",
+      "capturedAt": "2026-08-10T06:23:05.003Z"
+    },
+    {
+      "id": "assessment-scoring",
+      "title": "نموذج رصد الدرجات",
+      "file": "assessment-scoring.png",
+      "route": "/assessment",
+      "role": "evaluator",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "workflow-stages",
+      "title": "مراحل الاعتماد",
+      "file": "workflow-stages.png",
+      "route": "/workflow",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "audit-log",
+      "title": "سجل التدقيق",
+      "file": "audit-log.png",
+      "route": "/audit",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "assessment-draft-exists",
+      "title": "مسودة قائمة للمرشح نفسه",
+      "file": "assessment-draft-exists.png",
+      "route": "/assessment",
+      "role": "evaluator",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "assessment-evaluator",
+      "title": "شاشة التقييم للمقيّم",
+      "file": "assessment-evaluator.png",
+      "route": "/assessment",
+      "role": "evaluator",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "candidates-roster-dialog",
+      "title": "نافذة كشف الحضور",
+      "file": "candidates-roster-dialog.png",
+      "route": "/candidates",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "roster-sheet",
+      "title": "كشف حضور اليوم مطبوعاً",
+      "file": "roster-sheet.png",
+      "route": "/candidates",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "settings-full",
+      "title": "الإعدادات كاملةً",
+      "file": "settings-full.png",
+      "route": "/settings",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "distribution-proposal",
+      "title": "اقتراح توزيع الأسبوع",
+      "file": "distribution-proposal.png",
+      "route": "/distribution",
+      "role": "admin",
+      "capturedAt": "2026-08-09T09:38:19.497Z"
+    },
+    {
+      "id": "dashboard-kpis",
+      "title": "شريط المؤشرات الستّ: المرشحون والحضور والإكمال والتقييمات والاعتمادات ومعلّقة، و",
+      "file": "dashboard-kpis.png",
+      "route": "/dashboard",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "dashboard-trend-attendance",
+      "title": "بطاقتا «اتجاه اثني عشر شهراً» بمفتاحها (تقارير معتمدة / التقييمات) و«حضور اليوم»",
+      "file": "dashboard-trend-attendance.png",
+      "route": "/dashboard",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "dashboard-heatmap",
+      "title": "بطاقة «خريطة الكفاءات حسب اليوم» بصفوف الكفاءات وأعمدة أيام الأسبوع وطرفَي التدر",
+      "file": "dashboard-heatmap.png",
+      "route": "/dashboard",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "dashboard-insights-schedule",
+      "title": "بطاقتا «رؤى تلقائية» بأربع رؤى ملوّنة، و«جدول اليوم» في حالته الفارغة: «لا جلسات",
+      "file": "dashboard-insights-schedule.png",
+      "route": "/dashboard",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "dashboard-drafts-activity",
+      "title": "الصفّ السفلي: «مسوداتي» بأزرار استكمال، و«أحدث النشاط» بنقاطه الحسّاسة، و«إجراءا",
+      "file": "dashboard-drafts-activity.png",
+      "route": "/dashboard",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "dashboard-evaluator",
+      "title": "اللوحة نفسها بحساب مستشار المقابلة: لا بطاقة تهيئة، ولا مقياس جاهزية، ولا اتجاه ",
+      "file": "dashboard-evaluator.png",
+      "route": "/dashboard",
+      "role": "evaluator",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "login-empty",
+      "title": "رسالة «أدخل اسم المستخدم وكلمة المرور» بعد الضغط على الزر والحقلان فارغان — فحص ",
+      "file": "login-empty.png",
+      "route": "/login",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "login-bad-credentials",
+      "title": "الرسالة الموحّدة «اسم المستخدم أو كلمة المرور غير صحيحة» — باسم مستخدم غير موجود",
+      "file": "login-bad-credentials.png",
+      "route": "/login",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "login-show-password",
+      "title": "زرّ العين مفعّلاً: كلمة المرور ظاهرة نصّاً بدل النقاط (قيمة وهمية للعرض)",
+      "file": "login-show-password.png",
+      "route": "/login",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "change-password-checks",
+      "title": "لوحة الشروط أثناء الكتابة: الطول والحرف الصغير والرقم خضراء، وشرط الحرف الكبير م",
+      "file": "change-password-checks.png",
+      "route": "/change-password",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "change-password-mismatch",
+      "title": "رسالة «كلمتا المرور غير متطابقتين» — فحص محلّي يمنع إرسال الطلب أصلاً (قيم وهمية",
+      "file": "change-password-mismatch.png",
+      "route": "/change-password",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "confirm",
+      "title": "بوّابة الهوية كما يفتحها المشارك: حقل رقم الهوية وحده والزر معطَّل، ولا بيان معر",
+      "file": "confirm.png",
+      "route": "/confirm/:token",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "confirm-wrong-id",
+      "title": "رسالة «رقم الهوية غير مطابق لهذا الرابط. — تبقّى ٤ محاولة» — تُلتقط برمز مختلف ك",
+      "file": "confirm-wrong-id.png",
+      "route": "/confirm/:token",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "nominate-validation",
+      "title": "الاستمارة بعد إرسالها فارغةً: شريط الخطأ الأحمر أعلى الشاشة وحدود الخانات الناقص",
+      "file": "nominate-validation.png",
+      "route": "/nominate",
+      "role": "external",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "nominate-education-rows",
+      "title": "قسم «التعليم الأكاديمي» بصفَّين بعد الضغط على «إضافة مؤهل» — تظهر أيقونة حذف الص",
+      "file": "nominate-education-rows.png",
+      "route": "/nominate",
+      "role": "external",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "nominate-duplicate",
+      "title": "إيصال «هذا المشارك مُضاف مسبقاً» بعد إرسال هوية مسجَّلة — تاريخ التسجيل وزرّ «طل",
+      "file": "nominate-duplicate.png",
+      "route": "/nominate",
+      "role": "external",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "nominate-update-mode",
+      "title": "وضع «طلب التحديث»: الشريط البرتقالي أعلى الاستمارة وقسم «سبب طلب التحديث» في آخر",
+      "file": "nominate-update-mode.png",
+      "route": "/nominate",
+      "role": "external",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "nominate-my-requests",
+      "title": "تبويب «طلباتي» — جدول طلبات التحديث التي رفعها المستخدم نفسه وحالة كل طلب",
+      "file": "nominate-my-requests.png",
+      "route": "/nominate",
+      "role": "external",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "schedules-new-modal",
+      "title": "نافذة «جلسة جديدة» فور فتحها: المرشّح والنشاط والتاريخ والوقت والمكان، وزرّ الإن",
+      "file": "schedules-new-modal.png",
+      "route": "/schedules",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "schedules-new-interview",
+      "title": "النافذة بعد اختيار مشارك من قطاع التعليم والنشاط «المقابلة الشخصية»: يظهر حقل «م",
+      "file": "schedules-new-interview.png",
+      "route": "/schedules",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "schedules-cv-review",
+      "title": "ملخّص السيرة الذاتية معروضاً داخل النافذة بعد الضغط على «استعراض السيرة الذاتية»",
+      "file": "schedules-cv-review.png",
+      "route": "/schedules",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "schedules-no-interviewers",
+      "title": "اختيار مشارك من قطاع بلا مستشار مقابلة فعّال: تظهر تحت القائمة عبارة «لا مستشارو",
+      "file": "schedules-no-interviewers.png",
+      "route": "/schedules",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "schedules-locked",
+      "title": "الجدول مصفّى على يومٍ اكتمل تسجيل حضوره: كل الصفوف بشارة «حاضر» وزرّا التعديل وا",
+      "file": "schedules-locked.png",
+      "route": "/schedules",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "schedules-empty",
+      "title": "الحالة الفارغة: تاريخ بلا جلسات يعرض «لا توجد جلسات في هذا التاريخ.» ويظهر زرّ «",
+      "file": "schedules-empty.png",
+      "route": "/schedules",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "schedules-time-free",
+      "title": "النافذة نفسها بحساب مسؤول الجدولة: حقل «الوقت» يظهر حقلَ وقتٍ حرّاً لا قائمةَ أو",
+      "file": "schedules-time-free.png",
+      "route": "/schedules",
+      "role": "scheduler",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "distribution-cards",
+      "title": "البطاقات الثلاث وحدها: الأسبوع القادم، والجاهزون للتوزيع، والحدّ لكل مقيّم في ال",
+      "file": "distribution-cards.png",
+      "route": "/distribution",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "distribution-banner",
+      "title": "لافتة حالة الاقتراح وحدها: النقطة والحالة وعدد البنود وأزرار القرار. تعتمد على و",
+      "file": "distribution-banner.png",
+      "route": "/distribution",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "candidates-journey",
+      "title": "رحلة المرشح: الخط الزمني من إضافته إلى اعتماد تقريره، بوقت كل حدث ومنفّذه.",
+      "file": "candidates-journey.png",
+      "route": "/candidates",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "candidates-bulk",
+      "title": "ثلاثة صفوف محدَّدة وقد ظهر شريط التحديد: العدّاد، ومسح التحديد، وطباعة بطاقات ال",
+      "file": "candidates-bulk.png",
+      "route": "/candidates",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "candidates-group",
+      "title": "نافذة «إسناد مجموعة» بعد تحديد ثلاثة مشاركين: عدد المحدَّدين، واليوم، وشريحتا «أ",
+      "file": "candidates-group.png",
+      "route": "/candidates",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "reception-day-board",
+      "title": "كشف يوم مكتمل عند مسؤول الاستقبال: صفوف فيها إسناد بانتظار المقيّم، وإسناد مُستل",
+      "file": "reception-day-board.png",
+      "route": "/reception",
+      "role": "reception",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "reception-sign-modal",
+      "title": "نافذة «توقيع المرشح»: نصّ الإقرار باسم المرشّح، ولوحة التوقيع المكتوب فيها «وقّع",
+      "file": "reception-sign-modal.png",
+      "route": "/reception",
+      "role": "reception",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "reception-assign-modal",
+      "title": "نافذة «توزيع»: قائمة النشاط مفتوحة على أول نشاط غير مُسنَد، وقائمة المقيّمين الم",
+      "file": "reception-assign-modal.png",
+      "route": "/reception",
+      "role": "reception",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "reception-cv-modal",
+      "title": "نافذة «السيرة الذاتية» كما يفتحها مسؤول الاستقبال: الاسم والرتبة والقطاع أعلاها،",
+      "file": "reception-cv-modal.png",
+      "route": "/reception",
+      "role": "reception",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "reception-evaluator-tasks",
+      "title": "الشاشة كما يراها مستشار المقابلة: قسم «المُسنَد إليّ اليوم» وحده — بطاقات بانتظا",
+      "file": "reception-evaluator-tasks.png",
+      "route": "/reception",
+      "role": "evaluator",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "reception-reject-modal",
+      "title": "نافذة «ردّ»: حقل «سبب الردّ» بمثاله، والتلميح بأن السبب يصل لمسؤول العمليات ليعي",
+      "file": "reception-reject-modal.png",
+      "route": "/reception",
+      "role": "evaluator",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "reception-operations-board",
+      "title": "كشف اليوم نفسه كما يراه مسؤول العمليات: بلا عمود «الاسم»، وعمود «السيرة» يعرض «—",
+      "file": "reception-operations-board.png",
+      "route": "/reception",
+      "role": "operations",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "attendance-absence-modal",
+      "title": "نافذة «تسجيل غياب» مفتوحة على الصفّ الثاني بحساب الاستقبال: العنوان برمز المشارك",
+      "file": "attendance-absence-modal.png",
+      "route": "/attendance",
+      "role": "reception",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "attendance-filter-empty",
+      "title": "بعد الضغط على بطاقة «غائب»: البطاقة مُعلَّمة بحدّ، والنتيجة فارغة فيظهر نصّ «لا ",
+      "file": "attendance-filter-empty.png",
+      "route": "/attendance",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "attendance-not-mine",
+      "title": "الشاشة بحساب مستشار حلقة النقاش: الجلسات المعروضة محصورة بقطاعه، وكلّها غير مُسن",
+      "file": "attendance-not-mine.png",
+      "route": "/attendance",
+      "role": "discussion",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "attendance-evaluator",
+      "title": "الشاشة بحساب مستشار المقابلة: جلساته هو وحدها داخل قطاعه، وأزرار «حضور» و«غياب» ",
+      "file": "attendance-evaluator.png",
+      "route": "/attendance",
+      "role": "evaluator",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "attendance-recorded",
+      "title": "نتيجة تسجيل الحضور: يُضغط «حضور» في الصفّ الأول بحساب الاستقبال، فتصير حالته «حا",
+      "file": "attendance-recorded.png",
+      "route": "/attendance",
+      "role": "reception",
+      "capturedAt": "2026-08-09T09:56:28.702Z"
+    },
+    {
+      "id": "assessment-start-selected",
+      "title": "بعد اختيار المشارك ونوع النشاط «حلقة نقاش» — زرّ «بدء الجلسة» صار فعّالاً.",
+      "file": "assessment-start-selected.png",
+      "route": "/assessment",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "assessment-session",
+      "title": "نموذج الدرجات بعد فتح مسودة: عدّاد الجلسة، ولوحة السيرة الذاتية المطوية، وبطاقة ",
+      "file": "assessment-session.png",
+      "route": "/assessment",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "assessment-cv",
+      "title": "لوحة السيرة الذاتية بعد فتحها، وبجانب عنوانها رمز المشارك وحده بلا اسم.",
+      "file": "assessment-cv.png",
+      "route": "/assessment",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "assessment-no-scores-error",
+      "title": "محاولة «حفظ مسودة» بعد كتابة ملاحظة وقبل رصد أي درجة — تظهر رسالة «أدخل درجة واح",
+      "file": "assessment-no-scores-error.png",
+      "route": "/assessment",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "measurement",
+      "title": "الشاشة كاملةً بحساب مدير النظام قبل اختيار أي مشارك: العنوان والقائمة المنسدلة و",
+      "file": "measurement.png",
+      "route": "/measurements",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "measurement-selected",
+      "title": "بعد اختيار المشارك DM-026: بطاقة الدرجات الثلاث معبّأة بالنتيجة المحفوظة وسطر «آ",
+      "file": "measurement-selected.png",
+      "route": "/measurements",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "measurement-saved",
+      "title": "شريط التأكيد الأخضر «تم حفظ نتيجة القياس» بعد الضغط على «حفظ النتيجة» بالقيم نفس",
+      "file": "measurement-saved.png",
+      "route": "/measurements",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "measurement-invalid",
+      "title": "رسالة الخطأ الحمراء «تعذّر الحفظ — تحقّق من القيم (0–100)» بعد إدخال 150 في المق",
+      "file": "measurement-invalid.png",
+      "route": "/measurements",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "measurement-readonly",
+      "title": "الشاشة بحساب مدير إدارة التقييم: الحقول معطّلة ولا زرّ حفظ، ومكانه سطر «عرض فقط ",
+      "file": "measurement-readonly.png",
+      "route": "/measurements",
+      "role": "assess",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "development-plans-items",
+      "title": "خطة المشارك DM-049: الملخّص وبندان أحدهما مكتمل (مشطوب) والآخر قيد التنفيذ، وبطا",
+      "file": "development-plans-items.png",
+      "route": "/development-plans",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "development-plans-item-controls",
+      "title": "بند واحد مقرَّباً: المجال والإجراء والموعد ووسم «اكتمل»، وبجانبها قائمة الحالة و",
+      "file": "development-plans-item-controls.png",
+      "route": "/development-plans",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "development-plans-add",
+      "title": "بطاقة «إضافة بند» معبّأة بمجال وإجراء وموعد مستهدف قبل الضغط على «إضافة»",
+      "file": "development-plans-add.png",
+      "route": "/development-plans",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "development-plans-seed-error",
+      "title": "رسالة «لا توجد مجالات تطوير في تقرير هذه الدورة» بعد الضغط على «توليد من التقرير",
+      "file": "development-plans-seed-error.png",
+      "route": "/development-plans",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "development-plans-evaluator",
+      "title": "بحساب مستشار المقابلة: القائمة تعرض مشاركي قطاعه، واختيار من لم يقيّمه (DM-006) ",
+      "file": "development-plans-evaluator.png",
+      "route": "/development-plans",
+      "role": "evaluator",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "development-plans-readonly",
+      "title": "بحساب إدارة تطوير الكفاءات: البنود ظاهرة، وقائمة الحالة معطّلة، ولا زرّ حذف ولا ",
+      "file": "development-plans-readonly.png",
+      "route": "/development-plans",
+      "role": "devmanager",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "competency-framework-edit",
+      "title": "نافذة «تعديل كفاءة» للصفّ الأول — بلا حقل النوع، مع التنبيه أسفل الحقول",
+      "file": "competency-framework-edit.png",
+      "route": "/competency-framework",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "competency-framework-add",
+      "title": "نافذة «إضافة كفاءة» فارغة مع حقل النوع (سلوكية/قيادية/فنية) الذي يظهر عند الإضاف",
+      "file": "competency-framework-add.png",
+      "route": "/competency-framework",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "competency-framework-invalid",
+      "title": "رسالة «تحقّق من الحقول: المستوى المطلوب لا يتجاوز الحد الأقصى» بعد وضع 9 في «مطل",
+      "file": "competency-framework-invalid.png",
+      "route": "/competency-framework",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "competency-framework-readonly",
+      "title": "الشاشة بحساب مدير إدارة التقييم: الجدول ظاهر بلا زرّ «إضافة كفاءة» وبلا عمود الت",
+      "file": "competency-framework-readonly.png",
+      "route": "/competency-framework",
+      "role": "assess",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "competency-map-checked",
+      "title": "بطاقة «مقابلة شخصية» بعد تأشير كفاءتين: العدّاد في رأس البطاقة تحدّث فوراً قبل ا",
+      "file": "competency-map-checked.png",
+      "route": "/competency-map",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "reports-card-actions",
+      "title": "بطاقة تقرير واقف عند مرحلة «بانتظار اعتماد المقيّم» مع الرقم 1/3 وأشرطة التوافق ",
+      "file": "reports-card-actions.png",
+      "route": "/reports",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "reports-filters-advanced",
+      "title": "لوحة الفلترة المتقدّمة مفتوحة: القطاع والفئة والتوصية ومن/إلى تاريخ وزر تطبيق.",
+      "file": "reports-filters-advanced.png",
+      "route": "/reports",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "reports-editor-create",
+      "title": "محرّر «إنشاء تقرير نهائي» بعد اختيار مشارك: لوحة الاحتساب الآلي من الدرجات، لوحة",
+      "file": "reports-editor-create.png",
+      "route": "/reports",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "reports-return-modal",
+      "title": "نافذة «إرجاع التقرير» مع حقل سبب الإرجاع الإلزامي وزرّ تأكيد الإرجاع المعطَّل قب",
+      "file": "reports-return-modal.png",
+      "route": "/reports",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "reports-exec-summary",
+      "title": "نافذة الملخّص التنفيذي بصلاحية الكتابة: التنبيه «يُعرض في المستند المختصر. بصلاح",
+      "file": "reports-exec-summary.png",
+      "route": "/reports",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "reports-pager",
+      "title": "شريط الترقيم بعد ضبط حجم الصفحة على ١٠: عدّاد النطاق من الإجمالي، وأزرار التنقّل",
+      "file": "reports-pager.png",
+      "route": "/reports",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "reports-evaluator",
+      "title": "الشاشة نفسها بحساب مستشار المقابلة: تقارير من قيّمهم هو وحدهم، وبلا زرَّي «إنشاء",
+      "file": "reports-evaluator.png",
+      "route": "/reports",
+      "role": "evaluator",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "analytics-kpis",
+      "title": "شريط بطاقات المؤشرات الأربع: إجمالي المرشحين، متوسط التوافق السلوكي، متوسط التوا",
+      "file": "analytics-kpis.png",
+      "route": "/analytics",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "analytics-charts",
+      "title": "البطاقات الأربع: المرشحون حسب الحالة، حضور اليوم، حالة التقارير، التقارير المعتم",
+      "file": "analytics-charts.png",
+      "route": "/analytics",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "analytics-attendance",
+      "title": "حلقة «نسبة الحضور» وتفصيلها: حاضر، غائب، بالانتظار",
+      "file": "analytics-attendance.png",
+      "route": "/analytics",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "analytics-gaps-sectors",
+      "title": "بطاقتا «فجوات الكفاءات (الأضعف أولاً)» و«حسب القطاع» بجدولها",
+      "file": "analytics-gaps-sectors.png",
+      "route": "/analytics",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "executive-kpis",
+      "title": "بطاقات المؤشرات الأربع مع شارات فرق الفترة",
+      "file": "executive-kpis.png",
+      "route": "/executive",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "executive-insights",
+      "title": "بطاقات «رؤى تلقائية» بألوان نبراتها الثلاث",
+      "file": "executive-insights.png",
+      "route": "/executive",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "executive-heatmap",
+      "title": "الخريطة الحرارية لإتقان الكفاءات × القطاع مع وسيلة «أضعف ← أقوى»",
+      "file": "executive-heatmap.png",
+      "route": "/executive",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "executive-trend",
+      "title": "الاتجاه الشهري: أعمدة «تقارير معتمدة» وخطّ «متوسط الجاهزية %» على النافذة الافتر",
+      "file": "executive-trend.png",
+      "route": "/executive",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "executive-period",
+      "title": "مجموعة نافذة الاتجاه وزرّ «تصدير PDF» بعد اختيار «آخر سنة»",
+      "file": "executive-period.png",
+      "route": "/executive",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "executive-sectors",
+      "title": "مقارنة القطاعات بالجاهزية مرتّبةً تنازلياً مع الرتبة وعدّاد المكتمل",
+      "file": "executive-sectors.png",
+      "route": "/executive",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "executive-tiers-dist",
+      "title": "بطاقتا «الفئات القيادية» و«توزيع الجاهزية» بشرائحها الأربع",
+      "file": "executive-tiers-dist.png",
+      "route": "/executive",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "daily-report-kpis",
+      "title": "بطاقات اليوم الأربع: حضروا، غياب، بانتظار، إجمالي الجلسات",
+      "file": "daily-report-kpis.png",
+      "route": "/daily-report",
+      "role": "center",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "daily-report-actions",
+      "title": "ترويسة الشاشة: حقل التاريخ وزرّ «طباعة»",
+      "file": "daily-report-actions.png",
+      "route": "/daily-report",
+      "role": "center",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "daily-report-day",
+      "title": "الشاشة بعد اختيار يومٍ فيه درجات مُدخَلة وتقارير تحرّكت",
+      "file": "daily-report-day.png",
+      "route": "/daily-report",
+      "role": "center",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "daily-report-tables",
+      "title": "قسما «درجات اليوم» و«حالة التقارير» ممتلئين",
+      "file": "daily-report-tables.png",
+      "route": "/daily-report",
+      "role": "center",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "chat-reports-list",
+      "title": "قائمة «التقارير» — كل بطاقة رمز مشارك وقطاعه، والمفتوحة منها مُبرَزة.",
+      "file": "chat-reports-list.png",
+      "route": "/chat",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "chat-system-message",
+      "title": "مجرى الرسائل وفيه فقاعة رسالة النظام الوسطى: «أُعيد التقرير للتعديل. السبب: …».",
+      "file": "chat-system-message.png",
+      "route": "/chat",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "chat-empty-thread",
+      "title": "لوحة محادثة تقرير لا رسائل فيه: «لا توجد رسائل بعد — ابدأ المحادثة».",
+      "file": "chat-empty-thread.png",
+      "route": "/chat",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "chat-compose",
+      "title": "صفّ الكتابة: حقل «اكتب رسالة...» معبّأ بنصّ، وبجانبه زرّ «إرسال».",
+      "file": "chat-compose.png",
+      "route": "/chat",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "chat-narrowed",
+      "title": "قائمة التقارير كما يراها مستشار المقابلة — لا تظهر إلا تقارير من قيّمهم هو.",
+      "file": "chat-narrowed.png",
+      "route": "/chat",
+      "role": "evaluator",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "chat-no-reports",
+      "title": "الشاشة لدى دور يملك «المحادثات» بلا «عرض التقارير»: شريط الخطأ و«لا توجد تقارير»",
+      "file": "chat-no-reports.png",
+      "route": "/chat",
+      "role": "reception",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "notifications-head",
+      "title": "ترويسة الشاشة: عنوان «الإشعارات» مع عدد غير المقروء، وزرّ «تعليم الكل كمقروء».",
+      "file": "notifications-head.png",
+      "route": "/notifications",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "notifications-item",
+      "title": "بطاقة إشعار واحدة: أيقونة النوع، العنوان، المتن، الوقت، ونقطة عدم القراءة.",
+      "file": "notifications-item.png",
+      "route": "/notifications",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "notifications-empty",
+      "title": "الحالة الفارغة لدى حساب بلا إشعارات: «لا توجد إشعارات».",
+      "file": "notifications-empty.png",
+      "route": "/notifications",
+      "role": "measure",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "workflow-chain",
+      "title": "بطاقة «المسار الحالي»: مسودة ← المراحل المفعّلة بالترتيب ← معتمد.",
+      "file": "workflow-chain.png",
+      "route": "/workflow",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "workflow-stage",
+      "title": "صفّ مرحلة واحدة: السهمان والرقم، وحقل «اسم المرحلة»، واسم الدور، ووسم «N تقرير ه",
+      "file": "workflow-stage.png",
+      "route": "/workflow",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "workflow-move-up",
+      "title": "«المسار الحالي» بعد الضغط على سهم «لأعلى» في المرحلة الثانية — تبديل الموضعين.",
+      "file": "workflow-move-up.png",
+      "route": "/workflow",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "workflow-notes",
+      "title": "صندوق «ملاحظات مهمة» — القواعد الخمس التي يفرضها المحرّك.",
+      "file": "workflow-notes.png",
+      "route": "/workflow",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "settings-ldap",
+      "title": "بطاقة Active Directory / LDAP وحدها: مفتاح التفعيل والحقول وزرّا الاختبار والحفظ",
+      "file": "settings-ldap.png",
+      "route": "/settings",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "settings-sms",
+      "title": "بطاقة بوّابة الرسائل النصية — المفتاح محفوظ فيظهر الحقل مقنّعاً بـ «•••••••• (مح",
+      "file": "settings-sms.png",
+      "route": "/settings",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "settings-idverify",
+      "title": "بطاقة بوّابة التحقق من الهوية بعد اختيار المزوّد «يقين / أبشر»، ومعها قائمة «آخر",
+      "file": "settings-idverify.png",
+      "route": "/settings",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "settings-smtp",
+      "title": "بطاقة خادم البريد — بعد ضبط المنفذ على 587 ثم اختيار «SSL/TLS ضمني» تحوّل المنفذ",
+      "file": "settings-smtp.png",
+      "route": "/settings",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "settings-sectors",
+      "title": "بطاقة القطاعات كما هي: الأعمدة الأربعة، وعلامة «محمي» على القطاعات المرتبطة، وال",
+      "file": "settings-sectors.png",
+      "route": "/settings",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "settings-sectors-edit",
+      "title": "بطاقة القطاعات وقد تغيّر رمز أول صفّ فظهر زرّ «حفظ الرمز» وتحدّث عمود «نموذج»، و",
+      "file": "settings-sectors-edit.png",
+      "route": "/settings",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "settings-session-times",
+      "title": "بطاقة أوقات الجلسات بعد تعديل القائمة — زرّ «حفظ» لا يظهر إلا بعد التغيير",
+      "file": "settings-session-times.png",
+      "route": "/settings",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "audit-filters",
+      "title": "شريط المرشّحات وحده: قائمتا الإجراءات والمستخدمين، وحقلا التاريخ، وزرّ «مسح»",
+      "file": "audit-filters.png",
+      "route": "/audit",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "audit-sensitive",
+      "title": "الجدول بعد ترشيحه على «الاطلاع على البيانات الشخصية» — صفوف مظلَّلة يسبق إجراءَه",
+      "file": "audit-sensitive.png",
+      "route": "/audit",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "audit-empty",
+      "title": "الحالة الفارغة: ترشيح على «حذف المرشح» بلا نتائج فتظهر «لا توجد سجلات مطابقة»",
+      "file": "audit-empty.png",
+      "route": "/audit",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "audit-center",
+      "title": "الشاشة نفسها كما يفتحها مدير المركز — الدور الثاني الوحيد الذي يملك audit.view",
+      "file": "audit-center.png",
+      "route": "/audit",
+      "role": "center",
+      "capturedAt": "2026-08-09T09:53:15.576Z"
+    },
+    {
+      "id": "users-add-external",
+      "title": "نموذج «إضافة مستخدم» على النوع الافتراضي «خارجي»: بطاقتا النوع، وحقول اسم المستخ",
+      "file": "users-add-external.png",
+      "route": "/users",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "users-add-internal",
+      "title": "النموذج على النوع «داخلي (Active Directory)» بعد اختيار دور «مساعد التقييم»: يظه",
+      "file": "users-add-internal.png",
+      "route": "/users",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "users-edit",
+      "title": "نافذة «تعديل مستخدم» لحساب مساعد تقييم: لا يظهر فيها اسم المستخدم ولا اختيار الن",
+      "file": "users-edit.png",
+      "route": "/users",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "users-permissions",
+      "title": "نافذة استثناءات الصلاحيات لمستخدم: سطر «الدور … هو الأساس»، ومفتاح الحالات الثلا",
+      "file": "users-permissions.png",
+      "route": "/users",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "users-permissions-override",
+      "title": "الحالتان الاستثنائيتان في مجموعة «المرشحون»: «إضافة مرشّح» ممنوحة استثناءً بالأخ",
+      "file": "users-permissions-override.png",
+      "route": "/users",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "users-password",
+      "title": "نافذة «إعادة تعيين كلمة المرور»: اسم المستخدم المستهدف، وحقل كلمة المرور الجديدة",
+      "file": "users-password.png",
+      "route": "/users",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "roles-detail",
+      "title": "دور «مستشار المقابلة» مفتوحاً: ترويسة الدور مع عدد حامليه وعدد الصلاحيات المؤشَّ",
+      "file": "roles-detail.png",
+      "route": "/roles",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "roles-system-locked",
+      "title": "مجموعة «المستخدمون» في تفصيل الدور: الصلاحية `user.manage` مقفلة، وسبب القفل ظاه",
+      "file": "roles-system-locked.png",
+      "route": "/roles",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "roles-unsaved-diff",
+      "title": "بعد سحب «عرض المرشحين» وإضافة «عرض الجدول» لدور مستشار المقابلة: صندوق «تغييرات ",
+      "file": "roles-unsaved-diff.png",
+      "route": "/roles",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "roles-admin-locked",
+      "title": "دور «مدير النظام» مفتوحاً: تنبيه «دور مدير النظام لا يُعدَّل…»، وكل الصلاحيات مؤ",
+      "file": "roles-admin-locked.png",
+      "route": "/roles",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "roles-new",
+      "title": "نافذة «دور جديد»: حقول الرمز والاسم بالعربية والوصف بنماذجها المعروضة، مع التنبي",
+      "file": "roles-new.png",
+      "route": "/roles",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:21:57.952Z"
+    },
+    {
+      "id": "doc-participant-card",
+      "title": "بطاقة المشارك مطبوعةً",
+      "file": "doc-participant-card.png",
+      "route": "/candidates",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:26:36.584Z"
+    },
+    {
+      "id": "doc-cv-sheet",
+      "title": "نموذج السيرة الذاتية مطبوعاً",
+      "file": "doc-cv-sheet.png",
+      "route": "/candidates",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:26:36.584Z"
+    },
+    {
+      "id": "doc-report-brief",
+      "title": "المستند المختصر — الملخّص التنفيذي",
+      "file": "doc-report-brief.png",
+      "route": "/reports",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:26:36.584Z"
+    },
+    {
+      "id": "doc-daily-report",
+      "title": "التقرير اليومي مطبوعاً",
+      "file": "doc-daily-report.png",
+      "route": "/daily-report",
+      "role": "admin",
+      "capturedAt": "2026-08-09T10:26:36.584Z"
+    },
+    {
+      "id": "redesign-dashboard",
+      "title": "اللوحة بالهوية الجديدة",
+      "file": "redesign-dashboard.png",
+      "route": "/dashboard",
+      "role": "admin",
+      "capturedAt": "2026-08-10T06:08:59.549Z"
+    },
+    {
+      "id": "redesign-candidates",
+      "title": "المرشحون بالهوية الجديدة",
+      "file": "redesign-candidates.png",
+      "route": "/candidates",
+      "role": "admin",
+      "capturedAt": "2026-08-10T06:06:36.932Z"
+    },
+    {
+      "id": "redesign-nav",
+      "title": "القائمة الجديدة",
+      "file": "redesign-nav.png",
+      "route": "/dashboard",
+      "role": "admin",
+      "capturedAt": "2026-08-10T06:08:59.549Z"
+    }
+  ]
+}

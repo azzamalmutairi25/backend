@@ -12,6 +12,14 @@ class AuditRedactionTest extends TestCase
 
     protected $seed = true;
 
+    // مدقّق بلا رؤية المصنّفين: دور غير محصور بلا تصريح + صلاحية التدقيق عبر استثناء.
+    // (كان يُستعمل مدير المركز، لكنه صار يرى المصنّفين بقرار السلطة النهائية.)
+    private function unclearedAuditor(): void
+    {
+        $u = $this->actingAsRole('SCHEDULER');
+        $u->permissionOverrides()->create(['permission' => 'audit.view', 'granted' => true]);
+    }
+
     private function auditFor(int $candidateId): void
     {
         AuditLog::create([
@@ -37,7 +45,7 @@ class AuditRedactionTest extends TestCase
     {
         [$c] = $this->makeCandidate(['classification' => 'secret']);
         $this->auditFor($c->id);
-        $this->actingAsRole('CENTER_MANAGER'); // AUDIT_VIEW, no VIEW_CLASSIFIED
+        $this->unclearedAuditor(); // AUDIT_VIEW, no VIEW_CLASSIFIED
 
         $entries = $this->getJson('/api/audit/log')->assertOk()->json('entries');
         // classified candidate's entry must be redacted (id + details hidden)
@@ -52,7 +60,7 @@ class AuditRedactionTest extends TestCase
         $this->auditFor($cid);
         $c->delete(); // hard delete — row gone, but the audit log remains
 
-        $this->actingAsRole('CENTER_MANAGER');
+        $this->unclearedAuditor();
         $entries = $this->getJson('/api/audit/log')->assertOk()->json('entries');
         $entry = $this->entryFor($entries, $cid);
         // a deleted candidate can't be re-checked -> must be treated as classified (redacted)
@@ -62,14 +70,14 @@ class AuditRedactionTest extends TestCase
     public function test_candidate_history_is_404_for_classified_without_clearance(): void
     {
         [$c] = $this->makeCandidate(['classification' => 'secret']);
-        $this->actingAsRole('CENTER_MANAGER'); // CANDIDATE_VIEW, no VIEW_CLASSIFIED
+        $this->unclearedAuditor(); // CANDIDATE_VIEW, no VIEW_CLASSIFIED
 
         $this->getJson("/api/candidates/{$c->id}/history")->assertStatus(404);
     }
 
     public function test_candidate_history_is_404_for_missing_candidate_fail_closed(): void
     {
-        $this->actingAsRole('CENTER_MANAGER');
+        $this->unclearedAuditor();
         $this->getJson('/api/candidates/999999/history')->assertStatus(404);
     }
 }

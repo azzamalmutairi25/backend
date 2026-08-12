@@ -6,8 +6,11 @@ use App\Models\Evaluation;
 use App\Models\EvaluationScore;
 use App\Models\Competency;
 use App\Models\Candidate;
+use App\Models\Assessment;
+use App\Models\CandidateCv;
 use App\Models\AuditLog;
 use App\Security\Permissions;
+use App\Services\CvGuard;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,11 +19,6 @@ class EvaluationController extends Controller
 {
     public function __construct(private NotificationService $notify) {}
 
-    private function allowedClassifications(Request $request): array
-    {
-        $canSeeClassified = $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED);
-        return $canSeeClassified ? ['normal', 'secret', 'top_secret'] : ['normal'];
-    }
 
     private function log(Request $request, string $action, int $entityId, array $details = []): void
     {
@@ -58,6 +56,9 @@ class EvaluationController extends Controller
             'nameAr' => $c->name_ar,
             'type' => $c->type,
             'maxLevel' => $c->max_level,
+            // سلّم المستويات بأسمائه وأوصافه — الشاشة تبني عليه بطاقات
+            // الـrubric، فيقيس المقيّمون بالمرساة نفسها لا بتقديرهم الشخصي
+            'scale' => $c->levelScale(),
         ]);
 
         return response()->json(['competencies' => $list]);
@@ -72,20 +73,29 @@ class EvaluationController extends Controller
 
         $validated = $request->validate([
             'status' => 'nullable|in:draft,submitted,approved',
-        ]);
+        ] + $this->listPagingRules($this->sortable()));
 
         $allowed = $this->allowedClassifications($request);
 
         $query = Evaluation::with(['candidate', 'assessment'])
             ->withCount('scores')
-            ->where('evaluator_id', $request->user()->id);
+            ->where('evaluator_id', $request->user()->id)
+            // حصر التصنيف في SQL لا بعد الجلب.
+            //
+            // كان `->get()->filter(...)` يقصّ الصفوف **بعد** خروجها من
+            // القاعدة. مع الترقيم يصير ذلك خطأً لا بطئاً: تُجلب خمسون فيُقصّ
+            // منها ثلاثون فتُعرَض عشرون على أنّها صفحةٌ كاملة، والعدد الكلي
+            // يحسب المحجوبين. الحصر في مكانه الصحيح يُصلح الاثنين.
+            ->whereHas('candidate', fn ($q) => $q->whereIn('classification', $allowed));
 
         if (!empty($validated['status'])) {
             $query->where('status', $validated['status']);
         }
 
-        $evaluations = $query->latest('updated_at')->get()
-            ->filter(fn ($e) => in_array($e->candidate->classification, $allowed))
+        // desc افتراضاً: القائمة كانت `latest('updated_at')` — الأحدث أولاً
+        $meta = $this->applyListPaging($request, $query, $this->sortable(), 'updated', 'id', 'desc');
+
+        $evaluations = $query->get()
             ->map(fn ($e) => [
                 'id' => $e->id,
                 // رمز دورة التقييم (مجمّد) لا رمز المرشح الحالي — وإلا ظهر رمز دورة أحدث بعد reassess
@@ -96,7 +106,27 @@ class EvaluationController extends Controller
                 'updatedAt' => $e->updated_at,
             ])->values();
 
-        return response()->json(['evaluations' => $evaluations]);
+        return response()->json([
+            'evaluations' => $evaluations,
+            'meta' => $meta + ['shown' => $evaluations->count()],
+        ]);
+    }
+
+    // ── الفرز ──
+    // الفاصل `id` لا رمز المرشّح: المقيّم قد يقيّم المرشّح نفسه في نشاطين،
+    // فالرمز غير فريد هنا.
+    private function sortable(): array
+    {
+        return [
+            'updated' => 'updated_at',
+            'status' => 'status',
+            'activity' => 'activity',
+            'code' => fn ($q, $dir) => $q->orderBy(
+                \App\Models\Assessment::select('participant_code')
+                    ->whereColumn('assessments.id', 'evaluations.assessment_id'),
+                $dir
+            ),
+        ];
     }
 
     public function start(Request $request)
@@ -114,6 +144,16 @@ class EvaluationController extends Controller
 
         if (!in_array($candidate->classification, $this->allowedClassifications($request))) {
             $this->log($request, 'DENIED_EVAL_CLASSIFIED', $candidate->id);
+            return response()->json(['error' => 'المرشح غير موجود'], 404);
+        }
+
+        // حدّ القطاع: المقيّم لا يُقيّم إلا مرشحي قطاعه. يُفرض هنا لا عند التوزيع
+        // وحده — وإلا بدأ مقيّمٌ تقييماً لمرشّح من قطاع آخر بلا جدولة أصلاً.
+        if (!$request->user()->coversSector($candidate->sector_id)) {
+            $this->log($request, 'DENIED_EVAL_CROSS_SECTOR', $candidate->id, [
+                'candidateSector' => $candidate->sector_id,
+            ]);
+            // 404 لا 403: لا يفرّق الردّ بين «غير موجود» و«خارج قطاعك» فلا يكون عرّاف قطاع
             return response()->json(['error' => 'المرشح غير موجود'], 404);
         }
 
@@ -139,13 +179,25 @@ class EvaluationController extends Controller
 
         // الفحص أعلاه غير ذرّي — الفهرس الفريد (assessment_id, activity) يحسم السباق المتزامن كـ 422 لا 500
         try {
-            $evaluation = Evaluation::create([
-                'candidate_id' => $validated['candidateId'],
-                'assessment_id' => $assessmentId,
-                'evaluator_id' => $request->user()->id,
-                'activity' => $validated['activity'],
-                'status' => 'draft',
-            ]);
+            $evaluation = DB::transaction(function () use ($validated, $assessmentId, $request) {
+                // قفل صفّ الدورة نقطة تسلسل مقابل saveCv عبر البوّابة، فتُلتقَط لقطة سيرة مكتملة
+                if ($assessmentId) {
+                    Assessment::whereKey($assessmentId)->lockForUpdate()->first();
+                }
+                $e = Evaluation::create([
+                    'candidate_id' => $validated['candidateId'],
+                    'assessment_id' => $assessmentId,
+                    'evaluator_id' => $request->user()->id,
+                    'activity' => $validated['activity'],
+                    'status' => 'draft',
+                ]);
+                // جمّد لقطة السيرة عند أول تقييم — فقط إن كانت غير فارغة كي لا
+                // يُحبَس المرشح بلقطة فارغة لو بدأ المقيّم قبل أن يملأ سيرته
+                if ($assessmentId) {
+                    Assessment::with('candidate.cv')->find($assessmentId)?->freezeCvSnapshot(true);
+                }
+                return $e;
+            });
         } catch (\Illuminate\Database\QueryException $e) {
             return response()->json([
                 'error' => 'تم بدء تقييم لهذا المرشح في هذا النشاط للتوّ',
@@ -161,6 +213,56 @@ class EvaluationController extends Controller
             'message' => 'بدأت الجلسة',
             'evaluation' => ['id' => $evaluation->id],
         ], 201);
+    }
+
+    // GET /evaluations/{id}/cv — سيرة المرشح للمقيّم بلا اسم (الميزة ٧)
+    // يقرأ لقطة الدورة المجمَّدة لا السيرة الحيّة، ويطمس أي معرّف لمن لا يرى الأسماء.
+    public function cv(Request $request, int $id)
+    {
+        $user = $request->user();
+        if (!$user->hasPermission(Permissions::EVALUATION_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض التقييم'], 403);
+        }
+
+        // find لا findOrFail: رد 404 موحّد لغير الموجود ولغير المصرَّح، فلا يفرّق
+        // المعرّف بينهما (لا يكون عرّاف وجود). العلاقات تُحمَّل مع السيرة الحيّة احتياطاً.
+        $evaluation = Evaluation::with('candidate.cv', 'assessment')->find($id);
+        if (!$evaluation) {
+            return response()->json(['error' => 'التقييم غير موجود'], 404);
+        }
+
+        // النطاق: تصنيف المرشح ثم ملكية الجلسة — 404 لا 403 كي لا يكون المعرّف عرّافاً
+        if (!in_array($evaluation->candidate->classification, $this->allowedClassifications($request))) {
+            $this->log($request, 'DENIED_EVAL_CLASSIFIED', $id);
+            return response()->json(['error' => 'التقييم غير موجود'], 404);
+        }
+        if ($evaluation->evaluator_id !== $user->id && !$user->hasPermission(Permissions::EVALUATION_APPROVE)) {
+            return response()->json(['error' => 'التقييم غير موجود'], 404);
+        }
+
+        $assessment = $evaluation->assessment;
+        if (!$assessment) { // لا نرجع رمز المرشح المتغيّر بديلاً
+            return response()->json(['error' => 'السيرة غير متوفرة لهذا التقييم'], 404);
+        }
+
+        // اللقطة المجمَّدة إن وُجدت، وإلا الحيّة (تقييم مسودّة قبل التجميد) كي يرى المقيّم السيرة
+        $doc = $assessment->cv_snapshot
+            ?? $evaluation->candidate->cv?->data
+            ?? CandidateCv::emptyDoc();
+        $canSeeNames = $user->hasPermission(Permissions::CANDIDATE_VIEW_NAMES);
+        if (!$canSeeNames) {
+            $doc = CvGuard::scrub($doc, $evaluation->candidate);
+        }
+
+        $this->log($request, 'VIEW_CV', $id, ['candidate' => $assessment->participant_code]);
+
+        return response()->json(['cv' => [
+            'candidateCode' => $assessment->participant_code, // الرمز المجمَّد للدورة فقط
+            'name' => $canSeeNames ? $evaluation->candidate->full_name : null,
+            'hasCv' => !CandidateCv::isEmptyDoc($doc),
+            'document' => $doc,
+            // لا يُرسَل أبداً: candidate_id، updated_by، version، الطوابع، الهوية، الجوال، البريد
+        ]]);
     }
 
     public function show(Request $request, int $id)
@@ -203,14 +305,16 @@ class EvaluationController extends Controller
 
     public function saveScores(Request $request, int $id)
     {
-        $evaluation = Evaluation::with('candidate')->findOrFail($id);
-
-        if ($evaluation->evaluator_id !== $request->user()->id) {
-            return response()->json(['error' => 'هذه ليست جلستك'], 403);
+        // الصلاحية قبل الملكية: الملكية وحدها تُبقي الجلسة مفتوحةً لمن سُحبت
+        // منه EVALUATION_INPUT بعد بدئها — وقد صار السحب الفردي ممكناً.
+        if (!$request->user()->hasPermission(Permissions::EVALUATION_INPUT)) {
+            return response()->json(['error' => 'ليس لديك صلاحية إدخال التقييم'], 403);
         }
-
-        if (!in_array($evaluation->candidate->classification, $this->allowedClassifications($request))) {
-            $this->log($request, 'DENIED_EVAL_CLASSIFIED', $id);
+        // find لا findOrFail: 404 موحّد لغير الموجود/غير المملوك/خارج التصنيف — لا عرّاف وجود
+        $evaluation = Evaluation::with('candidate')->find($id);
+        if (!$evaluation || $evaluation->evaluator_id !== $request->user()->id
+            || !in_array($evaluation->candidate->classification, $this->allowedClassifications($request))) {
+            $this->log($request, 'DENIED_EVAL_OUT_OF_SCOPE', $id);
             return response()->json(['error' => 'التقييم غير موجود'], 404);
         }
 
@@ -275,14 +379,14 @@ class EvaluationController extends Controller
 
     public function submit(Request $request, int $id)
     {
-        $evaluation = Evaluation::with('candidate')->findOrFail($id);
-
-        if ($evaluation->evaluator_id !== $request->user()->id) {
-            return response()->json(['error' => 'هذه ليست جلستك'], 403);
+        if (!$request->user()->hasPermission(Permissions::EVALUATION_INPUT)) {
+            return response()->json(['error' => 'ليس لديك صلاحية إدخال التقييم'], 403);
         }
-
-        if (!in_array($evaluation->candidate->classification, $this->allowedClassifications($request))) {
-            $this->log($request, 'DENIED_EVAL_CLASSIFIED', $id);
+        // find لا findOrFail: 404 موحّد لغير الموجود/غير المملوك/خارج التصنيف — لا عرّاف وجود
+        $evaluation = Evaluation::with('candidate')->find($id);
+        if (!$evaluation || $evaluation->evaluator_id !== $request->user()->id
+            || !in_array($evaluation->candidate->classification, $this->allowedClassifications($request))) {
+            $this->log($request, 'DENIED_EVAL_OUT_OF_SCOPE', $id);
             return response()->json(['error' => 'التقييم غير موجود'], 404);
         }
 
@@ -319,6 +423,11 @@ class EvaluationController extends Controller
             'submitted_at' => now(),
         ]);
 
+        // ضمان تجميد لقطة السيرة لو لم تُلتقَط عند البدء (فكرة idempotent)
+        if ($evaluation->assessment_id) {
+            Assessment::with('candidate.cv')->find($evaluation->assessment_id)?->freezeCvSnapshot();
+        }
+
         // المرشح: scheduled -> assessed (تمّ تقييمه)
         if ($evaluation->candidate->status === 'scheduled') {
             $evaluation->candidate->setStatus('assessed');
@@ -340,7 +449,14 @@ class EvaluationController extends Controller
             return response()->json(['error' => 'ليس لديك صلاحية الاعتماد'], 403);
         }
 
-        $evaluation = Evaluation::findOrFail($id);
+        // نطاق التصنيف والقطاع قبل الطفرة (الصلاحية قد تُفوَّض لمن هو محصور/بلا تصريح)
+        $evaluation = Evaluation::with('candidate')->find($id);
+        if (!$evaluation
+            || !in_array($evaluation->candidate->classification, $this->allowedClassifications($request))
+            || !$request->user()->coversSector($evaluation->candidate->sector_id)) {
+            $this->log($request, 'DENIED_EVAL_OUT_OF_SCOPE', $id);
+            return response()->json(['error' => 'التقييم غير موجود'], 404);
+        }
 
         if ($evaluation->status !== 'submitted') {
             return response()->json(['error' => 'لا يمكن اعتماد تقييم غير مُرسل'], 422);
@@ -370,7 +486,14 @@ class EvaluationController extends Controller
             'reason.min' => 'سبب الإرجاع قصير جداً',
         ]);
 
-        $evaluation = Evaluation::findOrFail($id);
+        // نطاق التصنيف والقطاع قبل الطفرة (كـapprove — الصلاحية قابلة للتفويض)
+        $evaluation = Evaluation::with('candidate')->find($id);
+        if (!$evaluation
+            || !in_array($evaluation->candidate->classification, $this->allowedClassifications($request))
+            || !$request->user()->coversSector($evaluation->candidate->sector_id)) {
+            $this->log($request, 'DENIED_EVAL_OUT_OF_SCOPE', $id);
+            return response()->json(['error' => 'التقييم غير موجود'], 404);
+        }
 
         if ($evaluation->status !== 'submitted') {
             return response()->json(['error' => 'لا يمكن إرجاع تقييم غير مُرسل'], 422);

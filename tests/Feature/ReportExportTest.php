@@ -44,8 +44,10 @@ class ReportExportTest extends TestCase
         [$c, , $report] = $this->report();
         $c->update(['classification' => 'secret']);
 
-        // CENTER_MANAGER يملك REPORT_VIEW لكن لا VIEW_CLASSIFIED → مصنّف = «غير موجود»
-        $this->actingAsRole('CENTER_MANAGER');
+        // دور غير محصور بلا رؤية المصنّفين + REPORT_VIEW عبر استثناء → مصنّف = «غير موجود»
+        // (مدير المركز صار يرى المصنّفين بقرار السلطة النهائية)
+        $u = $this->actingAsRole('SCHEDULER');
+        $u->permissionOverrides()->create(['permission' => 'report.view', 'granted' => true]);
         $this->get("/api/reports/{$report->id}/document")->assertStatus(404);
     }
 

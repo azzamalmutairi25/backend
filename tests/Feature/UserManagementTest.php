@@ -20,8 +20,16 @@ class UserManagementTest extends TestCase
         return User::create(array_merge([
             'username' => 'u_' . substr(md5(uniqid('', true)), 0, 8),
             'full_name' => 'مستخدم', 'role_id' => $role->id, 'is_active' => true,
+            // الأدوار المحصورة بقطاع لا توجد بلا قطاع
+            'sector_id' => in_array($roleCode, User::SECTOR_BOUND_ROLES, true)
+                ? \App\Models\Sector::value('id') : null,
             'must_change_password' => false, 'user_type' => 'external', 'password' => 'Kafaat@2026',
         ], $attrs));
+    }
+
+    private function sectorId(): int
+    {
+        return \App\Models\Sector::value('id');
     }
 
     public function test_non_admin_cannot_manage_users(): void
@@ -37,6 +45,7 @@ class UserManagementTest extends TestCase
         $this->actingAsRole('ADMIN');
         $this->postJson('/api/users', [
             'username' => 'ext1', 'fullName' => 'خارجي', 'roleId' => $role->id,
+            'sectorId' => $this->sectorId(), // المقيّم محصور بقطاع
             'userType' => 'external', 'password' => 'Kafaat@2026',
         ])->assertCreated();
 
@@ -52,6 +61,7 @@ class UserManagementTest extends TestCase
         $this->actingAsRole('ADMIN');
         $this->postJson('/api/users', [
             'username' => 'int1', 'fullName' => 'داخلي', 'roleId' => $role->id,
+            'sectorId' => $this->sectorId(),
             'userType' => 'internal', 'adUsername' => 'int1.ad',
         ])->assertCreated();
 
@@ -80,6 +90,7 @@ class UserManagementTest extends TestCase
         $this->actingAsRole('ADMIN');
         $this->putJson("/api/users/{$target->id}", [
             'fullName' => 'محدّث', 'roleId' => $newRole->id,
+            'sectorId' => $target->sector_id, // كلا الدورين محصور بقطاع
         ])->assertOk();
 
         $this->assertSame(0, $target->fresh()->tokens()->count()); // تغيّر الصلاحيات ⇒ طرد الجلسات

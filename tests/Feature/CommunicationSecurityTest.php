@@ -51,8 +51,8 @@ class CommunicationSecurityTest extends TestCase
         [$c] = $this->makeCandidate();
         $this->smsFor($c->id);
 
-        // CENTER_MANAGER: CANDIDATE_VIEW but not VIEW_NAMES -> message null
-        $this->actingAsRole('CENTER_MANAGER');
+        // DEV_MANAGER: CANDIDATE_VIEW but not VIEW_NAMES -> message null
+        $this->actingAsRole('DEV_MANAGER');
         $res = $this->getJson("/api/communications/history/{$c->id}")->assertOk();
         $this->assertNull($res->json('sms.0.message'));
 

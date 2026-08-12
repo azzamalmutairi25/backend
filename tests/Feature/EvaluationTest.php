@@ -43,11 +43,11 @@ class EvaluationTest extends TestCase
             ->assertCreated();
         $evalId = \App\Models\Evaluation::latest('id')->value('id');
 
-        // a different evaluator cannot save into someone else's session
+        // مقيّم آخر لا يكتب في جلسة غيره — 404 موحّد (لا عرّاف وجود بالمعرّف) لا 403
         $this->actingAsRole('EVALUATOR');
         $this->postJson("/api/evaluations/{$evalId}/scores", [
             'scores' => [['competencyId' => Competency::first()->id, 'score' => 3]],
-        ])->assertStatus(403);
+        ])->assertStatus(404);
     }
 
     public function test_save_scores_rejects_duplicate_competency(): void
