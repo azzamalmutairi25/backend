@@ -215,12 +215,13 @@ try {
     for (const s of rest) {
       process.stdout.write(`▸ ${s.id} … `)
       try {
-        // المظهر يُحفظ في التخزين المحلّي، فلقطة «الوضع الداكن» كانت تُصبغ كل
-        // ما بعدها في الجلسة نفسها: دليلٌ نصفه فاتح ونصفه داكن بلا سبب ظاهر.
-        // يُثبَّت قبل كل لقطة، ولا يُترك لما فعلته اللقطة السابقة.
-        await page.evaluate((t) => {
-          try { localStorage.setItem('theme', t) } catch (e) { /* تجاهل */ }
-        }, s.theme === 'dark' ? 'dark' : 'light').catch(() => {})
+        // هوية البرنامج سطحٌ أبيض واحد: لا وضع داكن ولا مفتاح مظهر. مفتاح
+        // «theme» القديم قد يبقى في تخزين جهازٍ التقط قبل إعادة الكساء، فيُمسح
+        // كي لا يُورَّث إلى الجلسة شيءٌ لم يعد له معنى.
+        await page.evaluate(() => {
+          try { localStorage.removeItem('theme') } catch (e) { /* تجاهل */ }
+          document.documentElement.removeAttribute('data-theme')
+        }).catch(() => {})
         await page.goto(`${BASE}${s.route}`, { waitUntil: 'domcontentloaded' })
         // التحويل إلى /dashboard يعني أن الحساب لا يملك صلاحية الشاشة —
         // يُقال صراحةً بدل التقاط اللوحة الرئيسة باسم شاشةٍ أخرى.

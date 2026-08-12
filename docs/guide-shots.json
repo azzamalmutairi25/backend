@@ -478,13 +478,6 @@
       ]
     },
     {
-      "id": "ui-dark",
-      "route": "/dashboard",
-      "wait": "main",
-      "title": "الوضع الداكن",
-      "theme": "dark"
-    },
-    {
       "id": "assessment-scoring",
       "route": "/assessment",
       "role": "evaluator",
