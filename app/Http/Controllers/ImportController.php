@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Candidate;
 use App\Models\Assessment;
+use App\Models\Rank;
 use App\Models\Sector;
 use App\Models\AuditLog;
 use App\Security\Permissions;
@@ -37,6 +38,13 @@ class ImportController extends Controller
             if ($s->name_ar) {
                 $byKey[self::normalizeAr($s->name_ar)] = $s;
             }
+        }
+
+        // القائمة المُدارة للرتب، مفهرسةً بالفئة ثم بالتسمية المطبَّعة —
+        // استعلامٌ واحد لا استعلامٌ لكل صفّ.
+        $ranksByCat = ['military' => [], 'civilian' => []];
+        foreach (Rank::where('is_active', true)->get() as $r) {
+            $ranksByCat[$r->category][self::normalizeAr($r->label)] = true;
         }
 
         $success = [];
@@ -82,7 +90,22 @@ class ImportController extends Controller
                 if (!$sector) $reasons[] = "قطاع غير معروف ({$sectorKey})";
             }
 
-            if ($rankLabel === '') $reasons[] = 'الرتبة / المرتبة مفقودة';
+            // الرتبة تُطابَق على القائمة المُدارة لفئة القطاع. غير المُدرَجة
+            // تدخل وتُصنَّف «وسطى» صامتةً، فيُقيَّم لواءٌ بمعايير القيادة الوسطى
+            // ولا يظهر الخطأ في أي شاشة. ولا يُفحص إن كانت القائمة فارغة لتلك
+            // الفئة: التجاوز التدريجي مقصود، والصرامة على جدولٍ لم يُملأ بعد
+            // تُوقف الاستيراد كلّه بلا سبب.
+            $rankWord = ($sector && !$sector->is_military) ? 'المرتبة' : 'الرتبة';
+            if ($rankLabel === '') {
+                $reasons[] = "{$rankWord} مفقودة";
+            } elseif ($sector) {
+                $cat = $sector->is_military ? 'military' : 'civilian';
+                $known = $ranksByCat[$cat] ?? [];
+                if ($known && !isset($known[self::normalizeAr($rankLabel)])) {
+                    $list = $sector->is_military ? 'الرتب العسكرية' : 'المراتب المدنية';
+                    $reasons[] = "{$rankWord} «{$rankLabel}» ليست في قائمة {$list}";
+                }
+            }
 
             // الجوال والبريد لم يكونا يُفحصان هنا إطلاقاً بينما يفرضهما store:
             // جوّالٌ بصيغة 9665… يُقبل ثمّ لا تصل صاحبَه رسالة الدعوة أبداً.

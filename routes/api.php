@@ -12,6 +12,7 @@ use App\Http\Controllers\EvaluationController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\ScheduleController;
+use App\Http\Controllers\RankController;
 use App\Http\Controllers\RosterController;
 use App\Http\Controllers\ReceptionController;
 use App\Http\Controllers\RoleController;
@@ -153,6 +154,14 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/sectors', [SectorController::class, 'index']);
     Route::put('/sectors/{id}/prefix', [SectorController::class, 'updatePrefix']);
+
+    // الرتب والمراتب — مرجعٌ يقرؤه كل من يملأ نموذج مرشّح، والإدارة داخل
+    // RankController على `settings.manage`. كان الصنف مكتوباً كاملاً بلا مسار
+    // يبلغه، والتوثيق يذكره — فالميزة موجودة ولا سبيل إليها.
+    Route::get('/ranks', [RankController::class, 'index']);
+    Route::post('/ranks', [RankController::class, 'store']);
+    Route::put('/ranks/{id}', [RankController::class, 'update']);
+    Route::delete('/ranks/{id}', [RankController::class, 'destroy']);
 
     Route::get('/settings/distribution', [SettingsController::class, 'getDistribution']);
     Route::put('/settings/distribution', [SettingsController::class, 'saveDistribution']);
