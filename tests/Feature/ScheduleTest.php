@@ -84,7 +84,7 @@ class ScheduleTest extends TestCase
     public function test_update_blocked_after_attendance_for_non_candidate_managers(): void
     {
         [$c, $a] = $this->makeCandidate(['status' => 'scheduled']);
-        $ev = $this->actingAsRole('EVALUATOR', 'ED');
+        $ev = $this->actingAsRole('EVALUATOR', 'DW');
         $sch = \App\Models\Schedule::create([
             'candidate_id' => $c->id, 'assessment_id' => $a->id,
             'schedule_date' => $this->tomorrow(), 'schedule_time' => '10:00:00',

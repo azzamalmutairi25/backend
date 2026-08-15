@@ -16,7 +16,7 @@ class RescheduleTest extends TestCase
 
     private function sessionWith(?string $attStatus = null): Schedule
     {
-        [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED']);
+        [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
         $s = Schedule::create([
             'candidate_id' => $c->id, 'assessment_id' => $a->id,
             'schedule_date' => now()->toDateString(), 'schedule_time' => '10:00:00',

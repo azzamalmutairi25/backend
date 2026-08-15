@@ -91,7 +91,7 @@ class ListPagingTest extends TestCase
     public function test_reports_total_respects_the_scope(): void
     {
         $this->reports(4);
-        $ev = $this->actingAsRole('EVALUATOR', 'ED');
+        $ev = $this->actingAsRole('EVALUATOR', 'DW');
 
         $res = $this->getJson('/api/reports?page=1&perPage=100')->assertOk();
 
@@ -119,12 +119,13 @@ class ListPagingTest extends TestCase
 
     public function test_evaluations_still_come_newest_first_by_default(): void
     {
-        $ev = $this->actingAsRole('EVALUATOR', 'ED');
+        $ev = $this->actingAsRole('EVALUATOR', 'DW');
         $this->evaluationsFor($ev, 5);
 
         $codes = collect($this->getJson('/api/evaluations')->assertOk()->json('evaluations'))
             ->pluck('candidateCode');
 
+        // EN/ES رمزان مركّبان في هذا الاختبار (E + تصنيف)، لا بادئة قطاع
         $this->assertSame('EN-005', $codes->first(), 'الأحدث أولاً — انقلب الاتجاه');
     }
 
@@ -132,7 +133,7 @@ class ListPagingTest extends TestCase
     // ناقصة وعدداً يحسب المحجوبين
     public function test_the_classification_filter_now_bounds_the_count_not_just_the_rows(): void
     {
-        $ev = $this->actingAsRole('EVALUATOR', 'ED');   // بلا view_classified
+        $ev = $this->actingAsRole('EVALUATOR', 'DW');   // بلا view_classified
         $this->evaluationsFor($ev, 4, 'normal');
         $this->evaluationsFor($ev, 6, 'secret');
 
@@ -144,7 +145,7 @@ class ListPagingTest extends TestCase
 
     public function test_an_evaluation_page_is_full_not_short(): void
     {
-        $ev = $this->actingAsRole('EVALUATOR', 'ED');
+        $ev = $this->actingAsRole('EVALUATOR', 'DW');
         $this->evaluationsFor($ev, 3, 'normal');
         $this->evaluationsFor($ev, 5, 'secret');   // محجوبة
 

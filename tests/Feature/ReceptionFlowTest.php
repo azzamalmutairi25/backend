@@ -32,7 +32,7 @@ class ReceptionFlowTest extends TestCase
     private const NAME = 'سلطان بن فيصل الشهراني';
 
     // ── يصل المرشّح ويوقّع، ويعود معرّف زيارته ──
-    private function arrivedAndSigned(string $sectorCode = 'ED'): array
+    private function arrivedAndSigned(string $sectorCode = 'DW'): array
     {
         [$c, $a] = $this->makeCandidate(['sectorCode' => $sectorCode, 'fullName' => self::NAME]);
 
@@ -60,7 +60,7 @@ class ReceptionFlowTest extends TestCase
     {
         [$c, $a, $visitId] = $this->arrivedAndSigned();
 
-        $ev = $this->actingAsRole('EVALUATOR', 'ED');
+        $ev = $this->actingAsRole('EVALUATOR', 'DW');
         $asgId = $this->assignTo($visitId, $ev);
 
         $this->actingAs($ev);
@@ -117,7 +117,7 @@ class ReceptionFlowTest extends TestCase
         $this->actingAsRole('RECEPTIONIST');
         $visitId = $this->postJson('/api/reception/arrive', ['assessmentId' => $a->id])->json('visitId');
 
-        $ev = $this->actingAsRole('EVALUATOR', 'ED');
+        $ev = $this->actingAsRole('EVALUATOR', 'DW');
         $this->actingAsRole('RECEPTIONIST');
         $this->postJson("/api/reception/visits/{$visitId}/assign", [
             'activity' => 'interview', 'evaluatorId' => $ev->id,
@@ -156,7 +156,7 @@ class ReceptionFlowTest extends TestCase
     public function test_the_evaluator_never_sees_the_candidate_name_or_national_id(): void
     {
         [$c, , $visitId] = $this->arrivedAndSigned();
-        $ev = $this->actingAsRole('EVALUATOR', 'ED');
+        $ev = $this->actingAsRole('EVALUATOR', 'DW');
         $asgId = $this->assignTo($visitId, $ev);
 
         $this->actingAs($ev);
@@ -179,7 +179,7 @@ class ReceptionFlowTest extends TestCase
     public function test_holding_the_view_names_permission_does_not_unlock_the_name_here(): void
     {
         [$c, , $visitId] = $this->arrivedAndSigned();
-        $ev = $this->actingAsRole('EVALUATOR', 'ED');
+        $ev = $this->actingAsRole('EVALUATOR', 'DW');
         $asgId = $this->assignTo($visitId, $ev);
 
         $this->actingAs($ev);
@@ -198,7 +198,7 @@ class ReceptionFlowTest extends TestCase
     public function test_the_cv_opens_only_after_the_evaluator_takes_the_candidate(): void
     {
         [, , $visitId] = $this->arrivedAndSigned();
-        $ev = $this->actingAsRole('EVALUATOR', 'ED');
+        $ev = $this->actingAsRole('EVALUATOR', 'DW');
         $asgId = $this->assignTo($visitId, $ev);
 
         $this->actingAs($ev);
@@ -210,7 +210,7 @@ class ReceptionFlowTest extends TestCase
     public function test_each_stage_refuses_the_holder_of_another_stage(): void
     {
         [, , $visitId] = $this->arrivedAndSigned();
-        $ev = $this->actingAsRole('EVALUATOR', 'ED');
+        $ev = $this->actingAsRole('EVALUATOR', 'DW');
         $asgId = $this->assignTo($visitId, $ev);
 
         // الاستقبال يوزّع ولا يعتمد
@@ -242,11 +242,11 @@ class ReceptionFlowTest extends TestCase
     public function test_an_evaluator_cannot_decide_on_someone_elses_assignment(): void
     {
         [, , $visitId] = $this->arrivedAndSigned();
-        $mine = $this->actingAsRole('EVALUATOR', 'ED');
+        $mine = $this->actingAsRole('EVALUATOR', 'DW');
         $asgId = $this->assignTo($visitId, $mine);
 
         // مقيّم آخر في القطاع نفسه — 404 لا 403: إسناد غيره ليس شأنه فلا يُعلَم بوجوده
-        $this->actingAsRole('EVALUATOR', 'ED');
+        $this->actingAsRole('EVALUATOR', 'DW');
         $this->postJson("/api/reception/assignments/{$asgId}/accept")->assertStatus(404);
         $this->postJson("/api/reception/assignments/{$asgId}/reject", ['reason' => 'محاولة'])
             ->assertStatus(404);
@@ -256,8 +256,8 @@ class ReceptionFlowTest extends TestCase
 
     public function test_an_evaluator_from_another_sector_cannot_be_assigned(): void
     {
-        [, , $visitId] = $this->arrivedAndSigned('ED');
-        $other = $this->actingAsRole('EVALUATOR', 'HO');   // الإسكان لا التعليم
+        [, , $visitId] = $this->arrivedAndSigned('DW');
+        $other = $this->actingAsRole('EVALUATOR', 'PR');   // السجون لا ديوان الوزارة
 
         $this->actingAsRole('RECEPTIONIST');
         $this->postJson("/api/reception/visits/{$visitId}/assign", [
@@ -268,7 +268,7 @@ class ReceptionFlowTest extends TestCase
     public function test_an_activity_cannot_be_given_to_a_role_that_does_not_run_it(): void
     {
         [, , $visitId] = $this->arrivedAndSigned();
-        $discussion = $this->actingAsRole('DISCUSSION_EVAL', 'ED');
+        $discussion = $this->actingAsRole('DISCUSSION_EVAL', 'DW');
 
         // مستشار حلقة النقاش لا يُجري المقابلة الشخصية
         $this->actingAsRole('RECEPTIONIST');
@@ -282,7 +282,7 @@ class ReceptionFlowTest extends TestCase
     public function test_every_evaluator_offered_for_an_activity_can_actually_be_assigned(): void
     {
         [$c, , $visitId] = $this->arrivedAndSigned();
-        $this->actingAsRole('EVALUATOR', 'ED');
+        $this->actingAsRole('EVALUATOR', 'DW');
 
         $this->actingAsRole('RECEPTIONIST');
         $offered = $this->getJson('/api/reception/evaluators?activity=interview&sectorId=' . $c->sector_id)
@@ -305,7 +305,7 @@ class ReceptionFlowTest extends TestCase
     {
         [, , $visitId] = $this->arrivedAndSigned();
         $ops = $this->actingAsRole('OPERATIONS');
-        $ev = $this->actingAsRole('EVALUATOR', 'ED');
+        $ev = $this->actingAsRole('EVALUATOR', 'DW');
         $asgId = $this->assignTo($visitId, $ev);
 
         $this->actingAs($ev);
@@ -327,14 +327,14 @@ class ReceptionFlowTest extends TestCase
     public function test_operations_can_reassign_a_rejected_candidate_and_history_survives(): void
     {
         [, , $visitId] = $this->arrivedAndSigned();
-        $first = $this->actingAsRole('EVALUATOR', 'ED');
+        $first = $this->actingAsRole('EVALUATOR', 'DW');
         $asg1 = $this->assignTo($visitId, $first);
 
         $this->actingAs($first);
         $this->postJson("/api/reception/assignments/{$asg1}/reject", ['reason' => 'غير متاح'])->assertOk();
 
         // مقيّم بديل — والإسناد المردود يبقى في السجلّ بسببه
-        $second = $this->actingAsRole('EVALUATOR', 'ED');
+        $second = $this->actingAsRole('EVALUATOR', 'DW');
         $this->actingAsRole('OPERATIONS');
         $asg2 = $this->postJson("/api/reception/visits/{$visitId}/assign", [
             'activity' => 'interview', 'evaluatorId' => $second->id,
@@ -348,13 +348,13 @@ class ReceptionFlowTest extends TestCase
     public function test_operations_can_reassign_a_rejected_candidate_to_a_different_activity(): void
     {
         [, , $visitId] = $this->arrivedAndSigned();
-        $ev = $this->actingAsRole('EVALUATOR', 'ED');
+        $ev = $this->actingAsRole('EVALUATOR', 'DW');
         $asg1 = $this->assignTo($visitId, $ev);
 
         $this->actingAs($ev);
         $this->postJson("/api/reception/assignments/{$asg1}/reject", ['reason' => 'الأنسب النقاش'])->assertOk();
 
-        $disc = $this->actingAsRole('DISCUSSION_EVAL', 'ED');
+        $disc = $this->actingAsRole('DISCUSSION_EVAL', 'DW');
         $this->actingAsRole('OPERATIONS');
         $this->postJson("/api/reception/visits/{$visitId}/assign", [
             'activity' => 'discussion', 'evaluatorId' => $disc->id,
@@ -364,8 +364,8 @@ class ReceptionFlowTest extends TestCase
     public function test_the_same_activity_cannot_be_open_with_two_evaluators_at_once(): void
     {
         [, , $visitId] = $this->arrivedAndSigned();
-        $a = $this->actingAsRole('EVALUATOR', 'ED');
-        $b = $this->actingAsRole('EVALUATOR', 'ED');
+        $a = $this->actingAsRole('EVALUATOR', 'DW');
+        $b = $this->actingAsRole('EVALUATOR', 'DW');
         $this->assignTo($visitId, $a);
 
         $this->actingAsRole('RECEPTIONIST');
@@ -379,10 +379,10 @@ class ReceptionFlowTest extends TestCase
     public function test_approval_waits_for_every_pending_decision(): void
     {
         [, , $visitId] = $this->arrivedAndSigned();
-        $ev = $this->actingAsRole('EVALUATOR', 'ED');
+        $ev = $this->actingAsRole('EVALUATOR', 'DW');
         $asg1 = $this->assignTo($visitId, $ev);
 
-        $disc = $this->actingAsRole('DISCUSSION_EVAL', 'ED');
+        $disc = $this->actingAsRole('DISCUSSION_EVAL', 'DW');
         $this->actingAsRole('RECEPTIONIST');
         $this->postJson("/api/reception/visits/{$visitId}/assign", [
             'activity' => 'discussion', 'evaluatorId' => $disc->id,
@@ -401,7 +401,7 @@ class ReceptionFlowTest extends TestCase
     public function test_approving_twice_does_not_duplicate_the_schedule(): void
     {
         [, $a, $visitId] = $this->arrivedAndSigned();
-        $ev = $this->actingAsRole('EVALUATOR', 'ED');
+        $ev = $this->actingAsRole('EVALUATOR', 'DW');
         $asgId = $this->assignTo($visitId, $ev);
 
         $this->actingAs($ev);
@@ -417,7 +417,7 @@ class ReceptionFlowTest extends TestCase
     public function test_an_approved_visit_is_frozen(): void
     {
         [, , $visitId] = $this->arrivedAndSigned();
-        $ev = $this->actingAsRole('EVALUATOR', 'ED');
+        $ev = $this->actingAsRole('EVALUATOR', 'DW');
         $asgId = $this->assignTo($visitId, $ev);
         $this->actingAs($ev);
         $this->postJson("/api/reception/assignments/{$asgId}/accept")->assertOk();
@@ -437,12 +437,12 @@ class ReceptionFlowTest extends TestCase
 
     public function test_a_sector_bound_user_does_not_see_another_sectors_visits(): void
     {
-        [, , $visitId] = $this->arrivedAndSigned('ED');
-        $ev = $this->actingAsRole('EVALUATOR', 'ED');
+        [, , $visitId] = $this->arrivedAndSigned('DW');
+        $ev = $this->actingAsRole('EVALUATOR', 'DW');
         $asgId = $this->assignTo($visitId, $ev);
 
-        // مقيّم الإسكان لا يبلغ زيارة التعليم لا قراءةً ولا قراراً
-        $this->actingAsRole('EVALUATOR', 'HO');
+        // مقيّم السجون لا يبلغ زيارة ديوان الوزارة لا قراءةً ولا قراراً
+        $this->actingAsRole('EVALUATOR', 'PR');
         $this->getJson('/api/reception')->assertOk()->assertJsonPath('mine', []);
         $this->postJson("/api/reception/assignments/{$asgId}/accept")->assertStatus(404);
         $this->getJson("/api/reception/visits/{$visitId}/cv")->assertStatus(403);

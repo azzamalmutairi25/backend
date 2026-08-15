@@ -21,7 +21,7 @@ class RosterSheetTest extends TestCase
     private const DAY = '2026-07-26';
 
     // مشارك بجلستَي مقابلة ونقاش في اليوم — المصدر الوحيد لأعمدة المقيّمين الأربعة
-    private function participant(string $sectorCode = 'ED'): Candidate
+    private function participant(string $sectorCode = 'DW'): Candidate
     {
         [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => $sectorCode]);
 
@@ -145,7 +145,7 @@ class RosterSheetTest extends TestCase
     // (مسؤول الجدولة غير محصور). فالحصر يُختبر بمحصورٍ مُنح الصلاحية باستثناء
     // فردي — وهي الحالة التي حذّر منها المتحكّم الأساس: مَن مُنح صلاحية عبر
     // استثناء وهو محصور قطاعياً يجب ألا يرى قطاعاً غير قطاعه.
-    private function boundUserWith(string $permission, string $sectorCode = 'ED'): void
+    private function boundUserWith(string $permission, string $sectorCode = 'DW'): void
     {
         $user = $this->actingAsRole('ASSISTANT', $sectorCode);
         UserPermissionOverride::create([
@@ -157,10 +157,10 @@ class RosterSheetTest extends TestCase
 
     public function test_sector_bound_user_sees_only_own_sector(): void
     {
-        $mine = $this->participant('ED');
-        $other = $this->participant('DA');
+        $mine = $this->participant('DW');
+        $other = $this->participant('CD');
 
-        $this->boundUserWith(Permissions::SCHEDULE_VIEW, 'ED');
+        $this->boundUserWith(Permissions::SCHEDULE_VIEW, 'DW');
         $html = $this->get('/api/roster/document?date=' . self::DAY)->assertOk()->getContent();
 
         $this->assertStringContainsString($mine->participant_code, $html);
@@ -169,8 +169,8 @@ class RosterSheetTest extends TestCase
 
     public function test_assign_skips_candidates_outside_scope(): void
     {
-        $other = $this->participant('DA');
-        $this->boundUserWith(Permissions::ROSTER_MANAGE, 'ED');
+        $other = $this->participant('CD');
+        $this->boundUserWith(Permissions::ROSTER_MANAGE, 'DW');
 
         $this->postJson('/api/roster/assign', [
             'date' => self::DAY, 'group' => 'A', 'candidateIds' => [$other->id],
@@ -183,7 +183,7 @@ class RosterSheetTest extends TestCase
 
     public function test_sessions_outside_configured_slots_are_flagged(): void
     {
-        [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED']);
+        [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
         Schedule::create([
             'candidate_id' => $c->id, 'assessment_id' => $a->id,
             'schedule_date' => self::DAY, 'schedule_time' => '08:05:00',   // خارج القائمة
@@ -237,7 +237,7 @@ class RosterSheetTest extends TestCase
 
     public function test_schedule_creation_requires_time(): void
     {
-        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED']);
+        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
         $this->actingAsRole('SCHEDULER');
 
         $this->postJson('/api/schedules', [

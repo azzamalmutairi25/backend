@@ -37,7 +37,7 @@ class RankManagementTest extends TestCase
 
     public function test_add_rank_requires_settings_manage(): void
     {
-        $this->actingAsRole('EVALUATOR', 'ED');
+        $this->actingAsRole('EVALUATOR', 'DW');
         $this->postJson('/api/ranks', ['label' => 'طيار', 'category' => 'military', 'tier' => 'upper'])
             ->assertStatus(403);
     }

@@ -26,7 +26,7 @@ class ParticipantCodeTest extends TestCase
 
     protected $seed = true;
 
-    private function sector(string $code = 'ED'): Sector
+    private function sector(string $code = 'DW'): Sector
     {
         return Sector::where('code', $code)->firstOrFail();
     }
@@ -73,15 +73,15 @@ class ParticipantCodeTest extends TestCase
     public function test_the_counter_is_seeded_from_codes_that_predate_it(): void
     {
         // رمز موجود قبل العدّاد — المهاجرة بذرت العدّاد من الجدولين
-        $this->makeCandidate(['sectorCode' => 'ED', 'code' => 'ED-042']);
+        $this->makeCandidate(['sectorCode' => 'DW', 'code' => 'DW-042']);
 
         // نُعيد بذر العدّاد كما تفعل الهجرة (البذر يقع مرّة واحدة عند الترقية)
-        DB::table('participant_code_counters')->where('prefix', 'ED')->delete();
+        DB::table('participant_code_counters')->where('prefix', 'DW')->delete();
         DB::table('participant_code_counters')->insert([
-            'prefix' => 'ED', 'last_number' => 42, 'created_at' => now(), 'updated_at' => now(),
+            'prefix' => 'DW', 'last_number' => 42, 'created_at' => now(), 'updated_at' => now(),
         ]);
 
-        $this->assertSame('ED-043', Assessment::generateParticipantCode($this->sector()));
+        $this->assertSame('DW-043', Assessment::generateParticipantCode($this->sector()));
     }
 
     public function test_the_counter_advances_by_exactly_one_per_call(): void
@@ -89,33 +89,33 @@ class ParticipantCodeTest extends TestCase
         $sector = $this->sector();
         Assessment::generateParticipantCode($sector);
 
-        $before = $this->counter('ED');
+        $before = $this->counter('DW');
         Assessment::generateParticipantCode($sector);
 
-        $this->assertSame($before + 1, $this->counter('ED'));
+        $this->assertSame($before + 1, $this->counter('DW'));
     }
 
     public function test_each_sector_keeps_its_own_series(): void
     {
-        $ed = Assessment::generateParticipantCode($this->sector('ED'));
-        $ho = Assessment::generateParticipantCode($this->sector('HO'));
+        $ed = Assessment::generateParticipantCode($this->sector('DW'));
+        $ho = Assessment::generateParticipantCode($this->sector('PR'));
 
-        $this->assertStringStartsWith('ED-', $ed);
-        $this->assertStringStartsWith('HO-', $ho);
+        $this->assertStringStartsWith('DW-', $ed);
+        $this->assertStringStartsWith('PR-', $ho);
         // قطاعٌ لا يُحرّك عدّاد قطاعٍ آخر — التنافس محصور بالبادئة
-        $this->assertSame(1, $this->counter('HO'));
+        $this->assertSame(1, $this->counter('PR'));
     }
 
     // رمزٌ سابقٌ للعدّاد بأرقام تتجاوز ما بُذر به (استيراد يدوي مثلاً)
     public function test_a_code_that_already_exists_is_skipped_not_collided_with(): void
     {
         $sector = $this->sector();
-        // العدّاد عند صفر، لكن الرمز ED-001 محجوز مسبقاً
-        $this->makeCandidate(['sectorCode' => 'ED', 'code' => 'ED-001']);
+        // العدّاد عند صفر، لكن الرمز DW-001 محجوز مسبقاً
+        $this->makeCandidate(['sectorCode' => 'DW', 'code' => 'DW-001']);
 
         $code = Assessment::generateParticipantCode($sector);
 
-        $this->assertNotSame('ED-001', $code, 'أُرجِع رمز محجوز');
+        $this->assertNotSame('DW-001', $code, 'أُرجِع رمز محجوز');
         $this->assertFalse(
             Candidate::where('participant_code', $code)->exists()
             || Assessment::where('participant_code', $code)->exists()
@@ -153,7 +153,7 @@ class ParticipantCodeTest extends TestCase
         for ($i = 0; $i < 5; $i++) {
             $rows[] = [
                 'nationalId' => $this->validNationalId(), 'fullName' => "مستورد {$i}",
-                'mobile' => '', 'email' => '', 'sectorCode' => 'ED', 'rankLabel' => 'مدير عام',
+                'mobile' => '', 'email' => '', 'sectorCode' => 'DW', 'rankLabel' => 'مدير عام',
             ];
         }
 
@@ -161,8 +161,8 @@ class ParticipantCodeTest extends TestCase
             ->assertJsonPath('imported', 5);
 
         // خمسة رموز فريدة، والعدّاد يعكسها — لا مسار جانبي يتجاوزه
-        $this->assertSame(5, Candidate::where('participant_code', 'like', 'ED-%')->distinct('participant_code')->count());
-        $this->assertGreaterThanOrEqual(5, $this->counter('ED'));
+        $this->assertSame(5, Candidate::where('participant_code', 'like', 'DW-%')->distinct('participant_code')->count());
+        $this->assertGreaterThanOrEqual(5, $this->counter('DW'));
     }
 
     // ═══ التكلفة ═══
@@ -177,7 +177,7 @@ class ParticipantCodeTest extends TestCase
     {
         $sector = $this->sector();
         for ($i = 0; $i < 30; $i++) {
-            $this->makeCandidate(['sectorCode' => 'ED', 'code' => sprintf('ED-%03d', 500 + $i)]);
+            $this->makeCandidate(['sectorCode' => 'DW', 'code' => sprintf('DW-%03d', 500 + $i)]);
         }
 
         $queries = [];

@@ -23,8 +23,8 @@ class CandidateListPagingTest extends TestCase
     /** ١٢ مرشّحاً برموز مرتّبة وقطاعات ورتب مختلفة */
     private function makeMany(int $n = 12): void
     {
-        $ed = Sector::where('code', 'ED')->value('id');
-        $da = Sector::where('code', 'DA')->value('id');
+        $ed = Sector::where('code', 'DW')->value('id');
+        $da = Sector::where('code', 'CD')->value('id');
 
         for ($i = 1; $i <= $n; $i++) {
             $c = new Candidate();
@@ -190,13 +190,13 @@ class CandidateListPagingTest extends TestCase
     public function test_the_scope_still_binds_a_sector_bound_user(): void
     {
         $this->makeMany();
-        $this->actingAsRole('EVALUATOR', 'ED');
+        $this->actingAsRole('EVALUATOR', 'DW');
 
         $res = $this->getJson('/api/candidates?page=1&perPage=100')->assertOk();
 
         $this->assertSame(6, $res->json('meta.total'), 'العدد الكلي يحترم حدّ القطاع');
         foreach ($res->json('candidates') as $row) {
-            $this->assertSame('التعليم', $row['sectorName']);
+            $this->assertSame('ديوان الوزارة', $row['sectorName']);
         }
     }
 }

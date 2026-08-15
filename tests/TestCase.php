@@ -30,7 +30,7 @@ abstract class TestCase extends BaseTestCase
             'email' => strtolower($roleCode) . '.' . substr(md5(uniqid('', true)), 0, 6) . '@kafaat.local',
             'password' => 'Kafaat@2026',
             'role_id' => $role->id,
-            'sector_id' => $bound ? Sector::where('code', $sectorCode ?? 'ED')->value('id') : null,
+            'sector_id' => $bound ? Sector::where('code', $sectorCode ?? 'DW')->value('id') : null,
             // الدور المُدار يُنشأ بمدير — مساعدٌ بلا مدير تعلق تقاريره عند
             // مرحلة تشترط الفريق، وهي حالة لا تنشأ من الواجهة أصلاً
             'manager_id' => $managed ? ($manager?->id ?? $this->defaultManager()->id) : null,
@@ -63,7 +63,7 @@ abstract class TestCase extends BaseTestCase
     // مرشح (+ دورة تقييم) بحالة/تصنيف محدّدين — يرجع [candidate, assessment]
     protected function makeCandidate(array $attrs = []): array
     {
-        $sector = Sector::where('code', $attrs['sectorCode'] ?? 'ED')->firstOrFail();
+        $sector = Sector::where('code', $attrs['sectorCode'] ?? 'DW')->firstOrFail();
         $status = $attrs['status'] ?? 'draft';
         $code = $attrs['code'] ?? ('T' . random_int(1000, 999999));
 

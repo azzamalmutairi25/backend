@@ -89,14 +89,17 @@ class DemoDataSeeder extends Seeder
         $this->purge();
 
         // التوزيع يعكس قمعاً واقعياً: كثيرون في الأعلى، قليلون أنهوا الرحلة.
-        // الأعداد مضاعفات ٨ (عدد القطاعات) ليقع في كل قطاع مرشّح من كل حالة —
-        // وإلا لم يجد مقيّمُ قطاعٍ ما أحداً ليختبر عليه.
+        // الأعداد مضاعفات عدد القطاعات ليقع في كل قطاع مرشّح من كل حالة — وإلا
+        // لم يجد مقيّمُ قطاعٍ ما أحداً ليختبر عليه. تُحسب من العدد الفعلي لا من
+        // ثمانيةٍ مكتوبة: القائمة صارت تسعة عشر قطاعاً، وثابتُ الثمانية كان يترك
+        // نصفها بلا مرشّح في بعض الحالات.
+        $n = $sectors->count();
         $plan = [
-            ['status' => 'draft', 'count' => 8],
-            ['status' => 'scheduled', 'count' => 16],
-            ['status' => 'assessed', 'count' => 16],
-            ['status' => 'approved', 'count' => 8],
-            ['status' => 'completed', 'count' => 8],
+            ['status' => 'draft', 'count' => $n],
+            ['status' => 'scheduled', 'count' => $n * 2],
+            ['status' => 'assessed', 'count' => $n * 2],
+            ['status' => 'approved', 'count' => $n],
+            ['status' => 'completed', 'count' => $n],
         ];
 
         $made = [];

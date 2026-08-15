@@ -14,7 +14,7 @@ class ParticipantCardTest extends TestCase
 
     public function test_requires_candidate_view(): void
     {
-        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED']);
+        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
         // EXTERNAL_ADD يملك الإضافة فقط، لا العرض
         $this->actingAsRole('EXTERNAL_ADD');
 
@@ -23,8 +23,8 @@ class ParticipantCardTest extends TestCase
 
     public function test_renders_a_card_per_participant(): void
     {
-        [$a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED', 'code' => 'ED-101']);
-        [$b] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED', 'code' => 'ED-102']);
+        [$a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW', 'code' => 'DW-101']);
+        [$b] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW', 'code' => 'DW-102']);
         $this->actingAsRole('SCHEDULER');
 
         $res = $this->get("/api/candidates/cards?ids={$a->id},{$b->id}")
@@ -33,8 +33,8 @@ class ParticipantCardTest extends TestCase
 
         $html = $res->getContent();
         $this->assertSame(2, substr_count($html, 'class="card"'));
-        $this->assertStringContainsString('ED-101', $html);
-        $this->assertStringContainsString('ED-102', $html);
+        $this->assertStringContainsString('DW-101', $html);
+        $this->assertStringContainsString('DW-102', $html);
         $this->assertStringContainsString('مركز تمكين الكفاءات', $html);
     }
 
@@ -42,7 +42,7 @@ class ParticipantCardTest extends TestCase
     public function test_card_never_carries_name_or_national_id(): void
     {
         [$c] = $this->makeCandidate([
-            'status' => 'scheduled', 'sectorCode' => 'ED',
+            'status' => 'scheduled', 'sectorCode' => 'DW',
             'fullName' => 'مرشح ذو اسم صريح',
         ]);
         $nid = $c->national_id;
@@ -61,7 +61,7 @@ class ParticipantCardTest extends TestCase
     {
         $ids = [];
         foreach (range(1, 6) as $i) {
-            [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED']);
+            [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
             $ids[] = $c->id;
         }
         $this->actingAsRole('SCHEDULER');
@@ -76,7 +76,7 @@ class ParticipantCardTest extends TestCase
 
     public function test_single_card_gets_a_card_sized_page(): void
     {
-        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED', 'code' => 'ED-777']);
+        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW', 'code' => 'DW-777']);
         $this->actingAsRole('SCHEDULER');
 
         $html = $this->get('/api/candidates/cards?ids=' . $c->id)->assertOk()->getContent();
@@ -84,7 +84,7 @@ class ParticipantCardTest extends TestCase
         $this->assertStringContainsString('@page { size:91.4mm 52.3mm; margin:0; }', $html);
         $this->assertStringNotContainsString('size:Letter', $html);
         $this->assertStringNotContainsString('display:grid', $html);
-        $this->assertStringContainsString('<title>بطاقة المشارك — ED-777</title>', $html);
+        $this->assertStringContainsString('<title>بطاقة المشارك — DW-777</title>', $html);
         $this->assertSame(1, substr_count($html, 'class="card"'));
     }
 
@@ -92,7 +92,7 @@ class ParticipantCardTest extends TestCase
     {
         $ids = [];
         foreach (range(1, 3) as $i) {
-            [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED']);
+            [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
             $ids[] = $c->id;
         }
         $this->actingAsRole('SCHEDULER');
@@ -108,9 +108,9 @@ class ParticipantCardTest extends TestCase
     // فيجب أن تُطبع كبطاقة مفردة لا كورقة، والعبرة بما بقي لا بما طُلب
     public function test_scope_reduced_selection_renders_as_single(): void
     {
-        [$mine] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED']);
+        [$mine] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
         [$secret] = $this->makeCandidate([
-            'status' => 'scheduled', 'sectorCode' => 'ED', 'classification' => 'secret',
+            'status' => 'scheduled', 'sectorCode' => 'DW', 'classification' => 'secret',
         ]);
         $this->actingAsRole('SCHEDULER');
 
@@ -130,9 +130,9 @@ class ParticipantCardTest extends TestCase
     // خارج النطاق يسقط صامتاً — لا يُفرَّق بين «ليس لك» و«غير موجود»
     public function test_out_of_scope_ids_are_dropped(): void
     {
-        [$mine] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED']);
+        [$mine] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
         [$classified] = $this->makeCandidate([
-            'status' => 'scheduled', 'sectorCode' => 'ED', 'classification' => 'secret',
+            'status' => 'scheduled', 'sectorCode' => 'DW', 'classification' => 'secret',
         ]);
 
         $this->actingAsRole('SCHEDULER');   // بلا CANDIDATE_VIEW_CLASSIFIED
@@ -146,7 +146,7 @@ class ParticipantCardTest extends TestCase
     public function test_all_out_of_scope_returns_422(): void
     {
         [$classified] = $this->makeCandidate([
-            'status' => 'scheduled', 'sectorCode' => 'ED', 'classification' => 'top_secret',
+            'status' => 'scheduled', 'sectorCode' => 'DW', 'classification' => 'top_secret',
         ]);
         $this->actingAsRole('SCHEDULER');
 
@@ -155,7 +155,7 @@ class ParticipantCardTest extends TestCase
 
     public function test_printing_is_audited(): void
     {
-        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED']);
+        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
         $this->actingAsRole('SCHEDULER');
 
         $this->get('/api/candidates/cards?ids=' . $c->id)->assertOk();

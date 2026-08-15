@@ -24,7 +24,7 @@ class ExecutiveAnalyticsTest extends TestCase
         return User::create([
             'username' => 'ev_' . substr(md5(uniqid('', true)), 0, 6), 'full_name' => 'مقيّم',
             'password' => 'Kafaat@2026', 'role_id' => Role::where('code', 'EVALUATOR')->value('id'),
-            'sector_id' => Sector::where('code', 'ED')->value('id'), 'is_active' => true, 'must_change_password' => false,
+            'sector_id' => Sector::where('code', 'DW')->value('id'), 'is_active' => true, 'must_change_password' => false,
         ]);
     }
 
@@ -48,7 +48,7 @@ class ExecutiveAnalyticsTest extends TestCase
 
     public function test_executive_requires_analytics_permission(): void
     {
-        $this->actingAsRole('EVALUATOR', 'ED'); // لا يملك analytics.view
+        $this->actingAsRole('EVALUATOR', 'DW'); // لا يملك analytics.view
         $this->getJson('/api/analytics/executive')->assertStatus(403);
     }
 
@@ -58,9 +58,9 @@ class ExecutiveAnalyticsTest extends TestCase
         $ev = $this->evaluator();
         $comp = Competency::first();
 
-        $this->scored('ED', 'normal', 4, $ev->id, $comp, 'approved');
-        $this->scored('ED', 'normal', 5, $ev->id, $comp, 'approved');
-        $this->scored('HI', 'normal', 3, $ev->id, $comp, 'approved');
+        $this->scored('DW', 'normal', 4, $ev->id, $comp, 'approved');
+        $this->scored('DW', 'normal', 5, $ev->id, $comp, 'approved');
+        $this->scored('MS', 'normal', 3, $ev->id, $comp, 'approved');
 
         $res = $this->getJson('/api/analytics/executive')->assertOk();
         $res->assertJsonStructure([
@@ -85,8 +85,8 @@ class ExecutiveAnalyticsTest extends TestCase
         $this->actingAsRole('CENTER_MANAGER');
         $ev = $this->evaluator();
         $comp = Competency::first();
-        $this->scored('ED', 'normal', 4, $ev->id, $comp, 'approved');
-        $this->scored('HI', 'normal', 2, $ev->id, $comp, 'approved');
+        $this->scored('DW', 'normal', 4, $ev->id, $comp, 'approved');
+        $this->scored('MS', 'normal', 2, $ev->id, $comp, 'approved');
 
         $res = $this->getJson('/api/analytics/executive')->assertOk();
 
@@ -107,8 +107,8 @@ class ExecutiveAnalyticsTest extends TestCase
         $ev = $this->evaluator();
         $comp = Competency::first();
         // تقريران عالقان في مرحلة المقيّم → اختناق
-        $this->scored('ED', 'normal', 4, $ev->id, $comp, 'pending_evaluator');
-        $this->scored('ED', 'normal', 3, $ev->id, $comp, 'pending_evaluator');
+        $this->scored('DW', 'normal', 4, $ev->id, $comp, 'pending_evaluator');
+        $this->scored('DW', 'normal', 3, $ev->id, $comp, 'pending_evaluator');
 
         $insights = $this->getJson('/api/analytics/executive')->assertOk()->json('insights');
         $titles = collect($insights)->pluck('title');
@@ -123,8 +123,8 @@ class ExecutiveAnalyticsTest extends TestCase
         $ev = $this->evaluator();
         $comp = Competency::first();
 
-        $this->scored('ED', 'normal', 4, $ev->id, $comp, 'approved');
-        $this->scored('ED', 'secret', 5, $ev->id, $comp, 'approved'); // مصنّف — يُحجب
+        $this->scored('DW', 'normal', 4, $ev->id, $comp, 'approved');
+        $this->scored('DW', 'secret', 5, $ev->id, $comp, 'approved'); // مصنّف — يُحجب
 
         $res = $this->getJson('/api/analytics/executive')->assertOk();
         // العادي فقط يُحتسب (المصنّف خارج نطاقه)

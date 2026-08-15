@@ -31,9 +31,9 @@ class TestUsersSeeder extends Seeder
             'external'   => 'EXTERNAL_ADD',     // إضافة مرشّح فقط (صلاحية دنيا)
         ];
 
-        // الأدوار المحصورة بقطاع تحتاج قطاعاً وإلا لم تُقيّم أحداً — نُسندها للتعليم
-        // (نفس قطاع أغلب بيانات العرض) ليعمل حساب الاختبار فور إنشائه
-        $defaultSector = Sector::where('code', 'ED')->value('id') ?? Sector::value('id');
+        // الأدوار المحصورة بقطاع تحتاج قطاعاً وإلا لم تُقيّم أحداً — نُسندها لديوان
+        // الوزارة (نفس قطاع أغلب بيانات العرض) ليعمل حساب الاختبار فور إنشائه
+        $defaultSector = Sector::where('code', 'DW')->value('id') ?? Sector::value('id');
 
         $created = 0;
         foreach ($map as $username => $roleCode) {

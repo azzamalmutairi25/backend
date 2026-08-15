@@ -21,7 +21,7 @@ class CvPortalTest extends TestCase
 
     private function gate(array $attrs = []): array
     {
-        [$c, $a] = $this->makeCandidate(array_merge(['status' => 'scheduled', 'sectorCode' => 'ED'], $attrs));
+        [$c, $a] = $this->makeCandidate(array_merge(['status' => 'scheduled', 'sectorCode' => 'DW'], $attrs));
         $token = Str::random(48);
         $a->update(['confirm_token' => $token]);
         return [$c, $a, $token];
@@ -32,7 +32,7 @@ class CvPortalTest extends TestCase
         return $this->postJson("/api/public/assessment/{$token}/verify", ['nationalId' => $nid])->json('accessToken');
     }
 
-    private function evaluatorUser(string $sectorCode = 'ED'): User
+    private function evaluatorUser(string $sectorCode = 'DW'): User
     {
         return User::create([
             'username' => 'ev_' . substr(md5(uniqid('', true)), 0, 8),
@@ -144,7 +144,7 @@ class CvPortalTest extends TestCase
     {
         [$c, $a, $token] = $this->gate(); // لا سيرة بعد
         // مسودّة تقييم بدأت قبل ملء السيرة — يجب ألّا تُجمّد لقطة فارغة ولا تقفل
-        $this->actingAsRole('EVALUATOR', 'ED');
+        $this->actingAsRole('EVALUATOR', 'DW');
         $this->postJson('/api/evaluations/start', ['candidateId' => $c->id, 'activity' => 'interview'])->assertCreated();
 
         $at = $this->at($token, $c->national_id);
@@ -209,7 +209,7 @@ class CvPortalTest extends TestCase
 
     private function frozenEvaluation(string $name = 'محمد عبدالله الشهري'): array
     {
-        [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED', 'fullName' => $name]);
+        [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW', 'fullName' => $name]);
         CandidateCv::create(['candidate_id' => $c->id, 'data' => $this->validCv(['currentPosition' => 'مدير في مكتب الشهري']), 'version' => 1, 'source' => 'portal']);
         return [$c, $a];
     }
@@ -217,7 +217,7 @@ class CvPortalTest extends TestCase
     public function test_evaluator_sees_cv_without_name_scrubbed(): void
     {
         [$c, $a] = $this->frozenEvaluation();
-        $user = $this->actingAsRole('EVALUATOR', 'ED');
+        $user = $this->actingAsRole('EVALUATOR', 'DW');
         $ev = Evaluation::create(['candidate_id' => $c->id, 'assessment_id' => $a->id, 'evaluator_id' => $user->id, 'activity' => 'interview', 'status' => 'draft']);
         $a->load('candidate.cv');
         $a->freezeCvSnapshot();
@@ -234,7 +234,7 @@ class CvPortalTest extends TestCase
     public function test_evaluator_response_leaks_no_internal_fields(): void
     {
         [$c, $a] = $this->frozenEvaluation();
-        $user = $this->actingAsRole('EVALUATOR', 'ED');
+        $user = $this->actingAsRole('EVALUATOR', 'DW');
         $ev = Evaluation::create(['candidate_id' => $c->id, 'assessment_id' => $a->id, 'evaluator_id' => $user->id, 'activity' => 'interview', 'status' => 'draft']);
         $a->load('candidate.cv');
         $a->freezeCvSnapshot();
@@ -248,7 +248,7 @@ class CvPortalTest extends TestCase
     public function test_evaluator_reads_frozen_snapshot_not_live(): void
     {
         [$c, $a] = $this->frozenEvaluation();
-        $user = $this->actingAsRole('EVALUATOR', 'ED');
+        $user = $this->actingAsRole('EVALUATOR', 'DW');
         $ev = Evaluation::create(['candidate_id' => $c->id, 'assessment_id' => $a->id, 'evaluator_id' => $user->id, 'activity' => 'interview', 'status' => 'draft']);
         $a->load('candidate.cv');
         $a->freezeCvSnapshot(); // لقطة v1: currentPosition = «مدير في مكتب ...»
@@ -264,7 +264,7 @@ class CvPortalTest extends TestCase
     {
         [$c, $a] = $this->frozenEvaluation();
         $ev = Evaluation::create(['candidate_id' => $c->id, 'assessment_id' => $a->id, 'evaluator_id' => $this->evaluatorUser()->id, 'activity' => 'interview', 'status' => 'draft']);
-        $this->actingAsRole('EVALUATOR', 'ED'); // ليست جلسته، ولا يملك APPROVE
+        $this->actingAsRole('EVALUATOR', 'DW'); // ليست جلسته، ولا يملك APPROVE
         $this->getJson("/api/evaluations/{$ev->id}/cv")->assertStatus(404);
     }
 
@@ -286,7 +286,7 @@ class CvPortalTest extends TestCase
     public function test_evaluator_cannot_reach_candidate_cv_route(): void
     {
         [$c, $a] = $this->frozenEvaluation();
-        $this->actingAsRole('EVALUATOR', 'ED'); // لا CANDIDATE_CV_VIEW
+        $this->actingAsRole('EVALUATOR', 'DW'); // لا CANDIDATE_CV_VIEW
         $this->getJson("/api/candidates/{$c->id}/cv")->assertStatus(403);
     }
 
@@ -324,7 +324,7 @@ class CvPortalTest extends TestCase
 
     public function test_admin_save_sets_admin_source_and_actor(): void
     {
-        [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED']);
+        [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
         $user = $this->actingAsRole('SCHEDULER');
         $this->putJson("/api/candidates/{$c->id}/cv", ['cv' => $this->validCv()])->assertOk();
 
@@ -336,7 +336,7 @@ class CvPortalTest extends TestCase
 
     public function test_admin_is_not_exempt_from_name_leak_block(): void
     {
-        [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED', 'fullName' => 'سعد الغامدي']);
+        [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW', 'fullName' => 'سعد الغامدي']);
         $this->actingAsRole('SCHEDULER');
         $this->putJson("/api/candidates/{$c->id}/cv", ['cv' => $this->validCv(['briefBio' => 'أنا الغامدي مدير'])])
             ->assertStatus(422);
@@ -346,9 +346,9 @@ class CvPortalTest extends TestCase
 
     public function test_starting_evaluation_freezes_snapshot(): void
     {
-        [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED']);
+        [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
         CandidateCv::create(['candidate_id' => $c->id, 'data' => $this->validCv(), 'version' => 1, 'source' => 'portal']);
-        $this->actingAsRole('EVALUATOR', 'ED');
+        $this->actingAsRole('EVALUATOR', 'DW');
 
         $this->postJson('/api/evaluations/start', ['candidateId' => $c->id, 'activity' => 'interview'])->assertCreated();
         $this->assertNotNull($a->fresh()->cv_snapshotted_at, 'جُمِّدت اللقطة عند البدء');

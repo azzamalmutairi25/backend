@@ -43,7 +43,7 @@ class ReportApprovalChainTest extends TestCase
     // مساعد يتبع المدير المعطى — مرحلة المدير تشترط أن يكون الكاتب من فريقه
     private function assistantOf(User $manager): User
     {
-        return $this->actingAsRole('ASSISTANT', 'ED', $manager);
+        return $this->actingAsRole('ASSISTANT', 'DW', $manager);
     }
 
     // ── من يكتب ──

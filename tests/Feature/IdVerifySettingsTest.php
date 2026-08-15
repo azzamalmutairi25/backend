@@ -171,7 +171,7 @@ class IdVerifySettingsTest extends TestCase
         $this->actingAsRole('ADMIN'); // يملك SETTINGS_MANAGE و candidate.create
         $this->putJson('/api/settings/idverify', $this->validPayload())->assertOk();
 
-        $sector = \App\Models\Sector::where('code', 'ED')->value('id');
+        $sector = \App\Models\Sector::where('code', 'DW')->value('id');
         $res = $this->postJson('/api/candidates', [
             'nationalId' => $this->validNationalId(), 'fullName' => 'مرشح', 'mobile' => '0501112223',
             'sectorId' => $sector, 'rankLabel' => 'مدير عام',
@@ -184,7 +184,7 @@ class IdVerifySettingsTest extends TestCase
     {
         // بلا إعداد: idVerification = null ولا سجلّ (لا أثر على التدفّق)
         $this->actingAsRole('ADMIN');
-        $sector = \App\Models\Sector::where('code', 'ED')->value('id');
+        $sector = \App\Models\Sector::where('code', 'DW')->value('id');
         $this->postJson('/api/candidates', [
             'nationalId' => $this->validNationalId(), 'fullName' => 'مرشح', 'mobile' => '0501112223',
             'sectorId' => $sector, 'rankLabel' => 'مدير عام',

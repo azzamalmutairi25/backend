@@ -44,7 +44,7 @@ class StageRulesTest extends TestCase
     public function test_manager_approves_a_report_written_by_their_assistant(): void
     {
         $mgr = $this->actingAsRole('ASSESS_MANAGER');
-        $assistant = $this->actingAsRole('ASSISTANT', 'ED', $mgr);
+        $assistant = $this->actingAsRole('ASSISTANT', 'DW', $mgr);
         $r = $this->reportBy($assistant);
 
         \Laravel\Sanctum\Sanctum::actingAs($mgr);
@@ -55,7 +55,7 @@ class StageRulesTest extends TestCase
     public function test_manager_cannot_approve_a_report_by_someone_elses_assistant(): void
     {
         $otherMgr = $this->actingAsRole('ASSESS_MANAGER');
-        $theirAssistant = $this->actingAsRole('ASSISTANT', 'ED', $otherMgr);
+        $theirAssistant = $this->actingAsRole('ASSISTANT', 'DW', $otherMgr);
         $r = $this->reportBy($theirAssistant);
 
         $mgr = $this->actingAsRole('ASSESS_MANAGER'); // مدير آخر
@@ -162,7 +162,7 @@ class StageRulesTest extends TestCase
         $r = $this->reportBy(null);
 
         foreach (['ASSESS_MANAGER', 'DEV_MANAGER', 'EVALUATOR', 'ASSISTANT'] as $role) {
-            $this->actingAsRole($role, 'ED');
+            $this->actingAsRole($role, 'DW');
             $this->postJson("/api/reports/{$r->id}/cancel", ['reason' => 'محاولة إلغاء'])
                 ->assertStatus(403);
         }
@@ -254,7 +254,7 @@ class StageRulesTest extends TestCase
     public function test_a_user_cannot_be_their_own_manager(): void
     {
         $mgr = $this->actingAsRole('ASSESS_MANAGER');
-        $target = $this->actingAsRole('ASSISTANT', 'ED', $mgr);
+        $target = $this->actingAsRole('ASSISTANT', 'DW', $mgr);
         $this->actingAsRole('ADMIN');
 
         // حلقة تجعل قاعدة الفريق تقبله على تقريره

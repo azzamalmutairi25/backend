@@ -22,7 +22,7 @@ class DashboardOverviewTest extends TestCase
 
     protected $seed = true;
 
-    private function evaluatorUser(string $sectorCode = 'ED'): User
+    private function evaluatorUser(string $sectorCode = 'DW'): User
     {
         return User::create([
             'username' => 'ev_' . substr(md5(uniqid('', true)), 0, 6),
@@ -82,9 +82,9 @@ class DashboardOverviewTest extends TestCase
         $ev = $this->evaluatorUser();
         $comp = Competency::orderBy('sort_order')->first();
 
-        $this->fullCandidate('ED', $ev->id, $comp, 4);
-        $this->fullCandidate('ED', $ev->id, $comp, 5);
-        $this->fullCandidate('HI', $ev->id, $comp, 3, 'pending_evaluator', 'assessed', 'absent_unexcused');
+        $this->fullCandidate('DW', $ev->id, $comp, 4);
+        $this->fullCandidate('DW', $ev->id, $comp, 5);
+        $this->fullCandidate('MS', $ev->id, $comp, 3, 'pending_evaluator', 'assessed', 'absent_unexcused');
 
         $res = $this->getJson('/api/dashboard/overview')->assertOk();
 
@@ -188,7 +188,7 @@ class DashboardOverviewTest extends TestCase
         $comp = Competency::orderBy('sort_order')->first();
 
         // جلسات في الأسبوع الماضي فقط — فترةُ مقارنة موجودة، ولا جلسة اليوم
-        [$c, $a] = $this->makeCandidate(['sectorCode' => 'ED', 'tier' => 'upper']);
+        [$c, $a] = $this->makeCandidate(['sectorCode' => 'DW', 'tier' => 'upper']);
         $past = Schedule::create([
             'candidate_id' => $c->id, 'assessment_id' => $a->id,
             'schedule_date' => now()->subDays(2)->toDateString(), 'schedule_time' => '09:00',
@@ -209,7 +209,7 @@ class DashboardOverviewTest extends TestCase
         $ev = $this->evaluatorUser();
 
         for ($i = 0; $i < 9; $i++) {
-            [$c, $a] = $this->makeCandidate(['sectorCode' => 'ED', 'tier' => 'upper']);
+            [$c, $a] = $this->makeCandidate(['sectorCode' => 'DW', 'tier' => 'upper']);
             Schedule::create([
                 'candidate_id' => $c->id, 'assessment_id' => $a->id,
                 'schedule_date' => now()->toDateString(),
@@ -232,7 +232,7 @@ class DashboardOverviewTest extends TestCase
         $this->actingAsRole('SCHEDULER');
         $ev = $this->evaluatorUser();
         $comp = Competency::orderBy('sort_order')->first();
-        $this->fullCandidate('ED', $ev->id, $comp, 4);
+        $this->fullCandidate('DW', $ev->id, $comp, 4);
 
         $res = $this->getJson('/api/dashboard/overview')->assertOk();
 
@@ -277,19 +277,19 @@ class DashboardOverviewTest extends TestCase
 
     public function test_sector_bound_user_counts_only_their_own_sector(): void
     {
-        $mine = $this->actingAsRole('EVALUATOR', 'ED');
+        $mine = $this->actingAsRole('EVALUATOR', 'DW');
         $this->assertTrue($mine->isSectorBound());
 
         $comp = Competency::orderBy('sort_order')->first();
-        $other = $this->evaluatorUser('HI');
+        $other = $this->evaluatorUser('MS');
 
         // قطاعه: مرشّحان
-        $this->fullCandidate('ED', $mine->id, $comp, 4);
-        $this->fullCandidate('ED', $mine->id, $comp, 5);
+        $this->fullCandidate('DW', $mine->id, $comp, 4);
+        $this->fullCandidate('DW', $mine->id, $comp, 5);
         // قطاع آخر: ثلاثة — يجب ألا تُعدّ
-        $this->fullCandidate('HI', $other->id, $comp, 3);
-        $this->fullCandidate('HI', $other->id, $comp, 2);
-        $this->fullCandidate('HI', $other->id, $comp, 5);
+        $this->fullCandidate('MS', $other->id, $comp, 3);
+        $this->fullCandidate('MS', $other->id, $comp, 2);
+        $this->fullCandidate('MS', $other->id, $comp, 5);
 
         $res = $this->getJson('/api/dashboard/overview')->assertOk();
 
@@ -308,8 +308,8 @@ class DashboardOverviewTest extends TestCase
     public function test_classification_scope_excludes_classified_candidates(): void
     {
         $this->actingAsRole('SCHEDULER');   // بلا candidate.view_classified
-        $this->makeCandidate(['sectorCode' => 'ED', 'classification' => 'normal']);
-        $this->makeCandidate(['sectorCode' => 'ED', 'classification' => 'secret']);
+        $this->makeCandidate(['sectorCode' => 'DW', 'classification' => 'normal']);
+        $this->makeCandidate(['sectorCode' => 'DW', 'classification' => 'secret']);
 
         $res = $this->getJson('/api/dashboard/overview')->assertOk();
         $this->assertSame(1, $res->json('kpis.candidates.value'));

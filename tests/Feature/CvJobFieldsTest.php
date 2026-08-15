@@ -137,7 +137,7 @@ class CvJobFieldsTest extends TestCase
 
     public function test_declared_rank_does_not_overwrite_the_official_one(): void
     {
-        [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED', 'rankLabel' => 'عقيد']);
+        [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW', 'rankLabel' => 'عقيد']);
         $token = Str::random(48);
         $a->update(['confirm_token' => $token]);
         $at = $this->postJson("/api/public/assessment/{$token}/verify", ['nationalId' => $c->national_id])
@@ -156,7 +156,7 @@ class CvJobFieldsTest extends TestCase
 
     public function test_rank_mismatch_is_flagged_to_staff(): void
     {
-        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED', 'rankLabel' => 'عقيد']);
+        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW', 'rankLabel' => 'عقيد']);
         CandidateCv::create(['candidate_id' => $c->id, 'data' => $this->doc(['rankLabel' => 'عميد'])]);
 
         $this->actingAsRole('SCHEDULER');
@@ -169,7 +169,7 @@ class CvJobFieldsTest extends TestCase
 
     public function test_matching_rank_is_not_flagged(): void
     {
-        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED', 'rankLabel' => 'عميد']);
+        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW', 'rankLabel' => 'عميد']);
         CandidateCv::create(['candidate_id' => $c->id, 'data' => $this->doc(['rankLabel' => 'عميد'])]);
 
         $this->actingAsRole('SCHEDULER');
@@ -180,7 +180,7 @@ class CvJobFieldsTest extends TestCase
 
     public function test_cv_document_requires_the_cv_permission(): void
     {
-        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED']);
+        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
         $this->actingAsRole('EVALUATOR');   // لا يملك candidate.cv_view
 
         $this->get("/api/candidates/{$c->id}/cv/document")->assertStatus(403);
@@ -188,7 +188,7 @@ class CvJobFieldsTest extends TestCase
 
     public function test_cv_document_renders_the_form(): void
     {
-        [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED']);
+        [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
         CandidateCv::create(['candidate_id' => $c->id, 'data' => $this->doc()]);
         Schedule::create([
             'candidate_id' => $c->id, 'assessment_id' => $a->id,
@@ -216,7 +216,7 @@ class CvJobFieldsTest extends TestCase
     public function test_cv_document_never_carries_the_name(): void
     {
         [$c] = $this->makeCandidate([
-            'status' => 'scheduled', 'sectorCode' => 'ED', 'fullName' => 'مرشح ذو اسم صريح',
+            'status' => 'scheduled', 'sectorCode' => 'DW', 'fullName' => 'مرشح ذو اسم صريح',
         ]);
         CandidateCv::create(['candidate_id' => $c->id, 'data' => $this->doc()]);
 
@@ -229,7 +229,7 @@ class CvJobFieldsTest extends TestCase
     public function test_cv_document_is_out_of_scope_404(): void
     {
         [$c] = $this->makeCandidate([
-            'status' => 'scheduled', 'sectorCode' => 'ED', 'classification' => 'top_secret',
+            'status' => 'scheduled', 'sectorCode' => 'DW', 'classification' => 'top_secret',
         ]);
         $this->actingAsRole('SCHEDULER');   // بلا CANDIDATE_VIEW_CLASSIFIED
 

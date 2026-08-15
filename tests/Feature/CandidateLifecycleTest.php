@@ -43,7 +43,7 @@ class CandidateLifecycleTest extends TestCase
         // 2) المقيّم يُجري التقييم — لا مدير النظام:
         // المقيّم لا يرى ولا يعتمد إلا تقارير من قيّمهم هو، فلو قيّمه ADMIN
         // لما رأى المقيّمُ التقريرَ عند مرحلته.
-        $ev = $this->actingAsRole('EVALUATOR', 'ED');
+        $ev = $this->actingAsRole('EVALUATOR', 'DW');
         $evalId = $this->postJson('/api/evaluations/start', ['candidateId' => $c->id, 'activity' => 'interview'])
             ->assertCreated()->json('evaluation.id') ?? Evaluation::latest('id')->value('id');
         $this->postJson("/api/evaluations/{$evalId}/scores", ['scores' => [
@@ -57,7 +57,7 @@ class CandidateLifecycleTest extends TestCase
         // مرحلة مدير التقييم تمنع كاتب التقرير من اعتمادها («من يكتب لا يعتمد»)،
         // فلو كتبه الفاعل نفسه لعلق عندها. هذا هو المسار الحقيقي أصلاً.
         $mgr = $this->actingAsRole('ASSESS_MANAGER');
-        $this->actingAsRole('ASSISTANT', 'ED', $mgr);
+        $this->actingAsRole('ASSISTANT', 'DW', $mgr);
 
         $reportId = $this->postJson('/api/reports', [
             'candidateId' => $c->id, 'recommendation' => 'مرشّح قوي',

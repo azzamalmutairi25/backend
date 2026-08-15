@@ -5,8 +5,8 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use App\Data\MoiSectors;
 use App\Models\Role;
-use App\Models\Sector;
 use App\Models\Competency;
 use App\Models\User;
 
@@ -58,18 +58,9 @@ class DatabaseSeeder extends Seeder
             if ($seeded > 0) echo "✓ بُذرت صلاحيات {$seeded} دور\n";
         }
 
-        // ── القطاعات الثمانية ──
-        $sectors = [
-            ['code' => 'DA', 'name_ar' => 'الدفاع', 'is_military' => true],
-            ['code' => 'HI', 'name_ar' => 'الصحة', 'is_military' => false],
-            ['code' => 'MA', 'name_ar' => 'المالية', 'is_military' => true],
-            ['code' => 'TR', 'name_ar' => 'النقل', 'is_military' => false],
-            ['code' => 'EN', 'name_ar' => 'الطاقة', 'is_military' => true],
-            ['code' => 'ED', 'name_ar' => 'التعليم', 'is_military' => false],
-            ['code' => 'HO', 'name_ar' => 'الإسكان', 'is_military' => false],
-            ['code' => 'CO', 'name_ar' => 'الاتصالات', 'is_military' => false],
-        ];
-        foreach ($sectors as $s) Sector::updateOrCreate(['code' => $s['code']], $s);
+        // ── قطاعات الوزارة المعتمدة ──
+        // القائمة ومنطق عدم الدهس في App\Data\MoiSectors — تقرؤها الهجرة والبذر معاً
+        MoiSectors::sync();
 
         // ── الكفاءات ──
         $competencies = [

@@ -31,6 +31,9 @@ class SectorController extends Controller
                 'id' => $s->id,
                 'code' => $s->code,
                 'nameAr' => $s->name_ar,
+                // الاسم الرسمي الكامل («المديرية العامة للجوازات») — تكتبه
+                // المخاطبات والتقارير، والمعروض في الشاشات مختصرُه
+                'fullNameAr' => $s->full_name_ar,
                 'isMilitary' => $s->is_military,
             ];
             // البادئة تُعرض لمدير الإعدادات فقط — المفتاح غائب لسواه لا فارغ
@@ -98,6 +101,7 @@ class SectorController extends Controller
         $validated = $request->validate([
             'code' => ['required', 'string', 'regex:/^[A-Za-z0-9]{2,10}$/', 'unique:sectors,code'],
             'nameAr' => 'required|string|max:100',
+            'fullNameAr' => 'nullable|string|max:200',
             'isMilitary' => 'boolean',
             'participantPrefix' => ['nullable', 'string', 'regex:/^[A-Za-z0-9]{2,4}$/'],
         ], [
@@ -117,6 +121,7 @@ class SectorController extends Controller
         $sector = Sector::create([
             'code' => $code,
             'name_ar' => $validated['nameAr'],
+            'full_name_ar' => $validated['fullNameAr'] ?? null,
             'is_military' => $request->boolean('isMilitary'),
             'participant_prefix' => $prefix,
         ]);
@@ -140,13 +145,17 @@ class SectorController extends Controller
 
         $validated = $request->validate([
             'nameAr' => 'required|string|max:100',
+            'fullNameAr' => 'nullable|string|max:200',
             'isMilitary' => 'boolean',
         ]);
 
         // الرمز والبادئة لا يُعدَّلان هنا: رمز المشارك مُثبَّت على دورته، وتغيير الرمز
         // يُيتّم المرجعية (البادئة تُعدَّل عبر updatePrefix بحارسها الخاص).
+        // الاسم الرسمي يُحدَّث إن أُرسل فقط — غيابُه من طلبٍ قديم لا يمحوه.
         $sector->update([
             'name_ar' => $validated['nameAr'],
+            'full_name_ar' => $request->exists('fullNameAr')
+                ? ($validated['fullNameAr'] ?: null) : $sector->full_name_ar,
             'is_military' => $request->boolean('isMilitary', $sector->is_military),
         ]);
 

@@ -27,10 +27,10 @@ class InterviewerAssignmentTest extends TestCase
 
     public function test_lists_only_active_evaluators_of_the_candidate_sector(): void
     {
-        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED']);
-        $edActive = $this->evaluator('ED');
-        $this->evaluator('ED', false);  // معطّل
-        $this->evaluator('HI');         // قطاع آخر
+        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
+        $edActive = $this->evaluator('DW');
+        $this->evaluator('DW', false);  // معطّل
+        $this->evaluator('MS');         // قطاع آخر
 
         $this->actingAsRole('SCHEDULER');
         $res = $this->getJson("/api/candidates/{$c->id}/interviewers")->assertOk();
@@ -41,7 +41,7 @@ class InterviewerAssignmentTest extends TestCase
 
     public function test_reports_cv_presence_for_review(): void
     {
-        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED']);
+        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
         CandidateCv::create(['candidate_id' => $c->id, 'data' => CandidateCv::emptyDoc(), 'version' => 1, 'source' => 'portal']);
         $this->actingAsRole('SCHEDULER');
         $this->getJson("/api/candidates/{$c->id}/interviewers")->assertOk()->assertJsonPath('hasCv', true);
@@ -49,8 +49,8 @@ class InterviewerAssignmentTest extends TestCase
 
     public function test_requires_schedule_manage(): void
     {
-        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED']);
-        $this->actingAsRole('EVALUATOR', 'ED'); // لا SCHEDULE_MANAGE
+        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
+        $this->actingAsRole('EVALUATOR', 'DW'); // لا SCHEDULE_MANAGE
         $this->getJson("/api/candidates/{$c->id}/interviewers")->assertStatus(403);
     }
 
@@ -63,8 +63,8 @@ class InterviewerAssignmentTest extends TestCase
 
     public function test_scheduling_interview_assigns_the_interviewer(): void
     {
-        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED']);
-        $ev = $this->evaluator('ED');
+        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
+        $ev = $this->evaluator('DW');
         $this->actingAsRole('SCHEDULER');
 
         $res = $this->postJson('/api/schedules', [

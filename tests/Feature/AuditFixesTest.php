@@ -26,7 +26,7 @@ class AuditFixesTest extends TestCase
     /** مرشّح في قطاع آخر غير قطاع الفاعل */
     private function foreign(array $attrs = []): array
     {
-        return $this->makeCandidate(array_merge(['sectorCode' => 'HO'], $attrs));
+        return $this->makeCandidate(array_merge(['sectorCode' => 'PR'], $attrs));
     }
 
     // ══════ المرشحون ══════
@@ -34,7 +34,7 @@ class AuditFixesTest extends TestCase
     public function test_show_is_404_for_a_candidate_outside_the_sector(): void
     {
         [$c] = $this->foreign();
-        $this->actingAsRole('ASSISTANT', 'ED');
+        $this->actingAsRole('ASSISTANT', 'DW');
 
         // كان يرجّع السجل كاملاً — القطاع والرتبة والفئة والحالة
         $this->getJson("/api/candidates/{$c->id}")->assertStatus(404);
@@ -43,7 +43,7 @@ class AuditFixesTest extends TestCase
     public function test_assessments_is_404_outside_the_sector(): void
     {
         [$c] = $this->foreign(['status' => 'assessed']);
-        $this->actingAsRole('EVALUATOR', 'ED');
+        $this->actingAsRole('EVALUATOR', 'DW');
 
         // كان يكشف كل الدرجات وأسماء المقيّمين وتوصية التقرير
         $this->getJson("/api/candidates/{$c->id}/assessments")->assertStatus(404);
@@ -66,9 +66,9 @@ class AuditFixesTest extends TestCase
 
     public function test_export_is_limited_to_the_users_sector(): void
     {
-        [$mine] = $this->makeCandidate(['sectorCode' => 'ED']);
+        [$mine] = $this->makeCandidate(['sectorCode' => 'DW']);
         [$theirs] = $this->foreign();
-        $this->actingAsRole('DISCUSSION_EVAL', 'ED');
+        $this->actingAsRole('DISCUSSION_EVAL', 'DW');
 
         $csv = $this->get('/api/candidates/export')->assertOk()->getContent();
         $this->assertStringContainsString($mine->participant_code, $csv);
@@ -78,9 +78,9 @@ class AuditFixesTest extends TestCase
     public function test_export_cannot_be_aimed_at_another_sector(): void
     {
         [$theirs] = $this->foreign();
-        $this->actingAsRole('EVALUATOR', 'ED');
+        $this->actingAsRole('EVALUATOR', 'DW');
 
-        $ho = Sector::where('code', 'HO')->value('id');
+        $ho = Sector::where('code', 'PR')->value('id');
         $csv = $this->get("/api/candidates/export?sectorId={$ho}")->assertOk()->getContent();
         $this->assertStringNotContainsString($theirs->participant_code, $csv);
     }
@@ -89,7 +89,7 @@ class AuditFixesTest extends TestCase
 
     public function test_create_cannot_overwrite_an_existing_candidate_without_edit(): void
     {
-        [$existing] = $this->makeCandidate(['sectorCode' => 'ED', 'fullName' => 'الاسم الأصلي']);
+        [$existing] = $this->makeCandidate(['sectorCode' => 'DW', 'fullName' => 'الاسم الأصلي']);
         $existing->assessments()->update(['status' => 'completed']);
         $existing->update(['status' => 'completed']);
         $nid = $existing->national_id;
@@ -99,7 +99,7 @@ class AuditFixesTest extends TestCase
         // كان يعيد تسميته وينقله بين القطاعات بمجرّد «إضافته» بهويته
         $this->postJson('/api/candidates', [
             'nationalId' => $nid, 'fullName' => 'اسم مزروع',
-            'sectorId' => Sector::where('code', 'HO')->value('id'),
+            'sectorId' => Sector::where('code', 'PR')->value('id'),
             'rankLabel' => 'عميد',
         ])->assertStatus(403);
 
@@ -108,7 +108,7 @@ class AuditFixesTest extends TestCase
 
     public function test_a_role_with_edit_may_still_update_a_returning_candidate(): void
     {
-        [$existing] = $this->makeCandidate(['sectorCode' => 'ED', 'fullName' => 'الاسم الأصلي']);
+        [$existing] = $this->makeCandidate(['sectorCode' => 'DW', 'fullName' => 'الاسم الأصلي']);
         $existing->assessments()->update(['status' => 'completed']);
         $existing->update(['status' => 'completed']);
 
@@ -136,7 +136,7 @@ class AuditFixesTest extends TestCase
 
     public function test_evaluator_cannot_approve_a_report_outside_their_sector(): void
     {
-        $ev = $this->actingAsRole('EVALUATOR', 'ED');
+        $ev = $this->actingAsRole('EVALUATOR', 'DW');
         [$c, $a] = $this->foreign(['status' => 'assessed']);
         // قيّمه فعلاً، لكن المرشّح خارج قطاعه — القطاع حدّ أعلى
         Evaluation::create([
@@ -157,8 +157,8 @@ class AuditFixesTest extends TestCase
     // لا يُبلَغ عنده. يبقى النطاق مفروضاً لمن يملك الإرجاع.
     public function test_return_is_refused_for_roles_that_no_longer_hold_it(): void
     {
-        $ev = $this->actingAsRole('EVALUATOR', 'ED');
-        [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'sectorCode' => 'ED']);
+        $ev = $this->actingAsRole('EVALUATOR', 'DW');
+        [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'sectorCode' => 'DW']);
         Evaluation::create([
             'candidate_id' => $c->id, 'assessment_id' => $a->id, 'evaluator_id' => $ev->id,
             'activity' => 'interview', 'status' => 'submitted', 'submitted_at' => now(),
@@ -180,7 +180,7 @@ class AuditFixesTest extends TestCase
     public function test_assistant_cannot_write_a_report_for_another_sector(): void
     {
         [$c] = $this->foreign(['status' => 'assessed']);
-        $this->actingAsRole('ASSISTANT', 'ED');
+        $this->actingAsRole('ASSISTANT', 'DW');
 
         // eligible-candidates يُخفيه، فلا يُقبل بمعرّفه
         $this->postJson('/api/reports', ['candidateId' => $c->id, 'recommendation' => 'يوصى به'])
@@ -190,7 +190,7 @@ class AuditFixesTest extends TestCase
     public function test_score_preview_is_scoped_like_eligible_candidates(): void
     {
         [$c] = $this->foreign(['status' => 'assessed']);
-        $this->actingAsRole('ASSISTANT', 'ED');
+        $this->actingAsRole('ASSISTANT', 'DW');
 
         $this->getJson("/api/reports/score-preview?candidateId={$c->id}")->assertStatus(404);
     }
@@ -205,7 +205,7 @@ class AuditFixesTest extends TestCase
             'personality_score' => 80, 'analytical_score' => 75, 'english_score' => 70,
         ]);
 
-        $this->actingAsRole('ASSISTANT', 'ED');
+        $this->actingAsRole('ASSISTANT', 'DW');
         $this->getJson("/api/measurements/{$c->id}")->assertStatus(404);
     }
 
@@ -214,7 +214,7 @@ class AuditFixesTest extends TestCase
     public function test_development_plan_reads_are_scoped(): void
     {
         [$c] = $this->foreign(['status' => 'completed']);
-        $this->actingAsRole('ASSISTANT', 'ED');
+        $this->actingAsRole('ASSISTANT', 'DW');
 
         $this->getJson("/api/development-plans/{$c->id}")->assertStatus(404);
     }
@@ -222,7 +222,7 @@ class AuditFixesTest extends TestCase
     public function test_development_plan_writes_are_scoped(): void
     {
         [$c] = $this->foreign(['status' => 'completed']);
-        $this->actingAsRole('ASSISTANT', 'ED');
+        $this->actingAsRole('ASSISTANT', 'DW');
 
         $this->postJson('/api/development-plans', [
             'candidateId' => $c->id, 'area' => 'التفويض', 'action' => 'ورشة',
@@ -237,7 +237,7 @@ class AuditFixesTest extends TestCase
             'area' => 'التفويض', 'status' => 'pending', 'created_by' => null,
         ]);
 
-        $this->actingAsRole('ASSISTANT', 'ED');
+        $this->actingAsRole('ASSISTANT', 'DW');
         // يُحلّ بمعرّف البند — لولا النطاق عبر العلاقة لمرّ
         $this->putJson("/api/development-plan-items/{$item->id}", ['status' => 'done'])->assertStatus(404);
         $this->deleteJson("/api/development-plan-items/{$item->id}")->assertStatus(404);
@@ -253,7 +253,7 @@ class AuditFixesTest extends TestCase
             'recommendation' => 'يوصى به', 'status' => 'pending_evaluator', 'created_by' => null,
         ]);
 
-        $this->actingAsRole('EVALUATOR', 'ED');
+        $this->actingAsRole('EVALUATOR', 'DW');
         // المحادثة تحمل سبب الإرجاع ونقاش المقيّمين — أي مضمون التقرير المحجوب
         $this->getJson("/api/chat/report/{$r->id}")->assertStatus(404);
     }
@@ -262,8 +262,8 @@ class AuditFixesTest extends TestCase
 
     public function test_save_scores_requires_the_input_permission_not_just_ownership(): void
     {
-        $ev = $this->actingAsRole('EVALUATOR', 'ED');
-        [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED']);
+        $ev = $this->actingAsRole('EVALUATOR', 'DW');
+        [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
         $e = Evaluation::create([
             'candidate_id' => $c->id, 'assessment_id' => $a->id, 'evaluator_id' => $ev->id,
             'activity' => 'interview', 'status' => 'draft',

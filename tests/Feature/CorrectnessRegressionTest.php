@@ -89,13 +89,13 @@ class CorrectnessRegressionTest extends TestCase
     // ── #5/#13: الاستيراد يُنشئ دورة تقييم ولا يفسد تسلسل الرمز (إضافة تالية لا تُصادم بـ 500) ──
     public function test_import_creates_assessment_cycle_and_next_add_does_not_collide(): void
     {
-        $ed = Sector::where('code', 'ED')->firstOrFail();
+        $ed = Sector::where('code', 'DW')->firstOrFail();
         $this->actingAsRole('SCHEDULER'); // CANDIDATE_CREATE
 
         $importedNid = $this->validNationalId();
         $res = $this->postJson('/api/candidates/import', ['rows' => [[
             'nationalId' => $importedNid, 'fullName' => 'مستورد', 'mobile' => '0505550000',
-            'email' => '', 'sectorCode' => 'ED', 'rankLabel' => 'مدير عام',
+            'email' => '', 'sectorCode' => 'DW', 'rankLabel' => 'مدير عام',
         ]]])->assertOk();
         $this->assertSame(1, $res->json('imported'));
 

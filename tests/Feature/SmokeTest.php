@@ -14,7 +14,7 @@ class SmokeTest extends TestCase
     public function test_reference_data_is_seeded(): void
     {
         $this->assertDatabaseCount('roles', 12);   // +OPERATIONS مع مسار استقبال الموظفين
-        $this->assertDatabaseCount('sectors', 8);
+        $this->assertDatabaseCount('sectors', 19); // قطاعات الوزارة المعتمدة
         $this->assertGreaterThanOrEqual(3, \App\Models\User::count());
     }
 

@@ -42,13 +42,13 @@ class CandidateUpdateRequestTest extends TestCase
 
     private function edId(): int
     {
-        return Sector::where('code', 'ED')->value('id');
+        return Sector::where('code', 'DW')->value('id');
     }
 
     // مرشّح مسجّل + طلب تحديث معلّق من مستخدم خارجي — يرجع [candidate, requestId, nationalId]
     private function pendingRequest(array $cvOver = [], array $identityOver = []): array
     {
-        [$c] = $this->makeCandidate(['sectorCode' => 'ED', 'fullName' => 'الاسم الأصلي', 'rankLabel' => 'مقدم']);
+        [$c] = $this->makeCandidate(['sectorCode' => 'DW', 'fullName' => 'الاسم الأصلي', 'rankLabel' => 'مقدم']);
         $nid = $c->national_id;
 
         $this->actingAsRole('EXTERNAL_ADD');
@@ -131,7 +131,7 @@ class CandidateUpdateRequestTest extends TestCase
 
     public function test_duplicate_add_reports_the_original_date_and_offers_an_update_request(): void
     {
-        [$c] = $this->makeCandidate(['sectorCode' => 'ED', 'fullName' => 'الاسم الأصلي']);
+        [$c] = $this->makeCandidate(['sectorCode' => 'DW', 'fullName' => 'الاسم الأصلي']);
         $c->assessments()->update(['status' => 'completed']);
         $c->update(['status' => 'completed']);
         $nid = $c->national_id;
@@ -139,7 +139,7 @@ class CandidateUpdateRequestTest extends TestCase
         $this->actingAsRole('EXTERNAL_ADD');
         $res = $this->postJson('/api/candidates', [
             'nationalId' => $nid, 'fullName' => 'اسم مزروع',
-            'sectorId' => Sector::where('code', 'HO')->value('id'), 'rankLabel' => 'عميد',
+            'sectorId' => Sector::where('code', 'PR')->value('id'), 'rankLabel' => 'عميد',
             'cv' => $this->validCv(),
         ])->assertStatus(403);
 
@@ -158,7 +158,7 @@ class CandidateUpdateRequestTest extends TestCase
     public function test_duplicate_response_does_not_leak_the_participant_code(): void
     {
         // دورة نشطة: كان حارسها يسبق فحص الصلاحية ويردّ الرمز في نصّ الخطأ
-        [$c] = $this->makeCandidate(['sectorCode' => 'ED', 'status' => 'scheduled', 'code' => 'ED-9911']);
+        [$c] = $this->makeCandidate(['sectorCode' => 'DW', 'status' => 'scheduled', 'code' => 'DW-9911']);
         $nid = $c->national_id;
 
         $this->actingAsRole('EXTERNAL_ADD');
@@ -167,7 +167,7 @@ class CandidateUpdateRequestTest extends TestCase
             'sectorId' => $this->edId(), 'rankLabel' => 'عميد',
         ])->assertStatus(403);
 
-        $this->assertStringNotContainsString('ED-9911', json_encode($res->json(), JSON_UNESCAPED_UNICODE));
+        $this->assertStringNotContainsString('DW-9911', json_encode($res->json(), JSON_UNESCAPED_UNICODE));
         $this->assertNull($res->json('participantCode'));
     }
 
@@ -240,7 +240,7 @@ class CandidateUpdateRequestTest extends TestCase
 
     public function test_request_for_a_classified_candidate_is_indistinguishable_from_missing(): void
     {
-        [$c] = $this->makeCandidate(['classification' => 'secret', 'sectorCode' => 'ED']);
+        [$c] = $this->makeCandidate(['classification' => 'secret', 'sectorCode' => 'DW']);
         $nid = $c->national_id;
 
         $this->actingAsRole('EXTERNAL_ADD'); // بلا صلاحية رؤية المصنّفين
@@ -255,7 +255,7 @@ class CandidateUpdateRequestTest extends TestCase
 
     public function test_request_cv_carrying_the_candidate_name_is_refused(): void
     {
-        [$c] = $this->makeCandidate(['sectorCode' => 'ED', 'fullName' => 'سلطان العتيبي']);
+        [$c] = $this->makeCandidate(['sectorCode' => 'DW', 'fullName' => 'سلطان العتيبي']);
         $nid = $c->national_id;
 
         $this->actingAsRole('EXTERNAL_ADD');
@@ -270,7 +270,7 @@ class CandidateUpdateRequestTest extends TestCase
 
     public function test_request_without_a_cv_is_422(): void
     {
-        [$c] = $this->makeCandidate(['sectorCode' => 'ED']);
+        [$c] = $this->makeCandidate(['sectorCode' => 'DW']);
         $nid = $c->national_id;
 
         $this->actingAsRole('EXTERNAL_ADD');
@@ -397,7 +397,7 @@ class CandidateUpdateRequestTest extends TestCase
 
     public function test_the_requester_is_told_the_outcome(): void
     {
-        [$c] = $this->makeCandidate(['sectorCode' => 'ED', 'fullName' => 'الاسم الأصلي']);
+        [$c] = $this->makeCandidate(['sectorCode' => 'DW', 'fullName' => 'الاسم الأصلي']);
         $nid = $c->national_id;
 
         $external = $this->actingAsRole('EXTERNAL_ADD');
