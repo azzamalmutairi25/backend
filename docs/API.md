@@ -287,7 +287,9 @@
 ### التحليلات (Analytics)
 | الطريقة | المسار | الصلاحية | الغرض |
 |---|---|---|---|
-| GET | `/analytics/executive` | `analytics.executive` | **اللوحة التنفيذية الكاملة**: مؤشرات بفروقات، خريطة حرارية كفاءة×قطاع، اتجاهات، مقارنة قطاعات، مقارنة فئات قيادية، توزيع جاهزية، رؤى تلقائية. المُعامِل `?months` (٦ افتراضاً) |
+| GET | `/analytics/executive` | `analytics.executive` | **القيادة التنفيذية — المؤشرات**: مؤشرات بفروقات، خريطة حرارية كفاءة×قطاع، اتجاهات، مقارنة قطاعات، مقارنة فئات قيادية، توزيع جاهزية، رؤى تلقائية. المُعامِل `?months` (٦ افتراضاً) |
+| GET | `/analytics/executive/overview` | `analytics.executive` | **القيادة التنفيذية — نظرة شاملة**: ثلاثة عشر قسماً (المرشحون، الموجات، الجلسات، الاستقبال، الحضور، التقييم، القياس، التقارير، خطط التطوير، الكفاءات، طلبات التحديث، الفريق، التدقيق) بشكلٍ موحّد `{key,label,icon,route,metrics,bars}`. **الإعدادات خارجها عمداً** |
+| GET | `/analytics/executive/reports` | `analytics.executive` | **القيادة التنفيذية — التقارير**: مؤشرات السلسلة، خطّ الاعتماد، أطول انتظار في كل مرحلة، توزيع التوصيات، وأحدث التقارير **بالرمز لا بالاسم** (اطّلاع لا تحرير). المُعامِل `?limit` (٢٥ افتراضاً، ١٠٠ حدّاً) |
 | GET | `/analytics/dashboard` | `analytics.view` | نظرة موحّدة مختصرة |
 | GET | `/analytics/by-sector` | `analytics.view` | تجميع حسب القطاع |
 | GET | `/analytics/competency-gaps` | `analytics.view` | فجوات الكفاءات (الأضعف أولاً) |
@@ -353,6 +355,8 @@
 | PATCH | `/users/{id}/password` | `user.manage` | إعادة تعيين كلمة المرور |
 | GET | `/users/{id}/permissions` | `user.manage` | استثناءات المستخدم |
 | PUT | `/users/{id}/permissions` | `user.manage` | حفظ الاستثناءات (بسقف ثلاثي) |
+| GET | `/users/permission-catalog` | `user.manage` | الصلاحيات مجمّعةً بأسمائها العربية + `canGrant`/`canRevoke`/`lockedReason` — تقرأها شاشة الوصول الجماعي |
+| POST | `/users/bulk-permissions` | `user.manage` | **وصولٌ واحد على مجموعة موظفين**: `{userIds[], changes[{permission, action: grant\|revoke\|reset}], reason?}`. السقف الثلاثي نفسه؛ حسابُك وحاملُ `*` يُتخطّيان ويُعادان في `skipped`؛ الاستثناء المطابق للدور يُمحى صامتاً؛ كل حسابٍ متأثّر يُسجَّل في التدقيق وتُطرد جلساته |
 
 ### القوائم المرجعية (Reference) — مُصادَق، بلا صلاحية
 > يحتاجها كل من يملأ نموذجاً — ومنه المستخدم الخارجي: `sectorId` و`rankLabel` حقلان إلزاميان في إنشاء المرشّح.

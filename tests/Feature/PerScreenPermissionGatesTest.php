@@ -25,7 +25,10 @@ class PerScreenPermissionGatesTest extends TestCase
 
     // الشاشة ← [الصلاحية التي تحرسها، مسار للقراءة]
     private const GATES = [
-        'اللوحة التنفيذية' => [Permissions::ANALYTICS_EXECUTIVE, '/api/analytics/executive'],
+        'القيادة التنفيذية: المؤشرات' => [Permissions::ANALYTICS_EXECUTIVE, '/api/analytics/executive'],
+        // التبويبان الآخران خلف البوّابة نفسها: سحبُها يُغلق الشاشة كلّها لا واجهتها
+        'القيادة التنفيذية: النظرة الشاملة' => [Permissions::ANALYTICS_EXECUTIVE, '/api/analytics/executive/overview'],
+        'القيادة التنفيذية: التقارير' => [Permissions::ANALYTICS_EXECUTIVE, '/api/analytics/executive/reports'],
         'التقرير اليومي' => [Permissions::ANALYTICS_DAILY_REPORT, '/api/daily-report'],
     ];
 
@@ -87,11 +90,6 @@ class PerScreenPermissionGatesTest extends TestCase
     // لو نقصت صلاحيةٌ عن دورٍ كان يفتح شاشته لصار العطل صامتاً عنده
     public function test_every_role_that_had_the_screen_still_has_it(): void
     {
-        $screens = [
-            Permissions::ANALYTICS_EXECUTIVE,
-            Permissions::ANALYTICS_DAILY_REPORT,
-        ];
-
         foreach (Permissions::matrix() as $role => $perms) {
             if (in_array('*', $perms, true)) {
                 continue;
@@ -99,10 +97,11 @@ class PerScreenPermissionGatesTest extends TestCase
             if (!in_array(Permissions::ANALYTICS_VIEW, $perms, true)) {
                 continue;
             }
-            foreach ($screens as $p) {
-                $this->assertContains($p, $perms,
-                    "{$role} يملك التحليلات العامّة وفقد {$p} — شاشة تُغلق في وجهه بعد التضييق");
-            }
+            // التقرير اليومي يبقى لكل من يملك التحليلات العامّة — فقدُه عطلٌ صامت.
+            // أمّا القيادة التنفيذية فحُصرت في مدير المركز بقرارٍ صريح، ويحرسه
+            // الاختبار التالي — فلا تُدرَج هنا وإلا صار الحارسان متناقضين.
+            $this->assertContains(Permissions::ANALYTICS_DAILY_REPORT, $perms,
+                "{$role} يملك التحليلات العامّة وفقد التقرير اليومي — شاشة تُغلق في وجهه بعد التضييق");
         }
 
         // خطة التطوير والمحادثات: كل من يقرأ التقارير يملكهما
