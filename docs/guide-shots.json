@@ -1,5 +1,5 @@
 {
-  "_": "كتالوج لقطات دليل المستخدم. يقرؤه docs/capture-guide.mjs. كل لقطة: route ثم steps ثم صورة. role = حساب التجربة الذي تُلتقط به. clip = محدّد لاقتصاص عنصر بعينه.",
+  "_": "كتالوج لقطات دليل المستخدم. يقرؤه docs/capture-guide.mjs. كل لقطة: route ثم steps ثم صورة. role = حساب التجربة الذي تُلتقط به. clip = محدّد لاقتصاص عنصر بعينه. feature = مفتاح تشغيل تُخطّى اللقطة بدونه. requiresEnv = متغيّر بيئة تلزمه اللقطة (بيانات حيّة لا تُكتب هنا كي لا تتقادم).",
   "shots": [
     {
       "id": "login",
@@ -806,7 +806,8 @@
       "id": "confirm",
       "route": "/confirm/:token",
       "wait": "main",
-      "title": "بوّابة الهوية كما يفتحها المشارك: حقل رقم الهوية وحده والزر معطَّل، ولا بيان معر"
+      "title": "بوّابة الهوية كما يفتحها المشارك: حقل رقم الهوية وحده والزر معطَّل، ولا بيان معر",
+      "feature": "candidatePortal"
     },
     {
       "id": "confirm-wrong-id",
@@ -828,7 +829,8 @@
           "action": "waitFor",
           "selector": ".err"
         }
-      ]
+      ],
+      "feature": "candidatePortal"
     },
     {
       "id": "confirm-hub-unconfirmed",
@@ -849,7 +851,8 @@
           "action": "waitFor",
           "selector": ".statuses"
         }
-      ]
+      ],
+      "feature": "candidatePortal"
     },
     {
       "id": "confirm-hub",
@@ -870,7 +873,8 @@
           "action": "waitFor",
           "selector": ".tiles"
         }
-      ]
+      ],
+      "feature": "candidatePortal"
     },
     {
       "id": "confirm-cv",
@@ -895,7 +899,8 @@
           "action": "waitFor",
           "selector": ".cvform"
         }
-      ]
+      ],
+      "feature": "candidatePortal"
     },
     {
       "id": "confirm-cv-rows",
@@ -928,7 +933,8 @@
           "action": "scrollTo",
           "selector": "text=إضافة خبرة"
         }
-      ]
+      ],
+      "feature": "candidatePortal"
     },
     {
       "id": "confirm-cv-locked",
@@ -953,7 +959,8 @@
           "action": "waitFor",
           "selector": ".cvform"
         }
-      ]
+      ],
+      "feature": "candidatePortal"
     },
     {
       "id": "confirm-card",
@@ -979,7 +986,8 @@
           "action": "waitFor",
           "selector": "#cv-badge"
         }
-      ]
+      ],
+      "feature": "candidatePortal"
     },
     {
       "id": "nominate-validation",
@@ -1670,6 +1678,92 @@
         {
           "action": "hover",
           "selector": ".btn-ok.sm >> nth=0"
+        }
+      ]
+    },
+    {
+      "id": "reception-kiosk",
+      "role": "reception",
+      "route": "/reception",
+      "wait": "main",
+      "clip": ".kiosk-section",
+      "title": "كشك تسجيل الحضور: رابط اليوم بعد إنشائه، وزرّا «نسخ الرابط» و«إبطال»",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".kiosk-new .btn-ok"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".kiosk"
+        }
+      ]
+    },
+    {
+      "id": "reception-print-queue",
+      "role": "reception",
+      "route": "/reception",
+      "wait": "main",
+      "clip": ".queue-section",
+      "title": "طابور طباعة البطاقات: ما طلبه المشاركون على الكشك ولم يُطبع بعد"
+    },
+    {
+      "id": "kiosk-gate",
+      "role": "reception",
+      "route": "/reception",
+      "wait": "main",
+      "clip": ".card",
+      "title": "شاشة الكشك كما يراها المشارك: لوحة أرقام الهوية وحدها، بلا أي بيان",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".kiosk-new .btn-ok"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".kiosk-url"
+        },
+        {
+          "action": "gotoFrom",
+          "selector": ".kiosk-url",
+          "wait": ".keys"
+        }
+      ]
+    },
+    {
+      "id": "kiosk-review",
+      "role": "reception",
+      "route": "/reception",
+      "wait": "main",
+      "clip": ".card",
+      "fullPage": true,
+      "requiresEnv": "GUIDE_KIOSK_NID",
+      "title": "مراجعة البيانات والتوقيع على الكشك — بعد إدخال المشارك رقم هويته",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".kiosk-new .btn-ok"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".kiosk-url"
+        },
+        {
+          "action": "gotoFrom",
+          "selector": ".kiosk-url",
+          "wait": ".keys"
+        },
+        {
+          "action": "keypad",
+          "value": "env:GUIDE_KIOSK_NID"
+        },
+        {
+          "action": "click",
+          "selector": "button.btn.primary.big"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".signblock"
         }
       ]
     },

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-15T14:33:03.500Z",
+  "updatedAt": "2026-08-17T08:39:37.386Z",
   "base": "http://localhost:5173",
   "screens": [
     {
@@ -809,6 +809,38 @@
       "route": "/reception",
       "role": "operations",
       "capturedAt": "2026-08-12T16:27:53.662Z"
+    },
+    {
+      "id": "reception-kiosk",
+      "title": "كشك تسجيل الحضور: رابط اليوم بعد إنشائه، وزرّا «نسخ الرابط» و«إبطال»",
+      "file": "reception-kiosk.png",
+      "route": "/reception",
+      "role": "reception",
+      "capturedAt": "2026-08-17T08:37:59.720Z"
+    },
+    {
+      "id": "reception-print-queue",
+      "title": "طابور طباعة البطاقات: ما طلبه المشاركون على الكشك ولم يُطبع بعد",
+      "file": "reception-print-queue.png",
+      "route": "/reception",
+      "role": "reception",
+      "capturedAt": "2026-08-17T08:39:37.386Z"
+    },
+    {
+      "id": "kiosk-gate",
+      "title": "شاشة الكشك كما يراها المشارك: لوحة أرقام الهوية وحدها، بلا أي بيان",
+      "file": "kiosk-gate.png",
+      "route": "/reception",
+      "role": "reception",
+      "capturedAt": "2026-08-17T08:37:59.720Z"
+    },
+    {
+      "id": "kiosk-review",
+      "title": "مراجعة البيانات والتوقيع على الكشك — بعد إدخال المشارك رقم هويته",
+      "file": "kiosk-review.png",
+      "route": "/reception",
+      "role": "reception",
+      "capturedAt": "2026-08-17T08:38:26.376Z"
     },
     {
       "id": "attendance-absence-modal",

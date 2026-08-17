@@ -64,11 +64,37 @@ if (ONLY.length) {
   }
 }
 
+// ── لقطات شاشةٍ مُطفأة بمفتاح تشغيل ──
+// تُستثنى بدل أن تسقط. شاشةٌ مُطفأة تُحوِّل إلى /dashboard، فمحاولةُ التقاطها
+// تُنتج فشلاً في كل تشغيل — ضجيجٌ دائم يُخفي الفشل الحقيقي بين سطوره. ووصفتُها
+// تبقى في الكتالوج لتعمل يوم تُشغَّل الشاشة، لا تُحذف ثم تُكتب من جديد.
+// المفتاح يُقرأ من مصدره في الواجهة، فلا تنشأ نسخةٌ ثانية تتباعد عنه.
+const { FEATURES } = await import('../../frontend/src/services/features.js')
+const featureOn = (name) => FEATURES[name] === true
+
 const wanted = (s) =>
   (ONLY.length === 0 || ONLY.includes(s.id)) &&
   (!ROLE_FILTER || (s.role ?? 'admin') === ROLE_FILTER)
 
-const queue = SHOTS.filter(wanted)
+const offByFeature = SHOTS.filter((s) => s.feature && !featureOn(s.feature) && wanted(s))
+if (offByFeature.length) {
+  console.log(`ℹ ${offByFeature.length} لقطة لشاشات مُطفأة — تُخطّى: ${offByFeature.map((s) => s.id).join('، ')}`)
+}
+
+// ── لقطات تحتاج بياناً حيّاً لا يُكتب في الكتالوج ──
+// شاشات الكشك بعد بوّابة الهوية تلزمها هويةُ مشاركٍ حقيقي، وهي مشفّرة في
+// القاعدة فلا تُقرأ من أي شاشة. وكتابتها في الكتالوج هو بعينه ما أعطب لقطات
+// البوّابة القديمة: أرقامٌ ثُبِّتت ثم أُعيد بذر القاعدة فبطلت بصمت.
+// فتُمرَّر من البيئة، وتُخطّى اللقطة بوضوح عند غيابها لا تسقط.
+const missingEnv = SHOTS.filter((s) => s.requiresEnv && !process.env[s.requiresEnv] && wanted(s))
+if (missingEnv.length) {
+  const vars = [...new Set(missingEnv.map((s) => s.requiresEnv))].join('، ')
+  console.log(`ℹ ${missingEnv.length} لقطة تحتاج ${vars} — تُخطّى (مرّرها في البيئة لالتقاطها)`)
+}
+
+const queue = SHOTS.filter((s) => wanted(s)
+  && (!s.feature || featureOn(s.feature))
+  && (!s.requiresEnv || process.env[s.requiresEnv]))
 if (!queue.length) {
   console.error('✗ لا لقطة تطابق المرشِّحات.')
   process.exit(1)
@@ -117,6 +143,29 @@ async function runStep(page, step) {
     case 'waitFor':   await page.waitForSelector(selector, { timeout: 10000, state: 'visible' }); break
     case 'scrollTo':  await loc.scrollIntoViewIfNeeded({ timeout: 8000 }); await page.waitForTimeout(400); break
     case 'wait':      await page.waitForTimeout(Number(value ?? 800)); break
+    // إدخال أرقام على لوحة الكشك — لا حقل نصّ فيها، فالإدخال نقرٌ على مفاتيح.
+    // القيمة `env:NAME` تُقرأ من البيئة: رقم هوية حقيقي لا يُكتب في ملفٍ
+    // يُدفَع إلى المستودع، ويتغيّر مع كل إعادة بذر فيتقادم لو كُتب.
+    case 'keypad': {
+      const digits = (value ?? '').startsWith('env:')
+        ? (process.env[value.slice(4)] ?? '')
+        : (value ?? '')
+      for (const d of digits.replace(/\D/g, '')) {
+        await page.locator('.key').nth(d === '0' ? 10 : Number(d) - 1).click({ timeout: 8000 })
+        await page.waitForTimeout(80)
+      }
+      await page.waitForTimeout(300)
+      break
+    }
+    // انتقالٌ إلى رابطٍ تولّده الشاشة نفسها (رمز كشك اليوم مثلاً). الرمز
+    // عشوائي ويومي، فلا يُكتب في الكتالوج — يُقرأ من حيث عرضته الشاشة.
+    case 'gotoFrom': {
+      const url = (await loc.innerText({ timeout: 8000 })).trim()
+      const path = url.startsWith('http') ? new URL(url).pathname : url
+      await page.goto(`${BASE}${path}`, { waitUntil: 'domcontentloaded' })
+      await settle(page, step.wait ?? null)
+      break
+    }
     default: throw new Error(`إجراء غير معروف: ${action}`)
   }
 }
