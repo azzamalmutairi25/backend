@@ -73,6 +73,7 @@ abstract class TestCase extends BaseTestCase
         $c->mobile = $attrs['mobile'] ?? '0501112223';
         $c->sector_id = $sector->id;
         $c->rank_label = $attrs['rankLabel'] ?? 'مدير عام';
+        $c->personnel_category = $attrs['personnelCategory'] ?? 'civilian';
         $c->tier = $attrs['tier'] ?? 'upper';
         $c->status = $status;
         $c->classification = $attrs['classification'] ?? 'normal';

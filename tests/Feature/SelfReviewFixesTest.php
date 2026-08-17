@@ -26,7 +26,7 @@ class SelfReviewFixesTest extends TestCase
         $this->actingAsRole('SCHEDULER'); // CANDIDATE_EDIT
         $this->putJson("/api/candidates/{$c->id}", [
             'nationalId' => $nid, 'fullName' => 'محدّث', 'sectorId' => $c->sector_id,
-            'rankLabel' => 'مدير عام', 'assessmentType' => 'executive',
+            'personnelCategory' => 'civilian', 'rankLabel' => 'الرابعة عشرة', 'assessmentType' => 'executive',
         ])->assertOk();
 
         $this->assertSame('executive', $c->fresh()->assessment_type);      // سجل الشخص يتحدّث

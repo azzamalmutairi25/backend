@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Support\Facades\Route;
+use Tests\Concerns\EnablesCandidatePortal;
 use Tests\TestCase;
 
 // ════════════════════════════════════════════════════════════
@@ -18,6 +19,11 @@ use Tests\TestCase;
 // ════════════════════════════════════════════════════════════
 class ApiDocumentationCoverageTest extends TestCase
 {
+    // المرجع يوثّق سطح الـAPI كاملاً بما فيه البوّابة المُعطَّلة (موسومةً بذلك).
+    // فيُقاس عليه والمفتاح مُشغَّل، وإلا عُدّت أسطرُها «مسارات وهمية» فحُذفت من
+    // المرجع — ثم عادت الخدمة يوماً بلا توثيق.
+    use EnablesCandidatePortal;
+
     private const DOC = 'docs/API.md';
 
     /** الوسائط تُطبَّع: {id} و{candidateId} سواء — الوثيقة تسمّي بحسب السياق */

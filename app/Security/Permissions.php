@@ -30,6 +30,14 @@ class Permissions
     const SCHEDULE_MANAGE = 'schedule.manage';
     // التوزيع الأسبوعي: اقتراح واعتماد — لمسؤول الجدولة (إدارة المرشحين)
     const DISTRIBUTION_MANAGE = 'schedule.distribute';
+    // اعتماد موجة الجدولة — لمدير المركز وحده، ولا تُمنح لمن يبنيها.
+    // فصلُ مهامٍ لا تسمية: قبلها كان الباني هو المعتمِد، فخطوة «إرسال الجدولة
+    // إلى مدير المركز للاعتماد» بلا معنى تقني. قابلة للتفويض بالاستثناء الفردي
+    // كي لا يقف الاعتماد بغيابه.
+    const SCHEDULE_APPROVE_CENTER = 'schedule.approve_center';
+    // تسليم الجدولة للجهة (وكالة الشؤون العسكرية / الموارد البشرية) — فعلٌ
+    // يخرج من المركز إلى خارجه، فصلاحيته مستقلّة عن بناء الجدول واعتماده.
+    const SCHEDULE_DISPATCH = 'schedule.dispatch';
 
     // إسناد مشاركي اليوم لمجموعتَي الكشف (أ/ب) — بها يتحدّد مَن يبدأ بالمقابلة
     // ومَن يبدأ بجلسة النقاش، فالمجموعتان تتبادلان الفترتين.
@@ -89,7 +97,7 @@ class Permissions
     const ANALYTICS_VIEW = 'analytics.view';
 
     // ── صلاحية مستقلّة لكل شاشة ──
-    // كانت خمس صلاحيات تحرس إحدى عشرة شاشة: من ملك «التحليلات» ملك اللوحة
+    // كانت خمس صلاحيات تحرس إحدى عشرة شاشة: من ملك «التحليلات» ملك القيادة
     // التنفيذية والتقرير اليومي معه، ومن ملك «التقارير» ملك خطط التطوير،
     // ومن ملك «الإعدادات» ملك سير العمل. فلم يكن يمكن منح شاشةٍ دون أختها.
     const ANALYTICS_EXECUTIVE = 'analytics.executive';      // اللوحة التنفيذية
@@ -121,6 +129,7 @@ class Permissions
                 self::CANDIDATE_JOURNEY, self::CANDIDATE_CV_VIEW, self::CANDIDATE_VIEW_CLASSIFIED,
                 self::CANDIDATE_EDIT, self::CANDIDATE_APPROVE,
                 self::SCHEDULE_VIEW, self::SCHEDULE_MANAGE, self::DISTRIBUTION_MANAGE, self::ROSTER_MANAGE,
+                self::SCHEDULE_APPROVE_CENTER, self::SCHEDULE_DISPATCH,
                 self::RECEPTION_VIEW, self::RECEPTION_ASSIGN, self::RECEPTION_APPROVE,
                 self::ATTENDANCE_VIEW, self::ATTENDANCE_RECORD_ANY,
                 self::EVALUATION_VIEW, self::EVALUATION_APPROVE,
@@ -290,6 +299,8 @@ class Permissions
         'schedule.view' => 'عرض الجدول',
         'schedule.manage' => 'إدارة الجدولة',
         'schedule.distribute' => 'التوزيع الأسبوعي',
+        'schedule.approve_center' => 'اعتماد موجة الجدولة (مدير المركز)',
+        'schedule.dispatch' => 'تسليم الجدولة للجهات',
         'roster.manage' => 'إسناد مجموعات كشف اليوم',
         // استقبال الموظفين
         'reception.view' => 'فتح شاشة استقبال الموظفين',

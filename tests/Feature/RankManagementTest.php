@@ -52,27 +52,29 @@ class RankManagementTest extends TestCase
     public function test_managed_rank_drives_tier_classification(): void
     {
         // مطابقة مباشرة من البذور
-        $this->assertSame('upper', Candidate::classifyTier('عميد ركن', true));
-        $this->assertSame('middle', Candidate::classifyTier('نقيب', true));
+        $this->assertSame('upper', Candidate::classifyTier('عميد ركن', 'military'));
+        $this->assertSame('middle', Candidate::classifyTier('نقيب', 'military'));
         // رتبة جديدة تُغيّر التصنيف فوراً
         Rank::create(['label' => 'طيار', 'category' => 'military', 'tier' => 'upper', 'sort_order' => 0, 'is_active' => true]);
-        $this->assertSame('upper', Candidate::classifyTier('طيار أول', true));
+        $this->assertSame('upper', Candidate::classifyTier('طيار أول', 'military'));
     }
 
     public function test_fallback_when_not_managed(): void
     {
         // عسكري غير مُدرَج ولا يطابق عليا → وسطى (المنطق القديم)
-        $this->assertSame('middle', Candidate::classifyTier('جندي', true));
+        $this->assertSame('middle', Candidate::classifyTier('جندي', 'military'));
         // مدني بدرجة عالية → عليا عبر عتبة الدرجة (م-14 ≥ 13)
-        $this->assertSame('upper', Candidate::classifyTier('م-14', false));
+        $this->assertSame('upper', Candidate::classifyTier('م-14', 'civilian'));
     }
 
     public function test_update_and_delete_rank(): void
     {
         Sanctum::actingAs($this->admin());
-        $id = $this->postJson('/api/ranks', ['label' => 'نقيب', 'category' => 'military', 'tier' => 'middle'])
+        // تسمية خارج المزروع: «نقيب» تُزرع مع الرتب المعتمدة، فإضافتها تُردّ
+        // بـ«مكرّرة» — والاختبار يقيس التعديل والحذف لا فحصَ التكرار
+        $id = $this->postJson('/api/ranks', ['label' => 'مساعد أول', 'category' => 'military', 'tier' => 'middle'])
             ->assertCreated()->json('rankId');
-        $this->putJson("/api/ranks/{$id}", ['label' => 'نقيب', 'category' => 'military', 'tier' => 'upper'])->assertOk();
+        $this->putJson("/api/ranks/{$id}", ['label' => 'مساعد أول', 'category' => 'military', 'tier' => 'upper'])->assertOk();
         $this->assertSame('upper', Rank::find($id)->tier);
         $this->deleteJson("/api/ranks/{$id}")->assertOk();
         $this->assertDatabaseMissing('ranks', ['id' => $id]);

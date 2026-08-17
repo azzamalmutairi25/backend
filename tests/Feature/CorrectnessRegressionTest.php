@@ -95,7 +95,7 @@ class CorrectnessRegressionTest extends TestCase
         $importedNid = $this->validNationalId();
         $res = $this->postJson('/api/candidates/import', ['rows' => [[
             'nationalId' => $importedNid, 'fullName' => 'مستورد', 'mobile' => '0505550000',
-            'email' => '', 'sectorCode' => 'DW', 'rankLabel' => 'مدير عام',
+            'email' => '', 'sectorCode' => 'DW', 'personnelCategory' => 'civilian', 'rankLabel' => 'الرابعة عشرة',
         ]]])->assertOk();
         $this->assertSame(1, $res->json('imported'));
 
@@ -106,7 +106,7 @@ class CorrectnessRegressionTest extends TestCase
         // إضافة يدوية تالية لنفس القطاع يجب ألا تُصادم على participant_code
         $this->postJson('/api/candidates', [
             'nationalId' => $this->validNationalId(), 'fullName' => 'تالٍ', 'mobile' => '0505550001',
-            'sectorId' => $ed->id, 'rankLabel' => 'مدير عام',
+            'sectorId' => $ed->id, 'personnelCategory' => 'civilian', 'rankLabel' => 'الرابعة عشرة',
         ])->assertCreated();
     }
 

@@ -48,6 +48,13 @@ class User extends Authenticatable
         return $this->belongsTo(Sector::class);
     }
 
+    // مجالات خبرة المقيّم — تُطابَق بسيرة المشارك عند اختيار المستشار
+    public function expertiseAreas()
+    {
+        return $this->belongsToMany(ExpertiseArea::class, 'user_expertise', 'user_id', 'expertise_area_id')
+            ->withTimestamps();
+    }
+
     // مدير المستخدم — للمساعد: مدير إدارة التقييم الذي يعتمد تقاريره
     public function manager(): BelongsTo
     {

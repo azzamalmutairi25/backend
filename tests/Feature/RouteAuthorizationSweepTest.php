@@ -58,19 +58,46 @@ class RouteAuthorizationSweepTest extends TestCase
     // هل هذا المسار خارج ما يُفترض أن يبلغه أدنى دور؟
     private function shouldBeDenied(string $key): bool
     {
-        return !in_array($key, self::PUBLIC_ROUTES, true)
+        return !in_array($key, $this->publicRoutes(), true)
             && !in_array($key, self::OPEN_TO_ANY_AUTHENTICATED, true)
             && !in_array($key, self::WITHIN_EXTERNAL_ROLE, true);
     }
 
-    // مسارات عامة بلا مصادقة (بوّابة المرشح + الدخول) — تُستثنى من محكّ 401
-    private const PUBLIC_ROUTES = [
-        'POST api/login',
-        'POST api/public/assessment/{token}/verify',
-        'POST api/public/assessment/{token}/confirm',
-        'POST api/public/assessment/{token}/arrive',
-        'POST api/public/assessment/{token}/cv',
-    ];
+    // ── مسارات عامة بلا مصادقة — تُستثنى من محكّ 401 ──
+    //
+    // القائمة تتبع مفاتيح التشغيل لا تُكتب ثابتة: البوّابة والكشك يُسجَّلان
+    // بشرط، فقائمةٌ جامدة إمّا تستثني مسارَ خدمةٍ مغلقة (سطرٌ ميت يُخفي
+    // إعادة تسمية) أو تترك مسارَ خدمةٍ مفتوحة بلا استثناء فيُقرأ تسريباً.
+    //
+    // «عام» هنا لا تعني «مكشوف»: كلاهما بوّابةُ هويةٍ قبل أي بيان، وحدُّ
+    // محاولاتٍ خلفها. المستثنى هو المصادقة بجلسة موظّف، لا الحراسة.
+    private function publicRoutes(): array
+    {
+        $routes = ['POST api/login'];
+
+        if (config('features.candidate_portal')) {
+            array_push(
+                $routes,
+                'POST api/public/assessment/{token}/verify',
+                'POST api/public/assessment/{token}/confirm',
+                'POST api/public/assessment/{token}/arrive',
+                'POST api/public/assessment/{token}/cv',
+            );
+        }
+
+        if (config('features.reception_kiosk')) {
+            array_push(
+                $routes,
+                'GET api/kiosk/{token}',
+                'POST api/kiosk/{token}/identify',
+                'POST api/kiosk/{token}/arrive',
+                'POST api/kiosk/{token}/sign',
+                'POST api/kiosk/{token}/badge',
+            );
+        }
+
+        return $routes;
+    }
 
     // كل مسارات /api مع فعلها الأول — مصدرها الموجّه لا قائمة مكتوبة بيد
     private function apiRoutes(): array
@@ -124,7 +151,7 @@ class RouteAuthorizationSweepTest extends TestCase
         $leaks = [];
 
         foreach ($this->apiRoutes() as $key => $uri) {
-            if (in_array($key, self::PUBLIC_ROUTES, true)) {
+            if (in_array($key, $this->publicRoutes(), true)) {
                 continue;
             }
             [$method, ] = explode(' ', $key, 2);
@@ -194,7 +221,7 @@ class RouteAuthorizationSweepTest extends TestCase
 
         // كل مسار في القوائم المستثناة موجود فعلاً — سطرٌ ميت يعني استثناءً
         // لمسارٍ أُعيدت تسميته، فيمرّ نظيره الجديد بلا حارس ولا أحد يلاحظ
-        foreach ([...self::OPEN_TO_ANY_AUTHENTICATED, ...self::PUBLIC_ROUTES, ...self::WITHIN_EXTERNAL_ROLE] as $key) {
+        foreach ([...self::OPEN_TO_ANY_AUTHENTICATED, ...$this->publicRoutes(), ...self::WITHIN_EXTERNAL_ROLE] as $key) {
             $this->assertArrayHasKey($key, $routes, "استثناء لمسار غير موجود: {$key}");
         }
     }

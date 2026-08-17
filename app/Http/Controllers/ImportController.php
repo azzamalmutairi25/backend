@@ -67,6 +67,7 @@ class ImportController extends Controller
             $email = trim((string) ($row['email'] ?? ''));
             $sectorKey = trim((string) ($row['sectorCode'] ?? ''));
             $rankLabel = trim((string) ($row['rankLabel'] ?? ''));
+            $categoryRaw = trim((string) ($row['personnelCategory'] ?? ''));
 
             // ── الفحص: كل الأسباب تُجمع ولا يُكتفى بأوّلها ──
             // الرفض عند أوّل خطأ يجعل تصحيح الملفّ رحلاتٍ متكرّرة: يُصحّح
@@ -95,14 +96,30 @@ class ImportController extends Controller
             // ولا يظهر الخطأ في أي شاشة. ولا يُفحص إن كانت القائمة فارغة لتلك
             // الفئة: التجاوز التدريجي مقصود، والصرامة على جدولٍ لم يُملأ بعد
             // تُوقف الاستيراد كلّه بلا سبب.
-            $rankWord = ($sector && !$sector->is_military) ? 'المرتبة' : 'الرتبة';
+            // الفئة عمودٌ اختياري في الملفّ: ملفّات الوزارة القائمة لا تحمله،
+            // ورفضُها كلَّها لعمودٍ استُحدث اليوم يوقف الاستيراد بلا ذنب. فإن
+            // غاب استُنتجت الفئة من الرتبة نفسها (مطابقتها على القائمة العسكرية)،
+            // وإن كانت الرتبة غير معروفة في القائمتين قيلت الحاجةُ إلى العمود صراحةً.
+            $category = self::categoryFromInput($categoryRaw);
+            if ($categoryRaw !== '' && $category === null) {
+                $reasons[] = "الفئة «{$categoryRaw}» غير معروفة — مدني أو عسكري أو متعاقد";
+            }
+            if ($category === null && $rankLabel !== '') {
+                $category = self::inferCategory($rankLabel, $ranksByCat);
+            }
+
+            $rankWord = Candidate::rankWord($category ?? 'civilian');
             if ($rankLabel === '') {
-                $reasons[] = "{$rankWord} مفقودة";
-            } elseif ($sector) {
-                $cat = $sector->is_military ? 'military' : 'civilian';
-                $known = $ranksByCat[$cat] ?? [];
+                $reasons[] = "{$rankWord} مفقود" . ($category === 'contractor' ? '' : 'ة');
+            } elseif ($category === null) {
+                $reasons[] = "«{$rankLabel}» ليست في الرتب العسكرية ولا المراتب المدنية — أضف عمود «الفئة»";
+            } elseif ($category !== 'contractor') {
+                // المتعاقد مسمّاه حرّ فلا قائمة تُطابَق عليها؛ وغير المُدرَج من
+                // رتب الصنفين يدخل ويُصنَّف «وسطى» صامتةً، فيُقيَّم لواءٌ بمعايير
+                // القيادة الوسطى ولا يظهر الخطأ في أي شاشة.
+                $known = $ranksByCat[$category] ?? [];
                 if ($known && !isset($known[self::normalizeAr($rankLabel)])) {
-                    $list = $sector->is_military ? 'الرتب العسكرية' : 'المراتب المدنية';
+                    $list = $category === 'military' ? 'الرتب العسكرية' : 'المراتب المدنية';
                     $reasons[] = "{$rankWord} «{$rankLabel}» ليست في قائمة {$list}";
                 }
             }
@@ -135,12 +152,14 @@ class ImportController extends Controller
             }
 
             try {
-                $tier = Candidate::classifyTier($rankLabel, $sector->is_military);
+                // المتعاقد المستورَد «وسطى» افتراضاً — الطبقة اختيارٌ صريح لا يحمله
+                // الملفّ، وتُصحَّح من شاشة المرشحين
+                $tier = Candidate::resolveTier($category, $rankLabel, null);
                 // نفس مولّد بقية المسارات (يقرأ من جدول الدورات) — وإلا انجرف التسلسل عن store/reassess فصادم لاحقاً
                 $code = Assessment::generateParticipantCode($sector);
 
                 // مرشح + دورة تقييم معاً (كما في store) — وإلا بقي المرشح بلا دورة فكسر ثابت المزامنة و/confirm
-                DB::transaction(function () use ($code, $nationalId, $fullName, $mobile, $email, $sector, $rankLabel, $tier, $userId) {
+                DB::transaction(function () use ($code, $nationalId, $fullName, $mobile, $email, $sector, $rankLabel, $category, $tier, $userId) {
                     $c = new Candidate();
                     $c->participant_code = $code;
                     $c->national_id = $nationalId;
@@ -149,6 +168,7 @@ class ImportController extends Controller
                     $c->email = $email ?: null;
                     $c->sector_id = $sector->id;
                     $c->rank_label = $rankLabel;
+                    $c->personnel_category = $category;
                     $c->tier = $tier;
                     $c->assessment_type = 'comprehensive';
                     $c->status = 'draft';
@@ -243,6 +263,34 @@ class ImportController extends Controller
      * وتُوحَّد الألف والهمزات والتاء المربوطة والياء. فيُطابَق «الاتصالات»
      * و«اتصالات» و«الإتصالات» على قطاعٍ واحد.
      */
+    // الفئة كما تُكتب في الملفّ — بالعربية أو بمفتاحها اللاتيني
+    private static function categoryFromInput(string $raw): ?string
+    {
+        $v = self::normalizeAr(mb_strtolower(trim($raw)));
+        foreach ([
+            'civilian' => ['مدني', 'مدنيه', 'مدنية', 'civilian', 'civil'],
+            'military' => ['عسكري', 'عسكريه', 'عسكرية', 'military'],
+            'contractor' => ['متعاقد', 'متعاقده', 'متعاقدة', 'contractor', 'contract'],
+        ] as $key => $spellings) {
+            foreach ($spellings as $spelling) {
+                if ($v === self::normalizeAr($spelling)) return $key;
+            }
+        }
+        return null;
+    }
+
+    // بلا عمود «الفئة»: تُستنتج من الرتبة نفسها — المُدرَجة في الرتب العسكرية
+    // عسكريّة، وفي المراتب المدنية مدنيّة، وما ليس في القائمتين لا يُخمَّن
+    private static function inferCategory(string $rankLabel, array $ranksByCat): ?string
+    {
+        $key = self::normalizeAr($rankLabel);
+        if (isset($ranksByCat['military'][$key])) return 'military';
+        if (isset($ranksByCat['civilian'][$key])) return 'civilian';
+        // قائمةٌ لم تُملأ بعدُ لا توقف الاستيراد (التجاوز التدريجي نفسه)
+        if (!$ranksByCat['military'] && !$ranksByCat['civilian']) return 'civilian';
+        return null;
+    }
+
     private static function normalizeAr(string $s): string
     {
         $s = preg_replace('/[\x{064B}-\x{0652}\x{0640}]/u', '', $s);   // تشكيل وتطويل

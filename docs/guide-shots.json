@@ -282,6 +282,28 @@
       ]
     },
     {
+      "id": "candidates-add-contractor",
+      "route": "/candidates",
+      "wait": "main",
+      "clip": ".modal",
+      "title": "نموذج الإضافة وقد اختيرت الفئة «متعاقد»: الحقل صار مسمّى وظيفياً حرّاً، وظهرت الفئة القيادية لتُختار",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".btn-add"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal"
+        },
+        {
+          "action": "select",
+          "selector": ".modal .form-grid .field:nth-of-type(4) select",
+          "value": "contractor"
+        }
+      ]
+    },
+    {
       "id": "candidates-details",
       "route": "/candidates",
       "wait": "main",

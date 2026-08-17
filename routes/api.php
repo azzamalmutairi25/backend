@@ -12,8 +12,15 @@ use App\Http\Controllers\EvaluationController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\ScheduleController;
+use App\Http\Controllers\SchedulingPeriodController;
+use App\Http\Controllers\SchedulingWorkflowController;
+use App\Http\Controllers\ExpertiseAreaController;
+use App\Http\Controllers\DiscussionCircleController;
+use App\Http\Controllers\GoldenScheduleController;
+use App\Http\Controllers\DispatchController;
 use App\Http\Controllers\RankController;
 use App\Http\Controllers\RosterController;
+use App\Http\Controllers\KioskController;
 use App\Http\Controllers\ReceptionController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\AnalyticsController;
@@ -50,12 +57,31 @@ Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10
 
 // ── بوابة المرشح العامة (رمز فريد في الرسالة النصية) — مقيّدة بالمعدل ضد التخمين ──
 // لا تُكشف أي بيانات إلا بعد /verify بمطابقة رقم الهوية (بوابة العامل الثاني)
-Route::middleware('throttle:20,1')->group(function () {
-    Route::post('/public/assessment/{token}/verify', [PublicAssessmentController::class, 'verify']);
-    Route::post('/public/assessment/{token}/confirm', [PublicAssessmentController::class, 'confirm']);
-    Route::post('/public/assessment/{token}/arrive', [PublicAssessmentController::class, 'arrive']);
-    Route::post('/public/assessment/{token}/cv', [PublicAssessmentController::class, 'saveCv']);
-});
+//
+// مُعطَّلة الآن بمفتاح features.candidate_portal: لا تُسجَّل المسارات أصلاً،
+// فالسطح مغلق لا محروس. تسجيلُها ثم ردُّ 403 يترك بوّابةً تُعلن عن نفسها.
+if (config('features.candidate_portal')) {
+    Route::middleware('throttle:20,1')->group(function () {
+        Route::post('/public/assessment/{token}/verify', [PublicAssessmentController::class, 'verify']);
+        Route::post('/public/assessment/{token}/confirm', [PublicAssessmentController::class, 'confirm']);
+        Route::post('/public/assessment/{token}/arrive', [PublicAssessmentController::class, 'arrive']);
+        Route::post('/public/assessment/{token}/cv', [PublicAssessmentController::class, 'saveCv']);
+    });
+}
+
+// ── كشك الاستقبال على الجهاز اللوحي (رمز يوم واحد يفتحه مسؤول المرشحين) ──
+// نفس مبدأ البوّابة: لا بيانات قبل مطابقة رقم الهوية. والتقييد هنا أوسع
+// لأن الجهاز واحد يخدم طابور اليوم كلَّه، ومحكومٌ بحدٍّ ثانٍ لكل هوية داخل
+// المتحكّم يمنع تخمين شخصٍ بعينه من وراء سعة الكشك.
+if (config('features.reception_kiosk')) {
+    Route::middleware('throttle:120,1')->group(function () {
+        Route::get('/kiosk/{token}', [KioskController::class, 'show']);
+        Route::post('/kiosk/{token}/identify', [KioskController::class, 'identify']);
+        Route::post('/kiosk/{token}/arrive', [KioskController::class, 'arrive']);
+        Route::post('/kiosk/{token}/sign', [KioskController::class, 'sign']);
+        Route::post('/kiosk/{token}/badge', [KioskController::class, 'badge']);
+    });
+}
 
 // ── محمي (يتطلب رمز Sanctum) ──
 Route::middleware('auth:sanctum')->group(function () {
@@ -90,6 +116,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/candidates/{id}/cv/document', [CandidateController::class, 'cvDocument']);
     // مستشارو المقابلة المؤهّلون — لاختيار المستشار عند الجدولة بعد مراجعة السيرة
     Route::get('/candidates/{id}/interviewers', [ScheduleController::class, 'interviewers']);
+    // نظيره المعمَّم: أي نشاط وأي مقعد (مقيّم/مساعد)، ومع الموجة يعود النصاب والحمل
+    Route::get('/candidates/{id}/assessors', [ScheduleController::class, 'assessors']);
     Route::post('/candidates/{id}/reassess', [CandidateController::class, 'reassess']);
     Route::get('/candidates/{id}/history', [AuditController::class, 'candidateHistory']);
 
@@ -158,6 +186,15 @@ Route::middleware('auth:sanctum')->group(function () {
     // الرتب والمراتب — مرجعٌ يقرؤه كل من يملأ نموذج مرشّح، والإدارة داخل
     // RankController على `settings.manage`. كان الصنف مكتوباً كاملاً بلا مسار
     // يبلغه، والتوثيق يذكره — فالميزة موجودة ولا سبيل إليها.
+    // مجالات الخبرة — مرجعٌ يُدار من الإعدادات، تُوسَم به حسابات المقيّمين
+    // فتُقترح أقربهم إلى سيرة المشارك عند الجدولة («حسب الخبرات»).
+    Route::get('/expertise-areas', [ExpertiseAreaController::class, 'index']);
+    Route::post('/expertise-areas', [ExpertiseAreaController::class, 'store']);
+    Route::put('/expertise-areas/{id}', [ExpertiseAreaController::class, 'update']);
+    Route::delete('/expertise-areas/{id}', [ExpertiseAreaController::class, 'destroy']);
+    // وسم حساب مقيّم بمجالاته — بصلاحية إدارة المستخدمين
+    Route::put('/users/{id}/expertise', [ExpertiseAreaController::class, 'setUserExpertise']);
+
     Route::get('/ranks', [RankController::class, 'index']);
     Route::post('/ranks', [RankController::class, 'store']);
     Route::put('/ranks/{id}', [RankController::class, 'update']);
@@ -166,6 +203,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/settings/distribution', [SettingsController::class, 'getDistribution']);
     Route::put('/settings/distribution', [SettingsController::class, 'saveDistribution']);
     // أوقات جلسات اليوم — خيارات حقل الوقت وأعمدة كشف الحضور
+    // سير عمل الجدولة — الخطوات الاثنتا عشرة بياناتٍ تُحرَّر لا شيفرة.
+    // القراءة تكفيها schedule.view (شاشة الموجة تعرضها)، والتحرير بـsettings.manage.
+    Route::get('/settings/scheduling-workflow', [SchedulingWorkflowController::class, 'index']);
+    Route::post('/settings/scheduling-workflow', [SchedulingWorkflowController::class, 'store']);
+    Route::put('/settings/scheduling-workflow/reorder', [SchedulingWorkflowController::class, 'reorder']);
+    Route::put('/settings/scheduling-workflow/{id}', [SchedulingWorkflowController::class, 'update']);
+    Route::delete('/settings/scheduling-workflow/{id}', [SchedulingWorkflowController::class, 'destroy']);
+
     Route::get('/settings/session-times', [SettingsController::class, 'getSessionTimes']);
     Route::put('/settings/session-times', [SettingsController::class, 'saveSessionTimes']);
     Route::get('/settings/tier', [SettingsController::class, 'getTier']);
@@ -206,12 +251,49 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/analytics/trends', [AnalyticsController::class, 'trends']);
 
     // ═══ الجدولة ═══
+    // موجات الجدولة — التواريخ ولوحة المقيّمين والنصاب ومسار اعتماد مدير المركز.
+    // العرض بـschedule.view، والبناء بـschedule.manage، والاعتماد والرفض
+    // بـschedule.approve_center وحدها (فصل مهام: من يبني لا يعتمد).
+    Route::get('/scheduling-periods', [SchedulingPeriodController::class, 'index']);
+    Route::post('/scheduling-periods', [SchedulingPeriodController::class, 'store']);
+    Route::put('/scheduling-periods/{id}', [SchedulingPeriodController::class, 'update']);
+    Route::delete('/scheduling-periods/{id}', [SchedulingPeriodController::class, 'destroy']);
+    Route::get('/scheduling-periods/{id}/eligible', [SchedulingPeriodController::class, 'eligible']);
+    Route::get('/scheduling-periods/{id}/assessors', [SchedulingPeriodController::class, 'assessors']);
+    Route::put('/scheduling-periods/{id}/assessors', [SchedulingPeriodController::class, 'saveAssessors']);
+    Route::post('/scheduling-periods/{id}/submit', [SchedulingPeriodController::class, 'submit']);
+    Route::post('/scheduling-periods/{id}/approve', [SchedulingPeriodController::class, 'approve']);
+    Route::post('/scheduling-periods/{id}/reject', [SchedulingPeriodController::class, 'reject']);
+    Route::post('/scheduling-periods/{id}/close', [SchedulingPeriodController::class, 'close']);
+    // سير عمل الجدولة على هذه الموجة — قراءةٌ بـschedule.view وتأشيرٌ بـschedule.manage
+    Route::get('/scheduling-periods/{id}/workflow', [SchedulingWorkflowController::class, 'periodWorkflow']);
+    Route::post('/scheduling-periods/{id}/workflow/{stepId}', [SchedulingWorkflowController::class, 'markStep']);
+
     Route::get('/schedules', [ScheduleController::class, 'index']);
     Route::post('/schedules', [ScheduleController::class, 'store']);
     Route::put('/schedules/{id}', [ScheduleController::class, 'update']);
     Route::delete('/schedules/{id}', [ScheduleController::class, 'destroy']);
+    // تصاريح دخول مشاركي اليوم — الاسم بطلبٍ صريح ولحامل candidate.view_names
+    Route::get('/schedules/permits', [ScheduleController::class, 'permits']);
     Route::get('/schedules/absences/{candidateId}', [ScheduleController::class, 'absences']);
     Route::post('/schedules/{id}/reschedule', [ScheduleController::class, 'reschedule']);
+
+    // الجدول الذهبي — سجلُّ (التاريخ × رمز المشارك) لكل موجة. المزامنة تُرحّل
+    // جلسات الموجة إليه ولا تمسّ ما أُضيف يدوياً.
+    Route::get('/golden-schedule', [GoldenScheduleController::class, 'index']);
+    Route::post('/golden-schedule', [GoldenScheduleController::class, 'store']);
+    Route::get('/golden-schedule/document', [GoldenScheduleController::class, 'document']);
+    Route::post('/golden-schedule/{id}/sync', [GoldenScheduleController::class, 'sync']);
+    Route::delete('/golden-schedule/{id}', [GoldenScheduleController::class, 'destroy']);
+
+    // حلقات النقاش — جلسةُ مجموعةٍ بسعة ومستشار. الإسناد يُنشئ صفوف `schedules`
+    // عادية، فالحضور وكشف اليوم والتقييم تلتقطها بلا تعديل.
+    Route::get('/discussion-circles', [DiscussionCircleController::class, 'index']);
+    Route::post('/discussion-circles', [DiscussionCircleController::class, 'store']);
+    Route::put('/discussion-circles/{id}', [DiscussionCircleController::class, 'update']);
+    Route::delete('/discussion-circles/{id}', [DiscussionCircleController::class, 'destroy']);
+    Route::post('/discussion-circles/{id}/attach', [DiscussionCircleController::class, 'attach']);
+    Route::delete('/discussion-circles/{id}/detach', [DiscussionCircleController::class, 'detach']);
 
     // مجموعتا كشف اليوم + الكشف المطبوع
     // الإسناد وحده يلزمه roster.manage؛ العرض والطباعة تكفيهما schedule.view
@@ -220,12 +302,23 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/roster/assign', [RosterController::class, 'unassign']);
     // GET /roster/document — كشف حضور المشاركين جاهز للطباعة (المتصفّح → PDF)
     Route::get('/roster/document', [RosterController::class, 'document']);
+    // قطاعات اليوم وأعدادها — لفتح ملفٍّ لكل قطاع على حدة
+    Route::get('/roster/sectors', [RosterController::class, 'sectors']);
 
     // التوزيع الأسبوعي
     Route::get('/distribution', [DistributionController::class, 'index']);
     Route::post('/distribution/propose', [DistributionController::class, 'propose']);
     Route::post('/distribution/{id}/approve', [DistributionController::class, 'approve']);
     Route::delete('/distribution/{id}', [DistributionController::class, 'destroy']);
+
+    // ═══ تسليم الجدولة للجهات ═══
+    // التقسيم على فئة المرشّح (مدني/عسكري/متعاقد)، والربط بالجهة بيانٌ يُحرَّر.
+    // العرض بـschedule.view، والتسليم بـschedule.dispatch لمدير المركز.
+    Route::get('/dispatch/authorities', [DispatchController::class, 'authorities']);
+    Route::get('/dispatch/preview', [DispatchController::class, 'preview']);
+    Route::post('/dispatch/send', [DispatchController::class, 'send']);
+    Route::get('/dispatch/document', [DispatchController::class, 'document']);
+    Route::get('/dispatches', [DispatchController::class, 'index']);
 
     // ═══ استقبال الموظفين ═══
     // كل مسار يفرض صلاحية مرحلته وحدها (reception.view/record/assign/decide/approve)
@@ -244,6 +337,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/reception/assignments/{id}/accept', [ReceptionController::class, 'accept']);
     Route::post('/reception/assignments/{id}/reject', [ReceptionController::class, 'reject']);
     Route::get('/reception/assignments/{id}/cv', [ReceptionController::class, 'assignmentCv']);
+    // كشك الجهاز اللوحي وطابور طباعة البطاقات — كلها تفرض reception.record
+    Route::get('/reception/kiosks', [ReceptionController::class, 'kiosks']);
+    Route::post('/reception/kiosks', [ReceptionController::class, 'createKiosk']);
+    Route::delete('/reception/kiosks/{id}', [ReceptionController::class, 'revokeKiosk']);
+    Route::get('/reception/print-queue', [ReceptionController::class, 'printQueue']);
+    Route::post('/reception/visits/{id}/badge-printed', [ReceptionController::class, 'markBadgePrinted']);
+    Route::post('/reception/visits/{id}/badge-reprint', [ReceptionController::class, 'reprintBadge']);
 
     // ═══ أدوات القياس ═══
     Route::get('/measurements/{candidateId}', [MeasurementController::class, 'show']);

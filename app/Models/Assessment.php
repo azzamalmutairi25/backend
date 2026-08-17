@@ -23,7 +23,36 @@ class Assessment extends Model
         'confirmed_at' => 'datetime',
         'arrived_at' => 'datetime',
         'cv_snapshotted_at' => 'datetime',
+        'first_session_date' => 'date',
+        'last_session_date' => 'date',
     ];
+
+    /**
+     * إعادة حساب تاريخَي الدورة من جلساتها.
+     *
+     * تُستدعى من كل كاتبٍ للجلسات — إنشاءً وتعديلاً وحذفاً وإعادةَ جدولة
+     * واعتماداً — فالتاريخ حقلٌ يُصدَّر ويُفلتَر، وحقلٌ لا يتبع مصدره يكذب.
+     * الحساب من القاعدة لا من ذاكرة العلاقة: صفٌّ حُذف للتوّ يبقى محمَّلاً.
+     */
+    public function refreshSessionDates(): void
+    {
+        $b = DB::table('schedules')->where('assessment_id', $this->id)
+            ->selectRaw('MIN(schedule_date) as first_d, MAX(schedule_date) as last_d')
+            ->first();
+
+        $this->forceFill([
+            'first_session_date' => $b?->first_d,
+            'last_session_date' => $b?->last_d,
+        ])->save();
+    }
+
+    /** نظيرها حين لا يكون الكائن محمّلاً — تُستدعى بالمعرّف من المتحكّمات */
+    public static function refreshDatesFor(?int $assessmentId): void
+    {
+        if ($assessmentId && ($a = self::find($assessmentId))) {
+            $a->refreshSessionDates();
+        }
+    }
 
     public function candidate(): BelongsTo { return $this->belongsTo(Candidate::class); }
     public function evaluations(): HasMany { return $this->hasMany(Evaluation::class); }

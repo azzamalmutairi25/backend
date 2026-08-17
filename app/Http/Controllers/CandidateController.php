@@ -107,6 +107,7 @@ class CandidateController extends Controller
             'sectorName' => $c->sector->name_ar,
             'sectorId' => $c->sector_id,
             'rankLabel' => $c->rank_label,
+            'personnelCategory' => $c->personnel_category,
             'tier' => $c->tier,
             'assessmentType' => $c->assessment_type,
             'status' => $c->status,
@@ -152,6 +153,7 @@ class CandidateController extends Controller
             'sectorName' => $candidate->sector->name_ar,
             'sectorId' => $candidate->sector_id,
             'rankLabel' => $candidate->rank_label,
+            'personnelCategory' => $candidate->personnel_category,
             'tier' => $candidate->tier,
             'assessmentType' => $candidate->assessment_type,
             'status' => $candidate->status,
@@ -279,6 +281,10 @@ class CandidateController extends Controller
             'email' => 'nullable|email',
             'sectorId' => 'required|exists:sectors,id',
             'rankLabel' => 'required|string',
+            // الفئة صفةُ الشخص لا صفةُ قطاعه — عليها تُبنى قائمة الرتب والطبقة
+            'personnelCategory' => 'required|in:civilian,military,contractor',
+            // المتعاقد بلا قائمة مُدارة، فطبقته تُرسَل صراحةً لا تُستنتج من مسمّاه
+            'tier' => 'required_if:personnelCategory,contractor|nullable|in:upper,middle',
             'assessmentType' => 'nullable|in:comprehensive,executive',
             'classification' => 'nullable|in:normal,secret,top_secret',
         ]);
@@ -303,7 +309,8 @@ class CandidateController extends Controller
         }
 
         $sector = Sector::findOrFail($validated['sectorId']);
-        $tier = Candidate::classifyTier($validated['rankLabel'], $sector->is_military);
+        $category = $validated['personnelCategory'];
+        $tier = Candidate::resolveTier($category, $validated['rankLabel'], $validated['tier'] ?? null);
         $assessmentType = $validated['assessmentType'] ?? 'comprehensive';
 
         // ديدَاب الشخص بالهوية — شخص واحد ← عدة دورات/رموز
@@ -358,6 +365,7 @@ class CandidateController extends Controller
             $candidate->email = $validated['email'] ?? null;
             $candidate->sector_id = $sector->id;
             $candidate->rank_label = $validated['rankLabel'];
+            $candidate->personnel_category = $category;
             $candidate->tier = $tier;
         } else {
             // شخص جديد
@@ -368,6 +376,7 @@ class CandidateController extends Controller
             $candidate->email = $validated['email'] ?? null;
             $candidate->sector_id = $sector->id;
             $candidate->rank_label = $validated['rankLabel'];
+            $candidate->personnel_category = $category;
             $candidate->tier = $tier;
             // تعيين تصنيف أمني يتطلب صلاحية VIEW_CLASSIFIED — منع التصعيد
             $requestedClass = $validated['classification'] ?? 'normal';
@@ -451,11 +460,19 @@ class CandidateController extends Controller
         if (!$mobile) {
             return false; // لا جوّال مسجّل — لا رسالة
         }
-        $link = rtrim(config('app.frontend_url'), '/') . '/confirm/' . $assessment->confirm_token;
         $name = $candidate->full_name ?: 'المرشح';
         $message = "عزيزي {$name}، تم تسجيلك في مركز تمكين الكفاءات لتقييم القيادات."
-            . " رمز المشارك: {$assessment->participant_code}."
-            . " لتأكيد بياناتك وتسجيل الوصول: {$link}";
+            . " رمز المشارك: {$assessment->participant_code}.";
+
+        // رابط البوّابة يُضاف متى كانت مُشغَّلة وحدها. مع تعطيلها يبقى رمزُ
+        // المشارك — وهو المفيد فعلاً عند الاستقبال — ويسقط رابطٌ يفتح صفحة
+        // فارغة. رسالةٌ تحمل رابطاً ميتاً أسوأ من رسالةٍ بلا رابط.
+        if (config('features.candidate_portal')) {
+            $link = rtrim(config('app.frontend_url'), '/') . '/confirm/' . $assessment->confirm_token;
+            $message .= " لتأكيد بياناتك وتسجيل الوصول: {$link}";
+        } else {
+            $message .= ' وسيصلك موعد الحضور من إدارة المركز.';
+        }
 
         // غير متزامن: لا نحبس دورة الطلب بانتظار البوّابة (قد تتأخّر 10ث أو تسقط).
         // queueSms ينشئ سجلّاً معلّقاً ويجدول التسليم؛ يرجع true أي «جُدولت» لا «أُرسلت».
@@ -488,6 +505,10 @@ class CandidateController extends Controller
             'email' => 'nullable|email',
             'sectorId' => 'required|exists:sectors,id',
             'rankLabel' => 'required|string',
+            // الفئة صفةُ الشخص لا صفةُ قطاعه — عليها تُبنى قائمة الرتب والطبقة
+            'personnelCategory' => 'required|in:civilian,military,contractor',
+            // المتعاقد بلا قائمة مُدارة، فطبقته تُرسَل صراحةً لا تُستنتج من مسمّاه
+            'tier' => 'required_if:personnelCategory,contractor|nullable|in:upper,middle',
             'assessmentType' => 'nullable|in:comprehensive,executive',
             'classification' => 'nullable|in:normal,secret,top_secret',
         ]);
@@ -497,7 +518,8 @@ class CandidateController extends Controller
         }
 
         $sector = Sector::findOrFail($validated['sectorId']);
-        $tier = Candidate::classifyTier($validated['rankLabel'], $sector->is_military);
+        $category = $validated['personnelCategory'];
+        $tier = Candidate::resolveTier($category, $validated['rankLabel'], $validated['tier'] ?? null);
 
         $candidate->national_id = $validated['nationalId'];
         $candidate->full_name = $validated['fullName'];
@@ -505,6 +527,7 @@ class CandidateController extends Controller
         $candidate->email = $validated['email'] ?? null;
         $candidate->sector_id = $sector->id;
         $candidate->rank_label = $validated['rankLabel'];
+        $candidate->personnel_category = $category;
         $candidate->tier = $tier;
         $candidate->assessment_type = $validated['assessmentType'] ?? 'comprehensive';
         // تغيير التصنيف الأمني حوكمة حسّاسة — يتطلب صلاحية VIEW_CLASSIFIED (كما في reclassify) ويُسجَّل
@@ -937,8 +960,9 @@ class CandidateController extends Controller
             $row = [
                 'الرمز' => $c->participant_code,
                 'القطاع' => $c->sector->name_ar,
-                'الرتبة' => $c->rank_label,
-                'الفئة' => $c->tier === 'upper' ? 'قيادة عليا' : 'قيادة وسطى',
+                'الفئة' => Candidate::categoryLabel((string) $c->personnel_category),
+                'الرتبة / المرتبة' => $c->rank_label,
+                'الفئة القيادية' => $c->tier === 'upper' ? 'قيادة عليا' : 'قيادة وسطى',
                 'الحالة' => $c->status,
                 'التصنيف' => $c->classification,
             ];

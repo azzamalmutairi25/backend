@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-12T16:27:53.662Z",
+  "updatedAt": "2026-08-15T14:33:03.500Z",
   "base": "http://localhost:5173",
   "screens": [
     {
@@ -336,7 +336,15 @@
       "file": "candidates-add.png",
       "route": "/candidates",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-15T14:33:03.500Z"
+    },
+    {
+      "id": "candidates-add-contractor",
+      "title": "نموذج الإضافة وقد اختيرت الفئة «متعاقد»: الحقل صار مسمّى وظيفياً حرّاً، وظهرت الفئة القيادية لتُختار",
+      "file": "candidates-add-contractor.png",
+      "route": "/candidates",
+      "role": "admin",
+      "capturedAt": "2026-08-15T14:33:03.500Z"
     },
     {
       "id": "candidates-details",
@@ -1316,19 +1324,19 @@
     },
     {
       "id": "settings-sectors",
-      "title": "بطاقة القطاعات كما هي: الأعمدة الأربعة، وعلامة «محمي» على القطاعات المرتبطة، وال",
+      "title": "بطاقة القطاعات: القطاعات المعتمدة باسمها المختصر والرسمي ورمزها، وعمود «التصنيف» عسكري/مدني، وعلامة «محمي» على المرتبط بمرشحين",
       "file": "settings-sectors.png",
       "route": "/settings",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-15T14:33:03.500Z"
     },
     {
       "id": "settings-sectors-edit",
-      "title": "بطاقة القطاعات وقد تغيّر رمز أول صفّ فظهر زرّ «حفظ الرمز» وتحدّث عمود «نموذج»، و",
+      "title": "بطاقة القطاعات وقد تغيّر رمز صفٍّ فظهر زرّ «حفظ الرمز» وتحدّث عمود «نموذج»، وصفّ جديد قيد الكتابة بتصنيفه",
       "file": "settings-sectors-edit.png",
       "route": "/settings",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-14T19:18:09.834Z"
     },
     {
       "id": "settings-session-times",

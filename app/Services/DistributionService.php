@@ -184,6 +184,8 @@ class DistributionService
                     'evaluator_id' => $item->evaluator_id,
                 ]);
                 $item->update(['schedule_id' => $schedule->id]);
+                // تاريخا الدورة يتبعان كل كتابة على الجلسات — هنا كما في الجدولة اليدوية
+                $assessment->refreshSessionDates();
                 $placed++;
             }
 

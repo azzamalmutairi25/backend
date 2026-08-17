@@ -16,25 +16,44 @@ class TierSettingsTest extends TestCase
 
     public function test_defaults_apply_when_unset(): void
     {
-        $this->assertSame('upper', Candidate::classifyTier('لواء ركن', true));
-        $this->assertSame('middle', Candidate::classifyTier('رائد', true));
-        $this->assertSame('upper', Candidate::classifyTier('م-14', false));
-        $this->assertSame('middle', Candidate::classifyTier('م-11', false));
+        $this->assertSame('upper', Candidate::classifyTier('لواء ركن', 'military'));
+        $this->assertSame('middle', Candidate::classifyTier('رائد', 'military'));
+        $this->assertSame('upper', Candidate::classifyTier('م-14', 'civilian'));
+        $this->assertSame('middle', Candidate::classifyTier('م-11', 'civilian'));
     }
 
-    public function test_saved_military_ranks_change_classification(): void
+    // ── ترتيب المصدرين: جدول الرتب المُدار ثم قائمة الإعدادات ──
+    //
+    // كان هنا اختبارٌ يفترض أن قائمة الإعدادات وحدها تحكم الرتب العسكرية،
+    // وهو ما كان صحيحاً قبل جدول `ranks`. بعد زرعه صار الجدول يفوز على
+    // الإعداد — بقرارٍ صريح موثَّق في هجرة الزرع: تعديلُ طبقة رتبةٍ مزروعة
+    // بابُه شاشة الرتب، كي لا يقلب حفظٌ في الإعدادات تصنيفاً ضبطه المدير
+    // رتبةً رتبة. فالاختبار الآن يثبّت الترتيب نفسه لا أحد طرفيه.
+
+    public function test_managed_ranks_win_over_the_settings_list(): void
     {
+        // «عقيد» مزروعة وسطى و«لواء» مزروعة عليا. الإعداد يقلبهما نصّاً:
+        // يرفع عقيد ويُسقط لواء — ولا أثر لذلك على المزروعتين.
         Setting::updateOrCreate(['key' => 'tier.military_upper_ranks'], ['value' => 'عقيد,عميد']);
-        // «عقيد» صار عليا بعد إضافته، و«لواء» لم يعد ضمن القائمة → وسطى
-        $this->assertSame('upper', Candidate::classifyTier('عقيد ركن', true));
-        $this->assertSame('middle', Candidate::classifyTier('لواء', true));
+
+        $this->assertSame('middle', Candidate::classifyTier('عقيد ركن', 'military'));
+        $this->assertSame('upper', Candidate::classifyTier('لواء', 'military'));
+    }
+
+    public function test_settings_list_governs_ranks_outside_the_managed_list(): void
+    {
+        // «مشير» و«فريق» ليستا في الرتب المزروعة، فتسقطان إلى قائمة الإعدادات
+        Setting::updateOrCreate(['key' => 'tier.military_upper_ranks'], ['value' => 'مشير']);
+
+        $this->assertSame('upper', Candidate::classifyTier('مشير', 'military'));
+        $this->assertSame('middle', Candidate::classifyTier('فريق', 'military'));
     }
 
     public function test_saved_civilian_grade_threshold_changes_classification(): void
     {
         Setting::updateOrCreate(['key' => 'tier.civilian_upper_grade'], ['value' => '15']);
-        $this->assertSame('middle', Candidate::classifyTier('م-14', false)); // كانت عليا عند العتبة 13
-        $this->assertSame('upper', Candidate::classifyTier('م-15', false));
+        $this->assertSame('middle', Candidate::classifyTier('م-14', 'civilian')); // كانت عليا عند العتبة 13
+        $this->assertSame('upper', Candidate::classifyTier('م-15', 'civilian'));
     }
 
     public function test_tier_settings_editable_only_by_settings_managers(): void
@@ -49,7 +68,7 @@ class TierSettingsTest extends TestCase
             ->assertOk();
         $this->assertDatabaseHas('audit_logs', ['action' => 'UPDATE_TIER_RULES']);
         // تُطبَّق فوراً على تصنيف مرشّح جديد
-        $this->assertSame('upper', Candidate::classifyTier('م-12', false));
+        $this->assertSame('upper', Candidate::classifyTier('م-12', 'civilian'));
     }
 
     public function test_tier_rejects_out_of_range_grade_and_empty_ranks(): void

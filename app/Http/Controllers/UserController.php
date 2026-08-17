@@ -22,7 +22,7 @@ class UserController extends Controller
 
         $request->validate($this->listPagingRules($this->sortable()));
 
-        $query = User::with(['role', 'sector', 'manager']);
+        $query = User::with(['role', 'sector', 'manager', 'expertiseAreas']);
         $meta = $this->applyListPaging($request, $query, $this->sortable(), 'name', 'id');
 
         $users = $query->get()->map(fn ($u) => [
@@ -33,6 +33,9 @@ class UserController extends Controller
             'roleCode' => $u->role->code,
             'roleName' => $u->role->name_ar,
             'sectorId' => $u->sector_id,
+            // مجالات الخبرة — تقرأها نافذة الوسم لتبدأ بما هو مسجَّل فعلاً.
+            // بدونها كانت النافذة تفتح فارغةً فيمحو الحفظُ وسماً قائماً.
+            'expertiseAreaIds' => $u->expertiseAreas->pluck('id')->all(),
             'sectorName' => $u->sector?->name_ar,
             'sectorBound' => $u->isSectorBound(),
             'managerId' => $u->manager_id,

@@ -9,6 +9,7 @@ use App\Models\Sector;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Tests\Concerns\EnablesCandidatePortal;
 use Tests\TestCase;
 
 // بوّابة السيرة الذاتية: كتابة المرشح، قفل بعد التقييم، تزامن، لقطة مجمَّدة،
@@ -16,6 +17,8 @@ use Tests\TestCase;
 class CvPortalTest extends TestCase
 {
     use RefreshDatabase;
+    // البوّابة مُعطَّلة في التشغيل — تُشغَّل هنا لتبقى شيفرتها مُختبَرة
+    use EnablesCandidatePortal;
 
     protected $seed = true;
 
@@ -51,7 +54,8 @@ class CvPortalTest extends TestCase
             // البيانات الوظيفية إلزامية في نموذج المركز المعتمد
             'birthDate' => '1982-04-11',
             'appointmentDate' => '2006-09-01',
-            'rankLabel' => 'عميد',
+            'personnelCategory' => 'military',
+            'personnelCategory' => 'military', 'rankLabel' => 'عميد',
             'department' => 'الإدارة العامة للعمليات',
             'region' => 'الرياض',
             'currentPosition' => 'مدير عام',

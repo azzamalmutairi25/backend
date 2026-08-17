@@ -13,7 +13,9 @@ class ReceptionVisit extends Model
 {
     protected $fillable = [
         'candidate_id', 'assessment_id', 'visit_date', 'arrived_at',
-        'signed_at', 'attested', 'received_by', 'status', 'approved_at', 'approved_by',
+        'signed_at', 'attested', 'received_by', 'kiosk_id', 'status',
+        'approved_at', 'approved_by',
+        'badge_requested_at', 'badge_printed_at', 'badge_printed_by',
     ];
 
     protected $casts = [
@@ -22,6 +24,8 @@ class ReceptionVisit extends Model
         'signed_at' => 'datetime',
         'approved_at' => 'datetime',
         'attested' => 'boolean',
+        'badge_requested_at' => 'datetime',
+        'badge_printed_at' => 'datetime',
     ];
 
     // signature_enc خارج $fillable عمداً: يُكتب عبر هذه الخاصية وحدها فيُشفَّر
@@ -40,7 +44,14 @@ class ReceptionVisit extends Model
         );
     }
 
+    // هل ينتظر هذا الزائر بطاقةً على الطابعة؟ طُلبت ولم تُطبع بعد.
+    public function badgePending(): bool
+    {
+        return $this->badge_requested_at !== null && $this->badge_printed_at === null;
+    }
+
     public function candidate(): BelongsTo { return $this->belongsTo(Candidate::class); }
+    public function kiosk(): BelongsTo { return $this->belongsTo(ReceptionKiosk::class, 'kiosk_id'); }
     public function assessment(): BelongsTo { return $this->belongsTo(Assessment::class); }
     public function receivedBy(): BelongsTo { return $this->belongsTo(User::class, 'received_by'); }
     public function approvedBy(): BelongsTo { return $this->belongsTo(User::class, 'approved_by'); }

@@ -34,7 +34,6 @@ class SectorController extends Controller
                 // الاسم الرسمي الكامل («المديرية العامة للجوازات») — تكتبه
                 // المخاطبات والتقارير، والمعروض في الشاشات مختصرُه
                 'fullNameAr' => $s->full_name_ar,
-                'isMilitary' => $s->is_military,
             ];
             // البادئة تُعرض لمدير الإعدادات فقط — المفتاح غائب لسواه لا فارغ
             if ($canManage) {
@@ -102,7 +101,6 @@ class SectorController extends Controller
             'code' => ['required', 'string', 'regex:/^[A-Za-z0-9]{2,10}$/', 'unique:sectors,code'],
             'nameAr' => 'required|string|max:100',
             'fullNameAr' => 'nullable|string|max:200',
-            'isMilitary' => 'boolean',
             'participantPrefix' => ['nullable', 'string', 'regex:/^[A-Za-z0-9]{2,4}$/'],
         ], [
             'code.regex' => 'الرمز حرفان إلى عشرة، لاتيني أو أرقام',
@@ -122,7 +120,6 @@ class SectorController extends Controller
             'code' => $code,
             'name_ar' => $validated['nameAr'],
             'full_name_ar' => $validated['fullNameAr'] ?? null,
-            'is_military' => $request->boolean('isMilitary'),
             'participant_prefix' => $prefix,
         ]);
 
@@ -131,7 +128,7 @@ class SectorController extends Controller
         return response()->json(['message' => 'تمت إضافة القطاع', 'sectorId' => $sector->id], 201);
     }
 
-    // PUT /sectors/{id} — تعديل الاسم/التصنيف العسكري (الرمز ثابت: هويّة القطاع)
+    // PUT /sectors/{id} — تعديل الاسم (الرمز ثابت: هويّة القطاع)
     public function update(Request $request, int $id)
     {
         if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
@@ -146,7 +143,6 @@ class SectorController extends Controller
         $validated = $request->validate([
             'nameAr' => 'required|string|max:100',
             'fullNameAr' => 'nullable|string|max:200',
-            'isMilitary' => 'boolean',
         ]);
 
         // الرمز والبادئة لا يُعدَّلان هنا: رمز المشارك مُثبَّت على دورته، وتغيير الرمز
@@ -156,7 +152,6 @@ class SectorController extends Controller
             'name_ar' => $validated['nameAr'],
             'full_name_ar' => $request->exists('fullNameAr')
                 ? ($validated['fullNameAr'] ?: null) : $sector->full_name_ar,
-            'is_military' => $request->boolean('isMilitary', $sector->is_military),
         ]);
 
         $this->audit($request, 'UPDATE_SECTOR', $sector);

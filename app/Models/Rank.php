@@ -11,9 +11,11 @@ class Rank extends Model
 
     // تصنيف رتبة مرشّح عبر القائمة المُدارة: أطول تسمية مطابِقة (احتواءً) تفوز —
     // كي تسبق «مدير عام» «مدير». تُرجع 'upper'/'middle' أو null إن لا مطابقة.
-    public static function tierFor(string $rankLabel, bool $isMilitary): ?string
+    //
+    // الفئة تأتي من المرشّح لا من قطاعه: القطاع جهةٌ يعمل فيها الصنفان معاً.
+    // والمتعاقد بلا قائمة مُدارة — طبقتُه تُختار صراحةً فلا يُسأل هذا الفحص عنها.
+    public static function tierFor(string $rankLabel, string $category): ?string
     {
-        $category = $isMilitary ? 'military' : 'civilian';
         $match = static::where('is_active', true)->where('category', $category)
             ->get()
             ->filter(fn ($r) => $r->label !== '' && mb_strpos($rankLabel, $r->label) !== false)

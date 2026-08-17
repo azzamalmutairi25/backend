@@ -22,7 +22,8 @@ class CandidateUpdateRequestTest extends TestCase
         return array_merge([
             'birthDate' => '1982-04-11',
             'appointmentDate' => '2006-09-01',
-            'rankLabel' => 'عميد',
+            'personnelCategory' => 'military',
+            'personnelCategory' => 'military', 'rankLabel' => 'عميد',
             'department' => 'الإدارة العامة للعمليات',
             'region' => 'الرياض',
             'currentPosition' => 'مدير عام',
@@ -57,7 +58,8 @@ class CandidateUpdateRequestTest extends TestCase
             'fullName' => 'الاسم المحدّث',
             'mobile' => '0505550001',
             'sectorId' => $this->edId(),
-            'rankLabel' => 'عميد',
+            'personnelCategory' => 'military',
+            'personnelCategory' => 'military', 'rankLabel' => 'عميد',
             'note' => 'تغيّرت رتبته',
             'cv' => $this->validCv($cvOver),
         ], $identityOver))->assertStatus(201);
@@ -76,7 +78,8 @@ class CandidateUpdateRequestTest extends TestCase
             'fullName' => 'مرشح جديد',
             'mobile' => '0501112223',
             'sectorId' => $this->edId(),
-            'rankLabel' => 'عميد',
+            'personnelCategory' => 'military',
+            'personnelCategory' => 'military', 'rankLabel' => 'عميد',
             'cv' => $this->validCv(),
         ])->assertStatus(201);
 
@@ -95,7 +98,7 @@ class CandidateUpdateRequestTest extends TestCase
 
         $this->postJson('/api/candidates', [
             'nationalId' => $this->validNationalId(), 'fullName' => 'بلا سيرة',
-            'sectorId' => $this->edId(), 'rankLabel' => 'عميد',
+            'sectorId' => $this->edId(), 'personnelCategory' => 'military', 'rankLabel' => 'عميد',
         ])->assertStatus(201)->assertJsonPath('cvSaved', false);
 
         $this->assertSame(0, CandidateCv::count());
@@ -107,7 +110,7 @@ class CandidateUpdateRequestTest extends TestCase
 
         $this->postJson('/api/candidates', [
             'nationalId' => $this->validNationalId(), 'fullName' => 'سلطان العتيبي',
-            'sectorId' => $this->edId(), 'rankLabel' => 'عميد',
+            'sectorId' => $this->edId(), 'personnelCategory' => 'military', 'rankLabel' => 'عميد',
             'cv' => $this->validCv(['briefBio' => 'قاد سلطان فريق العمليات']),
         ])->assertStatus(422)->assertJsonPath('field', 'briefBio');
 
@@ -120,7 +123,7 @@ class CandidateUpdateRequestTest extends TestCase
 
         $this->postJson('/api/candidates', [
             'nationalId' => $this->validNationalId(), 'fullName' => 'مرشح',
-            'sectorId' => $this->edId(), 'rankLabel' => 'عميد',
+            'sectorId' => $this->edId(), 'personnelCategory' => 'military', 'rankLabel' => 'عميد',
             'cv' => $this->validCv(['appointmentDate' => '2100-01-01']),
         ])->assertStatus(422)->assertJsonStructure(['error', 'fields']);
 
@@ -139,7 +142,7 @@ class CandidateUpdateRequestTest extends TestCase
         $this->actingAsRole('EXTERNAL_ADD');
         $res = $this->postJson('/api/candidates', [
             'nationalId' => $nid, 'fullName' => 'اسم مزروع',
-            'sectorId' => Sector::where('code', 'PR')->value('id'), 'rankLabel' => 'عميد',
+            'sectorId' => Sector::where('code', 'PR')->value('id'), 'personnelCategory' => 'military', 'rankLabel' => 'عميد',
             'cv' => $this->validCv(),
         ])->assertStatus(403);
 
@@ -164,7 +167,7 @@ class CandidateUpdateRequestTest extends TestCase
         $this->actingAsRole('EXTERNAL_ADD');
         $res = $this->postJson('/api/candidates', [
             'nationalId' => $nid, 'fullName' => 'أيّ اسم',
-            'sectorId' => $this->edId(), 'rankLabel' => 'عميد',
+            'sectorId' => $this->edId(), 'personnelCategory' => 'military', 'rankLabel' => 'عميد',
         ])->assertStatus(403);
 
         $this->assertStringNotContainsString('DW-9911', json_encode($res->json(), JSON_UNESCAPED_UNICODE));
@@ -177,7 +180,7 @@ class CandidateUpdateRequestTest extends TestCase
 
         $res = $this->postJson('/api/candidates', [
             'nationalId' => $nid, 'fullName' => 'أيّ اسم',
-            'sectorId' => $this->edId(), 'rankLabel' => 'عميد',
+            'sectorId' => $this->edId(), 'personnelCategory' => 'military', 'rankLabel' => 'عميد',
         ])->assertStatus(403);
 
         $this->assertSame($requestId, $res->json('pendingRequest.id'));
@@ -220,7 +223,7 @@ class CandidateUpdateRequestTest extends TestCase
 
         $this->postJson('/api/candidate-update-requests', [
             'nationalId' => $nid, 'fullName' => 'محاولة ثانية',
-            'sectorId' => $this->edId(), 'rankLabel' => 'عميد',
+            'sectorId' => $this->edId(), 'personnelCategory' => 'military', 'rankLabel' => 'عميد',
             'cv' => $this->validCv(),
         ])->assertStatus(409)->assertJsonPath('pendingRequest.id', $requestId);
 
@@ -233,7 +236,7 @@ class CandidateUpdateRequestTest extends TestCase
 
         $this->postJson('/api/candidate-update-requests', [
             'nationalId' => $this->validNationalId(), 'fullName' => 'لا أحد',
-            'sectorId' => $this->edId(), 'rankLabel' => 'عميد',
+            'sectorId' => $this->edId(), 'personnelCategory' => 'military', 'rankLabel' => 'عميد',
             'cv' => $this->validCv(),
         ])->assertStatus(404);
     }
@@ -246,7 +249,7 @@ class CandidateUpdateRequestTest extends TestCase
         $this->actingAsRole('EXTERNAL_ADD'); // بلا صلاحية رؤية المصنّفين
         $this->postJson('/api/candidate-update-requests', [
             'nationalId' => $nid, 'fullName' => 'مهاجم',
-            'sectorId' => $this->edId(), 'rankLabel' => 'عميد',
+            'sectorId' => $this->edId(), 'personnelCategory' => 'military', 'rankLabel' => 'عميد',
             'cv' => $this->validCv(),
         ])->assertStatus(404);
 
@@ -261,7 +264,7 @@ class CandidateUpdateRequestTest extends TestCase
         $this->actingAsRole('EXTERNAL_ADD');
         $this->postJson('/api/candidate-update-requests', [
             'nationalId' => $nid, 'fullName' => 'سلطان العتيبي',
-            'sectorId' => $this->edId(), 'rankLabel' => 'عميد',
+            'sectorId' => $this->edId(), 'personnelCategory' => 'military', 'rankLabel' => 'عميد',
             'cv' => $this->validCv(['briefBio' => 'قاد سلطان فريق العمليات']),
         ])->assertStatus(422)->assertJsonPath('field', 'briefBio');
 
@@ -275,7 +278,7 @@ class CandidateUpdateRequestTest extends TestCase
 
         $this->actingAsRole('EXTERNAL_ADD');
         $this->postJson('/api/candidate-update-requests', [
-            'nationalId' => $nid, 'fullName' => 'اسم', 'sectorId' => $this->edId(), 'rankLabel' => 'عميد',
+            'nationalId' => $nid, 'fullName' => 'اسم', 'sectorId' => $this->edId(), 'personnelCategory' => 'military', 'rankLabel' => 'عميد',
         ])->assertStatus(422);
     }
 
@@ -354,7 +357,9 @@ class CandidateUpdateRequestTest extends TestCase
         $this->assertSame('الاسم المحدّث', $fresh->full_name);
         $this->assertSame('0505550001', $fresh->mobile);
         $this->assertSame('عميد', $fresh->rank_label);
-        $this->assertSame(Candidate::classifyTier('عميد', false), $fresh->tier, 'أُعيد احتساب الفئة من الرتبة الجديدة');
+        // الفئة تُطبَّق مع الهوية، والطبقة تُحتسب من قائمتها هي لا من قائمة أخرى
+        $this->assertSame('military', $fresh->personnel_category);
+        $this->assertSame(Candidate::classifyTier('عميد', 'military'), $fresh->tier, 'أُعيد احتساب الفئة من الرتبة الجديدة');
 
         $cv = CandidateCv::where('candidate_id', $c->id)->first();
         $this->assertNotNull($cv);
@@ -403,7 +408,7 @@ class CandidateUpdateRequestTest extends TestCase
         $external = $this->actingAsRole('EXTERNAL_ADD');
         $requestId = $this->postJson('/api/candidate-update-requests', [
             'nationalId' => $nid, 'fullName' => 'الاسم المحدّث',
-            'sectorId' => $this->edId(), 'rankLabel' => 'عميد', 'cv' => $this->validCv(),
+            'sectorId' => $this->edId(), 'personnelCategory' => 'military', 'rankLabel' => 'عميد', 'cv' => $this->validCv(),
         ])->assertStatus(201)->json('requestId');
 
         $this->actingAsRole('SCHEDULER');
@@ -428,7 +433,7 @@ class CandidateUpdateRequestTest extends TestCase
         $this->actingAsRole('EXTERNAL_ADD');
         $this->postJson('/api/candidate-update-requests', [
             'nationalId' => $nid, 'fullName' => 'الاسم المحدّث ثانيةً',
-            'sectorId' => $this->edId(), 'rankLabel' => 'عميد', 'cv' => $this->validCv(),
+            'sectorId' => $this->edId(), 'personnelCategory' => 'military', 'rankLabel' => 'عميد', 'cv' => $this->validCv(),
         ])->assertStatus(201);
 
         $this->assertSame(2, CandidateUpdateRequest::count());
