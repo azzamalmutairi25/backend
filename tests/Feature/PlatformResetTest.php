@@ -27,7 +27,7 @@ class PlatformResetTest extends TestCase
     private function seedMinimal(): array
     {
         $admin = Role::where('code', 'ADMIN')->firstOrFail();
-        $sector = Sector::create(['code' => 'TS', 'name_ar' => 'قطاع اختبار', 'is_military' => false]);
+        $sector = Sector::create(['code' => 'TS', 'name_ar' => 'قطاع اختبار']);
 
         $keeper = User::where('username', 'admin')->firstOrFail();
         $other = User::create([

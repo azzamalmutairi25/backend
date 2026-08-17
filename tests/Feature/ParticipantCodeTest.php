@@ -136,7 +136,8 @@ class ParticipantCodeTest extends TestCase
                 'nationalId' => $this->validNationalId(),
                 'fullName' => "مرشح {$i}",
                 'sectorId' => $sectorId,
-                'rankLabel' => 'عميد',
+                'personnelCategory' => 'military',
+                'personnelCategory' => 'military', 'rankLabel' => 'عميد',
             ])->assertStatus(201);
             $codes[] = $res->json('participantCode');
         }
@@ -153,7 +154,7 @@ class ParticipantCodeTest extends TestCase
         for ($i = 0; $i < 5; $i++) {
             $rows[] = [
                 'nationalId' => $this->validNationalId(), 'fullName' => "مستورد {$i}",
-                'mobile' => '', 'email' => '', 'sectorCode' => 'DW', 'rankLabel' => 'مدير عام',
+                'mobile' => '', 'email' => '', 'sectorCode' => 'DW', 'personnelCategory' => 'civilian', 'rankLabel' => 'الرابعة عشرة',
             ];
         }
 

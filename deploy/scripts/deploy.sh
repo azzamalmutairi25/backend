@@ -97,9 +97,14 @@ run "git clone --depth 1 --branch '${KAFAAT_FRONTEND_BRANCH:-$BRANCH}' '$FRONTEN
 run "cd '$FE' && npm ci --no-audit --no-fund"
 # VITE_API_URL فارغ ⇒ المسار النسبي /api ⇒ نفس الأصل ⇒ لا CORS
 run "cd '$FE' && VITE_API_URL= npm run build"
-run "cd '$FE' && VITE_API_URL= npm run build:public"
 run "cp -r '$FE/dist/.' '$NEW/public/'"
-run "mkdir -p '$NEW/portal-dist' && cp -r '$FE/dist-public/.' '$NEW/portal-dist/'"
+# بوّابة المرشح مُعطَّلة حتى إشعار آخر — لا تُبنى ولا تُنسَخ إلى portal-dist.
+# KAFAAT_PORTAL=1 يعيدها، ولا بدّ معها من CANDIDATE_PORTAL_ENABLED=true في .env
+# وcandidatePortal:true في features.js — وإلا نُشرت حزمةٌ تصطدم بمساراتٍ مغلقة.
+if [[ ${KAFAAT_PORTAL:-0} == 1 ]]; then
+  run "cd '$FE' && VITE_API_URL= npm run build:public"
+  run "mkdir -p '$NEW/portal-dist' && cp -r '$FE/dist-public/.' '$NEW/portal-dist/'"
+fi
 run "rm -rf '$FE'"
 
 # ── ٤) الحالة المشتركة ──

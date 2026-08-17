@@ -8,6 +8,7 @@ use App\Services\CvValidator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Tests\Concerns\EnablesCandidatePortal;
 use Tests\TestCase;
 
 // البيانات الوظيفية في نموذج المركز: تاريخا الميلاد والتعيين (ميلاديان)،
@@ -15,6 +16,8 @@ use Tests\TestCase;
 class CvJobFieldsTest extends TestCase
 {
     use RefreshDatabase;
+    // البوّابة مُعطَّلة في التشغيل — تُشغَّل هنا لتبقى شيفرتها مُختبَرة
+    use EnablesCandidatePortal;
 
     protected $seed = true;
 
@@ -23,7 +26,8 @@ class CvJobFieldsTest extends TestCase
         return array_merge([
             'birthDate' => '1982-04-11',
             'appointmentDate' => '2006-09-01',
-            'rankLabel' => 'عميد',
+            'personnelCategory' => 'military',
+            'personnelCategory' => 'military', 'rankLabel' => 'عميد',
             'department' => 'الإدارة العامة للعمليات',
             'region' => 'الرياض',
             'currentPosition' => 'مدير عام',
@@ -145,7 +149,7 @@ class CvJobFieldsTest extends TestCase
 
         $this->postJson("/api/public/assessment/{$token}/cv", [
             'accessToken' => $at,
-            'cv' => $this->doc(['rankLabel' => 'عميد']),
+            'cv' => $this->doc(['personnelCategory' => 'military', 'rankLabel' => 'عميد']),
             'expectedVersion' => 0,
         ])->assertOk();
 
@@ -157,7 +161,7 @@ class CvJobFieldsTest extends TestCase
     public function test_rank_mismatch_is_flagged_to_staff(): void
     {
         [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW', 'rankLabel' => 'عقيد']);
-        CandidateCv::create(['candidate_id' => $c->id, 'data' => $this->doc(['rankLabel' => 'عميد'])]);
+        CandidateCv::create(['candidate_id' => $c->id, 'data' => $this->doc(['personnelCategory' => 'military', 'rankLabel' => 'عميد'])]);
 
         $this->actingAsRole('SCHEDULER');
         $cv = $this->getJson("/api/candidates/{$c->id}/cv")->assertOk()->json('cv');
@@ -170,7 +174,7 @@ class CvJobFieldsTest extends TestCase
     public function test_matching_rank_is_not_flagged(): void
     {
         [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW', 'rankLabel' => 'عميد']);
-        CandidateCv::create(['candidate_id' => $c->id, 'data' => $this->doc(['rankLabel' => 'عميد'])]);
+        CandidateCv::create(['candidate_id' => $c->id, 'data' => $this->doc(['personnelCategory' => 'military', 'rankLabel' => 'عميد'])]);
 
         $this->actingAsRole('SCHEDULER');
         $this->assertFalse($this->getJson("/api/candidates/{$c->id}/cv")->assertOk()->json('cv.rankMismatch'));

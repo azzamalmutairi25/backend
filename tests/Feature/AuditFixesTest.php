@@ -100,7 +100,8 @@ class AuditFixesTest extends TestCase
         $this->postJson('/api/candidates', [
             'nationalId' => $nid, 'fullName' => 'اسم مزروع',
             'sectorId' => Sector::where('code', 'PR')->value('id'),
-            'rankLabel' => 'عميد',
+            'personnelCategory' => 'military',
+            'personnelCategory' => 'military', 'rankLabel' => 'عميد',
         ])->assertStatus(403);
 
         $this->assertSame('الاسم الأصلي', $existing->fresh()->full_name);
@@ -115,7 +116,7 @@ class AuditFixesTest extends TestCase
         $this->actingAsRole('SCHEDULER'); // يملك create + edit
         $this->postJson('/api/candidates', [
             'nationalId' => $existing->national_id, 'fullName' => 'الاسم المحدّث',
-            'sectorId' => $existing->sector_id, 'rankLabel' => 'مدير عام',
+            'sectorId' => $existing->sector_id, 'personnelCategory' => 'civilian', 'rankLabel' => 'الرابعة عشرة',
         ])->assertCreated();
 
         $this->assertSame('الاسم المحدّث', $existing->fresh()->full_name);

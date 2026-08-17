@@ -6,6 +6,7 @@ use App\Models\Assessment;
 use App\Models\AuditLog;
 use App\Models\CandidateCv;
 use App\Models\ReceptionAssignment;
+use App\Models\ReceptionKiosk;
 use App\Models\ReceptionVisit;
 use App\Models\Schedule;
 use App\Models\User;
@@ -173,6 +174,11 @@ class ReceptionController extends Controller
             'signed' => $v->isSigned(),
             'attested' => $v->attested,
             'status' => $v->status,
+            // من سجّل نفسه على الكشك مقابل من سجّله موظّف — يظهر في الكشف
+            // كي يعرف الاستقبال من مرّ عليه فعلاً ومن دخل من الجهاز اللوحي
+            'viaKiosk' => $v->kiosk_id !== null,
+            'badgePrinted' => $v->badge_printed_at !== null,
+            'badgePending' => $v->badgePending(),
             'hasCv' => $doc !== null && !CandidateCv::isEmptyDoc($doc),
             'assignments' => $v->assignments->map(fn (ReceptionAssignment $a) => [
                 'id' => $a->id,
@@ -742,6 +748,7 @@ class ReceptionController extends Controller
                     'evaluator_id' => $a->evaluator_id,
                 ]);
                 $a->update(['schedule_id' => $schedule->id]);
+                \App\Models\Assessment::refreshDatesFor($visit->assessment_id);
                 $n++;
             }
             $visit->update([
@@ -772,5 +779,193 @@ class ReceptionController extends Controller
         ]);
 
         return response()->json(['approved' => true, 'schedulesCreated' => $created]);
+    }
+
+    // ═══════════════════════════════════════════════════════
+    //  كشك الجهاز اللوحي — الرابط الذي يفتحه مسؤول المرشحين
+    // ═══════════════════════════════════════════════════════
+
+    // إنشاء رمز اليوم يفرض RECEPTION_RECORD لا RECEPTION_VIEW: الرمز يُنتج
+    // بابَ تسجيلِ وصولٍ وتوقيع، فلا يصدره من لا يملك أن يفعلهما بيده.
+    public function createKiosk(Request $request)
+    {
+        $user = $request->user();
+        if (!$user->hasPermission(Permissions::RECEPTION_RECORD)) {
+            return $this->deny('ليس لديك صلاحية تشغيل كشك الاستقبال');
+        }
+        if (!config('features.reception_kiosk')) {
+            return response()->json(['error' => 'كشك الاستقبال غير مُفعَّل'], 422);
+        }
+
+        $validated = $request->validate(['label' => 'nullable|string|max:60']);
+
+        $kiosk = ReceptionKiosk::create([
+            'token' => ReceptionKiosk::generateToken(),
+            'kiosk_date' => now()->toDateString(),
+            'label' => $validated['label'] ?? null,
+            'created_by' => $user->id,
+        ]);
+
+        // الرمز يُسجَّل في التدقيق بمعرّفه لا بقيمته: قيمةُ رمزٍ حيّ في سجلٍّ
+        // يقرؤه غيرُ مُصدره تجعل السجلَّ نسخةً ثانية من المفتاح
+        $this->log($request, 'KIOSK_CREATE', $kiosk->id, ['label' => $kiosk->label]);
+
+        return response()->json(['kiosk' => $this->kioskPayload($kiosk)], 201);
+    }
+
+    // كشوك اليوم الفعّالة — لعرض الرابط ثانيةً دون إصدار رمزٍ جديد.
+    // إصدارُ رمزٍ في كل مرة يُبطل الجهاز العامل في البهو بلا سبب.
+    public function kiosks(Request $request)
+    {
+        $user = $request->user();
+        if (!$user->hasPermission(Permissions::RECEPTION_RECORD)) {
+            return $this->deny('ليس لديك صلاحية تشغيل كشك الاستقبال');
+        }
+
+        $rows = ReceptionKiosk::with('creator')
+            ->whereDate('kiosk_date', now()->toDateString())
+            ->whereNull('revoked_at')
+            ->orderByDesc('id')
+            ->get()
+            ->map(fn (ReceptionKiosk $k) => $this->kioskPayload($k));
+
+        return response()->json([
+            'enabled' => (bool) config('features.reception_kiosk'),
+            'kiosks' => $rows,
+        ]);
+    }
+
+    public function revokeKiosk(Request $request, int $id)
+    {
+        $user = $request->user();
+        if (!$user->hasPermission(Permissions::RECEPTION_RECORD)) {
+            return $this->deny('ليس لديك صلاحية تشغيل كشك الاستقبال');
+        }
+
+        $kiosk = ReceptionKiosk::find($id);
+        if (!$kiosk) {
+            return response()->json(['error' => 'الكشك غير موجود'], 404);
+        }
+        if ($kiosk->revoked_at === null) {
+            $kiosk->update(['revoked_at' => now()]);
+            $this->log($request, 'KIOSK_REVOKE', $kiosk->id);
+        }
+
+        return response()->json(['revoked' => true]);
+    }
+
+    private function kioskPayload(ReceptionKiosk $k): array
+    {
+        return [
+            'id' => $k->id,
+            'label' => $k->label,
+            'date' => $k->kiosk_date->toDateString(),
+            // الرابط كاملاً: يُنسخ أو يُقرأ رمزاً مربّعاً على الجهاز اللوحي
+            'url' => rtrim(config('app.frontend_url'), '/') . '/kiosk/' . $k->token,
+            'createdBy' => $k->creator?->full_name,
+            'lastUsedAt' => $k->last_used_at?->format('H:i'),
+        ];
+    }
+
+    // ═══════════════════════════════════════════════════════
+    //  طابور طباعة البطاقات — ما طلبه الكشك ولم يُطبع بعد
+    // ═══════════════════════════════════════════════════════
+    public function printQueue(Request $request)
+    {
+        $user = $request->user();
+        if (!$user->hasPermission(Permissions::RECEPTION_RECORD)) {
+            return $this->deny('ليس لديك صلاحية طباعة بطاقات المشاركين');
+        }
+
+        $validated = $request->validate(['date' => 'nullable|date_format:Y-m-d']);
+        $date = $validated['date'] ?? now()->toDateString();
+
+        $rows = ReceptionVisit::with(['candidate.sector', 'assessment.schedules'])
+            ->whereDate('visit_date', $date)
+            ->whereNotNull('badge_requested_at')
+            ->whereNull('badge_printed_at')
+            ->whereHas('candidate', function ($c) use ($request, $user) {
+                $c->whereIn('classification', $this->allowedClassifications($request));
+                if ($user->isSectorBound()) $c->where('sector_id', $user->sector_id);
+            })
+            ->orderBy('badge_requested_at')   // ترتيب الطابور هو ترتيب الوصول
+            ->get();
+
+        return response()->json([
+            'date' => $date,
+            'queue' => $rows->map(fn (ReceptionVisit $v) => $this->badgePayload($v))->values(),
+        ]);
+    }
+
+    // تعليم البطاقة مطبوعة — يُنادى بعد فتح نافذة الطباعة على جهاز المسؤول.
+    // ليس دليلاً على خروج الورقة من الطابعة، بل على أن المسؤول تولّاها:
+    // البطاقة التي لم تُطبع فعلاً تُعاد من زرّ إعادة الطباعة في الكشف.
+    public function markBadgePrinted(Request $request, int $id)
+    {
+        $user = $request->user();
+        if (!$user->hasPermission(Permissions::RECEPTION_RECORD)) {
+            return $this->deny('ليس لديك صلاحية طباعة بطاقات المشاركين');
+        }
+
+        $visit = $this->findVisit($request, $id, ['assessment']);
+        if (!$visit) {
+            return response()->json(['error' => 'الزيارة غير موجودة'], 404);
+        }
+
+        $visit->update(['badge_printed_at' => now(), 'badge_printed_by' => $user->id]);
+        $this->log($request, 'RECEPTION_BADGE_PRINTED', $visit->id, [
+            'code' => $visit->assessment?->participant_code,
+        ]);
+
+        return response()->json(['printed' => true]);
+    }
+
+    // إعادة الطباعة: تُعيد الزيارة إلى الطابور. بابها جهاز المسؤول وحده —
+    // لو فُتح للكشك لأمكن لمرشّحٍ أن يُخرج بطاقاتٍ بلا حدّ.
+    public function reprintBadge(Request $request, int $id)
+    {
+        $user = $request->user();
+        if (!$user->hasPermission(Permissions::RECEPTION_RECORD)) {
+            return $this->deny('ليس لديك صلاحية طباعة بطاقات المشاركين');
+        }
+
+        $visit = $this->findVisit($request, $id, ['assessment']);
+        if (!$visit) {
+            return response()->json(['error' => 'الزيارة غير موجودة'], 404);
+        }
+
+        $visit->update([
+            'badge_requested_at' => now(),
+            'badge_printed_at' => null,
+            'badge_printed_by' => null,
+        ]);
+        $this->log($request, 'RECEPTION_BADGE_REPRINT', $visit->id, [
+            'code' => $visit->assessment?->participant_code,
+        ]);
+
+        return response()->json(['queued' => true]);
+    }
+
+    // محتوى البطاقة — بلا اسم عمداً: تُبرَز في القاعة أمام المقيّمين،
+    // والتقييم يجري دون معرفة الاسم. رمز المشارك هو هويتها.
+    private function badgePayload(ReceptionVisit $v): array
+    {
+        $a = $v->assessment;
+
+        return [
+            'visitId' => $v->id,
+            'participantCode' => $a?->participant_code,
+            'sector' => $v->candidate?->sector?->name_ar,
+            'assessmentType' => $a?->assessment_type === 'executive' ? 'تنفيذي' : 'شامل',
+            'requestedAt' => $v->badge_requested_at?->format('H:i'),
+            'schedules' => collect($a?->schedules ?? [])
+                ->sortBy(fn ($s) => substr((string) $s->schedule_date, 0, 10) . ' ' . $s->schedule_time)
+                ->values()
+                ->map(fn ($s) => [
+                    'time' => $s->schedule_time ? substr((string) $s->schedule_time, 0, 5) : null,
+                    'activity' => ReceptionAssignment::label($s->activity),
+                    'location' => $s->location,
+                ])->all(),
+        ];
     }
 }

@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Schedule extends Model
 {
     protected $fillable = [
-        'candidate_id', 'assessment_id', 'schedule_date', 'schedule_time',
+        'candidate_id', 'assessment_id', 'period_id', 'circle_id', 'schedule_date', 'schedule_time',
         'activity', 'evaluator_id', 'assistant_id', 'location', 'rescheduled_at',
     ];
 
@@ -23,6 +23,18 @@ class Schedule extends Model
     public function assessment()
     {
         return $this->belongsTo(Assessment::class);
+    }
+
+    // موجة الجدولة — قابلة للإفراغ: كل جلسة أُنشئت قبل الموجات بلا انتماء
+    public function period()
+    {
+        return $this->belongsTo(SchedulingPeriod::class, 'period_id');
+    }
+
+    // حلقة النقاش — جلسات الحلقة صفوفٌ عادية تحمل معرّفها
+    public function circle()
+    {
+        return $this->belongsTo(DiscussionCircle::class, 'circle_id');
     }
 
     public function attendance()

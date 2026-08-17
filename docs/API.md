@@ -76,6 +76,7 @@
 | POST | `/candidates/{id}/reassess` | `candidate.edit` | دورة تقييم جديدة |
 | GET | `/candidates/{id}/history` | `audit.view` | سجل تدقيق المرشح |
 | GET | `/candidates/{id}/interviewers` | `schedule.manage` | مستشارو المقابلة المؤهّلون |
+| GET | `/candidates/{id}/assessors` | `schedule.manage` | المؤهّلون لنشاطٍ ومقعد — `?activity`، `?seat=evaluator\|assistant`، ومع `?periodId` (و`?date`) يعود النصاب والحمل |
 | GET | `/candidates/cards` | `candidate.view` | بطاقات المشاركين للطباعة |
 
 #### الترقيم والفرز — أربع قوائم
@@ -199,15 +200,45 @@
 ### الجدولة (Scheduling)
 | الطريقة | المسار | الصلاحية | الغرض |
 |---|---|---|---|
-| GET | `/schedules` | `schedule.view` | قائمة الجلسات (نافذة متدحرجة + سقف) |
+| GET | `/scheduling-periods` | `schedule.view` | موجات الجدولة — `?status`، `?openOnly=1` |
+| POST | `/scheduling-periods` | `schedule.manage` | إنشاء موجة (الاسم فريد) |
+| PUT | `/scheduling-periods/{id}` | `schedule.manage` | تعديل موجة (ما لم تُعتمد) |
+| DELETE | `/scheduling-periods/{id}` | `schedule.manage` | حذف موجة بلا جلسات |
+| GET | `/scheduling-periods/{id}/eligible` | `schedule.manage` | من يصلح للإدراج — `?activity`، `?seat` (بلا فتح `/users`) |
+| GET | `/scheduling-periods/{id}/assessors` | `schedule.view` | لوحة المقيّمين والمساعدين ونصابهم وحملهم |
+| PUT | `/scheduling-periods/{id}/assessors` | `schedule.manage` | حفظ اللوحة كاملةً (استبدال ذرّي) |
+| POST | `/scheduling-periods/{id}/submit` | `schedule.manage` | إرسال الجدولة لمدير المركز |
+| POST | `/scheduling-periods/{id}/approve` | `schedule.approve_center` | اعتماد الموجة |
+| POST | `/scheduling-periods/{id}/reject` | `schedule.approve_center` | إرجاعها مسودّةً بسبب (`reason` إلزامي) |
+| POST | `/scheduling-periods/{id}/close` | `schedule.manage` | إغلاق موجة معتمَدة |
+| GET | `/scheduling-periods/{id}/workflow` | `schedule.view` | خطوات سير العمل وحالة كلٍّ منها على الموجة + نسبة الإنجاز |
+| POST | `/scheduling-periods/{id}/workflow/{stepId}` | `schedule.manage` | تأشير خطوة يدوية — `status=done\|skipped\|pending`، و`note` إلزامية مع `skipped` |
+| GET | `/schedules` | `schedule.view` | قائمة الجلسات (نافذة متدحرجة + سقف) — `?periodId` يحصرها بموجة |
 | POST | `/schedules` | `schedule.manage` | جدولة جلسة |
 | PUT | `/schedules/{id}` | `schedule.manage` | تعديل (يُبطل الحضور عند تغيّر الموعد) |
 | DELETE | `/schedules/{id}` | `schedule.manage` | حذف (يُمنع بعد الحضور) |
+| GET | `/schedules/permits` | `schedule.view` | تصاريح دخول اليوم — `?date`، `?sectorId`، و`&showName=1` لحاملي `candidate.view_names` وحدهم |
 | GET | `/schedules/absences/{candidateId}` | `schedule.view` | جلسات غياب قابلة لإعادة الجدولة |
 | POST | `/schedules/{id}/reschedule` | `candidate.edit` | إعادة جدولة غياب (مرّة واحدة) |
+| GET | `/golden-schedule` | `schedule.view` | الجدول الذهبي — `?periodId` إلزامي، `?sectorId` |
+| POST | `/golden-schedule` | `schedule.manage` | صفّ يدوي (تاريخ + رمز + قطاع) — لا تمحوه المزامنة |
+| POST | `/golden-schedule/{id}/sync` | `schedule.manage` | ترحيل جلسات الموجة إلى الجدول (idempotent) |
+| DELETE | `/golden-schedule/{id}` | `schedule.manage` | حذف صفّ |
+| GET | `/golden-schedule/document` | `schedule.view` | المستند المطبوع (المتصفّح → PDF) |
+| GET | `/discussion-circles` | `schedule.view` | حلقات النقاش — `?date`، `?periodId`، `?sectorId` |
+| POST | `/discussion-circles` | `schedule.manage` | إنشاء حلقة (السعة من الإعدادات ما لم تُرسَل) |
+| PUT · DELETE | `/discussion-circles/{id}` | `schedule.manage` | تعديل (تتبعه جلساتها) / حذف حلقة فارغة |
+| POST | `/discussion-circles/{id}/attach` | `schedule.manage` | إسناد مشاركين — يُنشئ جلسات `discussion`، ويردّ ما تجاوز السعة في `skipped` |
+| DELETE | `/discussion-circles/{id}/detach` | `schedule.manage` | سحب مشارك (يُمنع بعد الحضور) |
 | GET | `/roster` | `schedule.view` | مجموعتا كشف اليوم (أ/ب) |
 | POST · DELETE | `/roster/assign` | `roster.manage` | إسناد/إلغاء إسناد مجموعة |
-| GET | `/roster/document` | `schedule.view` | كشف الحضور المطبوع — `?date`، و`&showNationalId=1` لحاملي `candidate.view_names` وحدهم |
+| GET | `/roster/document` | `schedule.view` | كشف الحضور المطبوع — `?date`، و`?sectorId` لغير المحصور بقطاع، و`&showNationalId=1` لحاملي `candidate.view_names` وحدهم |
+| GET | `/roster/sectors` | `schedule.view` | قطاعات اليوم وأعدادها — لفتح ملفٍّ لكل قطاع |
+| GET | `/dispatch/authorities` | `schedule.view` | الجهات المستلِمة والفئات التي تستقبلها |
+| GET | `/dispatch/preview` | `schedule.view` | ما سيُسلَّم لكل جهة — `?periodId` أو `?from`+`?to` |
+| POST | `/dispatch/send` | `schedule.dispatch` | إخراج ملفّ CSV وتسجيل التسليم ببصمة SHA-256 |
+| GET | `/dispatch/document` | `schedule.dispatch` | محضر تسليم للتوقيع — `?dispatchId` |
+| GET | `/dispatches` | `schedule.view` | سجلّ التسليمات |
 
 ### الحضور (Attendance)
 | الطريقة | المسار | الصلاحية | الغرض |
@@ -256,7 +287,9 @@
 ### التحليلات (Analytics)
 | الطريقة | المسار | الصلاحية | الغرض |
 |---|---|---|---|
-| GET | `/analytics/executive` | `analytics.executive` | **اللوحة التنفيذية الكاملة**: مؤشرات بفروقات، خريطة حرارية كفاءة×قطاع، اتجاهات، مقارنة قطاعات، مقارنة فئات قيادية، توزيع جاهزية، رؤى تلقائية. المُعامِل `?months` (٦ افتراضاً) |
+| GET | `/analytics/executive` | `analytics.executive` | **القيادة التنفيذية — المؤشرات**: مؤشرات بفروقات، خريطة حرارية كفاءة×قطاع، اتجاهات، مقارنة قطاعات، مقارنة فئات قيادية، توزيع جاهزية، رؤى تلقائية. المُعامِل `?months` (٦ افتراضاً) |
+| GET | `/analytics/executive/overview` | `analytics.executive` | **القيادة التنفيذية — نظرة شاملة**: ثلاثة عشر قسماً (المرشحون، الموجات، الجلسات، الاستقبال، الحضور، التقييم، القياس، التقارير، خطط التطوير، الكفاءات، طلبات التحديث، الفريق، التدقيق) بشكلٍ موحّد `{key,label,icon,route,metrics,bars}`. **الإعدادات خارجها عمداً** |
+| GET | `/analytics/executive/reports` | `analytics.executive` | **القيادة التنفيذية — التقارير**: مؤشرات السلسلة، خطّ الاعتماد، أطول انتظار في كل مرحلة، توزيع التوصيات، وأحدث التقارير **بالرمز لا بالاسم** (اطّلاع لا تحرير). المُعامِل `?limit` (٢٥ افتراضاً، ١٠٠ حدّاً) |
 | GET | `/analytics/dashboard` | `analytics.view` | نظرة موحّدة مختصرة |
 | GET | `/analytics/by-sector` | `analytics.view` | تجميع حسب القطاع |
 | GET | `/analytics/competency-gaps` | `analytics.view` | فجوات الكفاءات (الأضعف أولاً) |
@@ -322,6 +355,8 @@
 | PATCH | `/users/{id}/password` | `user.manage` | إعادة تعيين كلمة المرور |
 | GET | `/users/{id}/permissions` | `user.manage` | استثناءات المستخدم |
 | PUT | `/users/{id}/permissions` | `user.manage` | حفظ الاستثناءات (بسقف ثلاثي) |
+| GET | `/users/permission-catalog` | `user.manage` | الصلاحيات مجمّعةً بأسمائها العربية + `canGrant`/`canRevoke`/`lockedReason` — تقرأها شاشة الوصول الجماعي |
+| POST | `/users/bulk-permissions` | `user.manage` | **وصولٌ واحد على مجموعة موظفين**: `{userIds[], changes[{permission, action: grant\|revoke\|reset}], reason?}`. السقف الثلاثي نفسه؛ حسابُك وحاملُ `*` يُتخطّيان ويُعادان في `skipped`؛ الاستثناء المطابق للدور يُمحى صامتاً؛ كل حسابٍ متأثّر يُسجَّل في التدقيق وتُطرد جلساته |
 
 ### القوائم المرجعية (Reference) — مُصادَق، بلا صلاحية
 > يحتاجها كل من يملأ نموذجاً — ومنه المستخدم الخارجي: `sectorId` و`rankLabel` حقلان إلزاميان في إنشاء المرشّح.
@@ -348,6 +383,12 @@
 | GET · PUT | `/settings/distribution` | ضوابط التوزيع الأسبوعي |
 | GET · PUT | `/settings/tier` | حدود الفئات القيادية |
 | GET · PUT | `/settings/session-times` | أوقات جلسات اليوم (خيارات الحقل وأعمدة الكشف) |
+| GET | `/expertise-areas` | مجالات الخبرة — مرجعٌ للجميع، وغير الفعّالة لحاملي `settings.manage` |
+| POST · PUT · DELETE | `/expertise-areas` · `/expertise-areas/{id}` | إدارة المجالات (`settings.manage`) |
+| PUT | `/users/{id}/expertise` | وسم حساب بمجالاته — `areaIds[]` (`user.manage`) |
+| GET · POST | `/settings/scheduling-workflow` | خطوات سير عمل الجدولة — القراءة تكفيها `schedule.view`، والإضافة `settings.manage` |
+| PUT · DELETE | `/settings/scheduling-workflow/{id}` | تعديل/حذف خطوة (`settings.manage`) |
+| PUT | `/settings/scheduling-workflow/reorder` | إعادة الترتيب — `ids[]` كاملةً لا جزئية (`settings.manage`) |
 | GET | `/setup-status` | ما بقي من خطوات التهيئة على منصّة جديدة |
 | PUT | `/sectors/{id}/prefix` | بادئة رمز المشارك للقطاع |
 | POST · PUT · DELETE | `/sectors` · `/sectors/{id}` | إدارة القطاعات |
@@ -364,7 +405,30 @@
 | GET | `/audit/log` | السجل الموحّد — يحجب تفاصيل المرشحين المصنّفين عمّن لا يملك التصريح |
 | GET | `/candidates/{id}/history` | سجل مرشّح بعينه |
 
+### كشك الاستقبال (Kiosk) — بلا مصادقة، ١٢٠/دقيقة
+الجهاز اللوحي في بهو المركز. رمز اليوم في الرابط يفتحه مسؤول المرشحين، ثم بوّابة رقم الهوية داخل الشاشة — لا بيان قبلها. الرمز نطاقه يومٌ واحد وقابل للإبطال، ورمز الجلسة عمره ٥ دقائق ومربوط بالكشك والدورة معاً. يُعطَّل كلّياً بـ`features.reception_kiosk`.
+
+| الطريقة | المسار | الغرض |
+|---|---|---|
+| GET | `/kiosk/{token}` | حالة الكشك — جاهزيةٌ فقط، لا بيانات مرشحين |
+| POST | `/kiosk/{token}/identify` | بوّابة الهوية (٥ محاولات لكل رقم / ١٥ دقيقة) — تُرجع `accessToken` |
+| POST | `/kiosk/{token}/arrive` | تسجيل الوصول — يُنشئ نفس `ReceptionVisit` لكشف الاستقبال |
+| POST | `/kiosk/{token}/sign` | التوقيع والإقرار بصحّة البيانات (يشترط الوصول) |
+| POST | `/kiosk/{token}/badge` | أمر طباعة البطاقة إلى طابور المسؤول (يشترط التوقيع) |
+
+### كشك الاستقبال — جهة المسؤول
+| الطريقة | المسار | الصلاحية | الغرض |
+|---|---|---|---|
+| GET | `/reception/kiosks` | `reception.record` | كشوك اليوم الفعّالة بروابطها |
+| POST | `/reception/kiosks` | `reception.record` | إصدار رابط اليوم (`label` اختياري) |
+| DELETE | `/reception/kiosks/{id}` | `reception.record` | إبطال الرابط فوراً |
+| GET | `/reception/print-queue` | `reception.record` | البطاقات المطلوبة ولم تُطبع — `?date` |
+| POST | `/reception/visits/{id}/badge-printed` | `reception.record` | تعليم البطاقة مطبوعة |
+| POST | `/reception/visits/{id}/badge-reprint` | `reception.record` | إعادتها إلى الطابور |
+
 ### البوّابة العامة (Public Portal) — بلا مصادقة، ٢٠/دقيقة
+> **مُعطَّلة حتى إشعار آخر.** المسارات لا تُسجَّل ما لم يُشغَّل `features.candidate_portal` (وقرينه `candidatePortal` في `frontend/src/services/features.js`). الشيفرة والاختبارات باقية لإعادتها.
+
 | الطريقة | المسار | الغرض |
 |---|---|---|
 | POST | `/public/assessment/{token}/verify` | بوّابة العامل الثاني (رقم الهوية) — لا بيانات قبلها |

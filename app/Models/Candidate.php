@@ -14,9 +14,35 @@ class Candidate extends Model
     protected $fillable = [
         'participant_code', 'national_id_enc', 'national_id_hash',
         'full_name_enc', 'mobile_enc', 'email_enc',
-        'sector_id', 'rank_label', 'tier', 'assessment_type', 'status',
+        'sector_id', 'rank_label', 'personnel_category', 'tier', 'assessment_type', 'status',
         'classification',
     ];
+
+    // فئة المنسوب — صفةُ الشخص لا صفةُ قطاعه
+    public const CATEGORIES = ['civilian', 'military', 'contractor'];
+
+    // المتعاقد بلا قائمة رتب: مسمّاه الوظيفي حرّ وطبقته تُختار صراحةً
+    public const CATEGORY_CONTRACTOR = 'contractor';
+
+    public static function categoryLabel(string $category): string
+    {
+        return match ($category) {
+            'military' => 'عسكري',
+            'contractor' => 'متعاقد',
+            default => 'مدني',
+        };
+    }
+
+    // «الرتبة» للعسكري، و«المرتبة» للمدني، و«المسمّى الوظيفي» للمتعاقد —
+    // تسميةُ الحقل تتبع الفئة في كل رسالة خطأ وكل عمود مستورَد
+    public static function rankWord(string $category): string
+    {
+        return match ($category) {
+            'military' => 'الرتبة',
+            'contractor' => 'المسمّى الوظيفي',
+            default => 'المرتبة',
+        };
+    }
 
     protected $hidden = [
         'national_id_enc', 'national_id_hash', 'full_name_enc',
@@ -108,11 +134,29 @@ class Candidate extends Model
     public const DEFAULT_UPPER_RANKS = ['عميد', 'لواء', 'فريق', 'مشير'];
     public const DEFAULT_UPPER_GRADE = 13;
 
-    public static function classifyTier(string $rankLabel, bool $isMilitary): string
+    // الطبقة لأي فئة — نقطةٌ واحدة تستعملها كلُّ مسارات الكتابة (الإضافة
+    // والتعديل والاستيراد وطلب التحديث)، فلا يسهو مسارٌ عن حالة المتعاقد
+    public static function resolveTier(string $category, string $rankLabel, ?string $explicitTier): string
     {
+        if ($category === self::CATEGORY_CONTRACTOR) {
+            return in_array($explicitTier, ['upper', 'middle'], true) ? $explicitTier : 'middle';
+        }
+        return self::classifyTier($rankLabel, $category);
+    }
+
+    // الطبقة من الرتبة وفئةِ المرشّح. المتعاقد لا يمرّ من هنا: مسمّاه حرّ
+    // وطبقته تُختار صراحةً، فاستنتاجُها من نصٍّ حرّ تخمينٌ يُقيَّم به إنسان.
+    public static function classifyTier(string $rankLabel, string $category): string
+    {
+        if ($category === self::CATEGORY_CONTRACTOR) {
+            throw new \InvalidArgumentException('طبقة المتعاقد تُختار صراحةً لا تُستنتج');
+        }
+
+        $isMilitary = $category === 'military';
+
         // القائمة المُدارة (جدول ranks) أولاً: مطابقة صريحة تحسم الفئة.
         // غير المُدرَج يسقط للمنطق القديم (قائمة الإعدادات + عتبة المرتبة المدنية).
-        $managed = Rank::tierFor($rankLabel, $isMilitary);
+        $managed = Rank::tierFor($rankLabel, $category);
         if ($managed !== null) {
             return $managed;
         }

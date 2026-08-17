@@ -47,11 +47,53 @@ class RosterController extends Controller
     }
 
     // قطاع المستخدم إن كان محصوراً — يُمرَّر للخدمة لتحصر الكشف
-    private function sectorScope(Request $request): ?int
+    // القطاع الذي يُقرأ به الكشف.
+    //
+    // كان يشتقّه من المستخدم وحده، فمدير المركز غير المحصور لا يستطيع طلب قطاعٍ
+    // بعينه — والخطوة الثانية عشرة تطلب **ملفاً لكل قطاع على حدة**. صار الطلب
+    // مقبولاً من الحرّ، والمحصور يبقى مشدوداً لقطاعه مهما طلب: تضييقٌ لا توسيع.
+    private function sectorScope(Request $request, ?int $asked = null): ?int
     {
         $user = $request->user();
 
-        return $user->isSectorBound() ? $user->sector_id : null;
+        return $user->isSectorBound() ? $user->sector_id : $asked;
+    }
+
+    // GET /roster/sectors — قطاعات اليوم وأعدادها، لفتح ملفٍّ لكل قطاع
+    public function sectors(Request $request)
+    {
+        if (!$request->user()->hasPermission(Permissions::SCHEDULE_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض الجدولة'], 403);
+        }
+
+        $date = $this->date($request);
+        $query = \App\Models\Schedule::with('candidate.sector')->whereDate('schedule_date', $date);
+        $this->scopeViaCandidate($request, $query);
+        if ($bound = $this->sectorScope($request)) {
+            $query->whereHas('candidate', fn ($q) => $q->where('sector_id', $bound));
+        }
+
+        $counts = [];
+        foreach ($query->get() as $s) {
+            $c = $s->candidate;
+            if (!$c || !$c->sector_id) {
+                continue;
+            }
+            $key = $c->sector_id;
+            $counts[$key]['sectorId'] = $key;
+            $counts[$key]['sectorName'] = optional($c->sector)->name_ar;
+            $counts[$key]['candidates'][$c->id] = true;
+        }
+
+        // القطاع الخالي لا يُعرض: ملفٌّ فارغ يُفتح بلا سبب
+        $rows = array_values(array_map(fn ($r) => [
+            'sectorId' => $r['sectorId'],
+            'sectorName' => $r['sectorName'],
+            'count' => count($r['candidates']),
+        ], $counts));
+        usort($rows, fn ($x, $y) => strcmp((string) $x['sectorName'], (string) $y['sectorName']));
+
+        return response()->json(['date' => $date, 'sectors' => $rows]);
     }
 
     // GET /roster — مجموعات يومٍ بعينه (للشاشة)
@@ -178,10 +220,13 @@ class RosterController extends Controller
 
         $date = $this->date($request);
 
+        $asked = $request->integer('sectorId') ?: null;
+        $sectorId = $this->sectorScope($request, $asked);
+
         $data = $this->service->gather(
             $date,
             $this->allowedClassifications($request),
-            $this->sectorScope($request),
+            $sectorId,
             $showNationalId
         );
 
@@ -191,6 +236,7 @@ class RosterController extends Controller
             'rows' => count($data['rows']),
             'nationalId' => $showNationalId,
             'requested' => $wants,
+            'sector' => $sectorId,
         ]);
 
         return response($this->service->renderHtml($data), 200)

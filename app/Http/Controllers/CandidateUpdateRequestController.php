@@ -60,6 +60,10 @@ class CandidateUpdateRequestController extends Controller
             'email' => 'nullable|email',
             'sectorId' => 'required|exists:sectors,id',
             'rankLabel' => 'required|string|max:50',
+            'personnelCategory' => 'required|in:civilian,military,contractor',
+            // الطبقة لا تُفرض على المُرشِّح الخارجي: حكمٌ داخليّ يضبطه الموظّف
+            // عند الاعتماد. المتعاقد يدخل «وسطى» افتراضاً ويُصحَّح من الشاشة.
+            'tier' => 'nullable|in:upper,middle',
             'note' => 'nullable|string|max:500',
         ], [
             'nationalId.required' => 'أدخل رقم هوية المرشح',
@@ -134,6 +138,8 @@ class CandidateUpdateRequestController extends Controller
                         'sectorId' => $sector->id,
                         'sectorName' => $sector->name_ar,
                         'rankLabel' => $validated['rankLabel'],
+            'personnelCategory' => $validated['personnelCategory'],
+            'tier' => $validated['tier'] ?? null,
                     ],
                     'cv' => $cleanCv,
                 ],
@@ -325,7 +331,10 @@ class CandidateUpdateRequestController extends Controller
             $candidate->email = $identity['email'] ?? null;
             $candidate->sector_id = $sector->id;
             $candidate->rank_label = $identity['rankLabel'];
-            $candidate->tier = Candidate::classifyTier($identity['rankLabel'], $sector->is_military);
+            // الفئة تأتي مع الطلب؛ وطلبٌ قديم أُنشئ قبل العمود يُبقي فئة المرشّح
+            $category = $identity['personnelCategory'] ?? $candidate->personnel_category ?? 'civilian';
+            $candidate->personnel_category = $category;
+            $candidate->tier = Candidate::resolveTier($category, $identity['rankLabel'], $identity['tier'] ?? null);
             $candidate->save();
 
             $cv = CandidateCv::firstOrNew(['candidate_id' => $candidate->id]);
@@ -427,6 +436,7 @@ class CandidateUpdateRequestController extends Controller
                 'sectorId' => $candidate->sector_id,
                 'sectorName' => optional($candidate->sector)->name_ar,
                 'rankLabel' => $candidate->rank_label,
+                'personnelCategory' => $candidate->personnel_category,
             ],
             'cv' => $candidate->cv?->data ?? CandidateCv::emptyDoc(),
             'cvVersion' => $candidate->cv?->version ?? 0,
@@ -444,6 +454,7 @@ class CandidateUpdateRequestController extends Controller
             'email' => 'البريد الإلكتروني',
             'sectorName' => 'القطاع',
             'rankLabel' => 'الرتبة / المرتبة',
+            'personnelCategory' => 'الفئة',
             'birthDate' => 'تاريخ الميلاد',
             'appointmentDate' => 'تاريخ التعيين',
             'department' => 'الإدارة',

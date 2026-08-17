@@ -30,6 +30,14 @@ class Permissions
     const SCHEDULE_MANAGE = 'schedule.manage';
     // التوزيع الأسبوعي: اقتراح واعتماد — لمسؤول الجدولة (إدارة المرشحين)
     const DISTRIBUTION_MANAGE = 'schedule.distribute';
+    // اعتماد موجة الجدولة — لمدير المركز وحده، ولا تُمنح لمن يبنيها.
+    // فصلُ مهامٍ لا تسمية: قبلها كان الباني هو المعتمِد، فخطوة «إرسال الجدولة
+    // إلى مدير المركز للاعتماد» بلا معنى تقني. قابلة للتفويض بالاستثناء الفردي
+    // كي لا يقف الاعتماد بغيابه.
+    const SCHEDULE_APPROVE_CENTER = 'schedule.approve_center';
+    // تسليم الجدولة للجهة (وكالة الشؤون العسكرية / الموارد البشرية) — فعلٌ
+    // يخرج من المركز إلى خارجه، فصلاحيته مستقلّة عن بناء الجدول واعتماده.
+    const SCHEDULE_DISPATCH = 'schedule.dispatch';
 
     // إسناد مشاركي اليوم لمجموعتَي الكشف (أ/ب) — بها يتحدّد مَن يبدأ بالمقابلة
     // ومَن يبدأ بجلسة النقاش، فالمجموعتان تتبادلان الفترتين.
@@ -89,10 +97,10 @@ class Permissions
     const ANALYTICS_VIEW = 'analytics.view';
 
     // ── صلاحية مستقلّة لكل شاشة ──
-    // كانت خمس صلاحيات تحرس إحدى عشرة شاشة: من ملك «التحليلات» ملك اللوحة
+    // كانت خمس صلاحيات تحرس إحدى عشرة شاشة: من ملك «التحليلات» ملك القيادة
     // التنفيذية والتقرير اليومي معه، ومن ملك «التقارير» ملك خطط التطوير،
     // ومن ملك «الإعدادات» ملك سير العمل. فلم يكن يمكن منح شاشةٍ دون أختها.
-    const ANALYTICS_EXECUTIVE = 'analytics.executive';      // اللوحة التنفيذية
+    const ANALYTICS_EXECUTIVE = 'analytics.executive';      // القيادة التنفيذية للمركز
     const ANALYTICS_DAILY_REPORT = 'analytics.daily_report'; // التقرير اليومي
     const DEVELOPMENT_PLAN_VIEW = 'development_plan.view';   // خطط التطوير
     const CHAT_VIEW = 'chat.view';                           // المحادثات
@@ -121,6 +129,7 @@ class Permissions
                 self::CANDIDATE_JOURNEY, self::CANDIDATE_CV_VIEW, self::CANDIDATE_VIEW_CLASSIFIED,
                 self::CANDIDATE_EDIT, self::CANDIDATE_APPROVE,
                 self::SCHEDULE_VIEW, self::SCHEDULE_MANAGE, self::DISTRIBUTION_MANAGE, self::ROSTER_MANAGE,
+                self::SCHEDULE_APPROVE_CENTER, self::SCHEDULE_DISPATCH,
                 self::RECEPTION_VIEW, self::RECEPTION_ASSIGN, self::RECEPTION_APPROVE,
                 self::ATTENDANCE_VIEW, self::ATTENDANCE_RECORD_ANY,
                 self::EVALUATION_VIEW, self::EVALUATION_APPROVE,
@@ -132,6 +141,17 @@ class Permissions
                 self::COMPETENCY_VIEW, self::COMPETENCY_MANAGE,
                 self::SEND_INVITATION, self::CHAT_VIEW,
                 self::AUDIT_VIEW,
+                // ── القيادة التنفيذية للمركز: صلاحية مدير المركز وحده ──
+                // كانت تُمنح معه لمدير إدارة التقييم ولإدارة تطوير الكفاءات
+                // أيام كانت لوحةَ مؤشراتٍ للجاهزية. وقد صارت نظرةً شاملة على
+                // أبواب المنصّة كلها — الجدولة والاستقبال والحضور والفريق
+                // وسجل التدقيق — وتلك صورةُ المركز لا صورةُ إدارةٍ فيه. فمن
+                // يُسأل عن المركز أمام الجهة هو من يقرؤها.
+                //
+                // ولم يفقد الآخران شيئاً من عملهما: التحليلات العامّة والتقرير
+                // اليومي باقيان لهما، وفيهما أرقام إدارتهما. ولو أراد صاحب
+                // المنصّة إعادتها لأحدهما فمن شاشة «الأدوار والصلاحيات» بلا
+                // نشر — المصفوفة بذرةٌ لا قفل.
                 self::ANALYTICS_VIEW, self::ANALYTICS_EXECUTIVE, self::ANALYTICS_DAILY_REPORT,
             ],
 
@@ -175,14 +195,15 @@ class Permissions
                 self::RECEPTION_VIEW, self::RECEPTION_ASSIGN, self::RECEPTION_APPROVE,
             ],
 
-            // مدير إدارة التقييم — يكتب التقرير، ويعتمد المرحلة الثانية
+            // مدير إدارة التقييم — يكتب التقرير، ويعتمد المرحلة الثانية.
+            // بلا ANALYTICS_EXECUTIVE: انظر التعليق عند CENTER_MANAGER أدناه.
             'ASSESS_MANAGER' => [
                 self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_NAMES, self::CANDIDATE_VIEW_CLASSIFIED, self::CANDIDATE_JOURNEY, self::CANDIDATE_CV_VIEW, self::SCHEDULE_VIEW,
                 self::ATTENDANCE_VIEW, self::EVALUATION_VIEW, self::EVALUATION_APPROVE,
                 self::MEASUREMENT_VIEW, self::REPORT_VIEW, self::REPORT_CREATE,
                 self::REPORT_EDIT_ANY, self::REPORT_APPROVE_MANAGER,
                 self::REPORT_EXPORT, self::COMPETENCY_VIEW,
-                self::ANALYTICS_VIEW, self::ANALYTICS_EXECUTIVE, self::ANALYTICS_DAILY_REPORT,
+                self::ANALYTICS_VIEW, self::ANALYTICS_DAILY_REPORT,
                 self::DEVELOPMENT_PLAN_VIEW, self::CHAT_VIEW,
             ],
 
@@ -214,12 +235,13 @@ class Permissions
                 self::DEVELOPMENT_PLAN_VIEW, self::CHAT_VIEW,
             ],
 
-            // إدارة تطوير الكفاءات — الاعتماد النهائي
+            // إدارة تطوير الكفاءات — الاعتماد النهائي.
+            // بلا ANALYTICS_EXECUTIVE: انظر التعليق عند CENTER_MANAGER أعلاه.
             'DEV_MANAGER' => [
                 self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_CLASSIFIED, self::CANDIDATE_JOURNEY, self::CANDIDATE_CV_VIEW, self::EVALUATION_VIEW, self::MEASUREMENT_VIEW,
                 self::REPORT_VIEW, self::REPORT_APPROVE,
                 self::REPORT_EXPORT, self::COMPETENCY_VIEW, self::COMPETENCY_MANAGE,
-                self::ANALYTICS_VIEW, self::ANALYTICS_EXECUTIVE, self::ANALYTICS_DAILY_REPORT,
+                self::ANALYTICS_VIEW, self::ANALYTICS_DAILY_REPORT,
                 self::DEVELOPMENT_PLAN_VIEW, self::CHAT_VIEW,
             ],
 
@@ -290,6 +312,8 @@ class Permissions
         'schedule.view' => 'عرض الجدول',
         'schedule.manage' => 'إدارة الجدولة',
         'schedule.distribute' => 'التوزيع الأسبوعي',
+        'schedule.approve_center' => 'اعتماد موجة الجدولة (مدير المركز)',
+        'schedule.dispatch' => 'تسليم الجدولة للجهات',
         'roster.manage' => 'إسناد مجموعات كشف اليوم',
         // استقبال الموظفين
         'reception.view' => 'فتح شاشة استقبال الموظفين',
@@ -332,7 +356,7 @@ class Permissions
         'chat.view' => 'المحادثات',
         // التحليلات
         'analytics.view' => 'شاشة التحليلات',
-        'analytics.executive' => 'اللوحة التنفيذية',
+        'analytics.executive' => 'القيادة التنفيذية للمركز',
         'analytics.daily_report' => 'التقرير اليومي',
         // سلطات النظام
         'workflow.manage' => 'ضبط مراحل الاعتماد',

@@ -37,12 +37,19 @@ class PlatformReset extends Command
         // إلى افتراضي المصفوفة، فيمحو ضبطاً اختاره صاحب المنصّة بيده.
         'role_permissions',
         'workflow_stages',   // سلسلة اعتماد التقرير
+        // خطوات إجراء الجدولة — إعدادٌ ضبطه صاحب المنصّة، وبذرُه في الهجرة لا
+        // في بذرةٍ تُعاد: مسحُه يترك المنصّة بلا إجراءٍ تُقاس عليه الموجات، ولا
+        // سبيل لاستعادته إلا بإعادة الهجرة.
+        'scheduling_workflow_steps',
         'settings',          // قوالب الرسائل وأوقات الجلسات
     ];
 
     /** مرجعيات يُدخلها الموظفون بأنفسهم — تُمسح مع --with-reference فقط */
     private const REFERENCE = [
         'sectors',
+        'dispatch_authorities',
+        'expertise_areas',
+        'user_expertise',
         'competencies',
         'ranks',
         'activity_competency',
@@ -59,20 +66,30 @@ class PlatformReset extends Command
         'chat_messages',
         'chat_threads',
         'development_plan_items',
+        'discussion_circles',        // تُفرَّغ مع الجلسات — TRUNCATE … CASCADE يتكفّل بالترتيب
         'distribution_items',
         'distribution_proposals',
         'email_logs',
         'evaluation_scores',
         'evaluations',
         'final_reports',
+        'golden_schedule_entries',
         'identity_verifications',
         'measurement_results',
         'notifications',
         'participant_code_counters', // وإلا بدأ ترقيم المشاركين الحقيقي من رقم التجارب
+        'period_assessors',          // لوحات موجات التجربة — تُفرَّغ قبل الموجات نفسها
+        'period_step_progress',      // تأشير خطوات موجات التجربة (التعريف نفسه إعدادٌ يبقى)
         'reception_assignments',
         'reception_visits',          // يحمل تواقيع المرشحين — لا يبقى بعد التفريغ
+        // بعد الزيارات: الزيارة تشير إلى الكشك، فحذفُه أولاً يكسر المفتاح.
+        // ورموز كشك التجربة لا تبقى على منصّةٍ صُفِّرت للإنتاج — كلٌّ منها
+        // بابُ تسجيلِ وصولٍ وتوقيعٍ بلا مصادقة.
+        'reception_kiosks',
         'roster_groups',
+        'schedule_dispatches',      // سجلّات تسليمٍ تجريبية (الجهات نفسها مرجعٌ يبقى)
         'schedules',
+        'scheduling_periods',        // بعد الجلسات: الجلسة تفقد انتماءها لا وجودها
         'sms_logs',
         'user_permission_overrides',
     ];

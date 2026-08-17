@@ -85,7 +85,7 @@ class SetupStatusTest extends TestCase
     {
         $admin = $this->admin();
         $this->emptyPlatform($admin);
-        Sector::create(['code' => 'TS', 'name_ar' => 'قطاع', 'is_military' => false]);
+        Sector::create(['code' => 'TS', 'name_ar' => 'قطاع']);
 
         $res = $this->actingAs($admin)->getJson('/api/setup-status');
 
@@ -144,7 +144,7 @@ class SetupStatusTest extends TestCase
 
     private function seedRequiredSteps(): void
     {
-        $sector = Sector::create(['code' => 'TS', 'name_ar' => 'قطاع', 'is_military' => false]);
+        $sector = Sector::create(['code' => 'TS', 'name_ar' => 'قطاع']);
         DB::table('ranks')->insert([
             'label' => 'عميد', 'category' => 'military', 'tier' => 'upper',
             'created_at' => now(), 'updated_at' => now(),

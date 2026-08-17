@@ -54,7 +54,7 @@ class LoadTestPrepare extends Command
     {
         $sector = Sector::updateOrCreate(
             ['code' => self::SECTOR_CODE],
-            ['name_ar' => 'اختبار الحمل', 'is_military' => false, 'participant_prefix' => 'LT']
+            ['name_ar' => 'اختبار الحمل', 'participant_prefix' => 'LT']
         );
 
         $readers = $this->makeUsers('SCHEDULER', (int) $this->option('readers'), 'r');
