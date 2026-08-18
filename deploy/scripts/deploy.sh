@@ -18,8 +18,15 @@ APP_DIR=/srv/kafaat
 RELEASES="$APP_DIR/releases"
 SHARED="$APP_DIR/shared"
 CURRENT="$APP_DIR/current"
-REPO="${KAFAAT_REPO:-git@github.com:azzamalmutairi25/backend.git}"
-FRONTEND_REPO="${KAFAAT_FRONTEND_REPO:-git@github.com:azzamalmutairi25/kafaat-frontend.git}"
+# HTTPS لا SSH: منفذ ٢٢ إلى github.com محجوب من الشبكة الداخلية، والافتراضي
+# الذي لا يعمل يُظهر عطلاً يبدو شبكياً ويُبحث في المكان الخطأ.
+REPO="${KAFAAT_REPO:-https://github.com/azzamalmutairi25/backend.git}"
+FRONTEND_REPO="${KAFAAT_FRONTEND_REPO:-https://github.com/azzamalmutairi25/kafaat-frontend.git}"
+# حزمة واجهة مبنيّة مسبقاً — بديلٌ عن الاستنساخ والبناء على الخادم.
+# سببه أنّ الخادم المُقدِّم لا يحمل node ولا npm (وهو الصواب: أدوات البناء لا
+# تُنصَّب في الإنتاج)، ومستودع الواجهة خاصٌّ فيلزم استنساخه رمزَ وصول.
+# تُبنى الحزمة على جهاز التطوير ثم تُنسخ، فيبقى النشر بلا أدوات بناء ولا أسرار.
+FRONTEND_DIST="${KAFAAT_FRONTEND_DIST:-}"
 BRANCH="${KAFAAT_BRANCH:-Production}"
 KEEP=5
 PHP=/usr/bin/php
@@ -93,15 +100,23 @@ run "cd '$NEW' && composer install --no-dev --prefer-dist --no-interaction \
 # حزمتان: المنصّة الداخلية (index.html) وبوّابة المشارك (public.html).
 # تُبنيان هنا لا على الخادم المُقدِّم: أدوات البناء لا تُنصَّب في الإنتاج.
 FE="$NEW/.frontend"
-run "git clone --depth 1 --branch '${KAFAAT_FRONTEND_BRANCH:-$BRANCH}' '$FRONTEND_REPO' '$FE'"
-run "cd '$FE' && npm ci --no-audit --no-fund"
-# VITE_API_URL فارغ ⇒ المسار النسبي /api ⇒ نفس الأصل ⇒ لا CORS
-run "cd '$FE' && VITE_API_URL= npm run build"
-run "cp -r '$FE/dist/.' '$NEW/public/'"
+if [[ -n "$FRONTEND_DIST" ]]; then
+  [[ -f "$FRONTEND_DIST/index.html" ]] || die "لا توجد حزمة واجهة في $FRONTEND_DIST"
+  log "حزمة واجهة مبنيّة مسبقاً: $FRONTEND_DIST"
+  run "cp -r '$FRONTEND_DIST/.' '$NEW/public/'"
+else
+  command -v npm >/dev/null || die "npm غير موجود — ابنِ الواجهة محلياً ومرّرها بـKAFAAT_FRONTEND_DIST"
+  run "git clone --depth 1 --branch '${KAFAAT_FRONTEND_BRANCH:-$BRANCH}' '$FRONTEND_REPO' '$FE'"
+  run "cd '$FE' && npm ci --no-audit --no-fund"
+  # VITE_API_URL فارغ ⇒ المسار النسبي /api ⇒ نفس الأصل ⇒ لا CORS
+  run "cd '$FE' && VITE_API_URL= npm run build"
+  run "cp -r '$FE/dist/.' '$NEW/public/'"
+fi
 # بوّابة المشارك مُعطَّلة حتى إشعار آخر — لا تُبنى ولا تُنسَخ إلى portal-dist.
 # KAFAAT_PORTAL=1 يعيدها، ولا بدّ معها من CANDIDATE_PORTAL_ENABLED=true في .env
 # وcandidatePortal:true في features.js — وإلا نُشرت حزمةٌ تصطدم بمساراتٍ مغلقة.
 if [[ ${KAFAAT_PORTAL:-0} == 1 ]]; then
+  [[ -z "$FRONTEND_DIST" ]] || die "حزمة البوّابة لا تأتي مع KAFAAT_FRONTEND_DIST — ابنِها ومرّرها بـKAFAAT_PORTAL_DIST"
   run "cd '$FE' && VITE_API_URL= npm run build:public"
   run "mkdir -p '$NEW/portal-dist' && cp -r '$FE/dist-public/.' '$NEW/portal-dist/'"
 fi
@@ -131,7 +146,13 @@ run "cd '$NEW' && $PHP artisan event:cache"
 run "cd '$NEW' && $PHP artisan about --only=environment >/dev/null"
 run "cd '$NEW' && $PHP -r 'require \"vendor/autoload.php\"; \$app = require \"bootstrap/app.php\"; exit(0);'"
 [[ -f "$NEW/public/index.html" ]] || [[ $DRY == 1 ]] || die "حزمة الواجهة لم تُبنَ"
-[[ -f "$NEW/portal-dist/public.html" ]] || [[ $DRY == 1 ]] || die "حزمة البوّابة لم تُبنَ"
+# البوّابة تُفحص إن بُنيت وحدها: بناؤها مشروطٌ بـKAFAAT_PORTAL أعلاه، وكان
+# الفحص هنا بلا شرط — فكلّ نشرٍ عادي يموت عند هذه الخطوة. والأسوأ أن
+# `--dry-run` كان يمرّ بمهرب `$DRY`، فيُعطي ثقةً كاذبة ثم يسقط النشر الحقيقي
+# **بعد** تنفيذ الهجرات وقبل التبديل.
+if [[ ${KAFAAT_PORTAL:-0} == 1 ]]; then
+  [[ -f "$NEW/portal-dist/public.html" ]] || [[ $DRY == 1 ]] || die "حزمة البوّابة لم تُبنَ"
+fi
 
 run "chmod -R g+w '$NEW/bootstrap/cache'"
 
