@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// تأكيد المرشح + تسجيل الوصول الذاتي عبر رابط فريد في الرسالة النصية
+// تأكيد المشارك + تسجيل الوصول الذاتي عبر رابط فريد في الرسالة النصية
 return new class extends Migration
 {
     public function up(): void

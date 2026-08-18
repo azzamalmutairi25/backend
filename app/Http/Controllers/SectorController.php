@@ -16,16 +16,30 @@ class SectorController extends Controller
         // البادئة إعداد إداري — تُعرض لمن يدير الإعدادات فقط
         $canManage = $request->user()->hasPermission(Permissions::SETTINGS_MANAGE);
 
-        $sectors = Sector::orderBy('name_ar')->get()->map(function ($s) use ($canManage) {
+        // عدد المرتبطين بكل قطاع — استعلامان مجمَّعان لا استعلام لكل صف.
+        // يُحسبان لمدير الإعدادات وحده: بهما يَعرف أيّ قطاع يُحذف وأيّه محمي،
+        // وهما رقمان يكشفان حجم كل قطاع فلا يُعرضان لغيره.
+        $linked = [];
+        if ($canManage) {
+            $cands = Candidate::selectRaw('sector_id, count(*) c')->groupBy('sector_id')->pluck('c', 'sector_id');
+            $users = User::whereNotNull('sector_id')->selectRaw('sector_id, count(*) c')->groupBy('sector_id')->pluck('c', 'sector_id');
+            $linked = ['candidates' => $cands, 'users' => $users];
+        }
+
+        $sectors = Sector::orderBy('name_ar')->get()->map(function ($s) use ($canManage, $linked) {
             $row = [
                 'id' => $s->id,
                 'code' => $s->code,
                 'nameAr' => $s->name_ar,
-                'isMilitary' => $s->is_military,
+                // الاسم الرسمي الكامل («المديرية العامة للجوازات») — تكتبه
+                // المخاطبات والتقارير، والمعروض في الشاشات مختصرُه
+                'fullNameAr' => $s->full_name_ar,
             ];
             // البادئة تُعرض لمدير الإعدادات فقط — المفتاح غائب لسواه لا فارغ
             if ($canManage) {
                 $row['participantPrefix'] = $s->participant_prefix ?: strtoupper(substr($s->code, 0, 2));
+                $row['candidateCount'] = (int) ($linked['candidates'][$s->id] ?? 0);
+                $row['userCount'] = (int) ($linked['users'][$s->id] ?? 0);
             }
             return $row;
         });
@@ -86,7 +100,7 @@ class SectorController extends Controller
         $validated = $request->validate([
             'code' => ['required', 'string', 'regex:/^[A-Za-z0-9]{2,10}$/', 'unique:sectors,code'],
             'nameAr' => 'required|string|max:100',
-            'isMilitary' => 'boolean',
+            'fullNameAr' => 'nullable|string|max:200',
             'participantPrefix' => ['nullable', 'string', 'regex:/^[A-Za-z0-9]{2,4}$/'],
         ], [
             'code.regex' => 'الرمز حرفان إلى عشرة، لاتيني أو أرقام',
@@ -105,7 +119,7 @@ class SectorController extends Controller
         $sector = Sector::create([
             'code' => $code,
             'name_ar' => $validated['nameAr'],
-            'is_military' => $request->boolean('isMilitary'),
+            'full_name_ar' => $validated['fullNameAr'] ?? null,
             'participant_prefix' => $prefix,
         ]);
 
@@ -114,7 +128,7 @@ class SectorController extends Controller
         return response()->json(['message' => 'تمت إضافة القطاع', 'sectorId' => $sector->id], 201);
     }
 
-    // PUT /sectors/{id} — تعديل الاسم/التصنيف العسكري (الرمز ثابت: هويّة القطاع)
+    // PUT /sectors/{id} — تعديل الاسم (الرمز ثابت: هويّة القطاع)
     public function update(Request $request, int $id)
     {
         if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
@@ -128,14 +142,16 @@ class SectorController extends Controller
 
         $validated = $request->validate([
             'nameAr' => 'required|string|max:100',
-            'isMilitary' => 'boolean',
+            'fullNameAr' => 'nullable|string|max:200',
         ]);
 
         // الرمز والبادئة لا يُعدَّلان هنا: رمز المشارك مُثبَّت على دورته، وتغيير الرمز
         // يُيتّم المرجعية (البادئة تُعدَّل عبر updatePrefix بحارسها الخاص).
+        // الاسم الرسمي يُحدَّث إن أُرسل فقط — غيابُه من طلبٍ قديم لا يمحوه.
         $sector->update([
             'name_ar' => $validated['nameAr'],
-            'is_military' => $request->boolean('isMilitary', $sector->is_military),
+            'full_name_ar' => $request->exists('fullNameAr')
+                ? ($validated['fullNameAr'] ?: null) : $sector->full_name_ar,
         ]);
 
         $this->audit($request, 'UPDATE_SECTOR', $sector);
@@ -143,7 +159,7 @@ class SectorController extends Controller
         return response()->json(['message' => 'تم تحديث القطاع']);
     }
 
-    // DELETE /sectors/{id} — حذف قطاع (يُمنع إن ارتبط بمرشحين أو مستخدمين)
+    // DELETE /sectors/{id} — حذف قطاع (يُمنع إن ارتبط بمشاركين أو مستخدمين)
     public function destroy(Request $request, int $id)
     {
         if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
@@ -155,9 +171,9 @@ class SectorController extends Controller
             return response()->json(['error' => 'القطاع غير موجود'], 404);
         }
 
-        // حذف قطاع مرتبط يُيتّم مرشحيه/مستخدميه — يُمنع بدل كسر المرجعية
+        // حذف قطاع مرتبط يُيتّم مشاركيه/مستخدميه — يُمنع بدل كسر المرجعية
         if (Candidate::where('sector_id', $id)->exists() || User::where('sector_id', $id)->exists()) {
-            return response()->json(['error' => 'لا يمكن حذف قطاع مرتبط بمرشحين أو مستخدمين'], 422);
+            return response()->json(['error' => 'لا يمكن حذف قطاع مرتبط بمشاركين أو مستخدمين'], 422);
         }
 
         $code = $sector->code;

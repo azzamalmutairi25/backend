@@ -77,7 +77,60 @@ class DashboardService
             'weekHeatmap' => $can['analytics'] ? $this->weekHeatmap($scope) : null,
             'todaySchedule' => $can['schedule'] ? $this->todaySchedule($scope, $now) : null,
             'insights' => $can['analytics'] ? $this->insights($scope) : null,
+            'funnel' => $can['candidate'] ? $this->funnel($scope) : null,
         ];
+    }
+
+    // ═══════════════ مسار المشارك ═══════════════
+    // ست مراحل يمرّ بها كلّ مشارك من ترشيحه إلى اعتماد تقريره. اللوحة كانت
+    // تعرض المجاميع منفصلةً — كم مشاركاً، كم تقييماً، كم اعتماداً — ولا تُظهر
+    // أين يتوقّف الناس. المسار يُظهر الفاقد بين كلّ مرحلتين، وهو السؤال
+    // التشغيلي الوحيد الذي تُسأله الإدارة كلّ أسبوع.
+    //
+    // العدّ تراكميّ: «بلغ المرحلة» لا «هو فيها الآن». الحالة قيمة واحدة في
+    // العمود، فبلوغُ «قُيِّم» يُقاس برتبة الحالة لا بمساواتها — وإلا ظهر
+    // المعتمَدون خارج مرحلة التقييم التي مرّوا بها فعلاً.
+    //
+    // استعلام واحد بتجميعات شرطية لا ستّة: الجدول يُمسح مرّة واحدة.
+    private const STATUS_RANK = ['draft' => 0, 'scheduled' => 1, 'assessed' => 2, 'approved' => 3, 'completed' => 4];
+
+    private function funnel(array $scope): array
+    {
+        // لا مغلّف assessments لدى نداءٍ قديم لم يُحدَّث — لا نُسقط اللوحة كلّها
+        if (!isset($scope['assessments'])) return ['stages' => []];
+
+        // الحالات التي تعني «بلغ هذه الرتبة أو تجاوزها»
+        $atLeast = fn (int $rank) => array_keys(array_filter(self::STATUS_RANK, fn ($r) => $r >= $rank));
+        // `= ANY(?)` لا يقبل مصفوفة PHP عبر PDO — نبني علامات الاستفهام بعددها.
+        // القيم من ثابتٍ في الصنف لا من الطلب، والربط هنا انضباطٌ لا حاجة.
+        $marks = fn (array $v) => implode(',', array_fill(0, count($v), '?'));
+
+        [$s1, $s2, $s3] = [$atLeast(1), $atLeast(2), $atLeast(3)];
+
+        $row = $scope['assessments']()
+            ->selectRaw('COUNT(*) AS nominated')
+            ->selectRaw("COUNT(*) FILTER (WHERE status IN ({$marks($s1)})) AS scheduled", $s1)
+            ->selectRaw('COUNT(*) FILTER (WHERE confirmed_at IS NOT NULL) AS confirmed')
+            ->selectRaw('COUNT(*) FILTER (WHERE arrived_at IS NOT NULL) AS arrived')
+            ->selectRaw("COUNT(*) FILTER (WHERE status IN ({$marks($s2)})) AS assessed", $s2)
+            ->selectRaw("COUNT(*) FILTER (WHERE status IN ({$marks($s3)})) AS approved", $s3)
+            ->first();
+
+        $labels = [
+            'nominated' => 'مُرشَّح',
+            'scheduled' => 'مجدول',
+            'confirmed' => 'أكّد بياناته',
+            'arrived' => 'حضر',
+            'assessed' => 'قُيِّم',
+            'approved' => 'اعتُمد تقريره',
+        ];
+
+        $stages = [];
+        foreach ($labels as $key => $label) {
+            $stages[] = ['key' => $key, 'label' => $label, 'count' => (int) ($row->$key ?? 0)];
+        }
+
+        return ['stages' => $stages];
     }
 
     // ═══════════════ المؤشرات الرئيسية ═══════════════
@@ -93,7 +146,7 @@ class DashboardService
         $p1 = $now->copy()->subDays(30);   // الفترة الحالية: آخر ٣٠ يوماً
         $p2 = $now->copy()->subDays(60);   // الفترة السابقة: ٣٠ يوماً قبلها
 
-        // ── المرشحون + نسبة الإتمام (candidate.view) ──
+        // ── المشاركون + نسبة الإتمام (candidate.view) ──
         if ($can['candidate']) {
             $cand = $scope['candidates'];
 
@@ -105,10 +158,11 @@ class DashboardService
                     $cand()->where('created_at', '>=', $p1)->count(),
                     $cand()->whereBetween('created_at', [$p2, $p1])->count()
                 ),
+                'spark' => $this->spark($cand, 'created_at', $now),
             ];
 
             $completed = $cand()->where('status', 'completed')->count();
-            // بلا مرشحين أصلاً النسبة مجهولة لا صفر
+            // بلا مشاركين أصلاً النسبة مجهولة لا صفر
             $rate = $total > 0 ? (int) round($completed / $total * 100) : null;
 
             $currTotal = $cand()->where('created_at', '>=', $p1)->count();
@@ -132,7 +186,7 @@ class DashboardService
             $todayAgg = $this->attendanceAgg(
                 $scope['schedules']()->whereDate('schedule_date', $today)
             );
-            // يومٌ بلا جلسات نسبتُه مجهولة لا صفر — كالإكمال بلا مرشحين أعلاه.
+            // يومٌ بلا جلسات نسبتُه مجهولة لا صفر — كالإكمال بلا مشاركين أعلاه.
             // الصفر هنا كان يُقرأ «لم يحضر أحد»، فيصير كلُّ يوم عطلة إنذارَ
             // انهيارِ حضورٍ أحمر (٠٪ مقابل ٩٢٪ للأسبوع = ▼١٠٠٪) بلا واقعة.
             $todayRate = $todayAgg['total'] > 0
@@ -162,6 +216,7 @@ class DashboardService
                     $ev()->where('submitted_at', '>=', $p1)->count(),
                     $ev()->whereBetween('submitted_at', [$p2, $p1])->count()
                 ),
+                'spark' => $this->spark($ev, 'submitted_at', $now),
             ];
         }
 
@@ -177,6 +232,7 @@ class DashboardService
                     $approved()->where('updated_at', '>=', $p1)->count(),
                     $approved()->whereBetween('updated_at', [$p2, $p1])->count()
                 ),
+                'spark' => $this->spark($approved, 'updated_at', $now),
             ];
 
             // «معلّق» = السلسلة كاملة لا مرحلتها الأخيرة (يطابق ReportController::stats)
@@ -192,10 +248,47 @@ class DashboardService
                     0,
                     true
                 ),
+                'spark' => $this->spark($pending, 'updated_at', $now),
+                // عمر أقدم تقرير في الطابور — الرقم يقول «كم ينتظر»،
+                // وهذا يقول «منذ متى ينتظر أطولُهم». الثاني هو ما يُقاس عليه
+                // الالتزام، فطابورٌ من ثلاثة أقدمُها شهرٌ أسوأ من عشرةٍ عمرُها يوم.
+                // diffInDays في Carbon 3 موقَّعة، والأقدم في الماضي فتخرج سالبة —
+                // abs() تُعيدها عمراً كما تُقرأ
+                'oldestDays' => ($oldest = $pending()->min('created_at'))
+                    ? (int) abs($now->copy()->startOfDay()->diffInDays(
+                        \Illuminate\Support\Carbon::parse($oldest)->startOfDay()
+                    ))
+                    : null,
             ];
         }
 
         return $out;
+    }
+
+    /**
+     * سلسلة ثمانية أسابيع لخطّ الاتجاه المصغّر داخل بطاقة المؤشّر.
+     *
+     * الرقم وحده يقول «كم»، والفرق يقول «مقارنةً بماذا»، ولا يقول أحدهما
+     * «كيف وصلنا». صعودٌ مطّرد وقفزةٌ في أسبوعٍ واحد يعطيان الفرق نفسه
+     * ويعنيان شيئين مختلفين تماماً.
+     *
+     * استعلامٌ واحد مجمَّع لكل مؤشّر (لا ثمانية)، والأسابيع الفارغة تُملأ
+     * بصفر حتى لا يقفز الخطّ فوق فجوةٍ فيبدو اتصالاً.
+     */
+    private function spark(callable $q, string $column, $now): array
+    {
+        $since = $now->copy()->startOfWeek()->subWeeks(7);
+
+        $rows = $q()
+            ->whereNotNull($column)
+            ->where($column, '>=', $since)
+            ->selectRaw("to_char(date_trunc('week', {$column}), 'YYYY-MM-DD') wk, count(*) c")
+            ->groupBy('wk')->pluck('c', 'wk');
+
+        return array_map(function (int $i) use ($since, $rows) {
+            $key = $since->copy()->addWeeks($i)->toDateString();
+            return (int) ($rows[$key] ?? 0);
+        }, range(0, 7));
     }
 
     // ═══════════════ الجاهزية: الربع الحالي مقابل السابق (بالنقاط) ═══════════════
@@ -276,7 +369,7 @@ class DashboardService
             ->join('evaluations as e', 'es.evaluation_id', '=', 'e.id')
             ->join('candidates as c', 'e.candidate_id', '=', 'c.id')
             // حصرٌ مزدوج مقصود: النطاق الجاهز من المتحكّم، وفوقه التصنيف/القطاع صراحةً
-            // على جدول المرشحين — فلا يتسرّب صفٌّ لو تغيّرت دلالة المغلّف يوماً.
+            // على جدول المشاركين — فلا يتسرّب صفٌّ لو تغيّرت دلالة المغلّف يوماً.
             ->whereIn('e.id', $scope['evaluations']()->select('id'))
             ->whereIn('c.classification', $scope['classifications'])
             ->when($scope['sectorId'] !== null, fn ($q) => $q->where('c.sector_id', $scope['sectorId']))

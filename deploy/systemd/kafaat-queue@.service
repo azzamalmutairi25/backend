@@ -1,0 +1,58 @@
+# ════════════════════════════════════════════════════════════
+#  عامل طابور — /etc/systemd/system/kafaat-queue@.service
+#
+#  وحدة قالبية: شغّل عدّة نسخ بأرقام.
+#      systemctl enable --now kafaat-queue@1 kafaat-queue@2
+#
+#  لماذا الطابور أصلاً؟ SendSmsJob مُصمَّم لـShouldQueue، ومع QUEUE=sync
+#  يُنفَّذ داخل دورة الطلب: كل ترشيح مشارك ينتظر بوّابة الرسائل (قد تتأخّر
+#  عشر ثوانٍ أو تسقط) قبل أن يرى المستخدم نتيجة الحفظ. عاملان يكفيان
+#  لهذا الحمل — الرسائل قليلة ومتقطّعة.
+# ════════════════════════════════════════════════════════════
+
+[Unit]
+Description=عامل طابور كفاءات %i
+After=network.target redis-server.service
+Requires=redis-server.service
+
+[Service]
+Type=simple
+User=kafaat
+Group=kafaat
+WorkingDirectory=/srv/kafaat/current
+
+# --max-time=3600: يخرج العامل كل ساعة ويعيده systemd. يقطع أي تسريب ذاكرة
+#   تراكمي في عملية طويلة العمر.
+# --tries=3 مع backoff المعرَّف في الصنف [60, 300].
+# --sleep=3: لا يستنزف Redis حين يخلو الطابور.
+ExecStart=/usr/bin/php /srv/kafaat/current/artisan queue:work redis \
+    --queue=default \
+    --sleep=3 \
+    --tries=3 \
+    --max-time=3600 \
+    --max-jobs=1000 \
+    --timeout=90
+
+# إشارة لطيفة تُنهي المهمة الجارية قبل الخروج — لا رسالة تُقطع في منتصفها
+KillSignal=SIGTERM
+TimeoutStopSec=120
+
+Restart=always
+RestartSec=3
+StartLimitIntervalSec=0
+
+StandardOutput=append:/var/log/kafaat/queue.log
+StandardError=append:/var/log/kafaat/queue.log
+
+# ── تقييد العملية ──
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/kafaat/shared /var/log/kafaat
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

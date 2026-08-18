@@ -29,7 +29,7 @@ class DailyReportService
             ? $q
             : $q->whereIn('classification', $allowedClassifications);
 
-        // جلسات اليوم + حضورها ومرشحوها — استعلام واحد
+        // جلسات اليوم + حضورها ومشاركوها — استعلام واحد
         $sessions = Schedule::with(['candidate.sector', 'attendance', 'evaluator'])
             ->whereDate('schedule_date', $date)
             ->when($allowedClassifications !== null, fn ($q) => $q->whereHas('candidate', $scope))
@@ -130,6 +130,7 @@ class DailyReportService
  th,td { text-align:right; padding:7px 10px; border-bottom:1px solid #e8ece9; }
  th { color:#5b6a62; font-size:12px; background:#f6f8f6; }
  .muted { color:#8a978f; text-align:center; padding:12px; }
+ .rights { margin-top:18px; padding-top:10px; border-top:1px solid #e8ece9; text-align:center; font-size:10px; color:#8a978f; }
  @media print { body{ background:#fff; } .sheet{ box-shadow:none; margin:0; max-width:none; } .print-bar{ display:none; } @page{ margin:14mm; } }
 </style></head><body>
 <div class="print-bar"><button onclick="window.print()">طباعة / حفظ PDF</button></div>
@@ -156,6 +157,7 @@ class DailyReportService
 
  <h2>حالة التقارير</h2>
  <table><thead><tr><th>الرمز</th><th>القطاع</th><th>الحالة</th></tr></thead><tbody>{$repRows}</tbody></table>
+ <div class="rights">جميع الحقوق محفوظة © إدارة تقنية المعلومات والذكاء الاصطناعي</div>
 </div></body></html>
 HTML;
     }

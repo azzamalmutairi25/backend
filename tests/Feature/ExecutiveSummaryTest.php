@@ -29,10 +29,10 @@ class ExecutiveSummaryTest extends TestCase
     {
         [$c, $r] = $this->report();
         $user = $this->actingAsRole('CENTER_MANAGER');
-        $this->postJson("/api/reports/{$r->id}/executive-summary", ['executiveSummary' => 'مرشّح جاهز للترقية'])
+        $this->postJson("/api/reports/{$r->id}/executive-summary", ['executiveSummary' => 'مشارك جاهز للترقية'])
             ->assertOk();
         $r->refresh();
-        $this->assertSame('مرشّح جاهز للترقية', $r->executive_summary);
+        $this->assertSame('مشارك جاهز للترقية', $r->executive_summary);
         $this->assertSame($user->id, $r->exec_summary_by);
         $this->assertNotNull($r->exec_summary_at);
         $this->assertDatabaseHas('audit_logs', ['action' => 'SAVE_EXEC_SUMMARY']);

@@ -5,8 +5,8 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use App\Data\MoiSectors;
 use App\Models\Role;
-use App\Models\Sector;
 use App\Models\Competency;
 use App\Models\User;
 
@@ -19,36 +19,48 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // ── الأدوار الأحد عشر ──
+        // ── الأدوار ──
         // updateOrCreate لا Role::create: البذر قابل لإعادة التشغيل (roles.code فريد،
         // فإعادة db:seed كانت تفشل)، ويضيف EXTERNAL_ADD للقواعد التي بُذرت قبله.
         $roles = [
             ['code' => 'ADMIN', 'name_ar' => 'مدير النظام'],
             ['code' => 'CENTER_MANAGER', 'name_ar' => 'مدير المركز'],
             ['code' => 'SCHEDULER', 'name_ar' => 'مسؤول الجدولة'],
-            ['code' => 'RECEPTIONIST', 'name_ar' => 'مسؤول الاستقبال'],
+            ['code' => 'RECEPTIONIST', 'name_ar' => 'مسؤول استقبال الموظفين'],
+            ['code' => 'OPERATIONS', 'name_ar' => 'مسؤول العمليات'],
             ['code' => 'ASSESS_MANAGER', 'name_ar' => 'مدير إدارة التقييم'],
             ['code' => 'EVALUATOR', 'name_ar' => 'مستشار المقابلة'],
             ['code' => 'DISCUSSION_EVAL', 'name_ar' => 'مستشار حلقة النقاش'],
             ['code' => 'ASSISTANT', 'name_ar' => 'مساعد التقييم'],
             ['code' => 'DEV_MANAGER', 'name_ar' => 'إدارة تطوير الكفاءات'],
             ['code' => 'MEASURE_SUPER', 'name_ar' => 'مشرف أدوات القياس'],
-            ['code' => 'EXTERNAL_ADD', 'name_ar' => 'مستخدم خارجي (إضافة مرشحين)'],
+            ['code' => 'EXTERNAL_ADD', 'name_ar' => 'مستخدم خارجي (إضافة مشاركين)'],
         ];
         foreach ($roles as $r) Role::updateOrCreate(['code' => $r['code']], $r);
 
-        // ── القطاعات الثمانية ──
-        $sectors = [
-            ['code' => 'DA', 'name_ar' => 'الدفاع', 'is_military' => true],
-            ['code' => 'HI', 'name_ar' => 'الصحة', 'is_military' => false],
-            ['code' => 'MA', 'name_ar' => 'المالية', 'is_military' => true],
-            ['code' => 'TR', 'name_ar' => 'النقل', 'is_military' => false],
-            ['code' => 'EN', 'name_ar' => 'الطاقة', 'is_military' => true],
-            ['code' => 'ED', 'name_ar' => 'التعليم', 'is_military' => false],
-            ['code' => 'HO', 'name_ar' => 'الإسكان', 'is_military' => false],
-            ['code' => 'CO', 'name_ar' => 'الاتصالات', 'is_military' => false],
-        ];
-        foreach ($sectors as $s) Sector::updateOrCreate(['code' => $s['code']], $s);
+        // ── صلاحيات الأدوار: تُبذَر من المصفوفة مرّة، ثم يملكها المدير ──
+        // البذر لدورٍ **لا صفوف له** فقط. دورٌ حُرِّرت صلاحياته من الشاشة لا
+        // يُعاد إلى الافتراضي بإعادة تشغيل البذر — وإلا محا كلُّ بذرٍ ضبطاً
+        // اختاره صاحب المنصّة بلا إنذار، وهو نفس عطل حساب admin.
+        if (\Illuminate\Support\Facades\Schema::hasTable('role_permissions')) {
+            $seeded = 0;
+            foreach (\App\Security\Permissions::matrix() as $code => $perms) {
+                $role = Role::where('code', $code)->first();
+                if (!$role) continue;
+                if (\App\Models\RolePermission::where('role_id', $role->id)->exists()) continue;
+
+                foreach ($perms as $p) {
+                    \App\Models\RolePermission::create(['role_id' => $role->id, 'permission' => $p]);
+                }
+                $seeded++;
+            }
+            \App\Security\Permissions::forgetCache();
+            if ($seeded > 0) echo "✓ بُذرت صلاحيات {$seeded} دور\n";
+        }
+
+        // ── قطاعات الوزارة المعتمدة ──
+        // القائمة ومنطق عدم الدهس في App\Data\MoiSectors — تقرؤها الهجرة والبذر معاً
+        MoiSectors::sync();
 
         // ── الكفاءات ──
         $competencies = [
@@ -72,7 +84,15 @@ class DatabaseSeeder extends Seeder
 
         if (app()->environment('production')) {
             $adminPassword = (string) env('ADMIN_INITIAL_PASSWORD', '');
-            if ($adminPassword !== '') {
+            // حسابٌ قائم لا يُمَسّ. كان updateOrCreate يكتب فوقه، فإعادةُ تشغيل
+            // البذر لسببٍ آخر — إضافة دور أو قطاع — تُعيد كلمة مرور مدير النظام
+            // إلى قيمة البيئة وتُلزمه بالتغيير. أي أنّ أمراً يبدو مرجعياً بحتاً
+            // كان ينتزع من صاحب المنصّة كلمةَ مروره التي اختارها، بلا إنذار.
+            // الإنشاء لأول مرة فقط؛ وإعادة الضبط لها أمرها الصريح:
+            //     php artisan kafaat:create-admin admin --reset
+            if (User::where('username', 'admin')->exists()) {
+                echo "• حساب admin قائم — لم يُمَسّ (استعمل kafaat:create-admin --reset لإعادة الضبط)\n";
+            } elseif ($adminPassword !== '') {
                 User::updateOrCreate(
                     ['username' => 'admin'],
                     [

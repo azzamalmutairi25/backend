@@ -9,7 +9,7 @@ use App\Security\Permissions;
 use Illuminate\Http\Request;
 
 // ════════════════════════════════════════════════════════════
-//  وحدة أدوات القياس — رفع/عرض نتائج القياس لدورة المرشّح الحالية
+//  وحدة أدوات القياس — رفع/عرض نتائج القياس لدورة المشارك الحالية
 // ════════════════════════════════════════════════════════════
 
 class MeasurementController extends Controller
@@ -48,7 +48,7 @@ class MeasurementController extends Controller
         // النطاق كاملاً — كان التصنيف وحده، فكانت نتائج القياس مفتوحة لكل قطاع
         $candidate = $this->resolveCandidateInScope($request, $candidateId);
         if (!$candidate) {
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
         $assessment = $candidate->assessments()->orderByDesc('id')->first();
         $m = $assessment
@@ -75,12 +75,12 @@ class MeasurementController extends Controller
         // النطاق كاملاً — كان التصنيف وحده، فكانت نتائج القياس مفتوحة لكل قطاع
         $candidate = $this->resolveCandidateInScope($request, $validated['candidateId']);
         if (!$candidate) {
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
         // القياس يُرصد ضمن الدورة النشطة (غير المكتملة) — لا نكتب على دورة منتهية
         $assessment = $candidate->assessments()->where('status', '!=', 'completed')->orderByDesc('id')->first();
         if (!$assessment) {
-            return response()->json(['error' => 'لا توجد دورة تقييم نشطة للمرشّح'], 422);
+            return response()->json(['error' => 'لا توجد دورة تقييم نشطة للمشارك'], 422);
         }
 
         $attrs = [

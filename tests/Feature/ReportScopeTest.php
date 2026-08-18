@@ -43,10 +43,10 @@ class ReportScopeTest extends TestCase
 
     public function test_evaluator_sees_only_reports_of_candidates_they_evaluated(): void
     {
-        $ev = $this->actingAsRole('EVALUATOR', 'ED');
-        $mine = $this->reportFor('ED', $ev);
-        $sameSectorOther = $this->reportFor('ED');          // قطاعه لكن لم يقيّمه
-        $otherSector = $this->reportFor('HO', $ev);         // قيّمه لكن خارج قطاعه
+        $ev = $this->actingAsRole('EVALUATOR', 'DW');
+        $mine = $this->reportFor('DW', $ev);
+        $sameSectorOther = $this->reportFor('DW');          // قطاعه لكن لم يقيّمه
+        $otherSector = $this->reportFor('PR', $ev);         // قيّمه لكن خارج قطاعه
 
         \Laravel\Sanctum\Sanctum::actingAs($ev);
         $ids = $this->listIds();
@@ -60,8 +60,8 @@ class ReportScopeTest extends TestCase
     // مستشار حلقة النقاش لا يملك report.view أصلاً — النطاق لا يُبلَغ عنده
     public function test_discussion_evaluator_cannot_see_reports_at_all(): void
     {
-        $de = $this->actingAsRole('DISCUSSION_EVAL', 'ED');
-        $this->reportFor('ED', $de);
+        $de = $this->actingAsRole('DISCUSSION_EVAL', 'DW');
+        $this->reportFor('DW', $de);
 
         \Laravel\Sanctum\Sanctum::actingAs($de);
         $this->getJson('/api/reports')->assertStatus(403);
@@ -71,10 +71,10 @@ class ReportScopeTest extends TestCase
 
     public function test_assistant_sees_their_whole_sector_not_just_what_they_touched(): void
     {
-        $as = $this->actingAsRole('ASSISTANT', 'ED');
-        $a1 = $this->reportFor('ED');
-        $a2 = $this->reportFor('ED');
-        $other = $this->reportFor('HO');
+        $as = $this->actingAsRole('ASSISTANT', 'DW');
+        $a1 = $this->reportFor('DW');
+        $a2 = $this->reportFor('DW');
+        $other = $this->reportFor('PR');
 
         \Laravel\Sanctum\Sanctum::actingAs($as);
         $ids = $this->listIds();
@@ -88,8 +88,8 @@ class ReportScopeTest extends TestCase
 
     public function test_unbound_roles_see_every_report(): void
     {
-        $this->reportFor('ED');
-        $this->reportFor('HO');
+        $this->reportFor('DW');
+        $this->reportFor('PR');
 
         foreach (['ADMIN', 'ASSESS_MANAGER', 'DEV_MANAGER', 'CENTER_MANAGER'] as $role) {
             $this->actingAsRole($role);
@@ -101,10 +101,10 @@ class ReportScopeTest extends TestCase
 
     public function test_stats_match_the_list_the_user_can_see(): void
     {
-        $ev = $this->actingAsRole('EVALUATOR', 'ED');
-        $this->reportFor('ED', $ev);
-        $this->reportFor('ED');   // قطاعه، لم يقيّمه
-        $this->reportFor('HO');   // خارج قطاعه
+        $ev = $this->actingAsRole('EVALUATOR', 'DW');
+        $this->reportFor('DW', $ev);
+        $this->reportFor('DW');   // قطاعه، لم يقيّمه
+        $this->reportFor('PR');   // خارج قطاعه
 
         \Laravel\Sanctum\Sanctum::actingAs($ev);
         $stats = $this->getJson('/api/reports/stats')->assertOk()->json('stats');
@@ -118,8 +118,8 @@ class ReportScopeTest extends TestCase
 
     public function test_show_is_404_for_a_report_outside_the_scope(): void
     {
-        $ev = $this->actingAsRole('EVALUATOR', 'ED');
-        $hidden = $this->reportFor('ED'); // قطاعه لكن لم يقيّمه
+        $ev = $this->actingAsRole('EVALUATOR', 'DW');
+        $hidden = $this->reportFor('DW'); // قطاعه لكن لم يقيّمه
 
         \Laravel\Sanctum\Sanctum::actingAs($ev);
         // «غير موجود» لا «ليس لك» — المعرّف لا يكشف الوجود
@@ -128,8 +128,8 @@ class ReportScopeTest extends TestCase
 
     public function test_document_is_404_for_a_report_outside_the_scope(): void
     {
-        $ev = $this->actingAsRole('EVALUATOR', 'ED');
-        $hidden = $this->reportFor('HO');
+        $ev = $this->actingAsRole('EVALUATOR', 'DW');
+        $hidden = $this->reportFor('PR');
 
         \Laravel\Sanctum\Sanctum::actingAs($ev);
         // المستند وثيقة كاملة — لا يكون أوسع من القائمة
@@ -138,8 +138,8 @@ class ReportScopeTest extends TestCase
 
     public function test_show_works_inside_the_scope(): void
     {
-        $ev = $this->actingAsRole('EVALUATOR', 'ED');
-        $mine = $this->reportFor('ED', $ev);
+        $ev = $this->actingAsRole('EVALUATOR', 'DW');
+        $mine = $this->reportFor('DW', $ev);
 
         \Laravel\Sanctum\Sanctum::actingAs($ev);
         $this->getJson("/api/reports/{$mine->id}")->assertOk()->assertJsonPath('report.id', $mine->id);
@@ -149,14 +149,14 @@ class ReportScopeTest extends TestCase
 
     public function test_eligible_candidates_is_limited_to_the_users_sector(): void
     {
-        $this->makeCandidate(['status' => 'assessed', 'sectorCode' => 'ED']);
-        $this->makeCandidate(['status' => 'assessed', 'sectorCode' => 'HO']);
-        $this->actingAsRole('ASSISTANT', 'ED');
+        $this->makeCandidate(['status' => 'assessed', 'sectorCode' => 'DW']);
+        $this->makeCandidate(['status' => 'assessed', 'sectorCode' => 'PR']);
+        $this->actingAsRole('ASSISTANT', 'DW');
 
         $rows = $this->getJson('/api/reports/eligible-candidates')->assertOk()->json('candidates');
         $this->assertNotEmpty($rows);
         foreach ($rows as $r) {
-            $this->assertSame('التعليم', $r['sectorName']);
+            $this->assertSame('ديوان الوزارة', $r['sectorName']);
         }
     }
 
@@ -166,14 +166,14 @@ class ReportScopeTest extends TestCase
     // لحظةَ مُنحت الصلاحية لدور محصور.
     public function test_evaluator_cannot_export_at_all(): void
     {
-        $this->actingAsRole('EVALUATOR', 'ED');
+        $this->actingAsRole('EVALUATOR', 'DW');
         $this->get('/api/reports/export')->assertStatus(403);
     }
 
     public function test_export_covers_everything_for_an_unbound_exporter(): void
     {
-        $a = $this->reportFor('ED');
-        $b = $this->reportFor('HO');
+        $a = $this->reportFor('DW');
+        $b = $this->reportFor('PR');
         $this->actingAsRole('ASSESS_MANAGER');
 
         $csv = $this->get('/api/reports/export')->assertOk()->getContent();

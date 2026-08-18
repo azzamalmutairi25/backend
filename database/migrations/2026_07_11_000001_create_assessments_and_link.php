@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * الأساس: فصل الشخص (candidates) عن دورة التقييم (assessments).
- * كل مرشح (شخص) يمكن أن يكون له عدة دورات، لكل دورة رمز/حالة/تقييمات/تقرير.
+ * كل مشارك (شخص) يمكن أن يكون له عدة دورات، لكل دورة رمز/حالة/تقييمات/تقرير.
  * غير كاسر: نُبقي أعمدة candidate + نضيف assessment_id مُعبّأ بالتوازي.
  */
 return new class extends Migration
@@ -37,7 +37,7 @@ return new class extends Migration
             }
         }
 
-        // 3) التعبئة: دورة واحدة لكل مرشح حالي (تحمل رمزه/حالته/نوعه)، وربط التابعين بها
+        // 3) التعبئة: دورة واحدة لكل مشارك حالي (تحمل رمزه/حالته/نوعه)، وربط التابعين بها
         $now = now();
         foreach (DB::table('candidates')->get() as $c) {
             $assessmentId = DB::table('assessments')->insertGetId([

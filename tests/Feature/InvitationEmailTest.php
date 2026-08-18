@@ -34,7 +34,7 @@ class InvitationEmailTest extends TestCase
         $this->assertNotNull($log, 'سجل البريد مكتوب');
         $this->assertSame('sent', $log->status);
         $this->assertSame('cand@example.com', $log->to_email);
-        $this->assertSame('سعد المطيري', $log->to_name, 'اسم المرشح يُمرَّر لا null');
+        $this->assertSame('سعد المطيري', $log->to_name, 'اسم المشارك يُمرَّر لا null');
         $this->assertSame('invitation', $log->email_type);
         $this->assertStringContainsString('2026-08-01', $log->body, 'متغيّرات القالب مُستبدَلة');
         $this->assertStringContainsString('الرياض', $log->body);

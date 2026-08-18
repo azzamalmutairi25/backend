@@ -407,12 +407,12 @@ class SettingsController extends Controller
 
         $validated = $request->validate(
             ['dailyCap' => 'required|integer|min:1|max:50'],
-            ['dailyCap.min' => 'الحدّ الأدنى مرشّح واحد', 'dailyCap.max' => 'الحدّ الأقصى 50 مرشّحاً']
+            ['dailyCap.min' => 'الحدّ الأدنى مشارك واحد', 'dailyCap.max' => 'الحدّ الأقصى 50 مشاركاً']
         );
 
         Setting::updateOrCreate(
             ['key' => 'distribution.daily_cap_per_evaluator'],
-            ['value' => (string) $validated['dailyCap'], 'description' => 'عدد المرشحين لكل مقيّم في اليوم']
+            ['value' => (string) $validated['dailyCap'], 'description' => 'عدد المشاركين لكل مقيّم في اليوم']
         );
 
         AuditLog::create([
@@ -426,6 +426,79 @@ class SettingsController extends Controller
         ]);
 
         return response()->json(['message' => 'تم حفظ الحدّ', 'dailyCap' => $validated['dailyCap']]);
+    }
+
+    // ── أوقات جلسات اليوم ──
+    // هذه القائمة مرجع مزدوج: خيارات حقل الوقت عند الجدولة، وأعمدة كشف الحضور
+    // المطبوع. تغييرها لا يمسّ الجلسات المسجَّلة — من كان وقته خارج القائمة يظهر
+    // في الكشف تحت «جلسات خارج الأوقات المعتمدة» بدل أن يُقحَم في عمود ليس له.
+
+    public const SESSION_TIMES_KEY = 'schedule.session_times';
+    public const SESSION_TIMES_DEFAULT = ['10:15', '12:30', '14:30'];
+
+    // تُقرأ من الإعدادات، وتُنظَّف وتُرتَّب. تُستدعى من كشف الحضور والجدولة أيضاً.
+    public static function sessionTimes(): array
+    {
+        $raw = Setting::find(self::SESSION_TIMES_KEY)?->value;
+        if (!$raw) {
+            return self::SESSION_TIMES_DEFAULT;
+        }
+
+        $times = array_values(array_unique(array_filter(
+            array_map('trim', explode(',', $raw)),
+            fn ($t) => (bool) preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $t)
+        )));
+        sort($times);
+
+        return $times ?: self::SESSION_TIMES_DEFAULT;
+    }
+
+    public function getSessionTimes(Request $request)
+    {
+        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
+        }
+
+        return response()->json(['sessionTimes' => self::sessionTimes()]);
+    }
+
+    public function saveSessionTimes(Request $request)
+    {
+        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
+        }
+
+        $validated = $request->validate([
+            'sessionTimes' => 'required|array|min:1|max:6',
+            'sessionTimes.*' => 'required|date_format:H:i',
+        ], [
+            'sessionTimes.min' => 'أدخل وقتاً واحداً على الأقل',
+            'sessionTimes.max' => 'الحدّ الأقصى ستة أوقات',
+            'sessionTimes.*.date_format' => 'صيغة الوقت يجب أن تكون HH:MM',
+        ]);
+
+        $times = array_values(array_unique($validated['sessionTimes']));
+        sort($times);
+
+        Setting::updateOrCreate(
+            ['key' => self::SESSION_TIMES_KEY],
+            [
+                'value' => implode(',', $times),
+                'description' => 'أوقات جلسات اليوم — تُبنى منها أعمدة كشف الحضور',
+            ]
+        );
+
+        AuditLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'UPDATE_SESSION_TIMES',
+            'entity_type' => 'settings',
+            'entity_id' => '0',
+            'details' => ['sessionTimes' => $times],
+            'ip_address' => $request->ip(),
+            'created_at' => now(),
+        ]);
+
+        return response()->json(['message' => 'تم حفظ أوقات الجلسات', 'sessionTimes' => $times]);
     }
 
     // ── تصنيف القيادة (عليا/وسطى): رتب عسكرية عليا + عتبة الرتبة المدنية ──

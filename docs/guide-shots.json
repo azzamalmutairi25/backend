@@ -1,0 +1,3488 @@
+{
+  "_": "كتالوج لقطات دليل المستخدم. يقرؤه docs/capture-guide.mjs. كل لقطة: route ثم steps ثم صورة. role = حساب التجربة الذي تُلتقط به. clip = محدّد لاقتصاص عنصر بعينه. feature = مفتاح تشغيل تُخطّى اللقطة بدونه. requiresEnv = متغيّر بيئة تلزمه اللقطة (بيانات حيّة لا تُكتب هنا كي لا تتقادم).",
+  "shots": [
+    {
+      "id": "login",
+      "route": "/login",
+      "auth": false,
+      "wait": ".form-card",
+      "title": "تسجيل الدخول"
+    },
+    {
+      "id": "dashboard",
+      "route": "/dashboard",
+      "wait": "main",
+      "title": "اللوحة الرئيسة"
+    },
+    {
+      "id": "candidates",
+      "route": "/candidates",
+      "wait": "main",
+      "title": "المشاركون"
+    },
+    {
+      "id": "nominate",
+      "route": "/nominate",
+      "wait": "main",
+      "title": "ترشيح مشارك"
+    },
+    {
+      "id": "reception",
+      "route": "/reception",
+      "wait": "main",
+      "title": "استقبال الموظفين"
+    },
+    {
+      "id": "schedules",
+      "route": "/schedules",
+      "wait": "main",
+      "title": "الجدولة"
+    },
+    {
+      "id": "distribution",
+      "route": "/distribution",
+      "wait": "main",
+      "title": "التوزيع الأسبوعي"
+    },
+    {
+      "id": "attendance",
+      "route": "/attendance",
+      "wait": "main",
+      "title": "الحضور"
+    },
+    {
+      "id": "assessment",
+      "route": "/assessment",
+      "wait": "main",
+      "title": "التقييم"
+    },
+    {
+      "id": "measurements",
+      "route": "/measurements",
+      "wait": "main",
+      "title": "أدوات القياس"
+    },
+    {
+      "id": "reports",
+      "route": "/reports",
+      "wait": "main",
+      "title": "التقارير"
+    },
+    {
+      "id": "development-plans",
+      "route": "/development-plans",
+      "wait": "main",
+      "title": "خطط التطوير"
+    },
+    {
+      "id": "competency-framework",
+      "route": "/competency-framework",
+      "wait": "main",
+      "title": "إطار الكفاءات"
+    },
+    {
+      "id": "competency-map",
+      "route": "/competency-map",
+      "wait": "main",
+      "title": "خريطة الكفاءات والأنشطة"
+    },
+    {
+      "id": "analytics",
+      "route": "/analytics",
+      "wait": "main",
+      "title": "التحليلات"
+    },
+    {
+      "id": "executive",
+      "route": "/executive",
+      "wait": "main",
+      "title": "لوحة القيادة التنفيذية"
+    },
+    {
+      "id": "daily-report",
+      "route": "/daily-report",
+      "wait": "main",
+      "title": "التقرير اليومي"
+    },
+    {
+      "id": "chat",
+      "route": "/chat",
+      "wait": "main",
+      "title": "المراسلات"
+    },
+    {
+      "id": "notifications",
+      "route": "/notifications",
+      "wait": "main",
+      "title": "الإشعارات"
+    },
+    {
+      "id": "workflow",
+      "route": "/workflow",
+      "wait": "main",
+      "title": "مراحل الاعتماد"
+    },
+    {
+      "id": "users",
+      "route": "/users",
+      "wait": "main",
+      "title": "المستخدمون والصلاحيات"
+    },
+    {
+      "id": "roles",
+      "route": "/roles",
+      "wait": "main",
+      "title": "الأدوار والصلاحيات"
+    },
+    {
+      "id": "settings",
+      "route": "/settings",
+      "wait": "main",
+      "title": "الإعدادات"
+    },
+    {
+      "id": "audit",
+      "route": "/audit",
+      "wait": "main",
+      "title": "سجل التدقيق"
+    },
+    {
+      "id": "change-password",
+      "route": "/change-password",
+      "wait": "main",
+      "title": "تغيير كلمة المرور"
+    },
+    {
+      "id": "nav-admin",
+      "route": "/dashboard",
+      "role": "admin",
+      "clip": ".sidebar",
+      "title": "قائمة مدير النظام"
+    },
+    {
+      "id": "nav-center",
+      "route": "/dashboard",
+      "role": "center",
+      "clip": ".sidebar",
+      "title": "قائمة مدير المركز"
+    },
+    {
+      "id": "nav-scheduler",
+      "route": "/dashboard",
+      "role": "scheduler",
+      "clip": ".sidebar",
+      "title": "قائمة مسؤول الجدولة"
+    },
+    {
+      "id": "nav-reception",
+      "route": "/dashboard",
+      "role": "reception",
+      "clip": ".sidebar",
+      "title": "قائمة مسؤول الاستقبال"
+    },
+    {
+      "id": "nav-operations",
+      "route": "/dashboard",
+      "role": "operations",
+      "clip": ".sidebar",
+      "title": "قائمة مسؤول العمليات"
+    },
+    {
+      "id": "nav-assess",
+      "route": "/dashboard",
+      "role": "assess",
+      "clip": ".sidebar",
+      "title": "قائمة مدير إدارة التقييم"
+    },
+    {
+      "id": "nav-evaluator",
+      "route": "/dashboard",
+      "role": "evaluator",
+      "clip": ".sidebar",
+      "title": "قائمة مستشار المقابلة"
+    },
+    {
+      "id": "nav-discussion",
+      "route": "/dashboard",
+      "role": "discussion",
+      "clip": ".sidebar",
+      "title": "قائمة مستشار حلقة النقاش"
+    },
+    {
+      "id": "nav-assistant",
+      "route": "/dashboard",
+      "role": "assistant",
+      "clip": ".sidebar",
+      "title": "قائمة مساعد التقييم"
+    },
+    {
+      "id": "nav-devmanager",
+      "route": "/dashboard",
+      "role": "devmanager",
+      "clip": ".sidebar",
+      "title": "قائمة إدارة تطوير الكفاءات"
+    },
+    {
+      "id": "nav-measure",
+      "route": "/dashboard",
+      "role": "measure",
+      "clip": ".sidebar",
+      "title": "قائمة مشرف أدوات القياس"
+    },
+    {
+      "id": "nav-external",
+      "route": "/dashboard",
+      "role": "external",
+      "clip": ".sidebar",
+      "title": "قائمة المستخدم الخارجي"
+    },
+    {
+      "id": "candidates-evaluator",
+      "route": "/candidates",
+      "role": "evaluator",
+      "wait": "main",
+      "title": "قاعدة المشاركين كما يراها المقيّم"
+    },
+    {
+      "id": "reception-receptionist",
+      "route": "/reception",
+      "role": "reception",
+      "wait": "main",
+      "title": "الاستقبال كما يراه مسؤول الاستقبال"
+    },
+    {
+      "id": "reception-evaluator",
+      "route": "/reception",
+      "role": "evaluator",
+      "wait": "main",
+      "title": "الاستقبال كما يراه المقيّم"
+    },
+    {
+      "id": "reception-operations",
+      "route": "/reception",
+      "role": "operations",
+      "wait": "main",
+      "title": "الاستقبال كما يراه مسؤول العمليات"
+    },
+    {
+      "id": "candidates-add",
+      "route": "/candidates",
+      "wait": "main",
+      "clip": ".modal",
+      "title": "نافذة إضافة مشارك",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".btn-add"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal"
+        }
+      ]
+    },
+    {
+      "id": "candidates-add-contractor",
+      "route": "/candidates",
+      "wait": "main",
+      "clip": ".modal",
+      "title": "نموذج الإضافة وقد اختيرت الفئة «متعاقد»: الحقل صار مسمّى وظيفياً حرّاً، وظهرت الفئة القيادية لتُختار",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".btn-add"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal"
+        },
+        {
+          "action": "select",
+          "selector": ".modal .form-grid .field:nth-of-type(4) select",
+          "value": "contractor"
+        }
+      ]
+    },
+    {
+      "id": "candidates-details",
+      "route": "/candidates",
+      "wait": "main",
+      "clip": ".modal",
+      "title": "تفاصيل المشارك",
+      "steps": [
+        {
+          "action": "click",
+          "selector": "button[title='تفاصيل']"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal"
+        }
+      ]
+    },
+    {
+      "id": "candidates-cv",
+      "route": "/candidates",
+      "wait": "main",
+      "clip": ".modal.wide",
+      "title": "السيرة الذاتية",
+      "steps": [
+        {
+          "action": "click",
+          "selector": "button[title='تفاصيل']"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal"
+        },
+        {
+          "action": "click",
+          "selector": ".modal-actions button:has-text('السيرة')"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal.wide"
+        }
+      ]
+    },
+    {
+      "id": "report-document",
+      "route": "/reports",
+      "wait": "main",
+      "popup": true,
+      "fullPage": true,
+      "title": "المستند الرسمي للتقرير",
+      "steps": [
+        {
+          "action": "click",
+          "selector": "button:has-text('معتمد')"
+        },
+        {
+          "action": "wait",
+          "value": "1500"
+        },
+        {
+          "action": "click",
+          "selector": ".report-card button:has-text('مستند مفصّل')"
+        }
+      ]
+    },
+    {
+      "id": "report-document-center",
+      "route": "/reports",
+      "role": "center",
+      "wait": "main",
+      "popup": true,
+      "fullPage": true,
+      "title": "المستند نفسه كما يراه مدير المركز — بالاسم",
+      "steps": [
+        {
+          "action": "click",
+          "selector": "button:has-text('معتمد')"
+        },
+        {
+          "action": "wait",
+          "value": "1500"
+        },
+        {
+          "action": "click",
+          "selector": ".report-card button:has-text('مستند مفصّل')"
+        }
+      ]
+    },
+    {
+      "id": "report-document-assess",
+      "route": "/reports",
+      "role": "assess",
+      "wait": "main",
+      "popup": true,
+      "fullPage": true,
+      "title": "المستند نفسه كما يراه مدير إدارة التقييم — بالرمز",
+      "steps": [
+        {
+          "action": "click",
+          "selector": "button:has-text('معتمد')"
+        },
+        {
+          "action": "wait",
+          "value": "1500"
+        },
+        {
+          "action": "click",
+          "selector": ".report-card button:has-text('مستند مفصّل')"
+        }
+      ]
+    },
+    {
+      "id": "roles-open",
+      "route": "/roles",
+      "wait": "main",
+      "title": "صلاحيات دورٍ مفتوح",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".role-row:nth-of-type(2)"
+        },
+        {
+          "action": "wait",
+          "value": "1200"
+        }
+      ]
+    },
+    {
+      "id": "users-add",
+      "route": "/users",
+      "wait": "main",
+      "clip": ".modal",
+      "title": "نافذة إضافة مستخدم",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".btn-add"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal"
+        }
+      ]
+    },
+    {
+      "id": "users-perms",
+      "route": "/users",
+      "wait": "main",
+      "clip": ".modal",
+      "title": "استثناءات صلاحيات مستخدم",
+      "steps": [
+        {
+          "action": "click",
+          "selector": "button[title='الصلاحيات']"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal"
+        }
+      ]
+    },
+    {
+      "id": "ui-topbar",
+      "route": "/dashboard",
+      "clip": ".topbar",
+      "title": "الشريط العلوي"
+    },
+    {
+      "id": "ui-filters",
+      "route": "/candidates",
+      "wait": "main",
+      "clip": ".filters",
+      "title": "شريط التصفية والبحث"
+    },
+    {
+      "id": "ui-pager",
+      "route": "/candidates",
+      "wait": "main",
+      "clip": ".pager",
+      "title": "شريط الترقيم"
+    },
+    {
+      "id": "ui-sidebar-collapsed",
+      "route": "/dashboard",
+      "clip": ".sidebar",
+      "title": "القائمة المطويّة",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".collapse-btn"
+        },
+        {
+          "action": "wait",
+          "value": "900"
+        }
+      ]
+    },
+    {
+      "id": "assessment-scoring",
+      "route": "/assessment",
+      "role": "evaluator",
+      "wait": "main",
+      "title": "نموذج رصد الدرجات",
+      "steps": [
+        {
+          "action": "click",
+          "selector": "button:has-text('استكمال')"
+        },
+        {
+          "action": "wait",
+          "value": "2000"
+        }
+      ]
+    },
+    {
+      "id": "workflow-stages",
+      "route": "/workflow",
+      "wait": "main",
+      "title": "مراحل الاعتماد"
+    },
+    {
+      "id": "audit-log",
+      "route": "/audit",
+      "wait": "main",
+      "title": "سجل التدقيق"
+    },
+    {
+      "id": "assessment-draft-exists",
+      "route": "/assessment",
+      "role": "evaluator",
+      "wait": "main",
+      "title": "مسودة قائمة للمشارك نفسه"
+    },
+    {
+      "id": "assessment-evaluator",
+      "route": "/assessment",
+      "role": "evaluator",
+      "wait": "main",
+      "title": "شاشة التقييم للمقيّم"
+    },
+    {
+      "id": "candidates-roster-dialog",
+      "route": "/candidates",
+      "wait": "main",
+      "clip": ".modal",
+      "title": "نافذة كشف الحضور",
+      "steps": [
+        {
+          "action": "click",
+          "selector": "button:has-text('كشف الحضور')"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal"
+        }
+      ]
+    },
+    {
+      "id": "roster-sheet",
+      "route": "/candidates",
+      "wait": "main",
+      "popup": true,
+      "fullPage": true,
+      "title": "كشف حضور اليوم مطبوعاً",
+      "steps": [
+        {
+          "action": "click",
+          "selector": "button:has-text('كشف الحضور')"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal"
+        },
+        {
+          "action": "click",
+          "selector": ".modal button:has-text('فتح الكشف')"
+        }
+      ]
+    },
+    {
+      "id": "settings-full",
+      "route": "/settings",
+      "wait": "main",
+      "fullPage": true,
+      "title": "الإعدادات كاملةً"
+    },
+    {
+      "id": "distribution-proposal",
+      "route": "/distribution",
+      "wait": "main",
+      "title": "اقتراح توزيع الأسبوع",
+      "steps": [
+        {
+          "action": "click",
+          "selector": "button:has-text('اقترح توزيع الأسبوع')"
+        },
+        {
+          "action": "wait",
+          "value": "2500"
+        }
+      ]
+    },
+    {
+      "id": "dashboard-setup",
+      "route": "/dashboard",
+      "wait": "main",
+      "title": "بطاقة «تهيئة المنصّة» وحدها: العدّاد ٣/٤ وشريط التقدّم والخطوات الستّ بأزرار «اب",
+      "clip": ".setup",
+      "steps": [
+        {
+          "action": "scrollTo",
+          "selector": ".setup"
+        }
+      ]
+    },
+    {
+      "id": "dashboard-kpis",
+      "route": "/dashboard",
+      "wait": "main",
+      "title": "شريط المؤشرات الستّ: المشاركون والحضور والإكمال والتقييمات والاعتمادات ومعلّقة، و",
+      "clip": ".kpi-strip",
+      "steps": [
+        {
+          "action": "scrollTo",
+          "selector": ".kpi-strip"
+        }
+      ]
+    },
+    {
+      "id": "dashboard-trend-attendance",
+      "route": "/dashboard",
+      "wait": "main",
+      "title": "بطاقتا «اتجاه اثني عشر شهراً» بمفتاحها (تقارير معتمدة / التقييمات) و«حضور اليوم»",
+      "clip": ".row-trend",
+      "steps": [
+        {
+          "action": "scrollTo",
+          "selector": ".row-trend"
+        }
+      ]
+    },
+    {
+      "id": "dashboard-heatmap",
+      "route": "/dashboard",
+      "wait": "main",
+      "title": "بطاقة «خريطة الكفاءات حسب اليوم» بصفوف الكفاءات وأعمدة أيام الأسبوع وطرفَي التدر",
+      "clip": ".card:has(.wh)",
+      "steps": [
+        {
+          "action": "scrollTo",
+          "selector": ".wh"
+        }
+      ]
+    },
+    {
+      "id": "dashboard-insights-schedule",
+      "route": "/dashboard",
+      "wait": "main",
+      "title": "بطاقتا «رؤى تلقائية» بأربع رؤى ملوّنة، و«جدول اليوم» في حالته الفارغة: «لا جلسات",
+      "clip": ".row-two",
+      "steps": [
+        {
+          "action": "scrollTo",
+          "selector": ".row-two"
+        }
+      ]
+    },
+    {
+      "id": "dashboard-drafts-activity",
+      "route": "/dashboard",
+      "wait": "main",
+      "title": "الصفّ السفلي: «مسوداتي» بأزرار استكمال، و«أحدث النشاط» بنقاطه الحسّاسة، و«إجراءا",
+      "clip": ".row-three",
+      "steps": [
+        {
+          "action": "scrollTo",
+          "selector": ".row-three"
+        }
+      ]
+    },
+    {
+      "id": "dashboard-evaluator",
+      "route": "/dashboard",
+      "wait": "main",
+      "title": "اللوحة نفسها بحساب مستشار المقابلة: لا بطاقة تهيئة، ولا مقياس جاهزية، ولا اتجاه ",
+      "role": "evaluator"
+    },
+    {
+      "id": "login-empty",
+      "route": "/login",
+      "wait": "main",
+      "title": "رسالة «أدخل اسم المستخدم وكلمة المرور» بعد الضغط على الزر والحقلان فارغان — فحص ",
+      "clip": ".form-card",
+      "steps": [
+        {
+          "action": "click",
+          "selector": "button.submit"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".error"
+        }
+      ]
+    },
+    {
+      "id": "login-bad-credentials",
+      "route": "/login",
+      "wait": "main",
+      "title": "الرسالة الموحّدة «اسم المستخدم أو كلمة المرور غير صحيحة» — باسم مستخدم غير موجود",
+      "clip": ".form-card",
+      "steps": [
+        {
+          "action": "fill",
+          "selector": "#lg-user",
+          "value": "guest"
+        },
+        {
+          "action": "fill",
+          "selector": "#lg-pass",
+          "value": "abc12345"
+        },
+        {
+          "action": "click",
+          "selector": "button.submit"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".error"
+        }
+      ]
+    },
+    {
+      "id": "login-show-password",
+      "route": "/login",
+      "wait": "main",
+      "title": "زرّ العين مفعّلاً: كلمة المرور ظاهرة نصّاً بدل النقاط (قيمة وهمية للعرض)",
+      "clip": ".form-card",
+      "steps": [
+        {
+          "action": "fill",
+          "selector": "#lg-user",
+          "value": "scheduler"
+        },
+        {
+          "action": "fill",
+          "selector": "#lg-pass",
+          "value": "abc12345"
+        },
+        {
+          "action": "click",
+          "selector": ".f-toggle"
+        }
+      ]
+    },
+    {
+      "id": "change-password-checks",
+      "route": "/change-password",
+      "wait": "main",
+      "title": "لوحة الشروط أثناء الكتابة: الطول والحرف الصغير والرقم خضراء، وشرط الحرف الكبير م",
+      "clip": ".card",
+      "steps": [
+        {
+          "action": "fill",
+          "selector": ".card input:nth-of-type(2)",
+          "value": "kafaat12"
+        }
+      ]
+    },
+    {
+      "id": "change-password-mismatch",
+      "route": "/change-password",
+      "wait": "main",
+      "title": "رسالة «كلمتا المرور غير متطابقتين» — فحص محلّي يمنع إرسال الطلب أصلاً (قيم وهمية",
+      "clip": ".card",
+      "steps": [
+        {
+          "action": "fill",
+          "selector": ".card input:nth-of-type(1)",
+          "value": "Aa123456"
+        },
+        {
+          "action": "fill",
+          "selector": ".card input:nth-of-type(2)",
+          "value": "Bb123456"
+        },
+        {
+          "action": "fill",
+          "selector": ".card input:nth-of-type(3)",
+          "value": "Cc123456"
+        },
+        {
+          "action": "click",
+          "selector": ".btn"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".alert.error"
+        }
+      ]
+    },
+    {
+      "id": "confirm",
+      "route": "/confirm/:token",
+      "wait": "main",
+      "title": "بوّابة الهوية كما يفتحها المشارك: حقل رقم الهوية وحده والزر معطَّل، ولا بيان معر",
+      "feature": "candidatePortal"
+    },
+    {
+      "id": "confirm-wrong-id",
+      "route": "/confirm/:token",
+      "wait": "main",
+      "title": "رسالة «رقم الهوية غير مطابق لهذا الرابط. — تبقّى ٤ محاولة» — تُلتقط برمز مختلف ك",
+      "clip": ".card",
+      "steps": [
+        {
+          "action": "fill",
+          "selector": ".fld input",
+          "value": "1000000000"
+        },
+        {
+          "action": "click",
+          "selector": "button.btn.primary.full"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".err"
+        }
+      ],
+      "feature": "candidatePortal"
+    },
+    {
+      "id": "confirm-hub-unconfirmed",
+      "route": "/confirm/:token",
+      "wait": "main",
+      "title": "الشاشة الرئيسة قبل التأكيد (المشارك DM-001): الحالتان «بانتظار التأكيد» و«لم يُس",
+      "steps": [
+        {
+          "action": "fill",
+          "selector": ".fld input",
+          "value": "1621140928"
+        },
+        {
+          "action": "click",
+          "selector": "button.btn.primary.full"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".statuses"
+        }
+      ],
+      "feature": "candidatePortal"
+    },
+    {
+      "id": "confirm-hub",
+      "route": "/confirm/:token",
+      "wait": "main",
+      "title": "الشاشة الرئيسة بعد التأكيد (المشارك DM-009): ثلاث جلسات في «مواعيد الجلسات»، وحا",
+      "steps": [
+        {
+          "action": "fill",
+          "selector": ".fld input",
+          "value": "1008242248"
+        },
+        {
+          "action": "click",
+          "selector": "button.btn.primary.full"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".tiles"
+        }
+      ],
+      "feature": "candidatePortal"
+    },
+    {
+      "id": "confirm-cv",
+      "route": "/confirm/:token",
+      "wait": "main",
+      "title": "نموذج السيرة الذاتية: مجموعة «البيانات الوظيفية» بالتاريخين الميلادي والهجري وحق",
+      "steps": [
+        {
+          "action": "fill",
+          "selector": ".fld input",
+          "value": "1008242248"
+        },
+        {
+          "action": "click",
+          "selector": "button.btn.primary.full"
+        },
+        {
+          "action": "click",
+          "selector": "text=سيرتي الذاتية"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".cvform"
+        }
+      ],
+      "feature": "candidatePortal"
+    },
+    {
+      "id": "confirm-cv-rows",
+      "route": "/confirm/:token",
+      "wait": "main",
+      "title": "سطر مؤهل وسطر خبرة بعد الضغط على «إضافة مؤهل» و«إضافة خبرة» — بحقولهما وزرّ الحذ",
+      "steps": [
+        {
+          "action": "fill",
+          "selector": ".fld input",
+          "value": "1008242248"
+        },
+        {
+          "action": "click",
+          "selector": "button.btn.primary.full"
+        },
+        {
+          "action": "click",
+          "selector": "text=سيرتي الذاتية"
+        },
+        {
+          "action": "click",
+          "selector": "text=إضافة مؤهل"
+        },
+        {
+          "action": "click",
+          "selector": "text=إضافة خبرة"
+        },
+        {
+          "action": "scrollTo",
+          "selector": "text=إضافة خبرة"
+        }
+      ],
+      "feature": "candidatePortal"
+    },
+    {
+      "id": "confirm-cv-locked",
+      "route": "/confirm/:token",
+      "wait": "main",
+      "title": "السيرة مقفلة بعد بدء التقييم (المشارك DM-030): رسالة «تم قفل التعديل بعد بدء الت",
+      "steps": [
+        {
+          "action": "fill",
+          "selector": ".fld input",
+          "value": "1233392743"
+        },
+        {
+          "action": "click",
+          "selector": "button.btn.primary.full"
+        },
+        {
+          "action": "click",
+          "selector": "text=سيرتي الذاتية"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".cvform"
+        }
+      ],
+      "feature": "candidatePortal"
+    },
+    {
+      "id": "confirm-card",
+      "route": "/confirm/:token",
+      "wait": "main",
+      "title": "بطاقة المشارك: رمز المشارك بخطّ كبير والقطاع ونوع التقييم والمواعيد، بلا اسم",
+      "clip": "#cv-badge",
+      "steps": [
+        {
+          "action": "fill",
+          "selector": ".fld input",
+          "value": "1008242248"
+        },
+        {
+          "action": "click",
+          "selector": "button.btn.primary.full"
+        },
+        {
+          "action": "click",
+          "selector": "text=بطاقة المشارك"
+        },
+        {
+          "action": "waitFor",
+          "selector": "#cv-badge"
+        }
+      ],
+      "feature": "candidatePortal"
+    },
+    {
+      "id": "nominate-validation",
+      "route": "/nominate",
+      "wait": "main",
+      "title": "الاستمارة بعد إرسالها فارغةً: شريط الخطأ الأحمر أعلى الشاشة وحدود الخانات الناقص",
+      "role": "external",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": "#cv-form"
+        },
+        {
+          "action": "click",
+          "selector": "#cv-form button[type=\"submit\"]"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".alert.error"
+        }
+      ]
+    },
+    {
+      "id": "nominate-education-rows",
+      "route": "/nominate",
+      "wait": "main",
+      "title": "قسم «التعليم الأكاديمي» بصفَّين بعد الضغط على «إضافة مؤهل» — تظهر أيقونة حذف الص",
+      "role": "external",
+      "clip": "#cv-form section:nth-of-type(2)",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": "#cv-form"
+        },
+        {
+          "action": "click",
+          "selector": "#cv-form section:nth-of-type(2) button.mini"
+        },
+        {
+          "action": "waitFor",
+          "selector": "#cv-form section:nth-of-type(2) .rep-row .rm"
+        }
+      ]
+    },
+    {
+      "id": "nominate-duplicate",
+      "route": "/nominate",
+      "wait": "main",
+      "title": "إيصال «هذا المشارك مُضاف مسبقاً» بعد إرسال هوية مسجَّلة — تاريخ التسجيل وزرّ «طل",
+      "role": "external",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": "#cv-form"
+        },
+        {
+          "action": "fill",
+          "selector": "#cv-form input[placeholder=\"الاسم الكامل\"]",
+          "value": "فهد محمد الدوسري"
+        },
+        {
+          "action": "fill",
+          "selector": "#cv-form input[placeholder=\"١٠ أرقام\"]",
+          "value": "1000000008"
+        },
+        {
+          "action": "fill",
+          "selector": "#cv-form section:nth-of-type(1) .grid > label:nth-child(4) input",
+          "value": "1982-04-11"
+        },
+        {
+          "action": "fill",
+          "selector": "#cv-form input[placeholder=\"مثال: عميد أو م-14\"]",
+          "value": "لواء"
+        },
+        {
+          "action": "fill",
+          "selector": "#cv-form section:nth-of-type(1) .grid > label:nth-child(7) input",
+          "value": "2006-09-01"
+        },
+        {
+          "action": "select",
+          "selector": "#cv-form section:nth-of-type(1) select",
+          "value": "1"
+        },
+        {
+          "action": "fill",
+          "selector": "#cv-form input[placeholder=\"مثال: الرياض\"]",
+          "value": "الرياض"
+        },
+        {
+          "action": "fill",
+          "selector": "#cv-form section:nth-of-type(1) .grid > label:nth-child(11) input",
+          "value": "الإدارة العامة للتخطيط"
+        },
+        {
+          "action": "click",
+          "selector": "#cv-form button[type=\"submit\"]"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".receipt.warn"
+        }
+      ]
+    },
+    {
+      "id": "nominate-update-mode",
+      "route": "/nominate",
+      "wait": "main",
+      "title": "وضع «طلب التحديث»: الشريط البرتقالي أعلى الاستمارة وقسم «سبب طلب التحديث» في آخر",
+      "role": "external",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": "#cv-form"
+        },
+        {
+          "action": "fill",
+          "selector": "#cv-form input[placeholder=\"الاسم الكامل\"]",
+          "value": "فهد محمد الدوسري"
+        },
+        {
+          "action": "fill",
+          "selector": "#cv-form input[placeholder=\"١٠ أرقام\"]",
+          "value": "1000000008"
+        },
+        {
+          "action": "fill",
+          "selector": "#cv-form section:nth-of-type(1) .grid > label:nth-child(4) input",
+          "value": "1982-04-11"
+        },
+        {
+          "action": "fill",
+          "selector": "#cv-form input[placeholder=\"مثال: عميد أو م-14\"]",
+          "value": "لواء"
+        },
+        {
+          "action": "fill",
+          "selector": "#cv-form section:nth-of-type(1) .grid > label:nth-child(7) input",
+          "value": "2006-09-01"
+        },
+        {
+          "action": "select",
+          "selector": "#cv-form section:nth-of-type(1) select",
+          "value": "1"
+        },
+        {
+          "action": "fill",
+          "selector": "#cv-form input[placeholder=\"مثال: الرياض\"]",
+          "value": "الرياض"
+        },
+        {
+          "action": "fill",
+          "selector": "#cv-form section:nth-of-type(1) .grid > label:nth-child(11) input",
+          "value": "الإدارة العامة للتخطيط"
+        },
+        {
+          "action": "click",
+          "selector": "#cv-form button[type=\"submit\"]"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".receipt.warn .btn.primary"
+        },
+        {
+          "action": "click",
+          "selector": ".receipt.warn .btn.primary"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".mode-bar"
+        }
+      ]
+    },
+    {
+      "id": "nominate-my-requests",
+      "route": "/nominate",
+      "wait": "main",
+      "title": "تبويب «طلباتي» — جدول طلبات التحديث التي رفعها المستخدم نفسه وحالة كل طلب",
+      "role": "external",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".tabs .tab:nth-child(2)"
+        },
+        {
+          "action": "click",
+          "selector": ".tabs .tab:nth-child(2)"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".section table tbody tr"
+        }
+      ]
+    },
+    {
+      "id": "schedules-new-modal",
+      "route": "/schedules",
+      "wait": "main",
+      "title": "نافذة «جلسة جديدة» فور فتحها: المشارك والنشاط والتاريخ والوقت والمكان، وزرّ الإن",
+      "clip": ".modal",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".head .btn-primary"
+        },
+        {
+          "action": "click",
+          "selector": ".head .btn-primary"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal"
+        }
+      ]
+    },
+    {
+      "id": "schedules-new-interview",
+      "route": "/schedules",
+      "wait": "main",
+      "title": "النافذة بعد اختيار مشارك من قطاع التعليم والنشاط «المقابلة الشخصية»: يظهر حقل «م",
+      "clip": ".modal",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".head .btn-primary"
+        },
+        {
+          "action": "click",
+          "selector": ".head .btn-primary"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal-body > label.fld:nth-of-type(1) select"
+        },
+        {
+          "action": "select",
+          "selector": ".modal-body > label.fld:nth-of-type(1) select",
+          "value": "110"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".cv-review"
+        },
+        {
+          "action": "waitFor",
+          "selector": "text=مستشار تجريبي"
+        }
+      ]
+    },
+    {
+      "id": "schedules-cv-review",
+      "route": "/schedules",
+      "wait": "main",
+      "title": "ملخّص السيرة الذاتية معروضاً داخل النافذة بعد الضغط على «استعراض السيرة الذاتية»",
+      "clip": ".modal",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".head .btn-primary"
+        },
+        {
+          "action": "click",
+          "selector": ".head .btn-primary"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal-body > label.fld:nth-of-type(1) select"
+        },
+        {
+          "action": "select",
+          "selector": ".modal-body > label.fld:nth-of-type(1) select",
+          "value": "110"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".cv-review .btn-ghost.sm"
+        },
+        {
+          "action": "click",
+          "selector": ".cv-review .btn-ghost.sm"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".cv-box"
+        }
+      ]
+    },
+    {
+      "id": "schedules-no-interviewers",
+      "route": "/schedules",
+      "wait": "main",
+      "title": "اختيار مشارك من قطاع بلا مستشار مقابلة فعّال: تظهر تحت القائمة عبارة «لا مستشارو",
+      "clip": ".modal",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".head .btn-primary"
+        },
+        {
+          "action": "click",
+          "selector": ".head .btn-primary"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal-body > label.fld:nth-of-type(1) select"
+        },
+        {
+          "action": "select",
+          "selector": ".modal-body > label.fld:nth-of-type(1) select",
+          "value": "78"
+        },
+        {
+          "action": "waitFor",
+          "selector": "text=لا مستشارون متاحون في قطاع المشارك."
+        }
+      ]
+    },
+    {
+      "id": "schedules-locked",
+      "route": "/schedules",
+      "wait": "main",
+      "title": "الجدول مصفّى على يومٍ اكتمل تسجيل حضوره: كل الصفوف بشارة «حاضر» وزرّا التعديل وا",
+      "clip": ".tbl-wrap",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".toolbar input[type=\"date\"]"
+        },
+        {
+          "action": "fill",
+          "selector": ".toolbar input[type=\"date\"]",
+          "value": "2026-06-20"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".pill.ok"
+        }
+      ]
+    },
+    {
+      "id": "schedules-empty",
+      "route": "/schedules",
+      "wait": "main",
+      "title": "الحالة الفارغة: تاريخ بلا جلسات يعرض «لا توجد جلسات في هذا التاريخ.» ويظهر زرّ «",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".toolbar input[type=\"date\"]"
+        },
+        {
+          "action": "fill",
+          "selector": ".toolbar input[type=\"date\"]",
+          "value": "2026-08-25"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".empty-state"
+        }
+      ]
+    },
+    {
+      "id": "schedules-time-free",
+      "route": "/schedules",
+      "wait": "main",
+      "title": "النافذة نفسها بحساب مسؤول الجدولة: حقل «الوقت» يظهر حقلَ وقتٍ حرّاً لا قائمةَ أو",
+      "role": "scheduler",
+      "clip": ".modal",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".head .btn-primary"
+        },
+        {
+          "action": "click",
+          "selector": ".head .btn-primary"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".row2 input[type=\"time\"]"
+        }
+      ]
+    },
+    {
+      "id": "distribution-cards",
+      "route": "/distribution",
+      "wait": "main",
+      "title": "البطاقات الثلاث وحدها: الأسبوع القادم، والجاهزون للتوزيع، والحدّ لكل مقيّم في ال",
+      "clip": ".cards",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".kpi-card"
+        }
+      ]
+    },
+    {
+      "id": "distribution-draft",
+      "route": "/distribution",
+      "wait": "main",
+      "title": "الشاشة بعد الضغط على «اقترح توزيع الأسبوع»: رسالة النجاح الخضراء ولافتة «مسودّة ",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".empty-state .btn.primary"
+        },
+        {
+          "action": "click",
+          "selector": ".empty-state .btn.primary"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".banner.draft"
+        }
+      ]
+    },
+    {
+      "id": "distribution-banner",
+      "route": "/distribution",
+      "wait": "main",
+      "title": "لافتة حالة الاقتراح وحدها: النقطة والحالة وعدد البنود وأزرار القرار. تعتمد على و",
+      "clip": ".banner",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".banner"
+        }
+      ]
+    },
+    {
+      "id": "candidates-journey",
+      "route": "/candidates",
+      "wait": "main",
+      "title": "رحلة المشارك: الخط الزمني من إضافته إلى اعتماد تقريره، بوقت كل حدث ومنفّذه.",
+      "clip": ".modal:has(.timeline)",
+      "steps": [
+        {
+          "action": "select",
+          "selector": ".filters select:nth-of-type(4)",
+          "value": "completed"
+        },
+        {
+          "action": "waitFor",
+          "selector": "tbody.stagger tr"
+        },
+        {
+          "action": "click",
+          "selector": "tbody.stagger tr:nth-child(1) button[aria-label=\"تفاصيل\"]"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".details"
+        },
+        {
+          "action": "click",
+          "selector": "text=رحلة المشارك"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".timeline"
+        }
+      ]
+    },
+    {
+      "id": "candidates-bulk",
+      "route": "/candidates",
+      "wait": "main",
+      "title": "ثلاثة صفوف محدَّدة وقد ظهر شريط التحديد: العدّاد، ومسح التحديد، وطباعة بطاقات ال",
+      "steps": [
+        {
+          "action": "click",
+          "selector": "tbody.stagger tr:nth-child(1) td.cb-col input"
+        },
+        {
+          "action": "click",
+          "selector": "tbody.stagger tr:nth-child(2) td.cb-col input"
+        },
+        {
+          "action": "click",
+          "selector": "tbody.stagger tr:nth-child(3) td.cb-col input"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".bulk-bar"
+        }
+      ]
+    },
+    {
+      "id": "candidates-group",
+      "route": "/candidates",
+      "wait": "main",
+      "title": "نافذة «إسناد مجموعة» بعد تحديد ثلاثة مشاركين: عدد المحدَّدين، واليوم، وشريحتا «أ",
+      "clip": ".modal.sm",
+      "steps": [
+        {
+          "action": "click",
+          "selector": "tbody.stagger tr:nth-child(1) td.cb-col input"
+        },
+        {
+          "action": "click",
+          "selector": "tbody.stagger tr:nth-child(2) td.cb-col input"
+        },
+        {
+          "action": "click",
+          "selector": "tbody.stagger tr:nth-child(3) td.cb-col input"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".bulk-bar"
+        },
+        {
+          "action": "click",
+          "selector": "text=إسناد لمجموعة"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".chip-row"
+        }
+      ]
+    },
+    {
+      "id": "reception-day-board",
+      "route": "/reception",
+      "wait": "main",
+      "title": "كشف يوم مكتمل عند مسؤول الاستقبال: صفوف فيها إسناد بانتظار المقيّم، وإسناد مُستل",
+      "role": "reception",
+      "steps": [
+        {
+          "action": "fill",
+          "selector": ".date-input",
+          "value": "2026-08-06"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".tbl-scroll"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".asg.pending"
+        }
+      ]
+    },
+    {
+      "id": "reception-sign-modal",
+      "route": "/reception",
+      "wait": "main",
+      "title": "نافذة «توقيع المشارك»: نصّ الإقرار باسم المشارك، ولوحة التوقيع المكتوب فيها «وقّع",
+      "role": "reception",
+      "clip": ".modal",
+      "steps": [
+        {
+          "action": "click",
+          "selector": "text=تسجيل الوصول >> nth=0"
+        },
+        {
+          "action": "waitFor",
+          "selector": "text=أخذ التوقيع"
+        },
+        {
+          "action": "click",
+          "selector": "text=أخذ التوقيع >> nth=0"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal .attest"
+        }
+      ]
+    },
+    {
+      "id": "reception-assign-modal",
+      "route": "/reception",
+      "wait": "main",
+      "title": "نافذة «توزيع»: قائمة النشاط مفتوحة على أول نشاط غير مُسنَد، وقائمة المقيّمين الم",
+      "role": "reception",
+      "clip": ".modal.sm",
+      "steps": [
+        {
+          "action": "fill",
+          "selector": ".date-input",
+          "value": "2026-08-06"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".tbl-scroll"
+        },
+        {
+          "action": "click",
+          "selector": ".asg-list .btn-sm.ghost >> nth=0"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal.sm select"
+        }
+      ]
+    },
+    {
+      "id": "reception-cv-modal",
+      "route": "/reception",
+      "wait": "main",
+      "title": "نافذة «السيرة الذاتية» كما يفتحها مسؤول الاستقبال: الاسم والرتبة والقطاع أعلاها،",
+      "role": "reception",
+      "clip": ".modal",
+      "steps": [
+        {
+          "action": "fill",
+          "selector": ".date-input",
+          "value": "2026-08-06"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".tbl-scroll"
+        },
+        {
+          "action": "click",
+          "selector": "td:nth-child(5) .link:not([disabled]) >> nth=0"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".cv-doc"
+        }
+      ]
+    },
+    {
+      "id": "reception-evaluator-tasks",
+      "route": "/reception",
+      "wait": "main",
+      "title": "الشاشة كما يراها مستشار المقابلة: قسم «المُسنَد إليّ اليوم» وحده — بطاقات بانتظا",
+      "role": "evaluator",
+      "steps": [
+        {
+          "action": "fill",
+          "selector": ".date-input",
+          "value": "2026-08-06"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".tasks"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".task.pending"
+        }
+      ]
+    },
+    {
+      "id": "reception-reject-modal",
+      "route": "/reception",
+      "wait": "main",
+      "title": "نافذة «ردّ»: حقل «سبب الردّ» بمثاله، والتلميح بأن السبب يصل لمسؤول العمليات ليعي",
+      "role": "evaluator",
+      "clip": ".modal.sm",
+      "steps": [
+        {
+          "action": "fill",
+          "selector": ".date-input",
+          "value": "2026-08-06"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".tasks"
+        },
+        {
+          "action": "click",
+          "selector": ".task.pending .btn-danger >> nth=0"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal.sm textarea"
+        }
+      ]
+    },
+    {
+      "id": "reception-operations-board",
+      "route": "/reception",
+      "wait": "main",
+      "title": "كشف اليوم نفسه كما يراه مسؤول العمليات: بلا عمود «الاسم»، وعمود «السيرة» يعرض «—",
+      "role": "operations",
+      "steps": [
+        {
+          "action": "fill",
+          "selector": ".date-input",
+          "value": "2026-08-06"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".tbl-scroll"
+        },
+        {
+          "action": "hover",
+          "selector": ".btn-ok.sm >> nth=0"
+        }
+      ]
+    },
+    {
+      "id": "reception-kiosk",
+      "role": "reception",
+      "route": "/reception",
+      "wait": "main",
+      "clip": ".kiosk-section",
+      "title": "كشك تسجيل الحضور: رابط اليوم بعد إنشائه، وزرّا «نسخ الرابط» و«إبطال»",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".kiosk-new .btn-ok"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".kiosk"
+        }
+      ]
+    },
+    {
+      "id": "reception-print-queue",
+      "role": "reception",
+      "route": "/reception",
+      "wait": "main",
+      "clip": ".queue-section",
+      "title": "طابور طباعة البطاقات: ما طلبه المشاركون على الكشك ولم يُطبع بعد"
+    },
+    {
+      "id": "kiosk-gate",
+      "role": "reception",
+      "route": "/reception",
+      "wait": "main",
+      "clip": ".card",
+      "title": "شاشة الكشك كما يراها المشارك: لوحة أرقام الهوية وحدها، بلا أي بيان",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".kiosk-new .btn-ok"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".kiosk-url"
+        },
+        {
+          "action": "gotoFrom",
+          "selector": ".kiosk-url",
+          "wait": ".keys"
+        }
+      ]
+    },
+    {
+      "id": "kiosk-review",
+      "role": "reception",
+      "route": "/reception",
+      "wait": "main",
+      "clip": ".card",
+      "fullPage": true,
+      "requiresEnv": "GUIDE_KIOSK_NID",
+      "title": "مراجعة البيانات والتوقيع على الكشك — بعد إدخال المشارك رقم هويته",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".kiosk-new .btn-ok"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".kiosk-url"
+        },
+        {
+          "action": "gotoFrom",
+          "selector": ".kiosk-url",
+          "wait": ".keys"
+        },
+        {
+          "action": "keypad",
+          "value": "env:GUIDE_KIOSK_NID"
+        },
+        {
+          "action": "click",
+          "selector": "button.btn.primary.big"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".signblock"
+        }
+      ]
+    },
+    {
+      "id": "attendance-absence-modal",
+      "route": "/attendance",
+      "wait": "main",
+      "title": "نافذة «تسجيل غياب» مفتوحة على الصفّ الثاني بحساب الاستقبال: العنوان برمز المشارك",
+      "role": "reception",
+      "clip": ".modal",
+      "steps": [
+        {
+          "action": "click",
+          "selector": "button.btn-amber:has-text('غياب')"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal"
+        }
+      ]
+    },
+    {
+      "id": "attendance-filter-empty",
+      "route": "/attendance",
+      "wait": "main",
+      "title": "بعد الضغط على بطاقة «غائب»: البطاقة مُعلَّمة بحدّ، والنتيجة فارغة فيظهر نصّ «لا ",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".stats .stat:nth-child(2)"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".empty-state"
+        }
+      ]
+    },
+    {
+      "id": "attendance-not-mine",
+      "route": "/attendance",
+      "wait": "main",
+      "title": "الشاشة بحساب مستشار حلقة النقاش: الجلسات المعروضة محصورة بقطاعه، وكلّها غير مُسن",
+      "role": "discussion",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".not-mine"
+        }
+      ]
+    },
+    {
+      "id": "attendance-evaluator",
+      "route": "/attendance",
+      "wait": "main",
+      "title": "الشاشة بحساب مستشار المقابلة: جلساته هو وحدها داخل قطاعه، وأزرار «حضور» و«غياب» ",
+      "role": "evaluator",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": "tbody.stagger tr .btn-p"
+        }
+      ]
+    },
+    {
+      "id": "attendance-recorded",
+      "route": "/attendance",
+      "wait": "main",
+      "title": "نتيجة تسجيل الحضور: يُضغط «حضور» في الصفّ الأول بحساب الاستقبال، فتصير حالته «حا",
+      "role": "reception",
+      "steps": [
+        {
+          "action": "click",
+          "selector": "button.btn-p:has-text('حضور')"
+        },
+        {
+          "action": "wait",
+          "value": "1500"
+        }
+      ]
+    },
+    {
+      "id": "assessment-start-selected",
+      "route": "/assessment",
+      "wait": "main",
+      "title": "بعد اختيار المشارك ونوع النشاط «حلقة نقاش» — زرّ «بدء الجلسة» صار فعّالاً.",
+      "steps": [
+        {
+          "action": "select",
+          "selector": ".form-grid > div:nth-child(1) select",
+          "value": "59"
+        },
+        {
+          "action": "select",
+          "selector": ".form-grid > div:nth-child(2) select",
+          "value": "discussion"
+        }
+      ]
+    },
+    {
+      "id": "assessment-session",
+      "route": "/assessment",
+      "wait": "main",
+      "title": "نموذج الدرجات بعد فتح مسودة: عدّاد الجلسة، ولوحة السيرة الذاتية المطوية، وبطاقة ",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".draft-row:first-child .btn-outline"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".cv-card"
+        }
+      ]
+    },
+    {
+      "id": "assessment-cv",
+      "route": "/assessment",
+      "wait": "main",
+      "title": "لوحة السيرة الذاتية بعد فتحها، وبجانب عنوانها رمز المشارك وحده بلا اسم.",
+      "clip": ".cv-card",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".draft-row:first-child .btn-outline"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".cv-card"
+        },
+        {
+          "action": "click",
+          "selector": ".cv-toggle"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".cv-body"
+        }
+      ]
+    },
+    {
+      "id": "assessment-no-scores-error",
+      "route": "/assessment",
+      "wait": "main",
+      "title": "محاولة «حفظ مسودة» بعد كتابة ملاحظة وقبل رصد أي درجة — تظهر رسالة «أدخل درجة واح",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".draft-row:first-child .btn-outline"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".cv-card"
+        },
+        {
+          "action": "fill",
+          "selector": "textarea",
+          "value": "أظهر المشارك وضوحاً في عرض موقفه وتماسكاً في الحجّة."
+        },
+        {
+          "action": "click",
+          "selector": "text=حفظ مسودة"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".error"
+        }
+      ]
+    },
+    {
+      "id": "assessment-duplicate-error",
+      "route": "/assessment",
+      "wait": "main",
+      "title": "مستشار المقابلة يحاول بدء جلسة لمشارك له مسودة مفتوحة في النشاط نفسه — يردّ النظ",
+      "role": "evaluator",
+      "steps": [
+        {
+          "action": "select",
+          "selector": ".form-grid > div:nth-child(1) select",
+          "value": "59"
+        },
+        {
+          "action": "click",
+          "selector": "text=بدء الجلسة"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".error"
+        }
+      ]
+    },
+    {
+      "id": "assessment-no-input-perm",
+      "route": "/assessment",
+      "wait": "main",
+      "title": "مدير إدارة التقييم يفتح الشاشة (يملك evaluation.view) ويحاول بدء جلسة — يردّ الخ",
+      "role": "assess",
+      "steps": [
+        {
+          "action": "select",
+          "selector": ".form-grid > div:nth-child(1) select",
+          "value": "59"
+        },
+        {
+          "action": "click",
+          "selector": "text=بدء الجلسة"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".error"
+        }
+      ]
+    },
+    {
+      "id": "measurement",
+      "route": "/measurements",
+      "wait": "main",
+      "title": "الشاشة كاملةً بحساب مدير النظام قبل اختيار أي مشارك: العنوان والقائمة المنسدلة و",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".picker select"
+        }
+      ]
+    },
+    {
+      "id": "measurement-selected",
+      "route": "/measurements",
+      "wait": "main",
+      "title": "بعد اختيار المشارك DM-026: بطاقة الدرجات الثلاث معبّأة بالنتيجة المحفوظة وسطر «آ",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".picker select"
+        },
+        {
+          "action": "select",
+          "selector": ".picker select",
+          "value": "79"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".scales"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".saved-note"
+        }
+      ]
+    },
+    {
+      "id": "measurement-saved",
+      "route": "/measurements",
+      "wait": "main",
+      "title": "شريط التأكيد الأخضر «تم حفظ نتيجة القياس» بعد الضغط على «حفظ النتيجة» بالقيم نفس",
+      "clip": ".card",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".picker select"
+        },
+        {
+          "action": "select",
+          "selector": ".picker select",
+          "value": "79"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".scales"
+        },
+        {
+          "action": "click",
+          "selector": ".foot .btn-primary"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".ok"
+        }
+      ]
+    },
+    {
+      "id": "measurement-invalid",
+      "route": "/measurements",
+      "wait": "main",
+      "title": "رسالة الخطأ الحمراء «تعذّر الحفظ — تحقّق من القيم (0–100)» بعد إدخال 150 في المق",
+      "clip": ".card",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".picker select"
+        },
+        {
+          "action": "select",
+          "selector": ".picker select",
+          "value": "79"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".scales"
+        },
+        {
+          "action": "fill",
+          "selector": ".scales .scale:nth-child(1) .in-wrap input",
+          "value": "150"
+        },
+        {
+          "action": "click",
+          "selector": ".foot .btn-primary"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".err"
+        }
+      ]
+    },
+    {
+      "id": "measurement-readonly",
+      "route": "/measurements",
+      "wait": "main",
+      "title": "الشاشة بحساب مدير إدارة التقييم: الحقول معطّلة ولا زرّ حفظ، ومكانه سطر «عرض فقط ",
+      "role": "assess",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".picker select"
+        },
+        {
+          "action": "select",
+          "selector": ".picker select",
+          "value": "79"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".scales"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".muted"
+        }
+      ]
+    },
+    {
+      "id": "development-plans-items",
+      "route": "/development-plans",
+      "wait": "main",
+      "title": "خطة المشارك DM-049: الملخّص وبندان أحدهما مكتمل (مشطوب) والآخر قيد التنفيذ، وبطا",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".picker select"
+        },
+        {
+          "action": "select",
+          "selector": ".picker select",
+          "value": "102"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".items .item"
+        }
+      ]
+    },
+    {
+      "id": "development-plans-item-controls",
+      "route": "/development-plans",
+      "wait": "main",
+      "title": "بند واحد مقرَّباً: المجال والإجراء والموعد ووسم «اكتمل»، وبجانبها قائمة الحالة و",
+      "clip": ".items .item:nth-child(1)",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".picker select"
+        },
+        {
+          "action": "select",
+          "selector": ".picker select",
+          "value": "102"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".items .item"
+        }
+      ]
+    },
+    {
+      "id": "development-plans-add",
+      "route": "/development-plans",
+      "wait": "main",
+      "title": "بطاقة «إضافة بند» معبّأة بمجال وإجراء وموعد مستهدف قبل الضغط على «إضافة»",
+      "clip": ".add",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".picker select"
+        },
+        {
+          "action": "select",
+          "selector": ".picker select",
+          "value": "102"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".add"
+        },
+        {
+          "action": "fill",
+          "selector": ".add input[placeholder=\"مجال التطوير *\"]",
+          "value": "التفويض الفعّال"
+        },
+        {
+          "action": "fill",
+          "selector": ".add input[placeholder=\"الإجراء / التوصية (اختياري)\"]",
+          "value": "تكليف بمشروع تحسيني بإشراف قيادي"
+        },
+        {
+          "action": "fill",
+          "selector": ".add input[type=date]",
+          "value": "2026-12-31"
+        }
+      ]
+    },
+    {
+      "id": "development-plans-seed-error",
+      "route": "/development-plans",
+      "wait": "main",
+      "title": "رسالة «لا توجد مجالات تطوير في تقرير هذه الدورة» بعد الضغط على «توليد من التقرير",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".picker select"
+        },
+        {
+          "action": "select",
+          "selector": ".picker select",
+          "value": "78"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".empty-state"
+        },
+        {
+          "action": "click",
+          "selector": ".bar .btn-ghost"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".err"
+        }
+      ]
+    },
+    {
+      "id": "development-plans-evaluator",
+      "route": "/development-plans",
+      "wait": "main",
+      "title": "بحساب مستشار المقابلة: القائمة تعرض مشاركي قطاعه، واختيار من لم يقيّمه (DM-006) ",
+      "role": "evaluator",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".picker select"
+        },
+        {
+          "action": "select",
+          "selector": ".picker select",
+          "value": "59"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".err"
+        }
+      ]
+    },
+    {
+      "id": "development-plans-readonly",
+      "route": "/development-plans",
+      "wait": "main",
+      "title": "بحساب إدارة تطوير الكفاءات: البنود ظاهرة، وقائمة الحالة معطّلة، ولا زرّ حذف ولا ",
+      "role": "devmanager",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".picker select"
+        },
+        {
+          "action": "select",
+          "selector": ".picker select",
+          "value": "102"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".items .item"
+        }
+      ]
+    },
+    {
+      "id": "competency-framework-edit",
+      "route": "/competency-framework",
+      "wait": "main",
+      "title": "نافذة «تعديل كفاءة» للصفّ الأول — بلا حقل النوع، مع التنبيه أسفل الحقول",
+      "clip": ".modal",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": "tbody tr"
+        },
+        {
+          "action": "click",
+          "selector": "tbody tr:nth-child(1) .ic"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal"
+        }
+      ]
+    },
+    {
+      "id": "competency-framework-add",
+      "route": "/competency-framework",
+      "wait": "main",
+      "title": "نافذة «إضافة كفاءة» فارغة مع حقل النوع (سلوكية/قيادية/فنية) الذي يظهر عند الإضاف",
+      "clip": ".modal",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": "tbody tr"
+        },
+        {
+          "action": "click",
+          "selector": ".head .btn-primary"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal"
+        }
+      ]
+    },
+    {
+      "id": "competency-framework-invalid",
+      "route": "/competency-framework",
+      "wait": "main",
+      "title": "رسالة «تحقّق من الحقول: المستوى المطلوب لا يتجاوز الحد الأقصى» بعد وضع 9 في «مطل",
+      "clip": ".modal",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": "tbody tr"
+        },
+        {
+          "action": "click",
+          "selector": "tbody tr:nth-child(1) .ic"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal"
+        },
+        {
+          "action": "fill",
+          "selector": ".modal-body > .row2:nth-of-type(3) .fld:nth-child(1) input",
+          "value": "9"
+        },
+        {
+          "action": "click",
+          "selector": ".modal-foot .btn-primary"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal-body .err"
+        }
+      ]
+    },
+    {
+      "id": "competency-framework-readonly",
+      "route": "/competency-framework",
+      "wait": "main",
+      "title": "الشاشة بحساب مدير إدارة التقييم: الجدول ظاهر بلا زرّ «إضافة كفاءة» وبلا عمود الت",
+      "role": "assess",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": "tbody tr"
+        }
+      ]
+    },
+    {
+      "id": "competency-map-checked",
+      "route": "/competency-map",
+      "wait": "main",
+      "title": "بطاقة «مقابلة شخصية» بعد تأشير كفاءتين: العدّاد في رأس البطاقة تحدّث فوراً قبل ا",
+      "clip": ".grid .card:nth-child(1)",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".grid .card .comp-check"
+        },
+        {
+          "action": "click",
+          "selector": ".grid .card:nth-child(1) .comp-check:nth-of-type(1) input"
+        },
+        {
+          "action": "click",
+          "selector": ".grid .card:nth-child(1) .comp-check:nth-of-type(2) input"
+        }
+      ]
+    },
+    {
+      "id": "reports-card-actions",
+      "route": "/reports",
+      "wait": "main",
+      "title": "بطاقة تقرير واقف عند مرحلة «بانتظار اعتماد المقيّم» مع الرقم 1/3 وأشرطة التوافق ",
+      "clip": ".report-card:first-child",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".filters button:nth-child(2)"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".rc-actions"
+        }
+      ]
+    },
+    {
+      "id": "reports-filters-advanced",
+      "route": "/reports",
+      "wait": "main",
+      "title": "لوحة الفلترة المتقدّمة مفتوحة: القطاع والفئة والتوصية ومن/إلى تاريخ وزر تطبيق.",
+      "clip": ".adv-panel",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".adv-toggle"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".adv-panel"
+        }
+      ]
+    },
+    {
+      "id": "reports-editor-create",
+      "route": "/reports",
+      "wait": "main",
+      "title": "محرّر «إنشاء تقرير نهائي» بعد اختيار مشارك: لوحة الاحتساب الآلي من الدرجات، لوحة",
+      "clip": ".modal.editor",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".page-head button.btn-p"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".ed-body > label.field:first-child select"
+        },
+        {
+          "action": "select",
+          "selector": ".ed-body > label.field:first-child select",
+          "value": "79"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".gap-panel"
+        }
+      ]
+    },
+    {
+      "id": "reports-return-modal",
+      "route": "/reports",
+      "wait": "main",
+      "title": "نافذة «إرجاع التقرير» مع حقل سبب الإرجاع الإلزامي وزرّ تأكيد الإرجاع المعطَّل قب",
+      "clip": ".modal",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".filters button:nth-child(2)"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".rc-actions"
+        },
+        {
+          "action": "click",
+          "selector": ".report-card:first-child .btn-danger"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal textarea"
+        }
+      ]
+    },
+    {
+      "id": "reports-exec-summary",
+      "route": "/reports",
+      "wait": "main",
+      "title": "نافذة الملخّص التنفيذي بصلاحية الكتابة: التنبيه «يُعرض في المستند المختصر. بصلاح",
+      "clip": ".modal",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".filters button:nth-child(2)"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".rc-actions"
+        },
+        {
+          "action": "click",
+          "selector": "text=الملخّص التنفيذي"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal textarea"
+        }
+      ]
+    },
+    {
+      "id": "reports-pager",
+      "route": "/reports",
+      "wait": "main",
+      "title": "شريط الترقيم بعد ضبط حجم الصفحة على ١٠: عدّاد النطاق من الإجمالي، وأزرار التنقّل",
+      "clip": ".pager",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".pg-size"
+        },
+        {
+          "action": "select",
+          "selector": ".pg-size",
+          "value": "10"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".pager-nav"
+        }
+      ]
+    },
+    {
+      "id": "reports-evaluator",
+      "route": "/reports",
+      "wait": "main",
+      "title": "الشاشة نفسها بحساب مستشار المقابلة: تقارير من قيّمهم هو وحدهم، وبلا زرَّي «إنشاء",
+      "role": "evaluator",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".rc-actions"
+        }
+      ]
+    },
+    {
+      "id": "analytics-kpis",
+      "route": "/analytics",
+      "wait": "main",
+      "title": "شريط بطاقات المؤشرات الأربع: إجمالي المشاركين، متوسط التوافق السلوكي، متوسط التوا",
+      "clip": ".stats",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".stats .kpi-card"
+        }
+      ]
+    },
+    {
+      "id": "analytics-charts",
+      "route": "/analytics",
+      "wait": "main",
+      "title": "البطاقات الأربع: المشاركون حسب الحالة، حضور اليوم، حالة التقارير، التقارير المعتم",
+      "clip": ".widgets",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".widgets .card"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".widgets2 .tbl-wrap table"
+        }
+      ]
+    },
+    {
+      "id": "analytics-attendance",
+      "route": "/analytics",
+      "wait": "main",
+      "title": "حلقة «نسبة الحضور» وتفصيلها: حاضر، غائب، بالانتظار",
+      "clip": ".att-body",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".att-body"
+        }
+      ]
+    },
+    {
+      "id": "analytics-gaps-sectors",
+      "route": "/analytics",
+      "wait": "main",
+      "title": "بطاقتا «فجوات الكفاءات (الأضعف أولاً)» و«حسب القطاع» بجدولها",
+      "clip": ".widgets2",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".widgets2 .tbl-wrap table"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".gap"
+        }
+      ]
+    },
+    {
+      "id": "executive-kpis",
+      "route": "/executive",
+      "wait": "main",
+      "title": "بطاقات المؤشرات الأربع مع شارات فرق الفترة",
+      "clip": ".kpis",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".kpis"
+        }
+      ]
+    },
+    {
+      "id": "executive-insights",
+      "route": "/executive",
+      "wait": "main",
+      "title": "بطاقات «رؤى تلقائية» بألوان نبراتها الثلاث",
+      "clip": ".ins-grid",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".ins-title"
+        }
+      ]
+    },
+    {
+      "id": "executive-heatmap",
+      "route": "/executive",
+      "wait": "main",
+      "title": "الخريطة الحرارية لإتقان الكفاءات × القطاع مع وسيلة «أضعف ← أقوى»",
+      "clip": ".hm-wrap",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".hm-cell"
+        }
+      ]
+    },
+    {
+      "id": "executive-trend",
+      "route": "/executive",
+      "wait": "main",
+      "title": "الاتجاه الشهري: أعمدة «تقارير معتمدة» وخطّ «متوسط الجاهزية %» على النافذة الافتر",
+      "clip": ".tc",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".tc-svg"
+        }
+      ]
+    },
+    {
+      "id": "executive-period",
+      "route": "/executive",
+      "wait": "main",
+      "title": "مجموعة نافذة الاتجاه وزرّ «تصدير PDF» بعد اختيار «آخر سنة»",
+      "clip": ".head-actions",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".seg-btn"
+        },
+        {
+          "action": "click",
+          "selector": "text=آخر سنة"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".seg-btn.on"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".tc-svg"
+        }
+      ]
+    },
+    {
+      "id": "executive-sectors",
+      "route": "/executive",
+      "wait": "main",
+      "title": "مقارنة القطاعات بالجاهزية مرتّبةً تنازلياً مع الرتبة وعدّاد المكتمل",
+      "clip": ".sectors",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".sec-row"
+        }
+      ]
+    },
+    {
+      "id": "executive-tiers-dist",
+      "route": "/executive",
+      "wait": "main",
+      "title": "بطاقتا «الفئات القيادية» و«توزيع الجاهزية» بشرائحها الأربع",
+      "clip": ".two-col:last-child",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".tiers"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".dist-row"
+        }
+      ]
+    },
+    {
+      "id": "daily-report-kpis",
+      "route": "/daily-report",
+      "wait": "main",
+      "title": "بطاقات اليوم الأربع: حضروا، غياب، بانتظار، إجمالي الجلسات",
+      "role": "center",
+      "clip": ".cards",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".cards .kpi-card"
+        }
+      ]
+    },
+    {
+      "id": "daily-report-actions",
+      "route": "/daily-report",
+      "wait": "main",
+      "title": "ترويسة الشاشة: حقل التاريخ وزرّ «طباعة»",
+      "role": "center",
+      "clip": ".head-actions",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".date-input"
+        }
+      ]
+    },
+    {
+      "id": "daily-report-day",
+      "route": "/daily-report",
+      "wait": "main",
+      "title": "الشاشة بعد اختيار يومٍ فيه درجات مُدخَلة وتقارير تحرّكت",
+      "role": "center",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".date-input"
+        },
+        {
+          "action": "fill",
+          "selector": ".date-input",
+          "value": "2026-07-15"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".cols .section table"
+        }
+      ]
+    },
+    {
+      "id": "daily-report-tables",
+      "route": "/daily-report",
+      "wait": "main",
+      "title": "قسما «درجات اليوم» و«حالة التقارير» ممتلئين",
+      "role": "center",
+      "clip": ".cols",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".date-input"
+        },
+        {
+          "action": "fill",
+          "selector": ".date-input",
+          "value": "2026-07-15"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".cols .section table"
+        }
+      ]
+    },
+    {
+      "id": "chat-reports-list",
+      "route": "/chat",
+      "wait": "main",
+      "title": "قائمة «التقارير» — كل بطاقة رمز مشارك وقطاعه، والمفتوحة منها مُبرَزة.",
+      "clip": ".reports-list",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".report-item.active"
+        }
+      ]
+    },
+    {
+      "id": "chat-system-message",
+      "route": "/chat",
+      "wait": "main",
+      "title": "مجرى الرسائل وفيه فقاعة رسالة النظام الوسطى: «أُعيد التقرير للتعديل. السبب: …».",
+      "clip": "#chatMessages",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".sys-msg"
+        }
+      ]
+    },
+    {
+      "id": "chat-empty-thread",
+      "route": "/chat",
+      "wait": "main",
+      "title": "لوحة محادثة تقرير لا رسائل فيه: «لا توجد رسائل بعد — ابدأ المحادثة».",
+      "clip": ".chat-panel",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".report-item.active"
+        },
+        {
+          "action": "click",
+          "selector": ".reports-list button.report-item:nth-of-type(2)"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".chat-messages .empty-state"
+        }
+      ]
+    },
+    {
+      "id": "chat-compose",
+      "route": "/chat",
+      "wait": "main",
+      "title": "صفّ الكتابة: حقل «اكتب رسالة...» معبّأ بنصّ، وبجانبه زرّ «إرسال».",
+      "clip": ".chat-input-row",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".chat-input-row input"
+        },
+        {
+          "action": "fill",
+          "selector": ".chat-input-row input",
+          "value": "يرجى مراجعة نتيجة كفاءة اتخاذ القرار قبل الاعتماد"
+        }
+      ]
+    },
+    {
+      "id": "chat-narrowed",
+      "route": "/chat",
+      "wait": "main",
+      "title": "قائمة التقارير كما يراها مستشار المقابلة — لا تظهر إلا تقارير من قيّمهم هو.",
+      "role": "evaluator",
+      "clip": ".reports-list",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".report-item.active"
+        }
+      ]
+    },
+    {
+      "id": "chat-no-reports",
+      "route": "/chat",
+      "wait": "main",
+      "title": "الشاشة لدى دور يملك «المحادثات» بلا «عرض التقارير»: شريط الخطأ و«لا توجد تقارير»",
+      "role": "reception",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".error"
+        }
+      ]
+    },
+    {
+      "id": "notifications-head",
+      "route": "/notifications",
+      "wait": "main",
+      "title": "ترويسة الشاشة: عنوان «الإشعارات» مع عدد غير المقروء، وزرّ «تعليم الكل كمقروء».",
+      "clip": ".head",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".btn-ghost"
+        }
+      ]
+    },
+    {
+      "id": "notifications-item",
+      "route": "/notifications",
+      "wait": "main",
+      "title": "بطاقة إشعار واحدة: أيقونة النوع، العنوان، المتن، الوقت، ونقطة عدم القراءة.",
+      "clip": ".notif-list .notif:first-child",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".notif-list .notif"
+        }
+      ]
+    },
+    {
+      "id": "notifications-empty",
+      "route": "/notifications",
+      "wait": "main",
+      "title": "الحالة الفارغة لدى حساب بلا إشعارات: «لا توجد إشعارات».",
+      "role": "measure",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".empty-state"
+        }
+      ]
+    },
+    {
+      "id": "workflow-chain",
+      "route": "/workflow",
+      "wait": "main",
+      "title": "بطاقة «المسار الحالي»: مسودة ← المراحل المفعّلة بالترتيب ← معتمد.",
+      "clip": ".chain-card",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".chain .node.done"
+        }
+      ]
+    },
+    {
+      "id": "workflow-stage",
+      "route": "/workflow",
+      "wait": "main",
+      "title": "صفّ مرحلة واحدة: السهمان والرقم، وحقل «اسم المرحلة»، واسم الدور، ووسم «N تقرير ه",
+      "clip": ".stages .stage:nth-child(1)",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".stages .stage"
+        }
+      ]
+    },
+    {
+      "id": "workflow-blocked-toggle",
+      "route": "/workflow",
+      "wait": "main",
+      "title": "محاولة تعطيل مرحلة فيها تقارير: يظهر شريط الخطأ «‹الاسم› فيها N تقرير — حرّكها أ",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".stages .stage"
+        },
+        {
+          "action": "click",
+          "selector": ".stages .stage:nth-child(1) .switch .slider"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".alert.error"
+        }
+      ]
+    },
+    {
+      "id": "workflow-stage-off",
+      "route": "/workflow",
+      "wait": "main",
+      "title": "بعد تعطيل مرحلة خالية من التقارير: صفّها باهت بإطار متقطّع ورقمه «—»، وتخرج من «",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".stages .stage"
+        },
+        {
+          "action": "click",
+          "selector": ".stages .stage:nth-child(4) .switch .slider"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".stage.off"
+        }
+      ]
+    },
+    {
+      "id": "workflow-move-up",
+      "route": "/workflow",
+      "wait": "main",
+      "title": "«المسار الحالي» بعد الضغط على سهم «لأعلى» في المرحلة الثانية — تبديل الموضعين.",
+      "clip": ".chain-card",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".stages .stage"
+        },
+        {
+          "action": "click",
+          "selector": ".stages .stage:nth-child(2) button[title=\"لأعلى\"]"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".chain .node"
+        }
+      ]
+    },
+    {
+      "id": "workflow-notes",
+      "route": "/workflow",
+      "wait": "main",
+      "title": "صندوق «ملاحظات مهمة» — القواعد الخمس التي يفرضها المحرّك.",
+      "clip": ".info-box",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".info-box"
+        }
+      ]
+    },
+    {
+      "id": "settings-ldap",
+      "route": "/settings",
+      "wait": "main",
+      "title": "بطاقة Active Directory / LDAP وحدها: مفتاح التفعيل والحقول وزرّا الاختبار والحفظ",
+      "clip": ".card:has-text(\"Active Directory / LDAP\")"
+    },
+    {
+      "id": "settings-sms",
+      "route": "/settings",
+      "wait": "main",
+      "title": "بطاقة بوّابة الرسائل النصية — المفتاح محفوظ فيظهر الحقل مقنّعاً بـ «•••••••• (مح",
+      "clip": ".card:has-text(\"بوّابة الرسائل النصية\")"
+    },
+    {
+      "id": "settings-idverify",
+      "route": "/settings",
+      "wait": "main",
+      "title": "بطاقة بوّابة التحقق من الهوية بعد اختيار المزوّد «يقين / أبشر»، ومعها قائمة «آخر",
+      "clip": ".card:has-text(\"بوّابة التحقق من الهوية\")",
+      "steps": [
+        {
+          "action": "select",
+          "selector": ".card:has-text(\"بوّابة التحقق من الهوية\") select",
+          "value": "yakeen"
+        }
+      ]
+    },
+    {
+      "id": "settings-smtp",
+      "route": "/settings",
+      "wait": "main",
+      "title": "بطاقة خادم البريد — بعد ضبط المنفذ على 587 ثم اختيار «SSL/TLS ضمني» تحوّل المنفذ",
+      "clip": ".card:has-text(\"خادم البريد (SMTP)\")",
+      "steps": [
+        {
+          "action": "fill",
+          "selector": ".card:has-text(\"خادم البريد (SMTP)\") input[inputmode=\"numeric\"]",
+          "value": "587"
+        },
+        {
+          "action": "select",
+          "selector": ".card:has-text(\"خادم البريد (SMTP)\") select",
+          "value": "ssl"
+        }
+      ]
+    },
+    {
+      "id": "settings-sectors",
+      "route": "/settings",
+      "wait": "main",
+      "title": "بطاقة القطاعات: القطاعات المعتمدة باسمها المختصر والرسمي ورمزها، وعمود «التصنيف» عسكري/مدني، وعلامة «محمي» على المرتبط بمشاركين",
+      "clip": ".card:has-text(\"القطاعات\")"
+    },
+    {
+      "id": "settings-sectors-edit",
+      "route": "/settings",
+      "wait": "main",
+      "title": "بطاقة القطاعات وقد تغيّر رمز صفٍّ فظهر زرّ «حفظ الرمز» وتحدّث عمود «نموذج»، وصفّ جديد قيد الكتابة بتصنيفه",
+      "clip": ".card:has-text(\"القطاعات\")",
+      "steps": [
+        {
+          "action": "fill",
+          "selector": ".sect-row:nth-of-type(2) .prefix-input",
+          "value": "HO2"
+        },
+        {
+          "action": "fill",
+          "selector": ".sect-new .sect-name",
+          "value": "الرياضة"
+        },
+        {
+          "action": "fill",
+          "selector": ".sect-new .prefix-input",
+          "value": "RY"
+        }
+      ]
+    },
+    {
+      "id": "settings-session-times",
+      "route": "/settings",
+      "wait": "main",
+      "title": "بطاقة أوقات الجلسات بعد تعديل القائمة — زرّ «حفظ» لا يظهر إلا بعد التغيير",
+      "clip": ".card:has-text(\"أوقات الجلسات\")",
+      "steps": [
+        {
+          "action": "fill",
+          "selector": ".slots-input",
+          "value": "09:30, 11:45, 14:00"
+        }
+      ]
+    },
+    {
+      "id": "audit-filters",
+      "route": "/audit",
+      "wait": "main",
+      "title": "شريط المشاركات وحده: قائمتا الإجراءات والمستخدمين، وحقلا التاريخ، وزرّ «مسح»",
+      "clip": ".filters"
+    },
+    {
+      "id": "audit-sensitive",
+      "route": "/audit",
+      "wait": "main",
+      "title": "الجدول بعد ترشيحه على «الاطلاع على البيانات الشخصية» — صفوف مظلَّلة يسبق إجراءَه",
+      "steps": [
+        {
+          "action": "select",
+          "selector": ".filters select",
+          "value": "VIEW_CANDIDATE_PII"
+        }
+      ]
+    },
+    {
+      "id": "audit-empty",
+      "route": "/audit",
+      "wait": "main",
+      "title": "الحالة الفارغة: ترشيح على «حذف المشارك» بلا نتائج فتظهر «لا توجد سجلات مطابقة»",
+      "steps": [
+        {
+          "action": "select",
+          "selector": ".filters select",
+          "value": "DELETE_CANDIDATE"
+        }
+      ]
+    },
+    {
+      "id": "audit-center",
+      "route": "/audit",
+      "wait": "main",
+      "title": "الشاشة نفسها كما يفتحها مدير المركز — الدور الثاني الوحيد الذي يملك audit.view",
+      "role": "center"
+    },
+    {
+      "id": "users-add-external",
+      "route": "/users",
+      "wait": "main",
+      "title": "نموذج «إضافة مستخدم» على النوع الافتراضي «خارجي»: بطاقتا النوع، وحقول اسم المستخ",
+      "clip": ".modal",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".head .btn-add"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".ext-note"
+        }
+      ]
+    },
+    {
+      "id": "users-add-internal",
+      "route": "/users",
+      "wait": "main",
+      "title": "النموذج على النوع «داخلي (Active Directory)» بعد اختيار دور «مساعد التقييم»: يظه",
+      "clip": ".modal",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".head .btn-add"
+        },
+        {
+          "action": "click",
+          "selector": ".type-selector .type-btn:nth-child(1)"
+        },
+        {
+          "action": "select",
+          "selector": ".modal select",
+          "value": "مساعد التقييم"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".perms-box"
+        }
+      ]
+    },
+    {
+      "id": "users-edit",
+      "route": "/users",
+      "wait": "main",
+      "title": "نافذة «تعديل مستخدم» لحساب مساعد تقييم: لا يظهر فيها اسم المستخدم ولا اختيار الن",
+      "clip": ".modal",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".table-card table tbody tr"
+        },
+        {
+          "action": "click",
+          "selector": "tbody tr:nth-child(2) button[title=\"تعديل\"]"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".perms-box"
+        }
+      ]
+    },
+    {
+      "id": "users-permissions",
+      "route": "/users",
+      "wait": "main",
+      "title": "نافذة استثناءات الصلاحيات لمستخدم: سطر «الدور … هو الأساس»، ومفتاح الحالات الثلا",
+      "clip": ".modal.wide",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".table-card table tbody tr"
+        },
+        {
+          "action": "click",
+          "selector": "tbody tr:nth-child(1) button[title=\"الصلاحيات\"]"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".perm-legend"
+        }
+      ]
+    },
+    {
+      "id": "users-permissions-override",
+      "route": "/users",
+      "wait": "main",
+      "title": "الحالتان الاستثنائيتان في مجموعة «المشاركون»: «إضافة مشارك» ممنوحة استثناءً بالأخ",
+      "clip": ".modal.wide",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".table-card table tbody tr"
+        },
+        {
+          "action": "click",
+          "selector": "tbody tr:nth-child(1) button[title=\"الصلاحيات\"]"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".perm-legend"
+        },
+        {
+          "action": "click",
+          "selector": ".perm-group:nth-child(1) .perm-list .perm:nth-child(2)"
+        },
+        {
+          "action": "click",
+          "selector": ".perm-group:nth-child(1) .perm-list .perm:nth-child(1)"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".perm-changes"
+        }
+      ]
+    },
+    {
+      "id": "users-password",
+      "route": "/users",
+      "wait": "main",
+      "title": "نافذة «إعادة تعيين كلمة المرور»: اسم المستخدم المستهدف، وحقل كلمة المرور الجديدة",
+      "clip": ".modal.sm",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".table-card table tbody tr"
+        },
+        {
+          "action": "click",
+          "selector": "tbody tr:nth-child(1) button[title=\"كلمة المرور\"]"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal.sm"
+        }
+      ]
+    },
+    {
+      "id": "users-no-access",
+      "route": "/users",
+      "wait": "main",
+      "title": "القائمة الجانبية بحساب «مدير المركز»: لا يظهر فيها «المستخدمون» ولا «الأدوار وال",
+      "role": "center",
+      "clip": ".sidebar",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".sidebar nav .nav-item"
+        }
+      ]
+    },
+    {
+      "id": "roles-detail",
+      "route": "/roles",
+      "wait": "main",
+      "title": "دور «مستشار المقابلة» مفتوحاً: ترويسة الدور مع عدد حامليه وعدد الصلاحيات المؤشَّ",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".role-row"
+        },
+        {
+          "action": "click",
+          "selector": ".role-row:nth-child(10)"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".d-head"
+        }
+      ]
+    },
+    {
+      "id": "roles-system-locked",
+      "route": "/roles",
+      "wait": "main",
+      "title": "مجموعة «المستخدمون» في تفصيل الدور: الصلاحية `user.manage` مقفلة، وسبب القفل ظاه",
+      "clip": ".col-detail > .card.group:nth-child(16)",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".role-row"
+        },
+        {
+          "action": "click",
+          "selector": ".role-row:nth-child(10)"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".col-detail > .card.group:nth-child(16)"
+        }
+      ]
+    },
+    {
+      "id": "roles-unsaved-diff",
+      "route": "/roles",
+      "wait": "main",
+      "title": "بعد سحب «عرض المشاركين» وإضافة «عرض الجدول» لدور مستشار المقابلة: صندوق «تغييرات ",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".role-row"
+        },
+        {
+          "action": "click",
+          "selector": ".role-row:nth-child(10)"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".col-detail > .card.group:nth-child(2)"
+        },
+        {
+          "action": "click",
+          "selector": ".col-detail > .card.group:nth-child(2) .perm:nth-child(2)"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".diff"
+        },
+        {
+          "action": "click",
+          "selector": ".col-detail > .card.group:nth-child(4) .perm:nth-child(2)"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".save-bar.show"
+        }
+      ]
+    },
+    {
+      "id": "roles-admin-locked",
+      "route": "/roles",
+      "wait": "main",
+      "title": "دور «مدير النظام» مفتوحاً: تنبيه «دور مدير النظام لا يُعدَّل…»، وكل الصلاحيات مؤ",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".role-row"
+        },
+        {
+          "action": "click",
+          "selector": ".role-row:nth-child(4)"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".note.lock"
+        }
+      ]
+    },
+    {
+      "id": "roles-new",
+      "route": "/roles",
+      "wait": "main",
+      "title": "نافذة «دور جديد»: حقول الرمز والاسم بالعربية والوصف بنماذجها المعروضة، مع التنبي",
+      "clip": ".modal",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".head .btn-ok"
+        },
+        {
+          "action": "click",
+          "selector": ".head .btn-ok"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal .fld"
+        }
+      ]
+    },
+    {
+      "id": "doc-participant-card",
+      "route": "/candidates",
+      "wait": "main",
+      "popup": true,
+      "fullPage": true,
+      "title": "بطاقة المشارك مطبوعةً",
+      "steps": [
+        {
+          "action": "click",
+          "selector": "button[title='طباعة بطاقة المشارك']"
+        }
+      ]
+    },
+    {
+      "id": "doc-cv-sheet",
+      "route": "/candidates",
+      "wait": "main",
+      "popup": true,
+      "fullPage": true,
+      "title": "نموذج السيرة الذاتية مطبوعاً",
+      "steps": [
+        {
+          "action": "click",
+          "selector": "button[title='تفاصيل']"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal"
+        },
+        {
+          "action": "click",
+          "selector": ".modal-actions button:has-text('السيرة')"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal.wide"
+        },
+        {
+          "action": "click",
+          "selector": ".modal.wide button:has-text('طباعة النموذج')"
+        }
+      ]
+    },
+    {
+      "id": "doc-report-brief",
+      "route": "/reports",
+      "wait": "main",
+      "popup": true,
+      "fullPage": true,
+      "title": "المستند المختصر — الملخّص التنفيذي",
+      "steps": [
+        {
+          "action": "click",
+          "selector": "button:has-text('معتمد')"
+        },
+        {
+          "action": "wait",
+          "value": "1500"
+        },
+        {
+          "action": "click",
+          "selector": ".report-card button:has-text('مستند مختصر')"
+        }
+      ]
+    },
+    {
+      "id": "doc-daily-report",
+      "route": "/daily-report",
+      "wait": "main",
+      "popup": true,
+      "fullPage": true,
+      "title": "التقرير اليومي مطبوعاً",
+      "steps": [
+        {
+          "action": "click",
+          "selector": "button.btn-print"
+        }
+      ]
+    },
+    {
+      "id": "redesign-dashboard",
+      "route": "/dashboard",
+      "wait": "main",
+      "title": "اللوحة بالهوية الجديدة"
+    },
+    {
+      "id": "redesign-candidates",
+      "route": "/candidates",
+      "wait": "main",
+      "title": "المشاركون بالهوية الجديدة"
+    },
+    {
+      "id": "redesign-nav",
+      "route": "/dashboard",
+      "clip": ".sidebar",
+      "title": "القائمة الجديدة"
+    }
+  ]
+}

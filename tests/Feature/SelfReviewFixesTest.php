@@ -14,7 +14,7 @@ class SelfReviewFixesTest extends TestCase
 
     protected $seed = true;
 
-    // B: تعديل مرشح لا يعيد كتابة نوع دورة مكتملة (سجل تاريخي)
+    // B: تعديل مشارك لا يعيد كتابة نوع دورة مكتملة (سجل تاريخي)
     public function test_update_does_not_rewrite_completed_cycle_assessment_type(): void
     {
         $nid = $this->validNationalId();
@@ -24,9 +24,11 @@ class SelfReviewFixesTest extends TestCase
         $this->assertSame('comprehensive', $a->assessment_type);
 
         $this->actingAsRole('SCHEDULER'); // CANDIDATE_EDIT
+        // الجنس والمجالات الفنية إلزاميان على التعديل أيضاً (لا سيرة — التعديل لا يأخذها)
         $this->putJson("/api/candidates/{$c->id}", [
             'nationalId' => $nid, 'fullName' => 'محدّث', 'sectorId' => $c->sector_id,
-            'rankLabel' => 'مدير عام', 'assessmentType' => 'executive',
+            'personnelCategory' => 'civilian', 'rankLabel' => 'الرابعة عشرة', 'assessmentType' => 'executive',
+            'gender' => 'male', 'technicalAreaIds' => $this->technicalAreaIds(),
         ])->assertOk();
 
         $this->assertSame('executive', $c->fresh()->assessment_type);      // سجل الشخص يتحدّث
@@ -64,10 +66,10 @@ class SelfReviewFixesTest extends TestCase
         $this->assertSame('draft', $e1->fresh()->status);          // التقييم القديم رُجِع
         $this->assertSame('completed', $a1->fresh()->status);      // الدورة القديمة تبقى مكتملة
         $this->assertSame('assessed', $a2->fresh()->status);       // الدورة الحالية لا تُنزَّل ← الإصلاح
-        $this->assertSame('assessed', $c->fresh()->status);        // المرشح لا يُنزَّل
+        $this->assertSame('assessed', $c->fresh()->status);        // المشارك لا يُنزَّل
     }
 
-    // C-إيجابي: إرجاع تقييم الدورة الحالية الوحيد ما زال يُنزِل المرشح إلى scheduled
+    // C-إيجابي: إرجاع تقييم الدورة الحالية الوحيد ما زال يُنزِل المشارك إلى scheduled
     public function test_return_current_cycle_sole_eval_still_reverts_candidate(): void
     {
         $evaluator = $this->actingAsRole('EVALUATOR');

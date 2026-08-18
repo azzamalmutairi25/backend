@@ -171,10 +171,10 @@ class IdVerifySettingsTest extends TestCase
         $this->actingAsRole('ADMIN'); // يملك SETTINGS_MANAGE و candidate.create
         $this->putJson('/api/settings/idverify', $this->validPayload())->assertOk();
 
-        $sector = \App\Models\Sector::where('code', 'ED')->value('id');
-        $res = $this->postJson('/api/candidates', [
-            'nationalId' => $this->validNationalId(), 'fullName' => 'مرشح', 'mobile' => '0501112223',
-            'sectorId' => $sector, 'rankLabel' => 'مدير عام',
+        $sector = \App\Models\Sector::where('code', 'DW')->value('id');
+        $res = $this->postJson('/api/candidates', $this->candidateRequired() + [
+            'nationalId' => $this->validNationalId(), 'fullName' => 'مشارك', 'mobile' => '0501112223',
+            'sectorId' => $sector, 'personnelCategory' => 'civilian', 'rankLabel' => 'الرابعة عشرة',
         ]);
         $res->assertStatus(201)->assertJsonPath('idVerification.status', 'matched');
         $this->assertDatabaseHas('identity_verifications', ['status' => 'matched']);
@@ -184,10 +184,10 @@ class IdVerifySettingsTest extends TestCase
     {
         // بلا إعداد: idVerification = null ولا سجلّ (لا أثر على التدفّق)
         $this->actingAsRole('ADMIN');
-        $sector = \App\Models\Sector::where('code', 'ED')->value('id');
-        $this->postJson('/api/candidates', [
-            'nationalId' => $this->validNationalId(), 'fullName' => 'مرشح', 'mobile' => '0501112223',
-            'sectorId' => $sector, 'rankLabel' => 'مدير عام',
+        $sector = \App\Models\Sector::where('code', 'DW')->value('id');
+        $this->postJson('/api/candidates', $this->candidateRequired() + [
+            'nationalId' => $this->validNationalId(), 'fullName' => 'مشارك', 'mobile' => '0501112223',
+            'sectorId' => $sector, 'personnelCategory' => 'civilian', 'rankLabel' => 'الرابعة عشرة',
         ])->assertStatus(201)->assertJsonPath('idVerification', null);
 
         $this->assertDatabaseCount('identity_verifications', 0);

@@ -24,7 +24,7 @@ class DevelopmentPlanTest extends TestCase
     public function test_create_requires_report_create(): void
     {
         [$c] = $this->makeCandidate(['status' => 'assessed']);
-        $this->actingAsRole('CENTER_MANAGER'); // REPORT_VIEW فقط
+        $this->actingAsRole('EVALUATOR'); // REPORT_VIEW فقط، لا CREATE
         $this->postJson('/api/development-plans', ['candidateId' => $c->id, 'area' => 'التفويض'])
             ->assertStatus(403);
     }
@@ -65,7 +65,7 @@ class DevelopmentPlanTest extends TestCase
     {
         [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed']);
         FinalReport::create([
-            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'مرشّح',
+            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'مشارك',
             'development_areas' => ['التفويض', 'إدارة الوقت'], 'status' => 'approved', 'created_by' => null,
         ]);
         $this->actingAsRole('ASSESS_MANAGER');
@@ -90,9 +90,11 @@ class DevelopmentPlanTest extends TestCase
     public function test_classified_candidate_is_404_without_clearance(): void
     {
         [$c] = $this->makeCandidate(['status' => 'assessed', 'classification' => 'secret']);
-        // دور غير محصور بلا رؤية المصنّفين + REPORT_VIEW عبر استثناء (مدير المركز صار يرى المصنّفين)
+        // دور غير محصور بلا رؤية المصنّفين، ومعه صلاحية الشاشة عبر استثناء.
+        // المقصود إثبات أنّ التصنيف يحجب لا أن الصلاحية تنقص — فتُمنَح صراحةً
+        // ليكون ٤٠٤ عن التصنيف وحده.
         $u = $this->actingAsRole('SCHEDULER');
-        $u->permissionOverrides()->create(['permission' => 'report.view', 'granted' => true]);
+        $u->permissionOverrides()->create(['permission' => 'development_plan.view', 'granted' => true]);
         $this->getJson("/api/development-plans/{$c->id}")->assertStatus(404);
     }
 
@@ -111,7 +113,7 @@ class DevelopmentPlanTest extends TestCase
     {
         [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed']);
         FinalReport::create([
-            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'مرشّح',
+            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'مشارك',
             'development_areas' => ['القيادة', 'القيادة'], 'status' => 'approved', 'created_by' => null,
         ]);
         $this->actingAsRole('ASSESS_MANAGER');

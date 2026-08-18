@@ -12,10 +12,15 @@ class DailyReportController extends Controller
 {
     public function __construct(private DailyReportService $service) {}
 
-    // من يرى التقرير: حامل التحليلات (مدير المركز والمديرون)
+    // صلاحيتها وحدها لا صلاحية التحليلات العامّة.
+    //
+    // كان يقبل ANALYTICS_VIEW أيضاً إبقاءً على ما كان يعمل قبل فصل الشاشات،
+    // فصار السحب من شاشة الأدوار يُخفي الرابط ولا يُغلق المسار: من نُزعت عنه
+    // هذه الصلاحية يفتح `/api/daily-report` مباشرةً فيقرأ يوم المركز كاملاً.
+    // فصلُ الصلاحية بلا فصل البوّابة ليس فصلاً.
     private function authorize(Request $request): bool
     {
-        return $request->user()->hasPermission(Permissions::ANALYTICS_VIEW);
+        return $request->user()->hasPermission(Permissions::ANALYTICS_DAILY_REPORT);
     }
 
     private function date(Request $request): string

@@ -20,7 +20,12 @@ class UserController extends Controller
             return response()->json(['error' => 'ليس لديك صلاحية إدارة المستخدمين'], 403);
         }
 
-        $users = User::with(['role', 'sector', 'manager'])->orderBy('full_name')->get()->map(fn ($u) => [
+        $request->validate($this->listPagingRules($this->sortable()));
+
+        $query = User::with(['role', 'sector', 'manager', 'expertiseAreas']);
+        $meta = $this->applyListPaging($request, $query, $this->sortable(), 'name', 'id');
+
+        $users = $query->get()->map(fn ($u) => [
             'id' => $u->id,
             'username' => $u->username,
             'fullName' => $u->full_name,
@@ -28,6 +33,9 @@ class UserController extends Controller
             'roleCode' => $u->role->code,
             'roleName' => $u->role->name_ar,
             'sectorId' => $u->sector_id,
+            // مجالات الخبرة — تقرأها نافذة الوسم لتبدأ بما هو مسجَّل فعلاً.
+            // بدونها كانت النافذة تفتح فارغةً فيمحو الحفظُ وسماً قائماً.
+            'expertiseAreaIds' => $u->expertiseAreas->pluck('id')->all(),
             'sectorName' => $u->sector?->name_ar,
             'sectorBound' => $u->isSectorBound(),
             'managerId' => $u->manager_id,
@@ -41,7 +49,28 @@ class UserController extends Controller
             'isSelf' => $u->id === $request->user()->id,
         ]);
 
-        return response()->json(['users' => $users]);
+        return response()->json([
+            'users' => $users,
+            'meta' => $meta + ['shown' => $users->count()],
+        ]);
+    }
+
+    // ── الفرز ──
+    // الافتراضي `full_name` تصاعدياً كما كان قبل الترقيم. (وهو نصٌّ صريح هنا
+    // بخلاف اسم المشارك المشفَّر — حسابات الموظفين ليست بيانات المشاركين.)
+    private function sortable(): array
+    {
+        return [
+            'name' => 'full_name',
+            'username' => 'username',
+            'active' => 'is_active',
+            'lastLogin' => 'last_login_at',
+            'created' => 'created_at',
+            'role' => fn ($q, $dir) => $q->orderBy(
+                \App\Models\Role::select('name_ar')->whereColumn('roles.id', 'users.role_id'),
+                $dir
+            ),
+        ];
     }
 
     // GET /users/{id}/permissions — الصلاحيات الفعلية + مصدر كل واحدة
@@ -171,6 +200,185 @@ class UserController extends Controller
         return response()->json(['message' => 'تم حفظ الصلاحيات — سيُطلب من المستخدم إعادة الدخول']);
     }
 
+    // GET /users/permission-catalog — الصلاحيات مجمّعةً بأسمائها العربية
+    //
+    // شاشة الوصول الجماعي لا تقرأ حالة مستخدمٍ بعينه، إنما قائمةَ ما يمكن
+    // منحه أو سحبه. والمقفلُ يظهر مقفلاً بسببه لا يُحذف: غيابُه الصامت يُقرأ
+    // «هذه الصلاحية غير موجودة» وهي موجودة ولها مالك.
+    public function permissionCatalog(Request $request)
+    {
+        if (!$request->user()->hasPermission(Permissions::USER_MANAGE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية'], 403);
+        }
+
+        $actor = $request->user();
+        $groups = [];
+        foreach (Permissions::grouped() as $key => $group) {
+            $perms = [];
+            foreach ($group['permissions'] as $p) {
+                $nonDelegable = in_array($p, Permissions::NON_DELEGABLE, true);
+                $owned = $actor->hasPermission($p);
+                $perms[] = [
+                    'permission' => $p,
+                    'label' => Permissions::label($p),
+                    // السحب مسموح لمن لا يملكها؛ المنع على المنح وحده —
+                    // «لا تُعطِ ما ليس لك» لا «لا تسحب ما ليس لك»
+                    'canGrant' => !$nonDelegable && $owned,
+                    'canRevoke' => !$nonDelegable,
+                    'lockedReason' => $nonDelegable
+                        ? 'تُدار بالدور لا بالاستثناء الفردي'
+                        : ($owned ? null : 'لا تملكها فلا تمنحها'),
+                ];
+            }
+            $groups[] = ['key' => $key, 'label' => $group['label'], 'permissions' => $perms];
+        }
+
+        return response()->json(['groups' => $groups]);
+    }
+
+    // ════════════════════════════════════════════════════════
+    //  POST /users/bulk-permissions — وصولٌ واحد على مجموعة موظفين
+    // ════════════════════════════════════════════════════════
+    //
+    // فتحُ قفل كل موظّف وحده لضبط الصلاحية نفسها على عشرين حساباً عشرون فرصةً
+    // للخطأ: يُنسى واحد، ويُمنح آخرُ ما لم يُقصد، ولا أحد يرى المحصّلة. هنا
+    // قرارٌ واحد يُطبَّق على المحدَّدين جميعاً بسجلّ تدقيقٍ لكل حساب.
+    //
+    // ثلاثة أفعال لكل صلاحية: grant (منح فوق الدور) · revoke (سحب رغمه) ·
+    // reset (رفعُ الاستثناء فيعود المستخدم لما يعطيه دوره).
+    //
+    // حدود الامتيازات هي حدود المسار الفردي نفسها — لا يُفتح بالجملة ما يُقفل
+    // بالإفراد. والفرق الوحيد أن ما يطابق الدور هنا **يُمحى صامتاً** بدل أن
+    // يُرفض الطلب: تحديدٌ فيه أدوارٌ مختلفة يجعل الصلاحية الواحدة استثناءً عند
+    // بعضهم وتحصيلَ حاصلٍ عند غيرهم، فرفضُ الدفعة كلها لأجل ذلك يُعطّل الشاشة.
+    public function bulkPermissions(Request $request)
+    {
+        if (!$request->user()->hasPermission(Permissions::USER_MANAGE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية إدارة المستخدمين'], 403);
+        }
+
+        $validated = $request->validate([
+            'userIds' => 'required|array|min:1|max:500',
+            'userIds.*' => 'integer|distinct|exists:users,id',
+            'changes' => 'required|array|min:1',
+            'changes.*.permission' => ['required', 'string', Rule::in(Permissions::all())],
+            'changes.*.action' => ['required', Rule::in(['grant', 'revoke', 'reset'])],
+            'reason' => 'nullable|string|max:300',
+        ]);
+
+        // صلاحيةٌ ذُكرت مرّتين بفعلين متناقضين: الأخيرة تفوز لو تُركت، وذلك
+        // قرارٌ صامت في شاشة صلاحيات — تُرفض صراحةً.
+        $changes = collect($validated['changes']);
+        $duplicated = $changes->groupBy('permission')->filter(fn ($g) => $g->pluck('action')->unique()->count() > 1);
+        if ($duplicated->isNotEmpty()) {
+            return response()->json(['errors' => ['changes' => [
+                'صلاحية بفعلين متناقضين في الطلب نفسه: ' . $duplicated->keys()->implode('، '),
+            ]]], 422);
+        }
+        $changes = $changes->unique('permission')->values();
+
+        $actor = $request->user();
+        $actorHasStar = in_array('*', Permissions::forRole($actor->role->code), true);
+
+        // (١) سلطات النظام تُدار بالدور لا بالاستثناء — بالجملة كما بالإفراد
+        $nonDelegable = $changes->pluck('permission')->intersect(Permissions::NON_DELEGABLE);
+        if ($nonDelegable->isNotEmpty()) {
+            return response()->json(['errors' => ['changes' => [
+                'هذه الصلاحيات تُدار بالدور لا بالاستثناء الفردي: ' . $nonDelegable->implode('، '),
+            ]]], 422);
+        }
+
+        // (٢) لا يُفوَّض ما لا يملكه المفوِّض
+        $cannotGrant = $changes->filter(fn ($c) => $c['action'] === 'grant' && !$actor->hasPermission($c['permission']));
+        if ($cannotGrant->isNotEmpty()) {
+            return response()->json(['errors' => ['changes' => [
+                'لا يمكنك منح صلاحية لا تملكها: ' . $cannotGrant->pluck('permission')->implode('، '),
+            ]]], 403);
+        }
+
+        $users = User::with('role')->whereIn('id', $validated['userIds'])->get();
+        $applied = [];
+        $skipped = [];
+
+        DB::transaction(function () use ($request, $users, $changes, $actor, $actorHasStar, $validated, &$applied, &$skipped) {
+            foreach ($users as $user) {
+                // (٣) لا أحد يعدّل صلاحيات نفسه ولو ضمن تحديدٍ عريض — «تحديد
+                //     الكل» لا يجوز أن يصير طريقاً لمنح النفس ما لا تملك
+                if ($user->id === $actor->id) {
+                    $skipped[] = ['id' => $user->id, 'fullName' => $user->full_name, 'reason' => 'لا يمكنك تعديل صلاحيات حسابك'];
+                    continue;
+                }
+                // (٤) حامل '*' لا يمسّه إلا حاملٌ لـ'*' مثله — منع قفل المدراء
+                if (in_array('*', Permissions::forRole($user->role->code), true) && !$actorHasStar) {
+                    $skipped[] = ['id' => $user->id, 'fullName' => $user->full_name, 'reason' => 'حساب مدير نظام'];
+                    continue;
+                }
+
+                $fromRole = Permissions::forRole($user->role->code);
+                $hasStar = in_array('*', $fromRole, true);
+                $granted = [];
+                $revoked = [];
+                $reset = [];
+
+                foreach ($changes as $c) {
+                    $perm = $c['permission'];
+                    $byRole = $hasStar || in_array($perm, $fromRole, true);
+                    $wantGranted = $c['action'] === 'grant';
+                    $existing = $user->permissionOverrides()->where('permission', $perm)->first();
+
+                    // reset، أو استثناءٌ يطابق ما يعطيه الدور أصلاً: يُرفع الاستثناء
+                    // فيعود المستخدم إلى دوره بدل أن يحمل استثناءً لا أثر له
+                    if ($c['action'] === 'reset' || $wantGranted === $byRole) {
+                        if ($existing) {
+                            $existing->delete();
+                            $reset[] = $perm;
+                        }
+                        continue;
+                    }
+
+                    if ($existing && $existing->granted === $wantGranted) {
+                        continue;   // قائمٌ بالفعل — لا كتابة ولا ضجيج في السجل
+                    }
+
+                    $user->permissionOverrides()->updateOrCreate(
+                        ['permission' => $perm],
+                        ['granted' => $wantGranted, 'reason' => $validated['reason'] ?? null, 'created_by' => $actor->id]
+                    );
+                    if ($wantGranted) {
+                        $granted[] = $perm;
+                    } else {
+                        $revoked[] = $perm;
+                    }
+                }
+
+                if (!$granted && !$revoked && !$reset) {
+                    continue;   // لم يتغيّر شيء عنده — لا تُطرد جلسته بلا سبب
+                }
+
+                // تغيّرت صلاحياته ⇒ اطرد جلساته ليعيد الدخول بها
+                $user->tokens()->delete();
+                $applied[] = ['id' => $user->id, 'fullName' => $user->full_name];
+
+                $this->log($request, 'BULK_UPDATE_USER_PERMISSIONS', $user->id, [
+                    'username' => $user->username,
+                    'granted' => $granted,
+                    'revoked' => $revoked,
+                    'reset' => $reset,
+                    'reason' => $validated['reason'] ?? null,
+                ]);
+            }
+        });
+
+        $n = count($applied);
+        return response()->json([
+            'message' => $n === 0
+                ? 'لم يتغيّر شيء — الصلاحيات المطلوبة قائمة أصلاً لدى المحدَّدين'
+                : "طُبّق الوصول على {$n} موظفاً — سيُطلب منهم إعادة الدخول",
+            'applied' => $applied,
+            'skipped' => $skipped,
+        ]);
+    }
+
     public function roles(Request $request)
     {
         if (!$request->user()->hasPermission(Permissions::USER_MANAGE)) {
@@ -197,15 +405,17 @@ class UserController extends Controller
         }
 
         $labels = [
-            'candidate.view' => 'عرض المرشحين',
-            'candidate.create' => 'إضافة مرشح',
-            'candidate.edit' => 'تعديل مرشح',
-            'candidate.approve' => 'اعتماد مرشح',
+            'candidate.view' => 'عرض المشاركين',
+            'candidate.create' => 'إضافة مشارك',
+            'candidate.edit' => 'تعديل مشارك',
+            'candidate.approve' => 'اعتماد مشارك',
             'candidate.view_names' => 'رؤية الأسماء الحساسة',
-            'candidate.view_classified' => 'رؤية المرشحين المصنّفين',
+            'candidate.view_classified' => 'رؤية المشاركين المصنّفين',
             'candidate.cv_view' => 'عرض السيرة الذاتية',
             'schedule.view' => 'عرض الجدولة',
             'schedule.manage' => 'إدارة الجدولة',
+            'schedule.distribute' => 'التوزيع الأسبوعي',
+            'roster.manage' => 'إسناد مجموعات المشاركين',
             'attendance.view' => 'عرض الحضور',
             'attendance.record' => 'تسجيل الحضور',
             'evaluation.view' => 'عرض التقييم',
@@ -519,16 +729,43 @@ class UserController extends Controller
                 'error' => 'هذا مستخدم يُصادَق عبر الدليل النشط (AD) ولا يملك كلمة مرور محلية',
             ], 422);
         }
+        // ── فكّ القفل جزءٌ من إعادة التعيين لا خطوةٌ منفصلة ──
+        //
+        // قفلُ المحاولات الخاطئة (خمسٌ ⇒ ربع ساعة) كان يبقى بعد إعادة التعيين،
+        // و`locked_until` لا تُمسح في الشيفرة كلّها إلا عند دخولٍ ناجح — وهو
+        // مستحيل أثناء القفل. فلم يكن لمسؤولٍ سبيلٌ إلى فكّ قفل حساب البتّة.
+        //
+        // والأثر أسوأ من الانتظار: المسؤول يُعيد التعيين، ويقول للموظّف «جرّب
+        // الآن»، فيفشل الدخول بالرسالة العامة نفسها التي تُخفي السبب عمداً.
+        // فيظنّان كلمة المرور لم تُحفظ، ويُعيدان الكرّة، فتُضاف محاولاتٌ خاطئة
+        // تُجدّد القفل — حلقةٌ لا تنكسر إلا بصمتٍ ربعَ ساعة.
+        //
+        // وإعادةُ التعيين قرارُ مسؤولٍ صريح، وهو أقوى من قفلٍ آليّ ضدّ التخمين:
+        // من يملك تغيير كلمة المرور يملك فتح الحساب من بابٍ آخر أصلاً.
+        $wasLocked = $user->locked_until && $user->locked_until->isFuture();
+
         $user->password = $validated['password'];
         $user->must_change_password = true;
+        $user->locked_until = null;
+        $user->failed_attempts = 0;
         $user->save();
 
         // إعادة تعيين كلمة المرور تُبطل كل الجلسات القائمة (طرد أي مُخترِق محتمل)
         $user->tokens()->delete();
 
-        $this->log($request, 'RESET_PASSWORD', $user->id, ['username' => $user->username]);
+        $this->log($request, 'RESET_PASSWORD', $user->id, [
+            'username' => $user->username,
+            'wasLocked' => $wasLocked,
+        ]);
 
-        return response()->json(['message' => 'تم إعادة تعيين كلمة المرور']);
+        // يُقال للمسؤول إن الحساب كان مقفلاً: القفل أثرُ تخمينٍ متكرّر، وهو
+        // خبرٌ أمنيّ يستحقّ أن يُرى لا أن يُمحى بصمت.
+        return response()->json([
+            'message' => $wasLocked
+                ? 'تم إعادة تعيين كلمة المرور وفكّ قفل الحساب — كان مقفلاً بعد محاولات دخول خاطئة'
+                : 'تم إعادة تعيين كلمة المرور',
+            'wasLocked' => $wasLocked,
+        ]);
     }
 
     private function log(Request $request, string $action, int $entityId, array $details = []): void

@@ -226,7 +226,7 @@ class SmsGatewaySettingsTest extends TestCase
 
         $ok = app(CommunicationService::class)->sendSms('0501234567', 'نص', 'notification', null, null);
 
-        // لا يُرسل بمفتاح خاطئ، ولا يُبلّغ «أُرسلت» زوراً بينما لا يصل المرشّح رابطه.
+        // لا يُرسل بمفتاح خاطئ، ولا يُبلّغ «أُرسلت» زوراً بينما لا يصل المشارك رابطه.
         $this->assertFalse($ok, 'مفتاح تالف يجب أن يُخفق لا أن ينجح صامتاً');
         Http::assertNothingSent();
         $log = SmsLog::latest('id')->first();

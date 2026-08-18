@@ -62,7 +62,7 @@ class ScoringService
 
     private const TIERS = ['upper', 'middle'];
 
-    // تحليل الفجوة: المستوى المُحقَّق مقابل المطلوب لفئة المرشّح، لكل كفاءة لها مستوى مطلوب
+    // تحليل الفجوة: المستوى المُحقَّق مقابل المطلوب لفئة المشارك، لكل كفاءة لها مستوى مطلوب
     public function computeGap(Assessment $assessment, string $tier): array
     {
         // فئة مجهولة كانت تقع صامتة على target_middle ثم تُعاد كما هي في الرد،

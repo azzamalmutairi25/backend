@@ -21,6 +21,13 @@ class ChatController extends Controller
     // يتحقق أن للمستخدم صلاحية الوصول لكيان المحادثة (نفس بوابة الكيان الأصلي)
     private function authorizeEntity(Request $request, string $entityType, int $entityId)
     {
+        // بوّابتان لا واحدة: CHAT_VIEW تفتح الميزة نفسها، وبوّابة الكيان تفتح
+        // محادثةً بعينها. كانت الأولى غائبة، فكان سحبُها من دورٍ في شاشة
+        // الأدوار يُخفي الشاشة ويترك مسارها مفتوحاً لكل من يقرأ التقارير.
+        if (!$request->user()->hasPermission(Permissions::CHAT_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية المحادثات'], 403);
+        }
+
         if ($entityType === 'report') {
             if (!$request->user()->hasPermission(Permissions::REPORT_VIEW)) {
                 return response()->json(['error' => 'ليس لديك صلاحية الوصول لهذه المحادثة'], 403);
@@ -80,15 +87,17 @@ class ChatController extends Controller
     // ── إرسال رسالة ──
     public function send(Request $request, int $threadId)
     {
-        $validated = $request->validate([
-            'message' => 'required|string|max:2000',
-        ]);
-
+        // الترخيص قبل التحقّق من المدخلات: كان التحقّق أولاً، فيتعلّم من لا يملك
+        // الوصول قواعدَ الحقل (اسمه وحدّه) من ردّ 422 قبل أن يُمنع أصلاً.
         $thread = ChatThread::findOrFail($threadId);
 
         if ($resp = $this->authorizeEntity($request, $thread->entity_type, $thread->entity_id)) {
             return $resp;
         }
+
+        $validated = $request->validate([
+            'message' => 'required|string|max:2000',
+        ]);
         if ($thread->is_closed) {
             return response()->json(['error' => 'المحادثة مغلقة'], 400);
         }

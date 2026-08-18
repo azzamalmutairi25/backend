@@ -27,7 +27,7 @@ class DistributionTest extends TestCase
         );
     }
 
-    private function makeEvaluator(string $sectorCode = 'ED'): User
+    private function makeEvaluator(string $sectorCode = 'DW'): User
     {
         $role = Role::where('code', 'EVALUATOR')->firstOrFail();
         return User::create([
@@ -41,8 +41,8 @@ class DistributionTest extends TestCase
         ]);
     }
 
-    // ينشئ n مرشحين جاهزين للتوزيع في قطاع
-    private function readyCandidates(int $n, string $sectorCode = 'ED'): array
+    // ينشئ n مشاركين جاهزين للتوزيع في قطاع
+    private function readyCandidates(int $n, string $sectorCode = 'DW'): array
     {
         $out = [];
         for ($i = 0; $i < $n; $i++) {
@@ -60,11 +60,11 @@ class DistributionTest extends TestCase
     public function test_no_evaluator_exceeds_the_daily_cap_on_any_day(): void
     {
         $this->setCap(2);
-        $this->makeEvaluator('ED');
-        $this->makeEvaluator('ED');
-        $this->readyCandidates(40, 'ED'); // أكثر من سعة الأسبوع (2×5×2=20)
+        $this->makeEvaluator('DW');
+        $this->makeEvaluator('DW');
+        $this->readyCandidates(40, 'DW'); // أكثر من سعة الأسبوع (2×5×2=20)
 
-        $proposal = app(DistributionService::class)->propose($this->makeEvaluator('HI'));
+        $proposal = app(DistributionService::class)->propose($this->makeEvaluator('MS'));
 
         $byEvDay = $proposal->items->groupBy(fn ($i) => $i->evaluator_id . '|' . $i->scheduled_date);
         foreach ($byEvDay as $key => $items) {
@@ -77,11 +77,11 @@ class DistributionTest extends TestCase
     public function test_candidates_beyond_weekly_capacity_are_left_undistributed(): void
     {
         $this->setCap(1);
-        $this->makeEvaluator('ED');
-        $this->makeEvaluator('ED'); // سعة الأسبوع = 2 مقيّم × 5 أيام × 1 = 10
-        $cands = $this->readyCandidates(14, 'ED');
+        $this->makeEvaluator('DW');
+        $this->makeEvaluator('DW'); // سعة الأسبوع = 2 مقيّم × 5 أيام × 1 = 10
+        $cands = $this->readyCandidates(14, 'DW');
 
-        $proposal = app(DistributionService::class)->propose($this->makeEvaluator('HI'));
+        $proposal = app(DistributionService::class)->propose($this->makeEvaluator('MS'));
 
         $this->assertSame(10, $proposal->items->count(), 'يُوزَّع بقدر السعة فقط');
         $placedIds = $proposal->items->pluck('candidate_id')->all();
@@ -94,16 +94,16 @@ class DistributionTest extends TestCase
     public function test_candidates_go_only_to_evaluators_of_their_own_sector(): void
     {
         $this->setCap(3);
-        $this->makeEvaluator('ED');
-        $this->makeEvaluator('HI');
-        $this->readyCandidates(3, 'ED');
-        $this->readyCandidates(3, 'HI');
+        $this->makeEvaluator('DW');
+        $this->makeEvaluator('MS');
+        $this->readyCandidates(3, 'DW');
+        $this->readyCandidates(3, 'MS');
 
-        $proposal = app(DistributionService::class)->propose($this->makeEvaluator('MA'));
+        $proposal = app(DistributionService::class)->propose($this->makeEvaluator('PP'));
 
         foreach ($proposal->items as $item) {
             $ev = User::find($item->evaluator_id);
-            $this->assertSame($item->sector_id, $ev->sector_id, 'المقيّم من قطاع المرشّح نفسه');
+            $this->assertSame($item->sector_id, $ev->sector_id, 'المقيّم من قطاع المشارك نفسه');
         }
         $this->assertSame(6, $proposal->items->count());
     }
@@ -112,9 +112,9 @@ class DistributionTest extends TestCase
     {
         $this->setCap(3);
         // قطاع HO بلا مقيّم فعّال البتّة
-        $this->readyCandidates(3, 'HO');
+        $this->readyCandidates(3, 'PR');
 
-        $proposal = app(DistributionService::class)->propose($this->makeEvaluator('ED'));
+        $proposal = app(DistributionService::class)->propose($this->makeEvaluator('DW'));
 
         $this->assertSame(0, $proposal->items->count(), 'لا مقيّم → لا توزيع');
     }
@@ -122,12 +122,12 @@ class DistributionTest extends TestCase
     public function test_inactive_evaluators_receive_no_candidates(): void
     {
         $this->setCap(5);
-        $active = $this->makeEvaluator('ED');
-        $inactive = $this->makeEvaluator('ED');
+        $active = $this->makeEvaluator('DW');
+        $inactive = $this->makeEvaluator('DW');
         $inactive->update(['is_active' => false]);
-        $this->readyCandidates(4, 'ED');
+        $this->readyCandidates(4, 'DW');
 
-        $proposal = app(DistributionService::class)->propose($this->makeEvaluator('HI'));
+        $proposal = app(DistributionService::class)->propose($this->makeEvaluator('MS'));
 
         $this->assertTrue(
             $proposal->items->every(fn ($i) => $i->evaluator_id === $active->id),
@@ -140,11 +140,11 @@ class DistributionTest extends TestCase
     public function test_distribution_spreads_evenly_across_evaluators(): void
     {
         $this->setCap(5);
-        $a = $this->makeEvaluator('ED');
-        $b = $this->makeEvaluator('ED');
-        $this->readyCandidates(10, 'ED');
+        $a = $this->makeEvaluator('DW');
+        $b = $this->makeEvaluator('DW');
+        $this->readyCandidates(10, 'DW');
 
-        $proposal = app(DistributionService::class)->propose($this->makeEvaluator('HI'));
+        $proposal = app(DistributionService::class)->propose($this->makeEvaluator('MS'));
 
         $counts = $proposal->items->groupBy('evaluator_id')->map->count();
         $this->assertEqualsWithDelta($counts[$a->id], $counts[$b->id], 1, 'فرق مقبول ±1');
@@ -155,8 +155,8 @@ class DistributionTest extends TestCase
     public function test_approve_creates_schedules_for_every_surviving_item(): void
     {
         $this->setCap(5);
-        $this->makeEvaluator('ED');
-        $this->readyCandidates(3, 'ED');
+        $this->makeEvaluator('DW');
+        $this->readyCandidates(3, 'DW');
         $svc = app(DistributionService::class);
         $actor = $this->actingAsRole('SCHEDULER');
 
@@ -174,13 +174,13 @@ class DistributionTest extends TestCase
     public function test_approve_drops_a_candidate_whose_status_changed(): void
     {
         $this->setCap(5);
-        $this->makeEvaluator('ED');
-        $cands = $this->readyCandidates(3, 'ED');
+        $this->makeEvaluator('DW');
+        $cands = $this->readyCandidates(3, 'DW');
         $svc = app(DistributionService::class);
         $actor = $this->actingAsRole('SCHEDULER');
         $proposal = $svc->propose($actor);
 
-        // مرشّح تقدّم لمرحلة أخرى بين الاقتراح والاعتماد
+        // مشارك تقدّم لمرحلة أخرى بين الاقتراح والاعتماد
         $cands[0]->update(['status' => 'assessed']);
 
         $result = $svc->approve($proposal, $actor);
@@ -195,8 +195,8 @@ class DistributionTest extends TestCase
     public function test_approve_drops_items_of_a_deactivated_evaluator(): void
     {
         $this->setCap(5);
-        $ev = $this->makeEvaluator('ED');
-        $this->readyCandidates(3, 'ED');
+        $ev = $this->makeEvaluator('DW');
+        $this->readyCandidates(3, 'DW');
         $svc = app(DistributionService::class);
         $actor = $this->actingAsRole('SCHEDULER');
         $proposal = $svc->propose($actor);
@@ -214,8 +214,8 @@ class DistributionTest extends TestCase
     public function test_approve_drops_a_candidate_scheduled_manually_in_the_gap(): void
     {
         $this->setCap(5);
-        $this->makeEvaluator('ED');
-        $cands = $this->readyCandidates(2, 'ED');
+        $this->makeEvaluator('DW');
+        $cands = $this->readyCandidates(2, 'DW');
         $svc = app(DistributionService::class);
         $actor = $this->actingAsRole('SCHEDULER');
         $proposal = $svc->propose($actor);
@@ -238,8 +238,8 @@ class DistributionTest extends TestCase
     public function test_double_approve_does_not_create_schedules_twice(): void
     {
         $this->setCap(5);
-        $this->makeEvaluator('ED');
-        $this->readyCandidates(3, 'ED');
+        $this->makeEvaluator('DW');
+        $this->readyCandidates(3, 'DW');
         $svc = app(DistributionService::class);
         $actor = $this->actingAsRole('SCHEDULER');
         $proposal = $svc->propose($actor);
@@ -257,8 +257,8 @@ class DistributionTest extends TestCase
     public function test_propose_then_approve_over_the_api(): void
     {
         $this->setCap(5);
-        $this->makeEvaluator('ED');
-        $this->readyCandidates(2, 'ED');
+        $this->makeEvaluator('DW');
+        $this->readyCandidates(2, 'DW');
         $this->actingAsRole('SCHEDULER');
 
         $proposeRes = $this->postJson('/api/distribution/propose')->assertCreated();
@@ -273,8 +273,8 @@ class DistributionTest extends TestCase
     public function test_second_propose_for_same_week_is_rejected(): void
     {
         $this->setCap(5);
-        $this->makeEvaluator('ED');
-        $this->readyCandidates(1, 'ED');
+        $this->makeEvaluator('DW');
+        $this->readyCandidates(1, 'DW');
         $this->actingAsRole('SCHEDULER');
 
         $this->postJson('/api/distribution/propose')->assertCreated();
@@ -284,8 +284,8 @@ class DistributionTest extends TestCase
     public function test_delete_draft_allows_re_proposing(): void
     {
         $this->setCap(5);
-        $this->makeEvaluator('ED');
-        $this->readyCandidates(1, 'ED');
+        $this->makeEvaluator('DW');
+        $this->readyCandidates(1, 'DW');
         $this->actingAsRole('SCHEDULER');
 
         $id = $this->postJson('/api/distribution/propose')->json('proposal.id');
@@ -296,8 +296,8 @@ class DistributionTest extends TestCase
     public function test_cannot_delete_an_approved_proposal(): void
     {
         $this->setCap(5);
-        $this->makeEvaluator('ED');
-        $this->readyCandidates(1, 'ED');
+        $this->makeEvaluator('DW');
+        $this->readyCandidates(1, 'DW');
         $this->actingAsRole('SCHEDULER');
         $id = $this->postJson('/api/distribution/propose')->json('proposal.id');
         $this->postJson("/api/distribution/{$id}/approve")->assertOk();
@@ -307,8 +307,8 @@ class DistributionTest extends TestCase
 
     public function test_distribution_requires_the_permission(): void
     {
-        $this->makeEvaluator('ED');
-        $this->readyCandidates(1, 'ED');
+        $this->makeEvaluator('DW');
+        $this->readyCandidates(1, 'DW');
         // مشرف القياس يجدول لكنه لا يملك صلاحية التوزيع
         $this->actingAsRole('MEASURE_SUPER');
 
@@ -350,11 +350,11 @@ class DistributionTest extends TestCase
         $this->actingAsRole('ADMIN');
         $this->putJson('/api/settings/distribution', ['dailyCap' => 1])->assertOk();
 
-        $this->makeEvaluator('ED');
-        $this->readyCandidates(3, 'ED');
-        $proposal = app(DistributionService::class)->propose($this->makeEvaluator('HI'));
+        $this->makeEvaluator('DW');
+        $this->readyCandidates(3, 'DW');
+        $proposal = app(DistributionService::class)->propose($this->makeEvaluator('MS'));
 
-        // مقيّم واحد × 5 أيام × حدّ 1 → 3 مرشحين على 3 أيام، واحد لكل يوم
+        // مقيّم واحد × 5 أيام × حدّ 1 → 3 مشاركين على 3 أيام، واحد لكل يوم
         $byDay = $proposal->items->groupBy('scheduled_date');
         foreach ($byDay as $items) {
             $this->assertLessThanOrEqual(1, $items->count(), 'الحدّ المحفوظ 1 يُحترَم');

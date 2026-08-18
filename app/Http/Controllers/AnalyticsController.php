@@ -77,14 +77,49 @@ class AnalyticsController extends Controller
         ]);
     }
 
-    // GET /analytics/executive — الحمولة الكاملة للوحة التنفيذية (KPIs/خريطة/مقارنات/اتجاهات/رؤى)
+    // GET /analytics/executive — مؤشرات القيادة التنفيذية (KPIs/خريطة/مقارنات/اتجاهات/رؤى)
+    //
+    // بصلاحيتها المستقلّة لا بصلاحية التحليلات العامّة: القيادة التنفيذية شاشة
+    // قائمة بذاتها في الشريط الجانبي، وسحبُها من دورٍ في شاشة الأدوار يجب أن
+    // يُغلق مسارها لا أن يُخفي رابطها وحده.
     public function executive(Request $request, ExecutiveAnalyticsService $svc)
     {
-        if (!$this->gate($request)) {
-            return response()->json(['error' => 'ليس لديك صلاحية عرض التحليلات'], 403);
+        if (!$this->executiveGate($request)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض القيادة التنفيذية'], 403);
         }
         $months = (int) ($request->input('months') ?: 6);
         return response()->json($svc->executive($this->allowedClassifications($request), $months));
+    }
+
+    // GET /analytics/executive/overview — نظرة شاملة على كل أبواب المنصّة إلا الإعدادات
+    //
+    // نداءٌ مستقل عن /executive لا حقلٌ فيه: التبويبان يُفتحان منفصلين، وضمُّ
+    // ثلاثة عشر قسماً إلى حمولة المؤشرات يُثقل الفتحة الأولى بما لا يُقرأ فيها.
+    public function executiveOverview(Request $request, ExecutiveAnalyticsService $svc)
+    {
+        if (!$this->executiveGate($request)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض القيادة التنفيذية'], 403);
+        }
+        return response()->json($svc->platformOverview($this->allowedClassifications($request)));
+    }
+
+    // GET /analytics/executive/reports — لوحة التقارير التنفيذية (حالة السلسلة، لا تحرير)
+    //
+    // بصلاحية القيادة التنفيذية لا بـREPORT_VIEW: هذه نظرةٌ مجمّعة بالرمز على
+    // خطّ الاعتماد، لا فتحُ تقريرٍ ولا اعتمادُه — وشاشة التقارير التشغيلية
+    // تبقى محروسة بصلاحيتها كما هي.
+    public function executiveReports(Request $request, ExecutiveAnalyticsService $svc)
+    {
+        if (!$this->executiveGate($request)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض القيادة التنفيذية'], 403);
+        }
+        $limit = (int) ($request->input('limit') ?: 25);
+        return response()->json($svc->reportsBoard($this->allowedClassifications($request), $limit));
+    }
+
+    private function executiveGate(Request $request): bool
+    {
+        return $request->user()->hasPermission(Permissions::ANALYTICS_EXECUTIVE);
     }
 
     // GET /analytics/by-sector — تجميع حسب القطاع (عدد، مكتمل، متوسط توافق)
