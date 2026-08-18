@@ -79,8 +79,8 @@ class ScheduleTest extends TestCase
         ])->assertStatus(404);
     }
 
-    // القفل بعد الحضور يبقى لمن لا يملك إدارة المرشحين (CANDIDATE_EDIT).
-    // MEASURE_SUPER يجدول ويسجّل حضوراً لكنه لا يدير المرشحين.
+    // القفل بعد الحضور يبقى لمن لا يملك إدارة المشاركين (CANDIDATE_EDIT).
+    // MEASURE_SUPER يجدول ويسجّل حضوراً لكنه لا يدير المشاركين.
     public function test_update_blocked_after_attendance_for_non_candidate_managers(): void
     {
         [$c, $a] = $this->makeCandidate(['status' => 'scheduled']);
@@ -97,7 +97,7 @@ class ScheduleTest extends TestCase
         $this->putJson("/api/schedules/{$sch->id}", ['location' => 'قاعة أخرى'])->assertStatus(403);
     }
 
-    // إدارة المرشحين تتجاوز القفل — وتغيير الموعد يُلغي الحضور المسجّل
+    // إدارة المشاركين تتجاوز القفل — وتغيير الموعد يُلغي الحضور المسجّل
     public function test_candidate_manager_overrides_the_lock_and_clears_stale_attendance(): void
     {
         [$c] = $this->makeCandidate(['status' => 'scheduled']);

@@ -18,7 +18,7 @@ class ChatSettingsTest extends TestCase
     {
         [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed']);
         $report = FinalReport::create([
-            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'مرشّح',
+            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'مشارك',
             'status' => 'draft', 'created_by' => null,
         ]);
         // GET ينشئ المحادثة

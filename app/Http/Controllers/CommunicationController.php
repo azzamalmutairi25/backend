@@ -18,7 +18,7 @@ class CommunicationController extends Controller
 {
     public function __construct(private CommunicationService $comm) {}
 
-    // ── إرسال دعوة للمرشح (بريد و/أو رسالة) ──
+    // ── إرسال دعوة للمشارك (بريد و/أو رسالة) ──
     public function invite(Request $request)
     {
         if (!$request->user()->hasPermission(Permissions::SEND_INVITATION)) {
@@ -36,10 +36,10 @@ class CommunicationController extends Controller
         ]);
 
         $candidate = Candidate::findOrFail($validated['candidateId']);
-        // بوابة التصنيف — لا تُرسَل دعوة لمرشح مصنّف لمن لا يملك صلاحيته (مصنّف = «غير موجود»)
+        // بوابة التصنيف — لا تُرسَل دعوة لمشارك مصنّف لمن لا يملك صلاحيته (مصنّف = «غير موجود»)
         if ($candidate->classification !== 'normal'
             && !$request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
         $data = [
             'date' => $validated['date'],
@@ -65,7 +65,7 @@ class CommunicationController extends Controller
 
         // لا شيء أُرسل فعلاً — لا تكتب سجل «دعوة أُرسلت» (كان يُكتب قبل هذا الفحص فيُوثّق دعوة وهمية)
         if (empty($results)) {
-            return response()->json(['error' => 'لا يوجد بريد أو جوال للمرشح، أو لم تحدد طريقة إرسال'], 400);
+            return response()->json(['error' => 'لا يوجد بريد أو جوال للمشارك، أو لم تحدد طريقة إرسال'], 400);
         }
 
         AuditLog::create([
@@ -85,7 +85,7 @@ class CommunicationController extends Controller
         return response()->json(['message' => 'تمت معالجة الدعوة', 'results' => $results]);
     }
 
-    // ── سجل المراسلات لمرشح ──
+    // ── سجل المراسلات لمشارك ──
     public function history(Request $request, int $candidateId)
     {
         $user = $request->user();
@@ -94,12 +94,12 @@ class CommunicationController extends Controller
         }
         $candidate = Candidate::find($candidateId);
         if (!$candidate) {
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
         // بوابة التصنيف الأمني (كما في show/export/journey)
         if ($candidate->classification !== 'normal'
             && !$user->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
 
         // نص الرسائل يحوي الاسم — يُكشف فقط لمن يملك رؤية الأسماء، ورابط التأكيد يُحجب دائماً

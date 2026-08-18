@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\DB;
 //  خطوتان منفصلتان عمداً:
 //    propose  — يحسب توزيعاً عادلاً ويحفظه مسودّة (بلا جلسات بعد)
 //    approve  — يعيد التحقق من كل بند حيّاً ثم يصنع الجلسات الناجية
-//  الفجوة بين الأحد والاعتماد قد تُبطل بنوداً (مرشّح أُلغي، مقيّم عُطّل)،
+//  الفجوة بين الأحد والاعتماد قد تُبطل بنوداً (مشارك أُلغي، مقيّم عُطّل)،
 //  فالاعتماد لا ينسخ المسودّة بل يبنيها من جديد على البيانات الحيّة.
 // ════════════════════════════════════════════════════════════
 
@@ -52,7 +52,7 @@ class DistributionService
         $days = $this->weekDays($start);
         $cap = $this->dailyCap();
 
-        // التصنيفات المسموحة للمُشغِّل: التوزيع الآلي يجب ألا يكشف مرشّحاً مصنّفاً
+        // التصنيفات المسموحة للمُشغِّل: التوزيع الآلي يجب ألا يكشف مشاركاً مصنّفاً
         // لمسؤول جدولة بلا CANDIDATE_VIEW_CLASSIFIED (يملك DISTRIBUTION_MANAGE وحدها)،
         // ولا يُسنده لمقيّم بلا تصريح. غير المصرَّح يُقصَر على 'normal'، ويُجدوَل
         // المصنّفون يدوياً بمقيّم صريح. يطابق Controller::allowedClassifications.
@@ -69,13 +69,13 @@ class DistributionService
                 'created_by' => $actor->id,
             ]);
 
-            // مرشحون محجوزون في مسودّة توزيع أخرى (بلا جدولة/إسقاط بعد) — لا يُوزَّعون
+            // مشاركون محجوزون في مسودّة توزيع أخرى (بلا جدولة/إسقاط بعد) — لا يُوزَّعون
             // مرتين لو اعتُمدت المسودّتان (سباق أسبوعين متتاليين لا يزالان مسودّة)
             $inOpenDraft = DistributionItem::whereHas('proposal', fn ($q) => $q->where('status', 'draft'))
                 ->whereNull('schedule_id')->whereNull('drop_reason')
                 ->pluck('candidate_id')->all();
 
-            // المرشحون الجاهزون: معتمدون للتقييم بلا جلسة مقابلة في دورتهم الحالية
+            // المشاركون الجاهزون: معتمدون للتقييم بلا جلسة مقابلة في دورتهم الحالية
             $candidates = Candidate::with('sector')
                 ->where('status', 'scheduled')
                 ->whereIn('classification', $allowedClassifications)
@@ -113,8 +113,8 @@ class DistributionService
         });
     }
 
-    // يوزّع مرشّحي قطاع على مقيّميه وأيامه، بحدّ لكل مقيّم في اليوم.
-    // خوارزمية دوّارة: يملأ (يوم، مقيّم) واحداً واحداً حتى ينفد الحدّ أو المرشحون.
+    // يوزّع مشاركي قطاع على مقيّميه وأيامه، بحدّ لكل مقيّم في اليوم.
+    // خوارزمية دوّارة: يملأ (يوم، مقيّم) واحداً واحداً حتى ينفد الحدّ أو المشاركون.
     private function placeSector($proposal, int $sectorId, $candidates, $evaluators, array $days, int $cap, $existing = null): void
     {
         $ci = 0;
@@ -127,7 +127,7 @@ class DistributionService
                 $used = $existing["$evaluatorId|$dateStr"] ?? 0;
                 for ($slot = $used; $slot < $cap; $slot++) {
                     if ($ci >= $total) {
-                        return; // نفد مرشحو القطاع
+                        return; // نفد مشاركو القطاع
                     }
                     $c = $candidates[$ci++];
                     DistributionItem::create([
@@ -160,7 +160,7 @@ class DistributionService
             $dropped = 0;
 
             foreach ($locked->items()->with('candidate')->get() as $item) {
-                // قفل صفّ المرشّح: يسلسل اعتمادين متزامنين لمرشّح واحد، فالثاني يرى
+                // قفل صفّ المشارك: يسلسل اعتمادين متزامنين لمشارك واحد، فالثاني يرى
                 // جلسته أُنشئت ويُسقطه بدل جدولته مرتين (فحص «جُدوِل» يصير تحت القفل)
                 if ($item->candidate_id) {
                     Candidate::whereKey($item->candidate_id)->lockForUpdate()->first();
@@ -207,15 +207,15 @@ class DistributionService
     {
         $c = $item->candidate;
         if (!$c) {
-            return 'حُذف المرشّح';
+            return 'حُذف المشارك';
         }
         // الحالة: قد يكون أُلغي أو أُعيد تقييمه أو اكتمل
         if ($c->status !== 'scheduled') {
-            return 'تغيّرت حالة المرشّح';
+            return 'تغيّرت حالة المشارك';
         }
-        // قطاع المرشّح قد يكون تغيّر بعد الاقتراح
+        // قطاع المشارك قد يكون تغيّر بعد الاقتراح
         if ($c->sector_id !== $item->sector_id) {
-            return 'تغيّر قطاع المرشّح';
+            return 'تغيّر قطاع المشارك';
         }
         // المقيّم: قد يكون عُطّل أو نُقل قطاعه (exists لا يكفي — is_active مطلوب)
         $ev = User::where('id', $item->evaluator_id)

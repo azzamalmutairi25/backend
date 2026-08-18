@@ -14,7 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         // خلف الوسيط العكسي في الـ DMZ: بدون هذا يُفهرَس throttle على IP الوسيط
-        // (فيقع كل الإنترنت في دلو واحد) ويُسجَّل ip_address الوسيط لا المرشّح.
+        // (فيقع كل الإنترنت في دلو واحد) ويُسجَّل ip_address الوسيط لا المشارك.
         //
         // القائمة تُقرأ داخل الوسيط من config('security.trusted_proxies') لا هنا:
         // هذا الملف يُنفَّذ قبل تحميل البيئة، ومع config:cache في الإنتاج لا يُقرأ

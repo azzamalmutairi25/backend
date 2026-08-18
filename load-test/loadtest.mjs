@@ -66,12 +66,12 @@ const HELP = `
 // الأوزان تحاكي واقع الاستعمال: قراءة كثيرة، كتابة قليلة.
 function buildScenarios(mix, ctx) {
   const read = [
-    { name: 'قائمة المرشحين', weight: 30, actor: 'reader', req: () => ({ method: 'GET', path: '/api/candidates' }) },
-    { name: 'مؤشرات المرشحين', weight: 15, actor: 'reader', req: () => ({ method: 'GET', path: '/api/candidates/stats' }) },
+    { name: 'قائمة المشاركين', weight: 30, actor: 'reader', req: () => ({ method: 'GET', path: '/api/candidates' }) },
+    { name: 'مؤشرات المشاركين', weight: 15, actor: 'reader', req: () => ({ method: 'GET', path: '/api/candidates/stats' }) },
     { name: 'لوحة البداية', weight: 20, actor: 'reader', req: () => ({ method: 'GET', path: '/api/dashboard/overview' }) },
     { name: 'الجدولة', weight: 15, actor: 'reader', req: () => ({ method: 'GET', path: '/api/schedules' }) },
     { name: 'طلبات التحديث', weight: 10, actor: 'reader', req: () => ({ method: 'GET', path: '/api/candidate-update-requests?status=pending' }) },
-    { name: 'تفاصيل مرشح', weight: 10, actor: 'reader', req: () => ({ method: 'GET', path: `/api/candidates/${ctx.randomCandidateId()}` }) },
+    { name: 'تفاصيل مشارك', weight: 10, actor: 'reader', req: () => ({ method: 'GET', path: `/api/candidates/${ctx.randomCandidateId()}` }) },
   ]
 
   const write = [
@@ -124,7 +124,7 @@ function nominationBody(vu, seq, sectorId) {
   const n = 30000000 + (vu * 100000) + (seq % 100000)
   return {
     nationalId: syntheticNationalId(n),
-    fullName: `مرشح ضغط ${n}`,
+    fullName: `مشارك ضغط ${n}`,
     mobile: '05' + String(n % 100000000).padStart(8, '0'),
     sectorId,
     rankLabel: 'عميد',

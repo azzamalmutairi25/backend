@@ -407,12 +407,12 @@ class SettingsController extends Controller
 
         $validated = $request->validate(
             ['dailyCap' => 'required|integer|min:1|max:50'],
-            ['dailyCap.min' => 'الحدّ الأدنى مرشّح واحد', 'dailyCap.max' => 'الحدّ الأقصى 50 مرشّحاً']
+            ['dailyCap.min' => 'الحدّ الأدنى مشارك واحد', 'dailyCap.max' => 'الحدّ الأقصى 50 مشاركاً']
         );
 
         Setting::updateOrCreate(
             ['key' => 'distribution.daily_cap_per_evaluator'],
-            ['value' => (string) $validated['dailyCap'], 'description' => 'عدد المرشحين لكل مقيّم في اليوم']
+            ['value' => (string) $validated['dailyCap'], 'description' => 'عدد المشاركين لكل مقيّم في اليوم']
         );
 
         AuditLog::create([

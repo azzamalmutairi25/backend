@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 // جهةٌ تُسلَّم إليها الجدولة، ومعها الفئات التي تستقبلها.
 class DispatchAuthority extends Model
 {
-    // فئات المرشحين — مطابقة لـcandidates.personnel_category
+    // فئات المشاركين — مطابقة لـcandidates.personnel_category
     public const CATEGORIES = ['civilian', 'military', 'contractor'];
 
     public const CATEGORY_LABEL = [

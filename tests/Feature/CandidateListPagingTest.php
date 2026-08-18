@@ -8,7 +8,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 // ════════════════════════════════════════════════════════════
-//  ترقيم قائمة المرشحين وفرزها على الخادم
+//  ترقيم قائمة المشاركين وفرزها على الخادم
 //
 //  الترقيم إضافةٌ لا استبدال: بلا `page` تبقى القائمة كاملةً كما كانت، فلا
 //  ينكسر عميلٌ قائم بصمت — يرى خمسين صفّاً مكان ألف ويظنّها كلّ ما في المركز.
@@ -20,7 +20,7 @@ class CandidateListPagingTest extends TestCase
 
     protected $seed = true;
 
-    /** ١٢ مرشّحاً برموز مرتّبة وقطاعات ورتب مختلفة */
+    /** ١٢ مشاركاً برموز مرتّبة وقطاعات ورتب مختلفة */
     private function makeMany(int $n = 12): void
     {
         $ed = Sector::where('code', 'DW')->value('id');
@@ -29,7 +29,7 @@ class CandidateListPagingTest extends TestCase
         for ($i = 1; $i <= $n; $i++) {
             $c = new Candidate();
             $c->national_id = $this->validNationalId();
-            $c->full_name = "مرشح {$i}";
+            $c->full_name = "مشارك {$i}";
             $c->mobile = '0501112223';
             $c->sector_id = $i % 2 === 0 ? $da : $ed;
             $c->rank_label = $i % 3 === 0 ? 'وكيل وزارة' : 'مدير عام';

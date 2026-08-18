@@ -29,7 +29,7 @@ class DailyReportService
             ? $q
             : $q->whereIn('classification', $allowedClassifications);
 
-        // جلسات اليوم + حضورها ومرشحوها — استعلام واحد
+        // جلسات اليوم + حضورها ومشاركوها — استعلام واحد
         $sessions = Schedule::with(['candidate.sector', 'attendance', 'evaluator'])
             ->whereDate('schedule_date', $date)
             ->when($allowedClassifications !== null, fn ($q) => $q->whereHas('candidate', $scope))

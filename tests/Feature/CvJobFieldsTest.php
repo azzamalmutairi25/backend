@@ -220,14 +220,14 @@ class CvJobFieldsTest extends TestCase
     public function test_cv_document_never_carries_the_name(): void
     {
         [$c] = $this->makeCandidate([
-            'status' => 'scheduled', 'sectorCode' => 'DW', 'fullName' => 'مرشح ذو اسم صريح',
+            'status' => 'scheduled', 'sectorCode' => 'DW', 'fullName' => 'مشارك ذو اسم صريح',
         ]);
         CandidateCv::create(['candidate_id' => $c->id, 'data' => $this->doc()]);
 
         $this->actingAsRole('SCHEDULER');
         $html = $this->get("/api/candidates/{$c->id}/cv/document")->assertOk()->getContent();
 
-        $this->assertStringNotContainsString('مرشح ذو اسم صريح', $html);
+        $this->assertStringNotContainsString('مشارك ذو اسم صريح', $html);
     }
 
     public function test_cv_document_is_out_of_scope_404(): void

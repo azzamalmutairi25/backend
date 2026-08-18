@@ -43,7 +43,7 @@ class ParticipantCardTest extends TestCase
     {
         [$c] = $this->makeCandidate([
             'status' => 'scheduled', 'sectorCode' => 'DW',
-            'fullName' => 'مرشح ذو اسم صريح',
+            'fullName' => 'مشارك ذو اسم صريح',
         ]);
         $nid = $c->national_id;
 
@@ -51,7 +51,7 @@ class ParticipantCardTest extends TestCase
         $this->actingAsRole('SCHEDULER');
         $html = $this->get('/api/candidates/cards?ids=' . $c->id)->assertOk()->getContent();
 
-        $this->assertStringNotContainsString('مرشح ذو اسم صريح', $html);
+        $this->assertStringNotContainsString('مشارك ذو اسم صريح', $html);
         $this->assertStringNotContainsString($nid, $html);
         $this->assertStringContainsString($c->participant_code, $html);
     }

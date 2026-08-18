@@ -15,7 +15,7 @@ class User extends Authenticatable
 {
     use HasApiTokens, Notifiable;
 
-    // الأدوار المحصورة بقطاع: لا تُقيّم إلا مرشحي قطاعها
+    // الأدوار المحصورة بقطاع: لا تُقيّم إلا مشاركي قطاعها
     public const SECTOR_BOUND_ROLES = ['EVALUATOR', 'DISCUSSION_EVAL', 'ASSISTANT'];
 
     protected $fillable = [
@@ -80,7 +80,7 @@ class User extends Authenticatable
         return in_array($this->role->code, self::SECTOR_BOUND_ROLES, true);
     }
 
-    // ── هل يجوز لهذا المستخدم أن يتعامل مع مرشّح هذا القطاع؟ ──
+    // ── هل يجوز لهذا المستخدم أن يتعامل مع مشارك هذا القطاع؟ ──
     // غير المحصور (مدير النظام، الجدولة…) يمرّ. والمحصور بلا قطاع مضبوط
     // يُمنع لا يُسمح: بيانات ناقصة لا تُقرأ كإذن مفتوح.
     public function coversSector(?int $sectorId): bool

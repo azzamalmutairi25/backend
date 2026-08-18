@@ -12,11 +12,11 @@
 
 return [
 
-    // بوّابة المرشّح العامة: /confirm/{token} ومساراتها /api/public/assessment/*.
+    // بوّابة المشارك العامة: /confirm/{token} ومساراتها /api/public/assessment/*.
     // مُعطَّلة بطلب صاحب المنصّة حتى إشعار آخر — سيُعاد بناؤها لاحقاً.
     // التعطيل يُسقط ثلاثة أشياء معاً كي لا يبقى نصفُ بوّابةٍ حيّاً:
     //   • مسارات الـAPI الأربعة (verify/confirm/arrive/cv)
-    //   • رابط التأكيد داخل رسالة SMS التي تُرسَل عند إضافة كل مرشّح
+    //   • رابط التأكيد داخل رسالة SMS التي تُرسَل عند إضافة كل مشارك
     //   • مسار /confirm في موجّه الواجهة
     // لإعادتها: CANDIDATE_PORTAL_ENABLED=true في .env، وfeatures.js في الواجهة.
     'candidate_portal' => (bool) env('CANDIDATE_PORTAL_ENABLED', false),

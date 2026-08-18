@@ -57,7 +57,7 @@ class UserController extends Controller
 
     // ── الفرز ──
     // الافتراضي `full_name` تصاعدياً كما كان قبل الترقيم. (وهو نصٌّ صريح هنا
-    // بخلاف اسم المرشّح المشفَّر — حسابات الموظفين ليست بيانات المرشحين.)
+    // بخلاف اسم المشارك المشفَّر — حسابات الموظفين ليست بيانات المشاركين.)
     private function sortable(): array
     {
         return [
@@ -405,12 +405,12 @@ class UserController extends Controller
         }
 
         $labels = [
-            'candidate.view' => 'عرض المرشحين',
-            'candidate.create' => 'إضافة مرشح',
-            'candidate.edit' => 'تعديل مرشح',
-            'candidate.approve' => 'اعتماد مرشح',
+            'candidate.view' => 'عرض المشاركين',
+            'candidate.create' => 'إضافة مشارك',
+            'candidate.edit' => 'تعديل مشارك',
+            'candidate.approve' => 'اعتماد مشارك',
             'candidate.view_names' => 'رؤية الأسماء الحساسة',
-            'candidate.view_classified' => 'رؤية المرشحين المصنّفين',
+            'candidate.view_classified' => 'رؤية المشاركين المصنّفين',
             'candidate.cv_view' => 'عرض السيرة الذاتية',
             'schedule.view' => 'عرض الجدولة',
             'schedule.manage' => 'إدارة الجدولة',

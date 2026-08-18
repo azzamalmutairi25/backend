@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
-// توزيع أسبوعي للمرشحين على المقيّمين: يُقترَح ثم يُعتمَد.
+// توزيع أسبوعي للمشاركين على المقيّمين: يُقترَح ثم يُعتمَد.
 //
 // اقتراح واحد لكل أسبوع (قيد فريد على week_start) — نقطة التسلسل الوحيدة
 // التي تصمد أمام ضغطتين متزامنتين: الثاني يصطدم بـ23505.
@@ -44,7 +44,7 @@ return new class extends Migration
             $table->string('drop_reason', 100)->nullable(); // إن سقط في إعادة التحقق
             $table->timestamps();
 
-            // مرشّح لا يُقترَح مرتين في الاقتراح نفسه — المرشّح يُوزَّع مرة واحدة
+            // مشارك لا يُقترَح مرتين في الاقتراح نفسه — المشارك يُوزَّع مرة واحدة
             $table->unique(['proposal_id', 'candidate_id']);
             $table->index('evaluator_id');
         });
@@ -52,7 +52,7 @@ return new class extends Migration
         // الحدّ اليومي لكل مقيّم — إعداد قابل للتغيير من الشاشة
         DB::table('settings')->updateOrInsert(
             ['key' => 'distribution.daily_cap_per_evaluator'],
-            ['value' => '5', 'description' => 'عدد المرشحين لكل مقيّم في اليوم', 'updated_at' => now()]
+            ['value' => '5', 'description' => 'عدد المشاركين لكل مقيّم في اليوم', 'updated_at' => now()]
         );
     }
 

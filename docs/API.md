@@ -30,7 +30,7 @@
 ## الأعراف (Conventions)
 
 - **خارج النطاق = ٤٠٤ لا ٤٠٣:** المعرّف لا يكشف الوجود أبداً. غياب الصلاحية = ٤٠٣؛ أما مورد خارج قطاع/تصنيف المستخدم فيُعامَل كـ«غير موجود» (٤٠٤).
-- **حصر التصنيف (fail-closed):** من لا يملك `candidate.view_classified` يرى المرشحين «العاديين» فقط؛ المصنّفون (`secret`/`top_secret`) محجوبون في القوائم والتفاصيل والتجميعات والسجل.
+- **حصر التصنيف (fail-closed):** من لا يملك `candidate.view_classified` يرى المشاركين «العاديين» فقط؛ المصنّفون (`secret`/`top_secret`) محجوبون في القوائم والتفاصيل والتجميعات والسجل.
 - **الحصر القطاعي:** الأدوار المحصورة (`EVALUATOR`, `DISCUSSION_EVAL`, `ASSISTANT`) محصورة بقطاعها؛ والمقيّم يُضيَّق أكثر إلى من قيّمهم هو.
 - **تقييد المعدّل:** `POST /login` (١٠/دقيقة)، البوّابة العامة (٢٠/دقيقة)، واختبارات التكامل الخارجي `settings/*/test` (٥/دقيقة).
 - **شكل الخطأ:** `{ "error": "..." }` أو `{ "message": "...", "errors": { "field": ["..."] } }` لأخطاء التحقق (٤٢٢).
@@ -58,23 +58,23 @@
 | POST | `/logout` | مُصادَق | إبطال الرمز الحالي |
 | POST | `/change-password` | مُصادَق | تغيير كلمة المرور (يُبطل بقية الجلسات) |
 
-### المرشحون (Candidates)
+### المشاركون (Candidates)
 | الطريقة | المسار | الصلاحية | الغرض |
 |---|---|---|---|
-| GET | `/candidates` | `candidate.view` | قائمة المرشحين (محصورة بالنطاق) — انظر **الترقيم والفرز** أدناه |
+| GET | `/candidates` | `candidate.view` | قائمة المشاركين (محصورة بالنطاق) — انظر **الترقيم والفرز** أدناه |
 | GET | `/candidates/stats` | `candidate.view` | إحصاءات مطابقة لحصر القائمة |
-| POST | `/candidates` | `candidate.create` | إضافة مرشح (+ دورة تقييم) |
+| POST | `/candidates` | `candidate.create` | إضافة مشارك (+ دورة تقييم) |
 | POST | `/candidates/import` · `/import/candidates` | `candidate.create` | استيراد جماعي — `rows[]` حتى ٥٠٠، انظر **الاستيراد الجماعي** أدناه |
 | GET | `/candidates/export` | `candidate.view` | تصدير القائمة |
-| GET | `/candidates/{id}` | `candidate.view` | تفاصيل مرشح |
+| GET | `/candidates/{id}` | `candidate.view` | تفاصيل مشارك |
 | PUT | `/candidates/{id}` | `candidate.edit` | تعديل |
 | DELETE | `/candidates/{id}` | `candidate.edit` | حذف |
 | POST | `/candidates/{id}/approve` | `candidate.edit` | اعتماد للتقييم |
 | PATCH | `/candidates/{id}/classify` | `candidate.view_classified` | تغيير تصنيف السرّية |
-| GET | `/candidates/{id}/assessments` | `candidate.view` | دورات المرشح |
-| GET | `/candidates/{id}/journey` | `candidate.journey` | رحلة المرشح |
+| GET | `/candidates/{id}/assessments` | `candidate.view` | دورات المشارك |
+| GET | `/candidates/{id}/journey` | `candidate.journey` | رحلة المشارك |
 | POST | `/candidates/{id}/reassess` | `candidate.edit` | دورة تقييم جديدة |
-| GET | `/candidates/{id}/history` | `audit.view` | سجل تدقيق المرشح |
+| GET | `/candidates/{id}/history` | `audit.view` | سجل تدقيق المشارك |
 | GET | `/candidates/{id}/interviewers` | `schedule.manage` | مستشارو المقابلة المؤهّلون |
 | GET | `/candidates/{id}/assessors` | `schedule.manage` | المؤهّلون لنشاطٍ ومقعد — `?activity`، `?seat=evaluator\|assistant`، ومع `?periodId` (و`?date`) يعود النصاب والحمل |
 | GET | `/candidates/cards` | `candidate.view` | بطاقات المشاركين للطباعة |
@@ -147,8 +147,8 @@
 
 `failures` مبنيّة وهي المعتمَدة؛ و`errors` نصوصٌ مسطّحة تبقى للتوافق مع مستهلكٍ قديم. وأسباب الصفّ **تُجمع كلّها** لا يُكتفى بأوّلها: الردّ عند أول خطأ يجعل تصحيح ملفٍّ رحلاتٍ متكرّرة. والتكرار داخل الدفعة الواحدة يُكشف كما يُكشف المسجَّل في القاعدة.
 
-### طلبات تحديث بيانات المرشحين (Update Requests)
-> يرفعها المستخدم الخارجي حين يجد المرشّح مسجّلاً مسبقاً — الكتابة فوق سجلٍّ قائم ممنوعة من الخارج.
+### طلبات تحديث بيانات المشاركين (Update Requests)
+> يرفعها المستخدم الخارجي حين يجد المشارك مسجّلاً مسبقاً — الكتابة فوق سجلٍّ قائم ممنوعة من الخارج.
 
 | الطريقة | المسار | الصلاحية | الغرض |
 |---|---|---|---|
@@ -160,20 +160,20 @@
 | POST | `/candidate-update-requests/{id}/reject` | `candidate.update_approve` | رفض بسبب |
 
 ### استقبال الموظفين (Reception)
-> مسار المرشّح من باب المركز إلى جدول المقابلات — **صلاحية لكل مرحلة**، ولا تُتخطّى مرحلة.
+> مسار المشارك من باب المركز إلى جدول المقابلات — **صلاحية لكل مرحلة**، ولا تُتخطّى مرحلة.
 
 | الطريقة | المسار | الصلاحية | الغرض |
 |---|---|---|---|
 | GET | `/reception` | `reception.view` | كشف اليوم + مهامّي (يتشكّل بالصلاحية) — `?date`، `?q` |
 | POST | `/reception/arrive` | `reception.record` | تسجيل وصول (وقت تلقائي) |
 | PATCH | `/reception/visits/{id}/arrival` | `reception.record` | تعديل وقت الوصول (`HH:MM`) |
-| POST | `/reception/visits/{id}/sign` | `reception.record` (٦٠/دقيقة) | توقيع المرشح وإقراره — PNG بترميز `data:` ≤٤٠٠ك محرف |
+| POST | `/reception/visits/{id}/sign` | `reception.record` (٦٠/دقيقة) | توقيع المشارك وإقراره — PNG بترميز `data:` ≤٤٠٠ك محرف |
 | GET | `/reception/visits/{id}/cv` | `reception.view` + (`reception.record` أو `candidate.cv_view`) | سيرة من أمامك اليوم |
 | GET | `/reception/evaluators` | `reception.assign` | **من يستطيع الاستلام فعلاً** — `?activity`، `?sectorId` |
 | POST | `/reception/visits/{id}/assign` | `reception.assign` | توزيع على `interview`/`discussion`/`measurement` (بعد التوقيع) |
 | DELETE | `/reception/assignments/{id}` | `reception.assign` | سحب إسناد |
 | GET | `/reception/assignments/{id}/cv` | `reception.decide` | **سيرة بالرمز — بلا اسم ولا هوية أبداً** (قاعدة إجراء لا صلاحية) |
-| POST | `/reception/assignments/{id}/accept` | `reception.decide` | قبول المرشح |
+| POST | `/reception/assignments/{id}/accept` | `reception.decide` | قبول المشارك |
 | POST | `/reception/assignments/{id}/reject` | `reception.decide` | ردّه للعمليات بسبب (٣–٥٠٠ حرف) |
 | POST | `/reception/visits/{id}/approve` | `reception.approve` | اعتماد البيانات وترحيلها للجدول (يشترط التوقيع) |
 
@@ -259,9 +259,9 @@
 |---|---|---|---|
 | GET | `/reports` | `report.view` | قائمة التقارير |
 | GET | `/reports/stats` | `report.view` | إحصاءات |
-| GET | `/reports/eligible-candidates` | `report.create` | مرشحون جاهزون لتقرير |
+| GET | `/reports/eligible-candidates` | `report.create` | مشاركون جاهزون لتقرير |
 | GET | `/reports/score-preview` | `report.view` | معاينة الدرجات |
-| GET | `/reports/competency-gap` | `report.view` | فجوة الكفاءات لمرشح |
+| GET | `/reports/competency-gap` | `report.view` | فجوة الكفاءات لمشارك |
 | GET | `/reports/analytics` | `report.view` | تجميعات التقارير |
 | GET | `/reports/export` | `report.export` | تصدير CSV |
 | POST | `/reports` | `report.create` | إنشاء |
@@ -288,7 +288,7 @@
 | الطريقة | المسار | الصلاحية | الغرض |
 |---|---|---|---|
 | GET | `/analytics/executive` | `analytics.executive` | **القيادة التنفيذية — المؤشرات**: مؤشرات بفروقات، خريطة حرارية كفاءة×قطاع، اتجاهات، مقارنة قطاعات، مقارنة فئات قيادية، توزيع جاهزية، رؤى تلقائية. المُعامِل `?months` (٦ افتراضاً) |
-| GET | `/analytics/executive/overview` | `analytics.executive` | **القيادة التنفيذية — نظرة شاملة**: ثلاثة عشر قسماً (المرشحون، الموجات، الجلسات، الاستقبال، الحضور، التقييم، القياس، التقارير، خطط التطوير، الكفاءات، طلبات التحديث، الفريق، التدقيق) بشكلٍ موحّد `{key,label,icon,route,metrics,bars}`. **الإعدادات خارجها عمداً** |
+| GET | `/analytics/executive/overview` | `analytics.executive` | **القيادة التنفيذية — نظرة شاملة**: ثلاثة عشر قسماً (المشاركون، الموجات، الجلسات، الاستقبال، الحضور، التقييم، القياس، التقارير، خطط التطوير، الكفاءات، طلبات التحديث، الفريق، التدقيق) بشكلٍ موحّد `{key,label,icon,route,metrics,bars}`. **الإعدادات خارجها عمداً** |
 | GET | `/analytics/executive/reports` | `analytics.executive` | **القيادة التنفيذية — التقارير**: مؤشرات السلسلة، خطّ الاعتماد، أطول انتظار في كل مرحلة، توزيع التوصيات، وأحدث التقارير **بالرمز لا بالاسم** (اطّلاع لا تحرير). المُعامِل `?limit` (٢٥ افتراضاً، ١٠٠ حدّاً) |
 | GET | `/analytics/dashboard` | `analytics.view` | نظرة موحّدة مختصرة |
 | GET | `/analytics/by-sector` | `analytics.view` | تجميع حسب القطاع |
@@ -359,7 +359,7 @@
 | POST | `/users/bulk-permissions` | `user.manage` | **وصولٌ واحد على مجموعة موظفين**: `{userIds[], changes[{permission, action: grant\|revoke\|reset}], reason?}`. السقف الثلاثي نفسه؛ حسابُك وحاملُ `*` يُتخطّيان ويُعادان في `skipped`؛ الاستثناء المطابق للدور يُمحى صامتاً؛ كل حسابٍ متأثّر يُسجَّل في التدقيق وتُطرد جلساته |
 
 ### القوائم المرجعية (Reference) — مُصادَق، بلا صلاحية
-> يحتاجها كل من يملأ نموذجاً — ومنه المستخدم الخارجي: `sectorId` و`rankLabel` حقلان إلزاميان في إنشاء المرشّح.
+> يحتاجها كل من يملأ نموذجاً — ومنه المستخدم الخارجي: `sectorId` و`rankLabel` حقلان إلزاميان في إنشاء المشارك.
 > كلتاهما **تُشكّل استجابتها بالصلاحية**: البادئات وأعداد المرتبطين — وهي أرقام تكشف حجم كل قطاع — لا تُرسَل إلا لحامل `settings.manage`، ويُرسَل معها `canManage`.
 
 | الطريقة | المسار | الغرض |
@@ -386,6 +386,10 @@
 | GET | `/expertise-areas` | مجالات الخبرة — مرجعٌ للجميع، وغير الفعّالة لحاملي `settings.manage` |
 | POST · PUT · DELETE | `/expertise-areas` · `/expertise-areas/{id}` | إدارة المجالات (`settings.manage`) |
 | PUT | `/users/{id}/expertise` | وسم حساب بمجالاته — `areaIds[]` (`user.manage`) |
+| GET | `/technical-areas` | المجالات الفنية — مرجعٌ يُوسَم به المشارك ويُرشَّح عليه. قراءتها أوسع من مجالات الخبرة: تكفيها `candidate.view` أو `candidate.create` لأن نموذج الإضافة يعرضها وشاشة الترشيح تفلتر بها. تُرجع `areas[{id, label, sortOrder, isActive, participantCount}]` و`canManage`؛ وغير الفعّالة لحاملي `settings.manage` وحدهم ليعيدوا تفعيلها |
+| POST | `/technical-areas` | إضافة مجال — `{label, sortOrder?}` ← `{message, areaId}` (٢٠١)؛ الاسم المكرّر ٤٢٢ في `errors.label` (`settings.manage`) |
+| PUT | `/technical-areas/{id}` | تعديل مجال — `{label, sortOrder?, isActive?}` ← `{message}`؛ غير الموجود ٤٠٤ والاسم المكرّر ٤٢٢ (`settings.manage`) |
+| DELETE | `/technical-areas/{id}` | حذف مجال ← `{message}`؛ **مجالٌ موصوفٌ به مشاركون لا يُحذف** — ٤٢٢ تدلّ على تعطيله ليبقى وسمهم مقروءاً (`settings.manage`) |
 | GET · POST | `/settings/scheduling-workflow` | خطوات سير عمل الجدولة — القراءة تكفيها `schedule.view`، والإضافة `settings.manage` |
 | PUT · DELETE | `/settings/scheduling-workflow/{id}` | تعديل/حذف خطوة (`settings.manage`) |
 | PUT | `/settings/scheduling-workflow/reorder` | إعادة الترتيب — `ids[]` كاملةً لا جزئية (`settings.manage`) |
@@ -402,15 +406,15 @@
 
 | الطريقة | المسار | الغرض |
 |---|---|---|
-| GET | `/audit/log` | السجل الموحّد — يحجب تفاصيل المرشحين المصنّفين عمّن لا يملك التصريح |
-| GET | `/candidates/{id}/history` | سجل مرشّح بعينه |
+| GET | `/audit/log` | السجل الموحّد — يحجب تفاصيل المشاركين المصنّفين عمّن لا يملك التصريح |
+| GET | `/candidates/{id}/history` | سجل مشارك بعينه |
 
 ### كشك الاستقبال (Kiosk) — بلا مصادقة، ١٢٠/دقيقة
-الجهاز اللوحي في بهو المركز. رمز اليوم في الرابط يفتحه مسؤول المرشحين، ثم بوّابة رقم الهوية داخل الشاشة — لا بيان قبلها. الرمز نطاقه يومٌ واحد وقابل للإبطال، ورمز الجلسة عمره ٥ دقائق ومربوط بالكشك والدورة معاً. يُعطَّل كلّياً بـ`features.reception_kiosk`.
+الجهاز اللوحي في بهو المركز. رمز اليوم في الرابط يفتحه مسؤول المشاركين، ثم بوّابة رقم الهوية داخل الشاشة — لا بيان قبلها. الرمز نطاقه يومٌ واحد وقابل للإبطال، ورمز الجلسة عمره ٥ دقائق ومربوط بالكشك والدورة معاً. يُعطَّل كلّياً بـ`features.reception_kiosk`.
 
 | الطريقة | المسار | الغرض |
 |---|---|---|
-| GET | `/kiosk/{token}` | حالة الكشك — جاهزيةٌ فقط، لا بيانات مرشحين |
+| GET | `/kiosk/{token}` | حالة الكشك — جاهزيةٌ فقط، لا بيانات مشاركين |
 | POST | `/kiosk/{token}/identify` | بوّابة الهوية (٥ محاولات لكل رقم / ١٥ دقيقة) — تُرجع `accessToken` |
 | POST | `/kiosk/{token}/arrive` | تسجيل الوصول — يُنشئ نفس `ReceptionVisit` لكشف الاستقبال |
 | POST | `/kiosk/{token}/sign` | التوقيع والإقرار بصحّة البيانات (يشترط الوصول) |

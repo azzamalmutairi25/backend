@@ -9,7 +9,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
-// «كل مرحلة يدخلها المرشح يسجّل حضوره الذي يستقبله»
+// «كل مرحلة يدخلها المشارك يسجّل حضوره الذي يستقبله»
 // المقيّم/المساعد: جلساتهم وحدها. الاستقبال/مشرف القياس: أي جلسة.
 class AttendanceScopeTest extends TestCase
 {
@@ -52,7 +52,7 @@ class AttendanceScopeTest extends TestCase
         $this->postJson("/api/attendance/{$s->id}/checkin")->assertStatus(403);
         $this->postJson("/api/attendance/{$s->id}/absence", ['excused' => true])->assertStatus(403);
 
-        // لا تسجيل لمرشّح لم يره (المعامل الثالث لـassertDatabaseCount اتصالٌ لا رسالة)
+        // لا تسجيل لمشارك لم يره (المعامل الثالث لـassertDatabaseCount اتصالٌ لا رسالة)
         $this->assertDatabaseCount('attendance', 0);
         $this->assertDatabaseHas('audit_logs', [
             'action' => 'DENIED_ATTENDANCE_NOT_ASSIGNED', 'user_id' => $intruder->id,
@@ -157,7 +157,7 @@ class AttendanceScopeTest extends TestCase
             'activity' => 'interview', 'evaluator_id' => $ev->id, 'location' => 'قاعة 1',
         ]);
 
-        // جلسته هو، لكن المرشح مصنّف — «غير موجود» لا «ليست لك»
+        // جلسته هو، لكن المشارك مصنّف — «غير موجود» لا «ليست لك»
         $this->postJson("/api/attendance/{$s->id}/checkin")->assertStatus(404);
     }
 

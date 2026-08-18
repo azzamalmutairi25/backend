@@ -2,14 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\CvTooLargeException;
 use App\Models\Candidate;
+use App\Models\CandidateCv;
 use App\Models\Assessment;
 use App\Models\Rank;
 use App\Models\Sector;
+use App\Models\TechnicalArea;
 use App\Models\AuditLog;
 use App\Security\Permissions;
+use App\Services\CvGuard;
+use App\Services\CvValidator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class ImportController extends Controller
 {
@@ -47,6 +53,14 @@ class ImportController extends Controller
             $ranksByCat[$r->category][self::normalizeAr($r->label)] = true;
         }
 
+        // المجالات الفنية مفهرسةً بتسميتها المطبَّعة — استعلامٌ واحد لا لكل صفّ.
+        // المعطَّلة تُقبل في الاستيراد: ملفٌّ أُعِدّ الأسبوع الماضي بمجالٍ عُطِّل
+        // اليوم يُردّ كلّه، والتعطيل قصده إخفاؤه عن النماذج الجديدة لا إبطال ما مضى.
+        $areasByKey = [];
+        foreach (TechnicalArea::all() as $a) {
+            $areasByKey[self::normalizeAr($a->label_ar)] = $a->id;
+        }
+
         $success = [];
         $errors = [];
         $failures = [];
@@ -68,15 +82,18 @@ class ImportController extends Controller
             $sectorKey = trim((string) ($row['sectorCode'] ?? ''));
             $rankLabel = trim((string) ($row['rankLabel'] ?? ''));
             $categoryRaw = trim((string) ($row['personnelCategory'] ?? ''));
+            $genderRaw = trim((string) ($row['gender'] ?? ''));
+            $areasRaw = is_array($row['technicalAreas'] ?? null) ? $row['technicalAreas'] : [];
+            $cvRaw = is_array($row['cv'] ?? null) ? $row['cv'] : [];
 
             // ── الفحص: كل الأسباب تُجمع ولا يُكتفى بأوّلها ──
             // الرفض عند أوّل خطأ يجعل تصحيح الملفّ رحلاتٍ متكرّرة: يُصحّح
             // المستخدم الهوية فيظهر خطأ القطاع، ثم الرتبة. تُقال كلّها مرّة.
             $reasons = [];
 
-            // الفحص هنا هو فحص إضافة المرشّح المفرد نفسه (SaudiNationalId):
+            // الفحص هنا هو فحص إضافة المشارك المفرد نفسه (SaudiNationalId):
             // كان الاستيراد يكتفي بطول عشرة، فهويةٌ يرفضها النموذج تدخل القاعدة
-            // من هذا الباب — ثمّ تُرفض في التحقّق من البوّابة العامة فيتعطّل مرشّح.
+            // من هذا الباب — ثمّ تُرفض في التحقّق من البوّابة العامة فيتعطّل مشارك.
             $idError = self::nationalIdError($nationalId);
             if ($idError !== null) $reasons[] = $idError;
 
@@ -133,6 +150,53 @@ class ImportController extends Controller
                 $reasons[] = 'صيغة البريد الإلكتروني غير صحيحة';
             }
 
+            // ── الجنس ──
+            $gender = self::genderFromInput($genderRaw);
+            if ($genderRaw === '') {
+                $reasons[] = 'الجنس مفقود';
+            } elseif ($gender === null) {
+                $reasons[] = "الجنس «{$genderRaw}» غير معروف — ذكر أو أنثى";
+            }
+
+            // ── المجالات الفنية ──
+            // تصل بأسمائها كما في ترويسة الملفّ لا بمعرّفاتها: الملفّ يكتبه
+            // إنسانٌ في القطاع لا يعرف معرّفات جدولٍ في قاعدة بيانات.
+            $areaIds = [];
+            foreach ($areasRaw as $label) {
+                $key = self::normalizeAr((string) $label);
+                if ($key === '') {
+                    continue;
+                }
+                if (isset($areasByKey[$key])) {
+                    $areaIds[] = $areasByKey[$key];
+                } else {
+                    $reasons[] = "مجال فنّي غير معروف ({$label})";
+                }
+            }
+            $areaIds = array_values(array_unique($areaIds));
+            if (!$areaIds && !array_filter($areasRaw)) {
+                $reasons[] = 'لم يُحدَّد أي مجال فنّي — عليها يُبنى الترشيح';
+            }
+
+            // ── السيرة الذاتية — إلزامية كما في الإضافة اليدوية ──
+            // يُعاد استعمال CvValidator نفسه: مسارُ تحقّقٍ واحد لكل الأبواب،
+            // فلا تدخل من الاستيراد وثيقةٌ يردّها النموذج اليدوي.
+            $cleanCv = null;
+            if (!$cvRaw) {
+                $reasons[] = 'بيانات السيرة الذاتية مفقودة';
+            } else {
+                $cvRaw = self::mapCvDegrees($cvRaw, $reasons);
+                try {
+                    $cleanCv = app(CvValidator::class)->clean($cvRaw);
+                } catch (CvTooLargeException $e) {
+                    $reasons[] = 'بيانات السيرة أكثر من المسموح';
+                } catch (ValidationException $e) {
+                    foreach ($e->errors() as $messages) {
+                        $reasons[] = 'السيرة: ' . $messages[0];
+                    }
+                }
+            }
+
             // التكرار داخل الملفّ: الخادم كان يكشف المسجَّل في القاعدة فقط، فيُنشئ
             // الأول ويرفض الثاني بـ«مسجّلة مسبقاً» — رسالةٌ تتّهم القاعدة لا الملفّ.
             if ($idError === null) {
@@ -153,13 +217,16 @@ class ImportController extends Controller
 
             try {
                 // المتعاقد المستورَد «وسطى» افتراضاً — الطبقة اختيارٌ صريح لا يحمله
-                // الملفّ، وتُصحَّح من شاشة المرشحين
+                // الملفّ، وتُصحَّح من شاشة المشاركين
                 $tier = Candidate::resolveTier($category, $rankLabel, null);
                 // نفس مولّد بقية المسارات (يقرأ من جدول الدورات) — وإلا انجرف التسلسل عن store/reassess فصادم لاحقاً
                 $code = Assessment::generateParticipantCode($sector);
 
-                // مرشح + دورة تقييم معاً (كما في store) — وإلا بقي المرشح بلا دورة فكسر ثابت المزامنة و/confirm
-                DB::transaction(function () use ($code, $nationalId, $fullName, $mobile, $email, $sector, $rankLabel, $category, $tier, $userId) {
+                // مشارك + دورة تقييم + سيرة + مجالات معاً (كما في store) — وإلا
+                // بقي المشارك بلا دورة فكسر ثابت المزامنة و/confirm، أو بلا سيرة
+                // فدخل من هذا الباب ما يردّه النموذج اليدوي
+                $leak = null;
+                DB::transaction(function () use ($code, $nationalId, $fullName, $mobile, $email, $sector, $gender, $rankLabel, $category, $tier, $userId, $cleanCv, $areaIds, &$leak) {
                     $c = new Candidate();
                     $c->participant_code = $code;
                     $c->national_id = $nationalId;
@@ -167,12 +234,31 @@ class ImportController extends Controller
                     $c->mobile = $mobile ?: null;
                     $c->email = $email ?: null;
                     $c->sector_id = $sector->id;
+                    $c->gender = $gender;
                     $c->rank_label = $rankLabel;
                     $c->personnel_category = $category;
                     $c->tier = $tier;
                     $c->assessment_type = 'comprehensive';
                     $c->status = 'draft';
                     $c->save();
+
+                    // تسرّب اسم المشارك داخل سيرته — الفحص يحتاج بياناته فيقع
+                    // بعد حفظه، والرمي يُرجِع المعاملة كلّها فلا يبقى صفٌّ ناقص.
+                    // السيرة تصل المقيّم بلا اسم، فالمستورَد ليس معفىً منه.
+                    if ($hit = CvGuard::directIdentifierHit($cleanCv, $c)) {
+                        $leak = $hit;
+                        throw new \RuntimeException('cv_identifier_leak');
+                    }
+
+                    $cv = new CandidateCv();
+                    $cv->candidate_id = $c->id;
+                    $cv->data = $cleanCv;
+                    $cv->version = 1;
+                    $cv->source = 'admin';
+                    $cv->updated_by = $userId;
+                    $cv->save();
+
+                    $c->technicalAreas()->sync($areaIds);
 
                     Assessment::create([
                         'candidate_id' => $c->id,
@@ -186,12 +272,20 @@ class ImportController extends Controller
 
                 $success[] = ['line' => $lineNum, 'code' => $code, 'name' => $fullName];
             } catch (\Illuminate\Database\QueryException $e) {
-                // مَيّز تكرار الهوية الحقيقي عن تصادم رمز متزامن (سباق) — لا تُسمِّ التصادم «هوية مكرّرة» فتُسقِط مرشحاً صالحاً بسبب مضلّل
+                // مَيّز تكرار الهوية الحقيقي عن تصادم رمز متزامن (سباق) — لا تُسمِّ التصادم «هوية مكرّرة» فتُسقِط مشاركاً صالحاً بسبب مضلّل
                 $why = Candidate::nationalIdExists($nationalId)
                     ? 'هذه الهوية مسجّلة مسبقاً في المنصّة'
                     : 'تعذّر توليد رمز فريد (تعارض متزامن) — أعد المحاولة';
                 $this->reject($errors, $failures, $lineNum, $nationalId, $fullName, [$why]);
             } catch (\Throwable $e) {
+                // تسرّب الاسم سببٌ يُقال بعينه: صاحب الملفّ يستطيع إصلاحه،
+                // و«تعذّر استيراد الصفّ» تتركه يعيد المحاولة بالملفّ نفسه
+                if ($leak !== null) {
+                    $this->reject($errors, $failures, $lineNum, $nationalId, $fullName, [
+                        "السيرة تحوي اسم المشارك أو معرّفاً ({$leak}) — أزِله",
+                    ]);
+                    continue;
+                }
                 // لا نُسرّب نص الاستثناء الخام للعميل
                 \Illuminate\Support\Facades\Log::warning('candidate import row failed', ['line' => $lineNum, 'error' => $e->getMessage()]);
                 $this->reject($errors, $failures, $lineNum, $nationalId, $fullName, ['تعذّر استيراد الصفّ']);
@@ -264,6 +358,53 @@ class ImportController extends Controller
      * و«اتصالات» و«الإتصالات» على قطاعٍ واحد.
      */
     // الفئة كما تُكتب في الملفّ — بالعربية أو بمفتاحها اللاتيني
+    /**
+     * الجنس من نصّه العربي أو الإنجليزي.
+     *
+     * الملفّات الواردة تكتبه بصيغٍ شتّى («ذكر»، «رجل»، «م»، «male»)، ورفضُ
+     * الصيغة لا القيمة يوقف ملفّاً صحيحاً على اختلاف كاتبٍ في التعبير.
+     */
+    private static function genderFromInput(string $raw): ?string
+    {
+        $v = self::normalizeAr(mb_strtolower(trim($raw)));
+        foreach ([
+            'male' => ['ذكر', 'ذكر ', 'رجل', 'م', 'male', 'm'],
+            'female' => ['انثي', 'انثى', 'امراه', 'سيده', 'ا', 'female', 'f'],
+        ] as $key => $forms) {
+            foreach ($forms as $form) {
+                if ($v === self::normalizeAr(mb_strtolower($form))) {
+                    return $key;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * تحويل المؤهلات من نصّها العربي إلى القائمة المغلقة قبل التحقّق.
+     *
+     * ما لا يُعرف **يُترك كما هو** ليردّه المحقّق برسالته، ويُضاف هنا سببٌ
+     * يقول القيم المقبولة — فصاحب الملفّ يعرف ماذا يكتب لا أنّ شيئاً خطأ.
+     */
+    private static function mapCvDegrees(array $cv, array &$reasons): array
+    {
+        foreach (($cv['qualifications'] ?? []) as $i => $q) {
+            $raw = (string) ($q['degree'] ?? '');
+            if ($raw === '') {
+                continue;
+            }
+            $mapped = CandidateCv::degreeFromArabic($raw);
+            if ($mapped === null) {
+                $reasons[] = "المؤهل «{$raw}» غير معروف — المقبول: " . CandidateCv::degreeChoices();
+                continue;
+            }
+            $cv['qualifications'][$i]['degree'] = $mapped;
+        }
+
+        return $cv;
+    }
+
     private static function categoryFromInput(string $raw): ?string
     {
         $v = self::normalizeAr(mb_strtolower(trim($raw)));

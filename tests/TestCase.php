@@ -6,6 +6,7 @@ use App\Models\Assessment;
 use App\Models\Candidate;
 use App\Models\Role;
 use App\Models\Sector;
+use App\Models\TechnicalArea;
 use App\Models\User;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Laravel\Sanctum\Sanctum;
@@ -60,7 +61,7 @@ abstract class TestCase extends BaseTestCase
         ]);
     }
 
-    // مرشح (+ دورة تقييم) بحالة/تصنيف محدّدين — يرجع [candidate, assessment]
+    // مشارك (+ دورة تقييم) بحالة/تصنيف محدّدين — يرجع [candidate, assessment]
     protected function makeCandidate(array $attrs = []): array
     {
         $sector = Sector::where('code', $attrs['sectorCode'] ?? 'DW')->firstOrFail();
@@ -69,7 +70,7 @@ abstract class TestCase extends BaseTestCase
 
         $c = new Candidate();
         $c->national_id = $attrs['nationalId'] ?? $this->validNationalId();
-        $c->full_name = $attrs['fullName'] ?? 'مرشح اختبار';
+        $c->full_name = $attrs['fullName'] ?? 'مشارك اختبار';
         $c->mobile = $attrs['mobile'] ?? '0501112223';
         $c->sector_id = $sector->id;
         $c->rank_label = $attrs['rankLabel'] ?? 'مدير عام';
@@ -89,6 +90,73 @@ abstract class TestCase extends BaseTestCase
         ]);
 
         return [$c, $a];
+    }
+
+    /**
+     * وثيقة سيرة صالحة بأقلّ ما يقبله CvValidator.
+     *
+     * السيرة صارت إلزامية عند الإضافة، فكل اختبارٍ يستدعي `POST /candidates`
+     * يحتاجها. مكانها هنا لا في كل ملفّ: حدُّ «السيرة المكتملة» قرارٌ واحد،
+     * ونسخُه عشرين مرّة يجعل تغييره عشرين تحريراً يُنسى أحدها.
+     */
+    protected function validCvDoc(array $overrides = []): array
+    {
+        return array_replace([
+            'birthDate' => '1985-03-01',
+            'appointmentDate' => '2010-06-01',
+            'rankLabel' => 'مدير عام',
+            'department' => 'الإدارة العامة للاختبار',
+            'region' => 'الرياض',
+            'qualifications' => [[
+                'degree' => 'bachelor',
+                'major' => 'إدارة أعمال',
+                'institution' => 'جامعة الاختبار',
+                'studyPlace' => 'السعودية',
+            ]],
+        ], $overrides);
+    }
+
+    /**
+     * صفٌّ صالح لـ`POST /candidates/import`.
+     *
+     * الاستيراد صار يشترط ما تشترطه الإضافة اليدوية: الجنس والمجالات والسيرة.
+     * المجالات تصل **بأسمائها** لا بمعرّفاتها — الملفّ يكتبه إنسانٌ في القطاع.
+     */
+    protected function importRow(array $overrides = []): array
+    {
+        return array_replace([
+            'nationalId' => $this->validNationalId(),
+            'fullName' => 'مشارك استيراد',
+            'mobile' => '0501112223',
+            'email' => '',
+            'sectorCode' => 'DW',
+            'personnelCategory' => 'مدني',
+            // مرتبةٌ من القائمة المُدارة المبذورة — الاستيراد يطابق عليها،
+            // فمسمّى حرّ هنا يُرَدّ الصفُّ لسببٍ لا علاقة له بما يختبره الاختبار
+            'rankLabel' => 'الرابعة عشرة',
+            'gender' => 'ذكر',
+            'technicalAreas' => [TechnicalArea::ordered()->value('label_ar')],
+            'cv' => $this->validCvDoc(),
+        ], $overrides);
+    }
+
+    /** معرّفات مجالات فنية فعّالة — واحدٌ يكفي، والحقل إلزامي */
+    protected function technicalAreaIds(int $count = 1): array
+    {
+        return TechnicalArea::active()->ordered()->limit($count)->pluck('id')->all();
+    }
+
+    /**
+     * الحقول التي صارت إلزامية على `POST /candidates` بعد نموذج المركز.
+     * تُدمج في حمولة الاختبار: `$this->candidateRequired() + $payload`.
+     */
+    protected function candidateRequired(): array
+    {
+        return [
+            'gender' => 'male',
+            'technicalAreaIds' => $this->technicalAreaIds(),
+            'cv' => $this->validCvDoc(),
+        ];
     }
 
     // رقم هوية سعودي صالح (Luhn، يبدأ بـ1) فريد لكل استدعاء

@@ -85,7 +85,7 @@ class SecurityCoreFixesTest extends TestCase
         $this->actingAsRole('SCHEDULER'); // CANDIDATE_CREATE
         $res = $this->postJson('/api/candidates/import', ['rows' => [
             'this-is-not-an-object',
-            ['nationalId' => '1010101010', 'fullName' => 'مرشح', 'mobile' => '0500000000', 'sectorCode' => 'DW', 'personnelCategory' => 'civilian', 'rankLabel' => 'الرابعة عشرة'],
+            $this->importRow(['nationalId' => '1010101010', 'fullName' => 'مشارك', 'mobile' => '0500000000', 'sectorCode' => 'DW', 'personnelCategory' => 'civilian', 'rankLabel' => 'الرابعة عشرة']),
         ]])->assertOk();
         $this->assertSame(1, $res->json('failed'));
         $this->assertStringContainsString('تنسيق السطر غير صحيح', implode(' ', $res->json('errors')));

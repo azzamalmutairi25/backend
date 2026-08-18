@@ -28,7 +28,7 @@ class LoadTestPrepare extends Command
     protected $signature = 'loadtest:prepare
         {--readers=20 : عدد مستخدمي القراءة (دور SCHEDULER)}
         {--writers=10 : عدد مستخدمي الكتابة (دور EXTERNAL_ADD)}
-        {--candidates=200 : مرشحون يُبذَرون في قطاع الاختبار لتكون القوائم واقعية}
+        {--candidates=200 : مشاركون يُبذَرون في قطاع الاختبار لتكون القوائم واقعية}
         {--out=load-test/tokens.json : ملف الرموز الناتج}
         {--cleanup : حذف كل ما أنشأه هذا الأمر ثم الخروج}
         {--force : السماح بالتشغيل خارج بيئة التطوير}';
@@ -70,7 +70,7 @@ class LoadTestPrepare extends Command
             'readers' => $readers,
             'writers' => $writers,
             'seededCandidates' => $seeded,
-            // عيّنة معرّفات لسيناريو «تفاصيل مرشح» — قراءة بمعرّف حقيقي لا بتخمين
+            // عيّنة معرّفات لسيناريو «تفاصيل مشارك» — قراءة بمعرّف حقيقي لا بتخمين
             // يرتدّ 404، فيقيس السيناريو المسار الكامل (فكّ تشفير + تدقيق) لا الرفض
             'candidateIdSample' => Candidate::where('sector_id', $sector->id)
                 ->inRandomOrder()->limit(200)->pluck('id')->all(),
@@ -83,7 +83,7 @@ class LoadTestPrepare extends Command
         file_put_contents($path, json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         @chmod($path, 0600); // الملف يحمل رموز وصول صالحة — لا يُقرأ للعموم
 
-        $this->info("✅ جاهز: {$readers['count']} قارئ، {$writers['count']} كاتب، {$seeded} مرشحاً في قطاع «{$sector->name_ar}».");
+        $this->info("✅ جاهز: {$readers['count']} قارئ، {$writers['count']} كاتب، {$seeded} مشاركاً في قطاع «{$sector->name_ar}».");
         $this->line("   الرموز: {$path} (0600)");
         $this->newLine();
         $this->comment('حدّ المعدّل الحالي: ' . $payload['apiRateLimitPerMinute'] . ' طلب/دقيقة لكل مستخدم'
@@ -129,7 +129,7 @@ class LoadTestPrepare extends Command
         return ['role' => $roleCode, 'count' => count($tokens), 'tokens' => $tokens];
     }
 
-    // مرشحون في قطاع الاختبار — قوائم فارغة تقيس استعلاماً لا يشبه الإنتاج
+    // مشاركون في قطاع الاختبار — قوائم فارغة تقيس استعلاماً لا يشبه الإنتاج
     private function seedCandidates(Sector $sector, int $target): int
     {
         $existing = Candidate::where('sector_id', $sector->id)->count();
@@ -145,7 +145,7 @@ class LoadTestPrepare extends Command
         for ($i = $existing + 1; $i <= $target; $i++) {
             $c = new Candidate();
             $c->national_id = $this->syntheticNationalId($i);
-            $c->full_name = "مرشح حمل {$i}";
+            $c->full_name = "مشارك حمل {$i}";
             $c->mobile = '05' . str_pad((string) ($i % 100000000), 8, '0', STR_PAD_LEFT);
             $c->sector_id = $sector->id;
             $c->rank_label = $i % 3 === 0 ? 'مدير عام' : 'عميد';
@@ -225,7 +225,7 @@ class LoadTestPrepare extends Command
             $this->line('  السبب: ' . str($e->getMessage())->limit(160));
         }
 
-        // القطاع يُحذف أخيراً — بعد أن خلا من مرشحيه. يبقى إن بقي مستخدموه.
+        // القطاع يُحذف أخيراً — بعد أن خلا من مشاركيه. يبقى إن بقي مستخدموه.
         if ($deleted) {
             $sector?->delete();
         }
@@ -236,7 +236,7 @@ class LoadTestPrepare extends Command
         }
 
         $verb = $deleted ? 'حُذف' : 'عُطِّل';
-        $this->info("🧹 حُذف {$candidates} مرشحاً، و{$verb} {$userCount} مستخدماً، وأُزيل {$residue} سجلّاً مرافقاً وملف الرموز.");
+        $this->info("🧹 حُذف {$candidates} مشاركاً، و{$verb} {$userCount} مستخدماً، وأُزيل {$residue} سجلّاً مرافقاً وملف الرموز.");
 
         return self::SUCCESS;
     }

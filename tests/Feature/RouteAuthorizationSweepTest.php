@@ -47,12 +47,20 @@ class RouteAuthorizationSweepTest extends TestCase
     // مسارات يبلغها الدور الخارجي بحقٍّ — هي صلاحيته المعلنة:
     // candidate.create و candidate.update_request. وجودها هنا إقرارٌ بأن
     // الاستيراد الجماعي يتقاسم CANDIDATE_CREATE مع الترشيح الفردي.
+    //
+    // وقراءة المجالات الفنية مكانها هنا لا في قائمة المفتوح لكل مُصادَق:
+    // المتحكّم يشترط candidate.view أو candidate.create أو settings.manage،
+    // فالدور الخارجي يبلغها بـcandidate.create وحدها لا بانفتاح المسار. وهي
+    // لازمةٌ له: `technicalAreaIds` حقلٌ إلزامي في إنشاء المشارك ومصدر قائمته
+    // هذا المسار. أمّا الكتابة عليها فمحصورة في settings.manage، فتبقى أفعالها
+    // الثلاثة تحت الشبكة.
     private const WITHIN_EXTERNAL_ROLE = [
         'POST api/candidates',
         'POST api/candidates/import',
         'POST api/import/candidates',
         'POST api/candidate-update-requests',
         'GET api/candidate-update-requests/mine',
+        'GET api/technical-areas',
     ];
 
     // هل هذا المسار خارج ما يُفترض أن يبلغه أدنى دور؟
@@ -139,7 +147,7 @@ class RouteAuthorizationSweepTest extends TestCase
         [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed']);
         $report = FinalReport::create([
             'candidate_id' => $c->id, 'assessment_id' => $a->id,
-            'recommendation' => 'مرشّح', 'status' => 'draft', 'created_by' => null,
+            'recommendation' => 'مشارك', 'status' => 'draft', 'created_by' => null,
         ]);
         return ['candidate' => $c->id, 'id' => $report->id];
     }

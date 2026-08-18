@@ -98,7 +98,7 @@ class EvaluationController extends Controller
         $evaluations = $query->get()
             ->map(fn ($e) => [
                 'id' => $e->id,
-                // رمز دورة التقييم (مجمّد) لا رمز المرشح الحالي — وإلا ظهر رمز دورة أحدث بعد reassess
+                // رمز دورة التقييم (مجمّد) لا رمز المشارك الحالي — وإلا ظهر رمز دورة أحدث بعد reassess
                 'candidateCode' => optional($e->assessment)->participant_code ?? $e->candidate->participant_code,
                 'activity' => $e->activity,
                 'status' => $e->status,
@@ -113,7 +113,7 @@ class EvaluationController extends Controller
     }
 
     // ── الفرز ──
-    // الفاصل `id` لا رمز المرشّح: المقيّم قد يقيّم المرشّح نفسه في نشاطين،
+    // الفاصل `id` لا رمز المشارك: المقيّم قد يقيّم المشارك نفسه في نشاطين،
     // فالرمز غير فريد هنا.
     private function sortable(): array
     {
@@ -144,21 +144,21 @@ class EvaluationController extends Controller
 
         if (!in_array($candidate->classification, $this->allowedClassifications($request))) {
             $this->log($request, 'DENIED_EVAL_CLASSIFIED', $candidate->id);
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
 
-        // حدّ القطاع: المقيّم لا يُقيّم إلا مرشحي قطاعه. يُفرض هنا لا عند التوزيع
-        // وحده — وإلا بدأ مقيّمٌ تقييماً لمرشّح من قطاع آخر بلا جدولة أصلاً.
+        // حدّ القطاع: المقيّم لا يُقيّم إلا مشاركي قطاعه. يُفرض هنا لا عند التوزيع
+        // وحده — وإلا بدأ مقيّمٌ تقييماً لمشارك من قطاع آخر بلا جدولة أصلاً.
         if (!$request->user()->coversSector($candidate->sector_id)) {
             $this->log($request, 'DENIED_EVAL_CROSS_SECTOR', $candidate->id, [
                 'candidateSector' => $candidate->sector_id,
             ]);
             // 404 لا 403: لا يفرّق الردّ بين «غير موجود» و«خارج قطاعك» فلا يكون عرّاف قطاع
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
 
         if (!in_array($candidate->status, ['scheduled', 'assessed'])) {
-            return response()->json(['error' => 'لا يمكن تقييم مرشح غير معتمد للتقييم'], 422);
+            return response()->json(['error' => 'لا يمكن تقييم مشارك غير معتمد للتقييم'], 422);
         }
 
         // الدورة الحالية — التكرار يُمنع داخل الدورة نفسها (يُسمح بتقييم النشاط في دورة جديدة)
@@ -168,8 +168,8 @@ class EvaluationController extends Controller
             ->first();
         if ($existing) {
             $msg = $existing->status === 'draft'
-                ? 'توجد مسودة تقييم لهذا المرشح في هذا النشاط — استكملها بدل بدء جلسة جديدة'
-                : 'تم تقييم هذا المرشح في هذا النشاط مسبقاً';
+                ? 'توجد مسودة تقييم لهذا المشارك في هذا النشاط — استكملها بدل بدء جلسة جديدة'
+                : 'تم تقييم هذا المشارك في هذا النشاط مسبقاً';
             return response()->json([
                 'error' => $msg,
                 'existingEvaluationId' => $existing->id,
@@ -192,7 +192,7 @@ class EvaluationController extends Controller
                     'status' => 'draft',
                 ]);
                 // جمّد لقطة السيرة عند أول تقييم — فقط إن كانت غير فارغة كي لا
-                // يُحبَس المرشح بلقطة فارغة لو بدأ المقيّم قبل أن يملأ سيرته
+                // يُحبَس المشارك بلقطة فارغة لو بدأ المقيّم قبل أن يملأ سيرته
                 if ($assessmentId) {
                     Assessment::with('candidate.cv')->find($assessmentId)?->freezeCvSnapshot(true);
                 }
@@ -200,7 +200,7 @@ class EvaluationController extends Controller
             });
         } catch (\Illuminate\Database\QueryException $e) {
             return response()->json([
-                'error' => 'تم بدء تقييم لهذا المرشح في هذا النشاط للتوّ',
+                'error' => 'تم بدء تقييم لهذا المشارك في هذا النشاط للتوّ',
             ], 422);
         }
 
@@ -215,7 +215,7 @@ class EvaluationController extends Controller
         ], 201);
     }
 
-    // GET /evaluations/{id}/cv — سيرة المرشح للمقيّم بلا اسم (الميزة ٧)
+    // GET /evaluations/{id}/cv — سيرة المشارك للمقيّم بلا اسم (الميزة ٧)
     // يقرأ لقطة الدورة المجمَّدة لا السيرة الحيّة، ويطمس أي معرّف لمن لا يرى الأسماء.
     public function cv(Request $request, int $id)
     {
@@ -231,7 +231,7 @@ class EvaluationController extends Controller
             return response()->json(['error' => 'التقييم غير موجود'], 404);
         }
 
-        // النطاق: تصنيف المرشح ثم ملكية الجلسة — 404 لا 403 كي لا يكون المعرّف عرّافاً
+        // النطاق: تصنيف المشارك ثم ملكية الجلسة — 404 لا 403 كي لا يكون المعرّف عرّافاً
         if (!in_array($evaluation->candidate->classification, $this->allowedClassifications($request))) {
             $this->log($request, 'DENIED_EVAL_CLASSIFIED', $id);
             return response()->json(['error' => 'التقييم غير موجود'], 404);
@@ -241,7 +241,7 @@ class EvaluationController extends Controller
         }
 
         $assessment = $evaluation->assessment;
-        if (!$assessment) { // لا نرجع رمز المرشح المتغيّر بديلاً
+        if (!$assessment) { // لا نرجع رمز المشارك المتغيّر بديلاً
             return response()->json(['error' => 'السيرة غير متوفرة لهذا التقييم'], 404);
         }
 
@@ -428,7 +428,7 @@ class EvaluationController extends Controller
             Assessment::with('candidate.cv')->find($evaluation->assessment_id)?->freezeCvSnapshot();
         }
 
-        // المرشح: scheduled -> assessed (تمّ تقييمه)
+        // المشارك: scheduled -> assessed (تمّ تقييمه)
         if ($evaluation->candidate->status === 'scheduled') {
             $evaluation->candidate->setStatus('assessed');
         }
@@ -504,7 +504,7 @@ class EvaluationController extends Controller
             'submitted_at' => null,
         ]);
 
-        // إرجاع التقييم يُبطل حالة «assessed» — لكن فقط على الدورة «الحالية» (الأحدث) للمرشح.
+        // إرجاع التقييم يُبطل حالة «assessed» — لكن فقط على الدورة «الحالية» (الأحدث) للمشارك.
         // إن كان التقييم من دورة أقدم/منتهية فإنّ setStatus يزامن الأحدث، فيُفسد دورةً حيّة صالحة — لذا لا نمسّ الحالة.
         $candidate = $evaluation->candidate;
         $assessment = $evaluation->assessment;

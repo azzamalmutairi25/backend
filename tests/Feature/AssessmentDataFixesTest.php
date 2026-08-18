@@ -18,7 +18,7 @@ class AssessmentDataFixesTest extends TestCase
 
     protected $seed = true;
 
-    // جلسة جاهزة لمرشّح في قطاع محدّد
+    // جلسة جاهزة لمشارك في قطاع محدّد
     private function scheduleFor(string $sectorCode, string $date, string $candidateStatus = 'assessed'): Schedule
     {
         [$c, $a] = $this->makeCandidate([
@@ -34,7 +34,7 @@ class AssessmentDataFixesTest extends TestCase
         ]);
     }
 
-    // ── Fix A: مقيّم (ED) مُنِح schedule.manage لا يجدول مرشّح قطاع آخر (HI) ──
+    // ── Fix A: مقيّم (ED) مُنِح schedule.manage لا يجدول مشارك قطاع آخر (HI) ──
     public function test_schedule_store_is_sector_scoped(): void
     {
         $actor = $this->actingAsRole('EVALUATOR', 'DW');
@@ -106,7 +106,7 @@ class AssessmentDataFixesTest extends TestCase
         $this->assertSame(2, Schedule::where('candidate_id', $sch->candidate_id)->count());
     }
 
-    // ── Fix D: لا تُعاد جدولة مرشّح أنهى دورته (لا دورة نشطة) ──
+    // ── Fix D: لا تُعاد جدولة مشارك أنهى دورته (لا دورة نشطة) ──
     public function test_reschedule_rejects_completed_cycle(): void
     {
         $actor = $this->actingAsRole('SCHEDULER');

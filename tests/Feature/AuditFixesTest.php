@@ -23,13 +23,13 @@ class AuditFixesTest extends TestCase
 
     protected $seed = true;
 
-    /** مرشّح في قطاع آخر غير قطاع الفاعل */
+    /** مشارك في قطاع آخر غير قطاع الفاعل */
     private function foreign(array $attrs = []): array
     {
         return $this->makeCandidate(array_merge(['sectorCode' => 'PR'], $attrs));
     }
 
-    // ══════ المرشحون ══════
+    // ══════ المشاركون ══════
 
     public function test_show_is_404_for_a_candidate_outside_the_sector(): void
     {
@@ -49,14 +49,14 @@ class AuditFixesTest extends TestCase
         $this->getJson("/api/candidates/{$c->id}/assessments")->assertStatus(404);
     }
 
-    // رحلة المرشح محروسة بـCANDIDATE_JOURNEY، ولا يملكها أيّ دور محصور بقطاع
+    // رحلة المشارك محروسة بـCANDIDATE_JOURNEY، ولا يملكها أيّ دور محصور بقطاع
     // اليوم — فحصر القطاع فيها دفاعيّ. يسقط هذا الاختبار لحظةَ مُنحت لدور محصور،
     // وهي اللحظة التي يصير فيها الحصر لازماً.
     public function test_journey_is_scoped_for_any_bound_holder(): void
     {
         foreach (User::SECTOR_BOUND_ROLES as $code) {
             $this->assertNotContains('candidate.journey', \App\Security\Permissions::forRole($code),
-                "{$code} محصور بقطاع ويملك رحلة المرشح — تحقّق من حصرها");
+                "{$code} محصور بقطاع ويملك رحلة المشارك — تحقّق من حصرها");
         }
 
         [$c] = $this->foreign();
@@ -96,11 +96,12 @@ class AuditFixesTest extends TestCase
 
         $this->actingAsRole('EXTERNAL_ADD'); // candidate.create فقط
 
-        // كان يعيد تسميته وينقله بين القطاعات بمجرّد «إضافته» بهويته
-        $this->postJson('/api/candidates', [
+        // كان يعيد تسميته وينقله بين القطاعات بمجرّد «إضافته» بهويته.
+        // الحمولة مكتملة عمداً — لو نقصها حقلٌ إلزامي لَردّها التحقّق بـ422
+        // قبل حارس التعديل، فمرّ الاختبار على سببٍ غير الذي يقيسه.
+        $this->postJson('/api/candidates', $this->candidateRequired() + [
             'nationalId' => $nid, 'fullName' => 'اسم مزروع',
             'sectorId' => Sector::where('code', 'PR')->value('id'),
-            'personnelCategory' => 'military',
             'personnelCategory' => 'military', 'rankLabel' => 'عميد',
         ])->assertStatus(403);
 
@@ -114,7 +115,7 @@ class AuditFixesTest extends TestCase
         $existing->update(['status' => 'completed']);
 
         $this->actingAsRole('SCHEDULER'); // يملك create + edit
-        $this->postJson('/api/candidates', [
+        $this->postJson('/api/candidates', $this->candidateRequired() + [
             'nationalId' => $existing->national_id, 'fullName' => 'الاسم المحدّث',
             'sectorId' => $existing->sector_id, 'personnelCategory' => 'civilian', 'rankLabel' => 'الرابعة عشرة',
         ])->assertCreated();
@@ -139,7 +140,7 @@ class AuditFixesTest extends TestCase
     {
         $ev = $this->actingAsRole('EVALUATOR', 'DW');
         [$c, $a] = $this->foreign(['status' => 'assessed']);
-        // قيّمه فعلاً، لكن المرشّح خارج قطاعه — القطاع حدّ أعلى
+        // قيّمه فعلاً، لكن المشارك خارج قطاعه — القطاع حدّ أعلى
         Evaluation::create([
             'candidate_id' => $c->id, 'assessment_id' => $a->id, 'evaluator_id' => $ev->id,
             'activity' => 'interview', 'status' => 'submitted', 'submitted_at' => now(),

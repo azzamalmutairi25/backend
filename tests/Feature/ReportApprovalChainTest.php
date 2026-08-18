@@ -90,7 +90,7 @@ class ReportApprovalChainTest extends TestCase
             ->assertOk()->assertJsonPath('status', 'pending_dev_approval');
     }
 
-    // آخر مرحلة في السلسلة — أياً كانت — تُنهيها وتُكمل المرشح.
+    // آخر مرحلة في السلسلة — أياً كانت — تُنهيها وتُكمل المشارك.
     // يُقرأ من workflow_stages لا يُكتب هنا، فيصمد إن أُعيد ترتيب السلسلة.
     public function test_the_last_stage_completes_the_chain_and_the_candidate(): void
     {
@@ -101,7 +101,7 @@ class ReportApprovalChainTest extends TestCase
         $this->postJson("/api/reports/{$r->id}/approve")
             ->assertOk()->assertJsonPath('status', 'approved');
 
-        $this->assertSame('completed', $r->candidate->fresh()->status, 'نهاية السلسلة تُكمل المرشح');
+        $this->assertSame('completed', $r->candidate->fresh()->status, 'نهاية السلسلة تُكمل المشارك');
     }
 
     public function test_dev_manager_is_no_longer_final_and_hands_off_to_the_center_manager(): void
@@ -312,7 +312,7 @@ class ReportApprovalChainTest extends TestCase
 
         $this->actingAsRole('EVALUATOR'); // لا يملك view_classified
         // 404 لا 403: صار الحلّ داخل الاستعلام، فلا يفرّق الردّ بين «غير موجود»
-        // و«موجود وليس لك» — والمعرّف لا يكشف وجود تقرير لمرشّح مصنّف
+        // و«موجود وليس لك» — والمعرّف لا يكشف وجود تقرير لمشارك مصنّف
         $this->postJson("/api/reports/{$r->id}/approve")->assertStatus(404);
         $this->assertSame('pending_evaluator', $r->fresh()->status);
     }

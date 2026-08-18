@@ -9,7 +9,7 @@ use App\Models\Sector;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// بوّابة المستخدم الخارجي: إدخال نموذج المركز مع المرشّح، كشف المكرّر بتاريخه،
+// بوّابة المستخدم الخارجي: إدخال نموذج المركز مع المشارك، كشف المكرّر بتاريخه،
 // ثم طلب تحديث يُعتمد أو يُرفض من صاحب صلاحية — والسجلّ لا يتغيّر قبل الاعتماد.
 class CandidateUpdateRequestTest extends TestCase
 {
@@ -46,7 +46,7 @@ class CandidateUpdateRequestTest extends TestCase
         return Sector::where('code', 'DW')->value('id');
     }
 
-    // مرشّح مسجّل + طلب تحديث معلّق من مستخدم خارجي — يرجع [candidate, requestId, nationalId]
+    // مشارك مسجّل + طلب تحديث معلّق من مستخدم خارجي — يرجع [candidate, requestId, nationalId]
     private function pendingRequest(array $cvOver = [], array $identityOver = []): array
     {
         [$c] = $this->makeCandidate(['sectorCode' => 'DW', 'fullName' => 'الاسم الأصلي', 'rankLabel' => 'مقدم']);
@@ -73,15 +73,15 @@ class CandidateUpdateRequestTest extends TestCase
     {
         $this->actingAsRole('EXTERNAL_ADD');
 
-        $res = $this->postJson('/api/candidates', [
+        $res = $this->postJson('/api/candidates', array_replace($this->candidateRequired(), [
             'nationalId' => $this->validNationalId(),
-            'fullName' => 'مرشح جديد',
+            'fullName' => 'مشارك جديد',
             'mobile' => '0501112223',
             'sectorId' => $this->edId(),
             'personnelCategory' => 'military',
-            'personnelCategory' => 'military', 'rankLabel' => 'عميد',
+            'rankLabel' => 'عميد',
             'cv' => $this->validCv(),
-        ])->assertStatus(201);
+        ]))->assertStatus(201);
 
         $this->assertTrue($res->json('cvSaved'));
 
@@ -92,15 +92,22 @@ class CandidateUpdateRequestTest extends TestCase
         $this->assertSame('الإدارة العامة للعمليات', $cv->data['department']);
     }
 
-    public function test_add_without_cv_still_works(): void
+    // انقلبت القاعدة: كانت السيرة اختياريةً فيدخل المشارك بلا سيرة ثم يقف عند
+    // الترشيح بلا سبب ظاهر. صارت إلزامية — فالطلب بلا مفتاح `cv` يُردّ ٤٢٢
+    // ولا يُنشأ منه مشارك ولا سيرة. باقي الحقول الإلزامية سليمة عمداً ليقع
+    // الردّ على غياب السيرة وحدها لا على سواها.
+    public function test_add_without_a_cv_is_422(): void
     {
         $this->actingAsRole('EXTERNAL_ADD');
 
         $this->postJson('/api/candidates', [
             'nationalId' => $this->validNationalId(), 'fullName' => 'بلا سيرة',
             'sectorId' => $this->edId(), 'personnelCategory' => 'military', 'rankLabel' => 'عميد',
-        ])->assertStatus(201)->assertJsonPath('cvSaved', false);
+            'gender' => 'male', 'technicalAreaIds' => $this->technicalAreaIds(),
+        ])->assertStatus(422)
+            ->assertJsonPath('error', 'السيرة الذاتية إلزامية — أكمل بيانات السيرة قبل الحفظ');
 
+        $this->assertSame(0, Candidate::count(), 'لا يُنشأ مشارك بلا سيرة');
         $this->assertSame(0, CandidateCv::count());
     }
 
@@ -108,24 +115,24 @@ class CandidateUpdateRequestTest extends TestCase
     {
         $this->actingAsRole('EXTERNAL_ADD');
 
-        $this->postJson('/api/candidates', [
+        $this->postJson('/api/candidates', array_replace($this->candidateRequired(), [
             'nationalId' => $this->validNationalId(), 'fullName' => 'سلطان العتيبي',
             'sectorId' => $this->edId(), 'personnelCategory' => 'military', 'rankLabel' => 'عميد',
             'cv' => $this->validCv(['briefBio' => 'قاد سلطان فريق العمليات']),
-        ])->assertStatus(422)->assertJsonPath('field', 'briefBio');
+        ]))->assertStatus(422)->assertJsonPath('field', 'briefBio');
 
-        $this->assertSame(0, Candidate::count(), 'لا يُنشأ مرشّح حين تُرفض سيرته');
+        $this->assertSame(0, Candidate::count(), 'لا يُنشأ مشارك حين تُرفض سيرته');
     }
 
     public function test_invalid_cv_is_422_and_creates_nothing(): void
     {
         $this->actingAsRole('EXTERNAL_ADD');
 
-        $this->postJson('/api/candidates', [
-            'nationalId' => $this->validNationalId(), 'fullName' => 'مرشح',
+        $this->postJson('/api/candidates', array_replace($this->candidateRequired(), [
+            'nationalId' => $this->validNationalId(), 'fullName' => 'مشارك',
             'sectorId' => $this->edId(), 'personnelCategory' => 'military', 'rankLabel' => 'عميد',
             'cv' => $this->validCv(['appointmentDate' => '2100-01-01']),
-        ])->assertStatus(422)->assertJsonStructure(['error', 'fields']);
+        ]))->assertStatus(422)->assertJsonStructure(['error', 'fields']);
 
         $this->assertSame(0, Candidate::count());
     }
@@ -140,11 +147,11 @@ class CandidateUpdateRequestTest extends TestCase
         $nid = $c->national_id;
 
         $this->actingAsRole('EXTERNAL_ADD');
-        $res = $this->postJson('/api/candidates', [
+        $res = $this->postJson('/api/candidates', array_replace($this->candidateRequired(), [
             'nationalId' => $nid, 'fullName' => 'اسم مزروع',
             'sectorId' => Sector::where('code', 'PR')->value('id'), 'personnelCategory' => 'military', 'rankLabel' => 'عميد',
             'cv' => $this->validCv(),
-        ])->assertStatus(403);
+        ]))->assertStatus(403);
 
         $res->assertJsonPath('duplicate', true)
             ->assertJsonPath('candidateId', $c->id)
@@ -165,10 +172,10 @@ class CandidateUpdateRequestTest extends TestCase
         $nid = $c->national_id;
 
         $this->actingAsRole('EXTERNAL_ADD');
-        $res = $this->postJson('/api/candidates', [
+        $res = $this->postJson('/api/candidates', array_replace($this->candidateRequired(), [
             'nationalId' => $nid, 'fullName' => 'أيّ اسم',
             'sectorId' => $this->edId(), 'personnelCategory' => 'military', 'rankLabel' => 'عميد',
-        ])->assertStatus(403);
+        ]))->assertStatus(403);
 
         $this->assertStringNotContainsString('DW-9911', json_encode($res->json(), JSON_UNESCAPED_UNICODE));
         $this->assertNull($res->json('participantCode'));
@@ -178,10 +185,10 @@ class CandidateUpdateRequestTest extends TestCase
     {
         [$c, $requestId, $nid] = $this->pendingRequest();
 
-        $res = $this->postJson('/api/candidates', [
+        $res = $this->postJson('/api/candidates', array_replace($this->candidateRequired(), [
             'nationalId' => $nid, 'fullName' => 'أيّ اسم',
             'sectorId' => $this->edId(), 'personnelCategory' => 'military', 'rankLabel' => 'عميد',
-        ])->assertStatus(403);
+        ]))->assertStatus(403);
 
         $this->assertSame($requestId, $res->json('pendingRequest.id'));
     }
@@ -418,7 +425,7 @@ class CandidateUpdateRequestTest extends TestCase
             'recipient_id' => $external->id,
             'entity_type' => 'candidate_update_request',
             'entity_id' => (string) $requestId,
-            'title' => 'رُفض طلب تحديث بيانات المرشح',
+            'title' => 'رُفض طلب تحديث بيانات المشارك',
         ]);
     }
 

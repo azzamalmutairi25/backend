@@ -15,20 +15,20 @@ class Permissions
     const CANDIDATE_EDIT = 'candidate.edit';
     const CANDIDATE_APPROVE = 'candidate.approve';
     const CANDIDATE_VIEW_NAMES = 'candidate.view_names';   // رؤية الأسماء (حساس)
-    const CANDIDATE_VIEW_CLASSIFIED = 'candidate.view_classified';   // رؤية المرشحين السرّيين
-    const CANDIDATE_JOURNEY = 'candidate.journey';   // عرض رحلة المرشح (الخط الزمني)
-    const CANDIDATE_CV_VIEW = 'candidate.cv_view';   // قراءة السيرة الذاتية بمعرّف المرشح (مسار الإدارة)
-    // رفع طلب تحديث بيانات مرشّح مسجّل — للمستخدم الخارجي الذي لا يملك التعديل.
+    const CANDIDATE_VIEW_CLASSIFIED = 'candidate.view_classified';   // رؤية المشاركين السرّيين
+    const CANDIDATE_JOURNEY = 'candidate.journey';   // عرض رحلة المشارك (الخط الزمني)
+    const CANDIDATE_CV_VIEW = 'candidate.cv_view';   // قراءة السيرة الذاتية بمعرّف المشارك (مسار الإدارة)
+    // رفع طلب تحديث بيانات مشارك مسجّل — للمستخدم الخارجي الذي لا يملك التعديل.
     // الطلب اقتراح لا كتابة: لا يمسّ السجلّ حتى يعتمده صاحب صلاحية.
     const CANDIDATE_UPDATE_REQUEST = 'candidate.update_request';
-    // البتّ في طلبات التحديث (اعتماد/رفض) — سلطة تعديل بيانات المرشّح بالنيابة
+    // البتّ في طلبات التحديث (اعتماد/رفض) — سلطة تعديل بيانات المشارك بالنيابة
     const CANDIDATE_UPDATE_APPROVE = 'candidate.update_approve';
-    // إسناد مرشّح لمقيّم من قطاع آخر — الأصل أن كل مقيّم لقطاعه
+    // إسناد مشارك لمقيّم من قطاع آخر — الأصل أن كل مقيّم لقطاعه
     const CROSS_SECTOR_ASSIGN = 'candidate.cross_sector';
 
     const SCHEDULE_VIEW = 'schedule.view';
     const SCHEDULE_MANAGE = 'schedule.manage';
-    // التوزيع الأسبوعي: اقتراح واعتماد — لمسؤول الجدولة (إدارة المرشحين)
+    // التوزيع الأسبوعي: اقتراح واعتماد — لمسؤول الجدولة (إدارة المشاركين)
     const DISTRIBUTION_MANAGE = 'schedule.distribute';
     // اعتماد موجة الجدولة — لمدير المركز وحده، ولا تُمنح لمن يبنيها.
     // فصلُ مهامٍ لا تسمية: قبلها كان الباني هو المعتمِد، فخطوة «إرسال الجدولة
@@ -56,8 +56,8 @@ class Permissions
     // يقبل ليس مَن يعتمد. جمعُها في واحدة يجعل كلَّ من فتح الشاشة يملك المسار كاملاً.
     const RECEPTION_VIEW = 'reception.view';        // فتح شاشة الاستقبال وقراءة كشف اليوم
     const RECEPTION_RECORD = 'reception.record';    // تسجيل الوصول وتعديل وقته وأخذ التوقيع والإقرار
-    const RECEPTION_ASSIGN = 'reception.assign';    // توزيع المرشّح على مقابلة/حلقة نقاش/أدوات قياس
-    const RECEPTION_DECIDE = 'reception.decide';    // قرار المقيّم: استلام المرشّح أو ردّه
+    const RECEPTION_ASSIGN = 'reception.assign';    // توزيع المشارك على مقابلة/حلقة نقاش/أدوات قياس
+    const RECEPTION_DECIDE = 'reception.decide';    // قرار المقيّم: استلام المشارك أو ردّه
     const RECEPTION_APPROVE = 'reception.approve';  // اعتماد العمليات وترحيل الجلسات إلى الجدول
 
     const EVALUATION_VIEW = 'evaluation.view';
@@ -82,7 +82,7 @@ class Permissions
     const REPORT_RETURN = 'report.return';
     const REPORT_CANCEL = 'report.cancel';
     const REPORT_EXPORT = 'report.export';
-    // اسم المرشّح في المستند المطبوع — لا يراه غير حامل هذه الصلاحية، ولو ملك رؤية الأسماء
+    // اسم المشارك في المستند المطبوع — لا يراه غير حامل هذه الصلاحية، ولو ملك رؤية الأسماء
     const REPORT_VIEW_NAMES = 'report.view_names';
     const REPORT_EXEC_SUMMARY = 'report.exec_summary';   // الملخّص التنفيذي النهائي (مدير المركز، قابل للتفويض)
 
@@ -120,7 +120,7 @@ class Permissions
             // تُدار من حساب مدير النظام وحده، وفصلُها يبقي من يشرف غير من يضبط.
             //
             // ومعه CANDIDATE_VIEW_NAMES بقرارٍ صريح من صاحب المنصّة: مدير
-            // المركز مسؤولٌ عن المرشّح أمام الجهة، فيقرأ الاسم حيث يقرأ الرمز.
+            // المركز مسؤولٌ عن المشارك أمام الجهة، فيقرأ الاسم حيث يقرأ الرمز.
             // وحياد التقييم يبقى محفوظاً لأنه لا يرصد ولا يُدخل درجة —
             // المقيّم ومساعده وحدهما من يرصد، وهما بلا أسماء (انظر EVALUATOR
             // وASSISTANT). حجبُ الاسم عمّن لا يرصد لم يكن يحمي شيئاً.
@@ -155,12 +155,12 @@ class Permissions
                 self::ANALYTICS_VIEW, self::ANALYTICS_EXECUTIVE, self::ANALYTICS_DAILY_REPORT,
             ],
 
-            // مسؤول الجدولة — يملك إدارة المرشحين، فله وحده تجاوز حدّ القطاع (بتحذير وتدقيق)
+            // مسؤول الجدولة — يملك إدارة المشاركين، فله وحده تجاوز حدّ القطاع (بتحذير وتدقيق)
             'SCHEDULER' => [
                 self::CANDIDATE_VIEW, self::CANDIDATE_CREATE, self::CANDIDATE_EDIT,
                 self::CANDIDATE_APPROVE, self::CANDIDATE_VIEW_NAMES, self::CANDIDATE_CV_VIEW, self::CROSS_SECTOR_ASSIGN,
                 // البتّ في طلبات التحديث الواردة من المستخدمين الخارجيين — هو مالك
-                // بيانات المرشحين (CANDIDATE_EDIT)، فالاعتماد امتداد لسلطته لا سلطة جديدة
+                // بيانات المشاركين (CANDIDATE_EDIT)، فالاعتماد امتداد لسلطته لا سلطة جديدة
                 self::CANDIDATE_UPDATE_APPROVE,
                 self::SCHEDULE_VIEW, self::SCHEDULE_MANAGE, self::DISTRIBUTION_MANAGE, self::ATTENDANCE_VIEW,
                 self::ROSTER_MANAGE,
@@ -173,10 +173,10 @@ class Permissions
             // مسؤول استقبال الموظفين — يستقبل كل داخل فيسجّل أي جلسة، ويأخذ
             // توقيعه وإقراره، ويوزّعه على المقابلة أو حلقة النقاش أو أدوات القياس.
             // لا RECEPTION_APPROVE: من يوزّع لا يعتمد توزيعه بنفسه.
-            // بلا CANDIDATE_CV_VIEW: تلك تفتح سيرة **أي** مرشّح في القاعدة بمعرّفه.
+            // بلا CANDIDATE_CV_VIEW: تلك تفتح سيرة **أي** مشارك في القاعدة بمعرّفه.
             // سيرة من يستقبله اليوم تُقرأ من مسار الاستقبال بـRECEPTION_RECORD،
             // وهو محصور بزيارةٍ قائمة في يومها — فرقٌ بين «يقرأ سيرة من أمامه»
-            // و«يتصفّح سِيَر المرشحين».
+            // و«يتصفّح سِيَر المشاركين».
             'RECEPTIONIST' => [
                 self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_NAMES,
                 self::ATTENDANCE_VIEW, self::ATTENDANCE_RECORD, self::ATTENDANCE_RECORD_ANY,
@@ -185,7 +185,7 @@ class Permissions
             ],
 
             // مسؤول العمليات — طرف المسار الآخر: يستقبل المردود من المقيّمين
-            // فيعيد إسناده، ويعتمد بيانات المرشّح فتُرحَّل جلساته إلى الجدول.
+            // فيعيد إسناده، ويعتمد بيانات المشارك فتُرحَّل جلساته إلى الجدول.
             // قراره إجرائي (مَن يقابل مَن) لا محتوائي، فيعمل بالرمز: بلا
             // CANDIDATE_VIEW_NAMES ولا CANDIDATE_CV_VIEW. قائمة قارئي الأسماء
             // مغلقة تُراجَع بالعين، ولا يُضاف إليها دورٌ لا يحتاجها.
@@ -252,7 +252,7 @@ class Permissions
                 self::RECEPTION_VIEW, self::RECEPTION_DECIDE,
             ],
 
-            // المستخدم الخارجي — يُدخل المرشّح ونموذج سيرته، ولا يقرأ القاعدة ولا
+            // المستخدم الخارجي — يُدخل المشارك ونموذج سيرته، ولا يقرأ القاعدة ولا
             // يكتب فوق سجلٍّ قائم: المسجَّل مسبقاً يمرّ عبر «طلب تحديث» يُعتمد.
             'EXTERNAL_ADD' => [
                 self::CANDIDATE_CREATE,
@@ -293,17 +293,17 @@ class Permissions
 
     // ── وصف عربي لكل صلاحية ──
     // شاشة صلاحيات الأدوار يقرؤها مدير المركز لا مبرمج. «candidate.cross_sector»
-    // لا تقول له شيئاً، و«إسناد مرشّح لمقيّم من قطاع آخر» تقول كل شيء — والفرق
+    // لا تقول له شيئاً، و«إسناد مشارك لمقيّم من قطاع آخر» تقول كل شيء — والفرق
     // بينهما هو الفرق بين ضبطٍ واعٍ ونقرٍ على المجهول.
     public const LABELS = [
-        // المرشحون
-        'candidate.view' => 'عرض المرشحين',
-        'candidate.create' => 'إضافة مرشّح',
-        'candidate.edit' => 'تعديل بيانات مرشّح',
+        // المشاركون
+        'candidate.view' => 'عرض المشاركين',
+        'candidate.create' => 'إضافة مشارك',
+        'candidate.edit' => 'تعديل بيانات مشارك',
         'candidate.approve' => 'اعتماد ترشيح',
-        'candidate.view_names' => 'رؤية أسماء المرشحين (حسّاسة)',
-        'candidate.view_classified' => 'رؤية المرشحين المصنَّفين (حسّاسة)',
-        'candidate.journey' => 'عرض رحلة المرشّح',
+        'candidate.view_names' => 'رؤية أسماء المشاركين (حسّاسة)',
+        'candidate.view_classified' => 'رؤية المشاركين المصنَّفين (حسّاسة)',
+        'candidate.journey' => 'عرض رحلة المشارك',
         'candidate.cv_view' => 'قراءة السيرة الذاتية',
         'candidate.update_request' => 'رفع طلب تحديث بيانات',
         'candidate.update_approve' => 'البتّ في طلبات التحديث',
@@ -318,8 +318,8 @@ class Permissions
         // استقبال الموظفين
         'reception.view' => 'فتح شاشة استقبال الموظفين',
         'reception.record' => 'تسجيل الوصول وأخذ التوقيع والإقرار',
-        'reception.assign' => 'توزيع المرشحين على الأنشطة',
-        'reception.decide' => 'استلام المرشّح أو ردّه (للمقيّم)',
+        'reception.assign' => 'توزيع المشاركين على الأنشطة',
+        'reception.decide' => 'استلام المشارك أو ردّه (للمقيّم)',
         'reception.approve' => 'اعتماد الاستقبال وترحيل الجلسات',
         // الحضور
         'attendance.view' => 'عرض الحضور',
@@ -344,7 +344,7 @@ class Permissions
         'report.return' => 'إرجاع تقرير',
         'report.cancel' => 'إلغاء تقرير',
         'report.export' => 'تصدير التقارير',
-        'report.view_names' => 'اسم المرشّح في المستند المطبوع (حسّاسة)',
+        'report.view_names' => 'اسم المشارك في المستند المطبوع (حسّاسة)',
         'report.exec_summary' => 'كتابة الملخّص التنفيذي',
         // خطط التطوير
         'development_plan.view' => 'خطط التطوير الفردية',
@@ -374,7 +374,7 @@ class Permissions
     public static function grouped(): array
     {
         $groups = [
-            'candidate' => 'المرشحون',
+            'candidate' => 'المشاركون',
             'schedule' => 'الجدولة',
             'roster' => 'مجموعات المشاركين',
             'reception' => 'استقبال الموظفين',

@@ -50,7 +50,7 @@ class RosterSheetService
         $date = $date ?: now()->toDateString();
         $slots = SettingsController::sessionTimes();
 
-        // حصر المرشحين على نطاق المستخدم — التصنيف والقطاع معاً. لو حُصر
+        // حصر المشاركين على نطاق المستخدم — التصنيف والقطاع معاً. لو حُصر
         // التصنيف وحده لرأى المحصور قطاعياً كشفَ قطاعٍ ليس قطاعه.
         $scope = function ($q) use ($allowedClassifications, $sectorId) {
             if ($allowedClassifications !== null) {
@@ -67,7 +67,7 @@ class RosterSheetService
             ->when($scoped, fn ($q) => $q->whereHas('candidate', $scope))
             ->get();
 
-        // مجموعات اليوم — مفهرسة بالمرشّح
+        // مجموعات اليوم — مفهرسة بالمشارك
         $groups = RosterGroup::whereDate('roster_date', $date)
             ->get()
             ->keyBy('candidate_id');
@@ -90,7 +90,7 @@ class RosterSheetService
             if (!isset($byCandidate[$c->id])) {
                 $byCandidate[$c->id] = [
                     'candidate' => $c,
-                    // رمز دورة التقييم من الجلسة نفسها — لا من المرشّح: المرشّح
+                    // رمز دورة التقييم من الجلسة نفسها — لا من المشارك: المشارك
                     // قد تتعدّد دوراته، والكشف يخصّ الدورة التي جُدولت له اليوم
                     'assessment' => $s->assessment,
                     'group' => $groups[$c->id]->group_letter ?? null,

@@ -13,7 +13,7 @@ use Tests\TestCase;
 //  استقبال الموظفين — المسار كاملاً وحدوده.
 //
 //  الخطر الأول هنا ليس عطلاً وظيفياً بل تسرّب هوية: المقيّم يجب ألّا يرى اسم
-//  المرشّح ولا رقم هويته في أي مخرَج من هذا المسار. تسرّبٌ كهذا لا يُسقط طلباً
+//  المشارك ولا رقم هويته في أي مخرَج من هذا المسار. تسرّبٌ كهذا لا يُسقط طلباً
 //  ولا يرمي خطأ — يمرّ صامتاً ويُبطل حياد التقييم كلّه.
 //
 //  والخطر الثاني تداخل المراحل: من يوقّع ليس من يوزّع، ومن يوزّع ليس من يقرّر،
@@ -31,7 +31,7 @@ class ReceptionFlowTest extends TestCase
 
     private const NAME = 'سلطان بن فيصل الشهراني';
 
-    // ── يصل المرشّح ويوقّع، ويعود معرّف زيارته ──
+    // ── يصل المشارك ويوقّع، ويعود معرّف زيارته ──
     private function arrivedAndSigned(string $sectorCode = 'DW'): array
     {
         [$c, $a] = $this->makeCandidate(['sectorCode' => $sectorCode, 'fullName' => self::NAME]);
@@ -151,7 +151,7 @@ class ReceptionFlowTest extends TestCase
         $this->assertSame(self::PNG, ReceptionVisit::find($visitId)->signature);
     }
 
-    // ═══ ٣) سرّية المرشّح أمام المقيّم ═══
+    // ═══ ٣) سرّية المشارك أمام المقيّم ═══
 
     public function test_the_evaluator_never_sees_the_candidate_name_or_national_id(): void
     {
@@ -161,7 +161,7 @@ class ReceptionFlowTest extends TestCase
 
         $this->actingAs($ev);
         $board = $this->getJson('/api/reception')->assertOk()->getContent();
-        $this->assertStringNotContainsString(self::NAME, $board, 'اسم المرشّح ظهر في كشف المقيّم');
+        $this->assertStringNotContainsString(self::NAME, $board, 'اسم المشارك ظهر في كشف المقيّم');
         $this->assertStringNotContainsString($c->national_id, $board);
 
         $this->postJson("/api/reception/assignments/{$asgId}/accept")->assertOk();
@@ -169,7 +169,7 @@ class ReceptionFlowTest extends TestCase
 
         $this->assertStringNotContainsString(self::NAME, $cv->getContent());
         $this->assertStringNotContainsString($c->national_id, $cv->getContent());
-        // الرمز وحده هو هوية المرشّح عند المقيّم
+        // الرمز وحده هو هوية المشارك عند المقيّم
         $cv->assertJsonPath('cv.participantCode', $c->participant_code);
         $this->assertArrayNotHasKey('name', $cv->json('cv'));
     }

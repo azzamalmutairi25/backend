@@ -50,6 +50,9 @@ class PlatformReset extends Command
         'dispatch_authorities',
         'expertise_areas',
         'user_expertise',
+        // تصنيف المركز لمجالاته الفنية — يُحرَّر من الإعدادات كـ`ranks`،
+        // فيبقى بعد التفريغ ولا يُعاد إدخاله يدوياً عند كل تسليم
+        'technical_areas',
         'competencies',
         'ranks',
         'activity_competency',
@@ -61,6 +64,7 @@ class PlatformReset extends Command
         'attendance',
         'audit_logs',
         'candidate_cvs',
+        'candidate_technical_areas',  // وسمُ مشاركٍ بمجاله — يذهب معه
         'candidate_update_requests',
         'candidates',
         'chat_messages',
@@ -81,7 +85,7 @@ class PlatformReset extends Command
         'period_assessors',          // لوحات موجات التجربة — تُفرَّغ قبل الموجات نفسها
         'period_step_progress',      // تأشير خطوات موجات التجربة (التعريف نفسه إعدادٌ يبقى)
         'reception_assignments',
-        'reception_visits',          // يحمل تواقيع المرشحين — لا يبقى بعد التفريغ
+        'reception_visits',          // يحمل تواقيع المشاركين — لا يبقى بعد التفريغ
         // بعد الزيارات: الزيارة تشير إلى الكشك، فحذفُه أولاً يكسر المفتاح.
         // ورموز كشك التجربة لا تبقى على منصّةٍ صُفِّرت للإنتاج — كلٌّ منها
         // بابُ تسجيلِ وصولٍ وتوقيعٍ بلا مصادقة.

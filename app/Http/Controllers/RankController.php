@@ -7,7 +7,7 @@ use App\Models\Rank;
 use App\Security\Permissions;
 use Illuminate\Http\Request;
 
-// إدارة قائمة الرتب/المراتب — مرجعٌ لإنشاء المرشّح وتصنيف الفئة القيادية.
+// إدارة قائمة الرتب/المراتب — مرجعٌ لإنشاء المشارك وتصنيف الفئة القيادية.
 class RankController extends Controller
 {
     // GET /ranks — القائمة (مرجع للجميع؛ مدير الإعدادات يرى غير الفعّالة أيضاً)
@@ -81,7 +81,7 @@ class RankController extends Controller
         return response()->json(['message' => 'تم تحديث الرتبة']);
     }
 
-    // DELETE /ranks/{id} — حذف (المرشحون يحفظون النصّ لا المعرّف، فلا يُيتّم أحد)
+    // DELETE /ranks/{id} — حذف (المشاركون يحفظون النصّ لا المعرّف، فلا يُيتّم أحد)
     public function destroy(Request $request, int $id)
     {
         if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {

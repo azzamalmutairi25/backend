@@ -94,35 +94,35 @@ class ReportController extends Controller
             return response()->json(['error' => 'ليس لديك صلاحية إنشاء تقرير'], 403);
         }
         $validated = $request->validate(['candidateId' => 'required|integer']);
-        // النطاق كاملاً — لا يُكتب/يُقرأ تقرير لمرشّح خارج قطاع المستخدم.
-        // eligibleCandidates محصور، فكان يُخفي المرشّح ثم يقبله بمعرّفه.
+        // النطاق كاملاً — لا يُكتب/يُقرأ تقرير لمشارك خارج قطاع المستخدم.
+        // eligibleCandidates محصور، فكان يُخفي المشارك ثم يقبله بمعرّفه.
         $candidate = $this->resolveCandidateInScope($request, $validated['candidateId']);
         if (!$candidate || $this->evaluatorNarrowedOut($request, $candidate)) {
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
         $assessment = $candidate->assessments()->orderByDesc('id')->first();
         if (!$assessment) {
-            return response()->json(['error' => 'لا توجد دورة تقييم لهذا المرشح'], 422);
+            return response()->json(['error' => 'لا توجد دورة تقييم لهذا المشارك'], 422);
         }
         return response()->json($this->scoring->computeFit($assessment));
     }
 
-    // GET /reports/competency-gap?candidateId= — الفجوة مقابل المستوى المطلوب لفئة المرشّح
+    // GET /reports/competency-gap?candidateId= — الفجوة مقابل المستوى المطلوب لفئة المشارك
     public function competencyGap(Request $request)
     {
         if (!$request->user()->hasPermission(Permissions::REPORT_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض التقارير'], 403);
         }
         $validated = $request->validate(['candidateId' => 'required|integer']);
-        // النطاق كاملاً — لا يُكتب/يُقرأ تقرير لمرشّح خارج قطاع المستخدم.
-        // eligibleCandidates محصور، فكان يُخفي المرشّح ثم يقبله بمعرّفه.
+        // النطاق كاملاً — لا يُكتب/يُقرأ تقرير لمشارك خارج قطاع المستخدم.
+        // eligibleCandidates محصور، فكان يُخفي المشارك ثم يقبله بمعرّفه.
         $candidate = $this->resolveCandidateInScope($request, $validated['candidateId']);
         if (!$candidate || $this->evaluatorNarrowedOut($request, $candidate)) {
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
         $assessment = $candidate->assessments()->orderByDesc('id')->first();
         if (!$assessment) {
-            return response()->json(['error' => 'لا توجد دورة تقييم لهذا المرشح'], 422);
+            return response()->json(['error' => 'لا توجد دورة تقييم لهذا المشارك'], 422);
         }
         return response()->json($this->scoring->computeGap($assessment, $candidate->tier ?? 'middle'));
     }
@@ -218,7 +218,7 @@ class ReportController extends Controller
             'behavioral' => 'behavioral_fit',
             'technical' => 'technical_fit',
             'returns' => 'return_count',
-            // رمز المشارك وقطاعه في جدول المرشحين — استعلامٌ مرتبط لا انضمام
+            // رمز المشارك وقطاعه في جدول المشاركين — استعلامٌ مرتبط لا انضمام
             'code' => fn ($q, $dir) => $q->orderBy(
                 \App\Models\Candidate::select('participant_code')
                     ->whereColumn('candidates.id', 'final_reports.candidate_id'),
@@ -328,7 +328,7 @@ class ReportController extends Controller
         ]]);
     }
 
-    // مرشحون جاهزون لكتابة تقرير: انتهى تقييمهم ولا تقرير لدورتهم الحالية
+    // مشاركون جاهزون لكتابة تقرير: انتهى تقييمهم ولا تقرير لدورتهم الحالية
     public function eligibleCandidates(Request $request)
     {
         if (!$request->user()->hasPermission(Permissions::REPORT_CREATE)) {
@@ -336,10 +336,10 @@ class ReportController extends Controller
         }
         $allowed = $this->allowedClassifications($request);
         $user = $request->user();
-        // تحميل مُسبق للدورات (مرتّبة) وتقاريرها — يتفادى N+1 (استعلامان بدل استعلامين لكل مرشح)
+        // تحميل مُسبق للدورات (مرتّبة) وتقاريرها — يتفادى N+1 (استعلامان بدل استعلامين لكل مشارك)
         $candidates = Candidate::with(['sector', 'assessments' => fn ($q) => $q->orderByDesc('id'), 'assessments.report'])
             ->whereIn('classification', $allowed)
-            // المحصور بقطاع لا يكتب تقريراً لمرشّح من قطاع آخر — القائمة تطابق ما يُسمح به
+            // المحصور بقطاع لا يكتب تقريراً لمشارك من قطاع آخر — القائمة تطابق ما يُسمح به
             ->when($user->isSectorBound(), fn ($q) => $q->where('sector_id', $user->sector_id))
             ->where('status', 'assessed')
             ->get()
@@ -463,7 +463,7 @@ class ReportController extends Controller
             || $request->user()->hasPermission(Permissions::REPORT_EDIT_ANY);
     }
 
-    // إنشاء تقرير لدورة المرشح الحالية
+    // إنشاء تقرير لدورة المشارك الحالية
     public function store(Request $request)
     {
         if (!$request->user()->hasPermission(Permissions::REPORT_CREATE)) {
@@ -473,20 +473,20 @@ class ReportController extends Controller
             'candidateId' => 'required|integer',
         ]);
 
-        // حلّ المرشح ضمن صلاحية التصنيف فقط — نفس ردّ «غير موجود» للمصنّف وغير الموجود (لا كشف وجود)
-        // النطاق كاملاً — لا يُكتب/يُقرأ تقرير لمرشّح خارج قطاع المستخدم.
-        // eligibleCandidates محصور، فكان يُخفي المرشّح ثم يقبله بمعرّفه.
+        // حلّ المشارك ضمن صلاحية التصنيف فقط — نفس ردّ «غير موجود» للمصنّف وغير الموجود (لا كشف وجود)
+        // النطاق كاملاً — لا يُكتب/يُقرأ تقرير لمشارك خارج قطاع المستخدم.
+        // eligibleCandidates محصور، فكان يُخفي المشارك ثم يقبله بمعرّفه.
         $candidate = $this->resolveCandidateInScope($request, $validated['candidateId']);
         if (!$candidate) {
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
         $assessment = $candidate->assessments()->orderByDesc('id')->first();
         if (!$assessment) {
-            return response()->json(['error' => 'لا توجد دورة تقييم لهذا المرشح'], 422);
+            return response()->json(['error' => 'لا توجد دورة تقييم لهذا المشارك'], 422);
         }
         // لا يُكتب تقرير قبل انتهاء التقييم فعلاً — منع تجاوز مسار التقييم بأكمله
         if ($candidate->status !== 'assessed' || $assessment->status !== 'assessed') {
-            return response()->json(['error' => 'لا يمكن إنشاء تقرير قبل انتهاء تقييم المرشح'], 422);
+            return response()->json(['error' => 'لا يمكن إنشاء تقرير قبل انتهاء تقييم المشارك'], 422);
         }
         if (FinalReport::where('assessment_id', $assessment->id)->exists()) {
             return response()->json(['error' => 'يوجد تقرير لهذه الدورة — استخدم التعديل'], 422);
@@ -523,7 +523,7 @@ class ReportController extends Controller
             if ($first) {
                 $this->notify->notifyRole($first->role_code, 'approval',
                     'تقرير جديد بانتظار اعتمادك',
-                    "تقرير المرشح {$assessment->participant_code} وصل مرحلة اعتمادك",
+                    "تقرير المشارك {$assessment->participant_code} وصل مرحلة اعتمادك",
                     'report', (string) $report->id, $request->user()->id);
             }
         }
@@ -574,7 +574,7 @@ class ReportController extends Controller
             if ($first) {
                 $this->notify->notifyRole($first->role_code, 'approval',
                     'تقرير معدّل بانتظار اعتمادك',
-                    "تقرير المرشح " . optional($report->assessment)->participant_code . " وصل مرحلة اعتمادك",
+                    "تقرير المشارك " . optional($report->assessment)->participant_code . " وصل مرحلة اعتمادك",
                     'report', (string) $report->id, $request->user()->id);
             }
         }
@@ -714,7 +714,7 @@ class ReportController extends Controller
             return response()->json(['error' => 'التقرير غير موجود'], 404);
         }
 
-        // لا يُرجَع إلا تقرير في إحدى مراحل الاعتماد (منع إرجاع معتمد/مسودة → إفساد حالة المرشح)
+        // لا يُرجَع إلا تقرير في إحدى مراحل الاعتماد (منع إرجاع معتمد/مسودة → إفساد حالة المشارك)
         if (!in_array($report->status, self::pendingStatuses(), true)) {
             return response()->json(['error' => 'لا يمكن إرجاع تقرير غير مُرسل للاعتماد'], 422);
         }
@@ -814,7 +814,7 @@ class ReportController extends Controller
             return response()->json(['error' => 'تغيّرت حالة التقرير — أعد التحميل'], 409);
         }
 
-        // المرشّح يعود «مُقيَّم» فيُكتب له تقرير جديد — الإلغاء يفتح الباب لا يغلقه
+        // المشارك يعود «مُقيَّم» فيُكتب له تقرير جديد — الإلغاء يفتح الباب لا يغلقه
         $report->candidate->setStatus('assessed');
 
         if ($report->created_by) {

@@ -12,7 +12,7 @@ use Illuminate\Support\Str;
 use Tests\Concerns\EnablesCandidatePortal;
 use Tests\TestCase;
 
-// بوّابة السيرة الذاتية: كتابة المرشح، قفل بعد التقييم، تزامن، لقطة مجمَّدة،
+// بوّابة السيرة الذاتية: كتابة المشارك، قفل بعد التقييم، تزامن، لقطة مجمَّدة،
 // عرض المقيّم بلا اسم، مسار الإدارة بصلاحية مستقلّة، وحجب تسرّب الاسم.
 class CvPortalTest extends TestCase
 {
@@ -143,7 +143,7 @@ class CvPortalTest extends TestCase
             ->assertStatus(422);
     }
 
-    // ── لا يُحبَس المرشح بلقطة فارغة لو بدأ المقيّم قبل ملء السيرة ──
+    // ── لا يُحبَس المشارك بلقطة فارغة لو بدأ المقيّم قبل ملء السيرة ──
     public function test_draft_evaluation_with_empty_cv_does_not_lock(): void
     {
         [$c, $a, $token] = $this->gate(); // لا سيرة بعد

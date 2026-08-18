@@ -17,10 +17,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 // ════════════════════════════════════════════════════════════
-//  استقبال الموظفين — مسار المرشّح من باب المركز إلى جدول المقابلات.
+//  استقبال الموظفين — مسار المشارك من باب المركز إلى جدول المقابلات.
 //
 //  ١) الاستقبال يسجّل الوصول (الوقت تلقائي وقابل للتعديل)
-//  ٢) المرشّح يوقّع ويقرّ بصحّة بياناته
+//  ٢) المشارك يوقّع ويقرّ بصحّة بياناته
 //  ٣) الاستقبال يوزّعه على مقابلة / حلقة نقاش / أدوات قياس ويختار المقيّم
 //  ٤) المقيّم يُشعَر، فيستلمه أو يردّه بسبب
 //  ٥) المردود يعود للعمليات لإعادة إسناده لمقيّم آخر أو لنشاط آخر
@@ -29,7 +29,7 @@ use Illuminate\Support\Facades\DB;
 //  لكل مرحلة صلاحيتها المستقلّة (reception.*): من يسجّل ليس من يوزّع، ومن
 //  يوزّع ليس من يقرّر، ومن يقرّر ليس من يعتمد.
 //
-//  السرّية: المقيّم لا يرى اسم المرشّح ولا رقم هويته في أي مخرَج من هذا
+//  السرّية: المقيّم لا يرى اسم المشارك ولا رقم هويته في أي مخرَج من هذا
 //  المتحكّم — لا بشرط صلاحية ولا بدونه. حدُّه رمز المشارك والسيرة مطموسة.
 // ════════════════════════════════════════════════════════════
 
@@ -61,7 +61,7 @@ class ReceptionController extends Controller
     }
 
     // ── حلّ زيارة ضمن نطاق المستخدم (تصنيف + قطاع) ──
-    // 404 موحّد لغير الموجود ولغير المصرَّح: المعرّف لا يكون عرّافاً بوجود مرشّح.
+    // 404 موحّد لغير الموجود ولغير المصرَّح: المعرّف لا يكون عرّافاً بوجود مشارك.
     private function findVisit(Request $request, int $id, array $with = []): ?ReceptionVisit
     {
         $user = $request->user();
@@ -214,9 +214,9 @@ class ReceptionController extends Controller
             $query->where('participant_code', 'ilike', '%' . $q . '%');
         }
 
-        // حدٌّ صريح: الكشف أداة استقبالٍ لا تصفّحٌ لقاعدة المرشحين كاملة.
+        // حدٌّ صريح: الكشف أداة استقبالٍ لا تصفّحٌ لقاعدة المشاركين كاملة.
         // العدد الكلّي يُرسَل مع المقتطَع — قائمةٌ مقصوصة صامتة تُقرأ «هذا كل
-        // من ينتظر»، فيُصرَف مرشّحٌ حاضرٌ لأنه لم يظهر في الشاشة.
+        // من ينتظر»، فيُصرَف مشاركٌ حاضرٌ لأنه لم يظهر في الشاشة.
         $total = (clone $query)->count();
         $rows = $query->orderBy('participant_code')->limit(self::EXPECTED_LIMIT)->get();
 
@@ -246,7 +246,7 @@ class ReceptionController extends Controller
                 'activity' => $a->activity,
                 'activityLabel' => ReceptionAssignment::label($a->activity),
                 'status' => $a->status,
-                // الرمز هو هوية المرشّح عند المقيّم — لا اسم ولا رقم هوية
+                // الرمز هو هوية المشارك عند المقيّم — لا اسم ولا رقم هوية
                 'participantCode' => $a->visit?->assessment?->participant_code,
                 'arrivedAt' => $a->visit?->arrived_at?->format('H:i'),
             ])->values()->all();
@@ -257,7 +257,7 @@ class ReceptionController extends Controller
     {
         $user = $request->user();
         if (!$user->hasPermission(Permissions::RECEPTION_ASSIGN)) {
-            return $this->deny('ليس لديك صلاحية توزيع المرشحين');
+            return $this->deny('ليس لديك صلاحية توزيع المشاركين');
         }
 
         $validated = $request->validate([
@@ -276,7 +276,7 @@ class ReceptionController extends Controller
             // القائمة تعرض من يستطيع الاستلام فعلاً. الدورُ وحده لا يكفي: صلاحيةٌ
             // مسحوبة باستثناء فردي تجعل الإسناد يُرفض بعد اختياره.
             ->filter(fn (User $u) => $u->hasPermission(Permissions::RECEPTION_DECIDE))
-            // المحصور بقطاع لا يُقترَح لمرشّح خارج قطاعه — الإسناد سيُرفض على
+            // المحصور بقطاع لا يُقترَح لمشارك خارج قطاعه — الإسناد سيُرفض على
             // أي حال في assign()، وعرضه في القائمة يجعل الرفض مفاجأة
             ->filter(fn (User $u) => !isset($validated['sectorId'])
                 || $u->coversSector((int) $validated['sectorId']))
@@ -297,7 +297,7 @@ class ReceptionController extends Controller
     {
         $user = $request->user();
         if (!$user->hasPermission(Permissions::RECEPTION_RECORD)) {
-            return $this->deny('ليس لديك صلاحية تسجيل وصول المرشحين');
+            return $this->deny('ليس لديك صلاحية تسجيل وصول المشاركين');
         }
 
         $validated = $request->validate([
@@ -324,7 +324,7 @@ class ReceptionController extends Controller
         );
 
         if ($visit->wasRecentlyCreated) {
-            // assessments.arrived_at قائمة من قبل (بوّابة المرشّح) — نُبقيها
+            // assessments.arrived_at قائمة من قبل (بوّابة المشارك) — نُبقيها
             // متّسقة كي لا يختلف مصدران عن وقتٍ واحد
             if ($assessment->arrived_at === null) {
                 $assessment->update(['arrived_at' => $visit->arrived_at]);
@@ -372,24 +372,24 @@ class ReceptionController extends Controller
     }
 
     // ═══════════════════════════════════════════════════════
-    //  ٢) توقيع المرشّح وإقراره بصحّة بياناته
+    //  ٢) توقيع المشارك وإقراره بصحّة بياناته
     // ═══════════════════════════════════════════════════════
     public function sign(Request $request, int $id)
     {
         $user = $request->user();
         if (!$user->hasPermission(Permissions::RECEPTION_RECORD)) {
-            return $this->deny('ليس لديك صلاحية أخذ توقيع المرشح');
+            return $this->deny('ليس لديك صلاحية أخذ توقيع المشارك');
         }
 
         $validated = $request->validate([
-            // صورة PNG بترميز data URL يرسمها المرشّح على الشاشة.
+            // صورة PNG بترميز data URL يرسمها المشارك على الشاشة.
             // الحدّ 400 ألف محرف (~٣٠٠ك بايت) — كافٍ لتوقيعٍ عالي الدقّة،
             // ومانعٌ لرفع ملفٍ كبير عبر الحقل.
             'signature' => 'required|string|max:400000|starts_with:data:image/png;base64,',
             'attested' => 'required|accepted',
         ], [
             'signature.starts_with' => 'صيغة التوقيع غير صالحة',
-            'attested.accepted' => 'لا بدّ من إقرار المرشح بصحّة بياناته',
+            'attested.accepted' => 'لا بدّ من إقرار المشارك بصحّة بياناته',
         ]);
 
         $visit = $this->findVisit($request, $id, ['assessment']);
@@ -467,7 +467,7 @@ class ReceptionController extends Controller
     {
         $user = $request->user();
         if (!$user->hasPermission(Permissions::RECEPTION_ASSIGN)) {
-            return $this->deny('ليس لديك صلاحية توزيع المرشحين');
+            return $this->deny('ليس لديك صلاحية توزيع المشاركين');
         }
 
         $validated = $request->validate([
@@ -482,10 +482,10 @@ class ReceptionController extends Controller
         if ($visit->status === ReceptionVisit::APPROVED) {
             return response()->json(['error' => 'الزيارة معتمدة — أعد فتحها قبل التوزيع'], 422);
         }
-        // التوزيع بعد الإقرار لا قبله: توزيعُ مرشّحٍ لم يُقرّ بصحّة بياناته
+        // التوزيع بعد الإقرار لا قبله: توزيعُ مشاركٍ لم يُقرّ بصحّة بياناته
         // يُدخِل المقيّم على بياناتٍ لم يُصادَق عليها
         if (!$visit->isSigned()) {
-            return response()->json(['error' => 'لم يوقّع المرشح ولم يُقرّ بصحّة بياناته بعد'], 422);
+            return response()->json(['error' => 'لم يوقّع المشارك ولم يُقرّ بصحّة بياناته بعد'], 422);
         }
         if ($visit->activeAssignment($validated['activity'])) {
             return response()->json(['error' => 'هذا النشاط مُسنَد بالفعل — اسحب الإسناد القائم أولاً'], 422);
@@ -502,9 +502,9 @@ class ReceptionController extends Controller
             ], 422);
         }
         if (!$evaluator->hasPermission(Permissions::RECEPTION_DECIDE)) {
-            return response()->json(['error' => 'المقيّم المختار لا يملك صلاحية استلام المرشحين'], 422);
+            return response()->json(['error' => 'المقيّم المختار لا يملك صلاحية استلام المشاركين'], 422);
         }
-        // حدّ القطاع: مقيّم محصور لا يُسنَد إليه مرشّح من قطاع آخر إلا بصلاحية
+        // حدّ القطاع: مقيّم محصور لا يُسنَد إليه مشارك من قطاع آخر إلا بصلاحية
         // التجاوز الصريحة — نفس قاعدة الجدولة، لا قاعدة جديدة
         if (!$evaluator->coversSector($visit->candidate->sector_id)
             && !$user->hasPermission(Permissions::CROSS_SECTOR_ASSIGN)) {
@@ -530,7 +530,7 @@ class ReceptionController extends Controller
         $this->notify->notify(
             $evaluator->id,
             'action',
-            'مرشّح مُسنَد إليك: ' . $code,
+            'مشارك مُسنَد إليك: ' . $code,
             'أُسنِد إليك ' . ReceptionAssignment::label($validated['activity'])
                 . ' للمشارك ' . $code . '. افتح شاشة استقبال الموظفين للاستلام أو الردّ.',
             'reception_assignment',
@@ -636,7 +636,7 @@ class ReceptionController extends Controller
         if ($status === ReceptionAssignment::REJECTED) {
             // المردود يعود إلى **من يستطيع إعادة إسناده** لا إلى رمز دورٍ بعينه:
             // مركزٌ لم يُنشئ دور «مسؤول العمليات» كان الإشعار يذهب فيه إلى لا
-            // أحد، فيقف المرشّح في منتصف المسار بلا أن يعلم به أحد.
+            // أحد، فيقف المشارك في منتصف المسار بلا أن يعلم به أحد.
             $reached = $this->notify->notifyPermission(
                 Permissions::RECEPTION_ASSIGN,
                 'return',
@@ -648,7 +648,7 @@ class ReceptionController extends Controller
                 $user->id,
                 $user->id,
             );
-            // صفرُ متلقّين حدثٌ يستحقّ أثراً: المرشّح مردود ولا أحد يعلم
+            // صفرُ متلقّين حدثٌ يستحقّ أثراً: المشارك مردود ولا أحد يعلم
             if ($reached === 0) {
                 $this->log($request, 'RECEPTION_REJECT_UNROUTED', $id, [
                     'visit' => $assignment->visit_id,
@@ -666,7 +666,7 @@ class ReceptionController extends Controller
     // ── السيرة كما يراها المقيّم بعد الاستلام ──
     //
     // لا اسم ولا رقم هوية هنا مهما كانت صلاحية القارئ — بخلاف مسار الإدارة.
-    // القاعدة في هذا المسار قاعدة إجراء لا قاعدة صلاحية: من استلم مرشّحاً
+    // القاعدة في هذا المسار قاعدة إجراء لا قاعدة صلاحية: من استلم مشاركاً
     // يقيّمه برمزه، وإتاحة الاسم لمدير التقييم (وهو مؤهَّل للمقابلة) كانت
     // ستفتح باباً لمعرفة من يقابل قبل أن يقابله.
     public function assignmentCv(Request $request, int $id)
@@ -683,7 +683,7 @@ class ReceptionController extends Controller
         // السيرة تُفتح بعد الاستلام لا قبله: القرار على الرمز والنشاط، لا على
         // محتوى سيرةٍ يُطّلَع عليها ثم تُردّ
         if ($assignment->status !== ReceptionAssignment::ACCEPTED) {
-            return response()->json(['error' => 'استلم المرشّح أولاً لعرض سيرته'], 422);
+            return response()->json(['error' => 'استلم المشارك أولاً لعرض سيرته'], 422);
         }
 
         $visit = $assignment->visit;
@@ -699,7 +699,7 @@ class ReceptionController extends Controller
             'activityLabel' => ReceptionAssignment::label($assignment->activity),
             'hasCv' => !CandidateCv::isEmptyDoc($doc),
             'document' => $doc,
-            // لا يُرسَل أبداً: الاسم، رقم الهوية، الجوال، البريد، معرّف المرشّح
+            // لا يُرسَل أبداً: الاسم، رقم الهوية، الجوال، البريد، معرّف المشارك
         ]]);
     }
 
@@ -721,7 +721,7 @@ class ReceptionController extends Controller
             return response()->json(['error' => 'الزيارة معتمدة من قبل'], 422);
         }
         if (!$visit->isSigned()) {
-            return response()->json(['error' => 'لم يوقّع المرشح ولم يُقرّ بصحّة بياناته'], 422);
+            return response()->json(['error' => 'لم يوقّع المشارك ولم يُقرّ بصحّة بياناته'], 422);
         }
 
         $accepted = $visit->assignments->where('status', ReceptionAssignment::ACCEPTED);
@@ -782,7 +782,7 @@ class ReceptionController extends Controller
     }
 
     // ═══════════════════════════════════════════════════════
-    //  كشك الجهاز اللوحي — الرابط الذي يفتحه مسؤول المرشحين
+    //  كشك الجهاز اللوحي — الرابط الذي يفتحه مسؤول المشاركين
     // ═══════════════════════════════════════════════════════
 
     // إنشاء رمز اليوم يفرض RECEPTION_RECORD لا RECEPTION_VIEW: الرمز يُنتج
@@ -921,7 +921,7 @@ class ReceptionController extends Controller
     }
 
     // إعادة الطباعة: تُعيد الزيارة إلى الطابور. بابها جهاز المسؤول وحده —
-    // لو فُتح للكشك لأمكن لمرشّحٍ أن يُخرج بطاقاتٍ بلا حدّ.
+    // لو فُتح للكشك لأمكن لمشاركٍ أن يُخرج بطاقاتٍ بلا حدّ.
     public function reprintBadge(Request $request, int $id)
     {
         $user = $request->user();

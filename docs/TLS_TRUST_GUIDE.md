@@ -155,7 +155,7 @@ certutil -delstore Root "Tamkeen Alkafaat Internal Root CA"
 1. `Win + R` ← اكتب **`certlm.msc`** ← Enter (وليس `certmgr.msc` — ذاك لمخزن المستخدم فقط).
 2. وسّع **Trusted Root Certification Authorities** ← **Certificates**.
 3. انقر بالزر الأيمن ← **All Tasks** ← **Import…**
-4. **Next** ← **Browse…** ← اختر `kafaat-ca.crt` (قد تحتاج تغيير مرشّح الملفات إلى *All Files*) ← **Next**.
+4. **Next** ← **Browse…** ← اختر `kafaat-ca.crt` (قد تحتاج تغيير مشارك الملفات إلى *All Files*) ← **Next**.
 5. اختر **Place all certificates in the following store** ← تأكّد أنه **Trusted Root Certification Authorities** ← **Next** ← **Finish**.
 6. ستظهر نافذة تحذير أمني تسألك عن تنصيب جذر ببصمة معيّنة — **اقرأ البصمة المعروضة وطابِقها** ثم **Yes**.
 

@@ -15,7 +15,7 @@ return new class extends Migration
                 ->constrained('assessments')->cascadeOnDelete();
         });
 
-        // تعبئة الصفوف القائمة بأحدث دورة للمرشّح (لا شيء يُكتب إن كان الجدول فارغاً)
+        // تعبئة الصفوف القائمة بأحدث دورة للمشارك (لا شيء يُكتب إن كان الجدول فارغاً)
         DB::statement("
             UPDATE measurement_results mr
             SET assessment_id = (

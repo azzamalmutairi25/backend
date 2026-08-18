@@ -67,7 +67,7 @@ class TierSettingsTest extends TestCase
         $this->putJson('/api/settings/tier', ['militaryUpperRanks' => 'عميد، لواء، فريق', 'civilianUpperGrade' => 12])
             ->assertOk();
         $this->assertDatabaseHas('audit_logs', ['action' => 'UPDATE_TIER_RULES']);
-        // تُطبَّق فوراً على تصنيف مرشّح جديد
+        // تُطبَّق فوراً على تصنيف مشارك جديد
         $this->assertSame('upper', Candidate::classifyTier('م-12', 'civilian'));
     }
 

@@ -30,9 +30,9 @@ class DevelopmentPlanController extends Controller
         ]);
     }
 
-    // يحلّ المرشّح ضمن التصنيف المسموح (مصنّف خارج الصلاحية = «غير موجود»)
+    // يحلّ المشارك ضمن التصنيف المسموح (مصنّف خارج الصلاحية = «غير موجود»)
     // النطاق كاملاً: التصنيف + القطاع. كان التصنيف وحده، فكان المحصور بقطاع
-    // يقرأ ويكتب ويحذف خطط تطوير مرشحي القطاعات الأخرى — وكل مسارات هذا
+    // يقرأ ويكتب ويحذف خطط تطوير مشاركي القطاعات الأخرى — وكل مسارات هذا
     // المتحكّم تمرّ من هنا، فالحارس واحد يغطّيها.
     private function resolveCandidate(Request $request, int $candidateId): ?Candidate
     {
@@ -69,10 +69,10 @@ class DevelopmentPlanController extends Controller
             return response()->json(['error' => 'ليس لديك صلاحية عرض خطة التطوير'], 403);
         }
         // المقيّم المحصور لا يرى إلا من قيّمهم هو — كما competencyGap/scorePreview.
-        // بدونه كان يقرأ بنود خطة (مشتقّة من التقرير) لمرشّح قطاعه لم يقيّمه.
+        // بدونه كان يقرأ بنود خطة (مشتقّة من التقرير) لمشارك قطاعه لم يقيّمه.
         $candidate = $this->resolveCandidate($request, $candidateId);
         if (!$candidate || $this->evaluatorNarrowedOut($request, $candidate)) {
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
         $assessment = $candidate->assessments()->orderByDesc('id')->first();
         $items = $assessment
@@ -97,11 +97,11 @@ class DevelopmentPlanController extends Controller
         ]);
         $candidate = $this->resolveCandidate($request, $validated['candidateId']);
         if (!$candidate) {
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
         $assessment = $candidate->assessments()->orderByDesc('id')->first();
         if (!$assessment) {
-            return response()->json(['error' => 'لا توجد دورة تقييم لهذا المرشح'], 422);
+            return response()->json(['error' => 'لا توجد دورة تقييم لهذا المشارك'], 422);
         }
 
         $item = DevelopmentPlanItem::create([
@@ -125,7 +125,7 @@ class DevelopmentPlanController extends Controller
         if (!$request->user()->hasPermission(Permissions::REPORT_CREATE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة خطة التطوير'], 403);
         }
-        // يُحلّ بمعرّف البند لا المرشح، فالنطاق يُطبَّق عبر علاقة candidate
+        // يُحلّ بمعرّف البند لا المشارك، فالنطاق يُطبَّق عبر علاقة candidate
         $item = $this->resolveItemInScope($request, $id);
         if (!$item) {
             return response()->json(['error' => 'البند غير موجود'], 404);
@@ -155,7 +155,7 @@ class DevelopmentPlanController extends Controller
         if (!$request->user()->hasPermission(Permissions::REPORT_CREATE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة خطة التطوير'], 403);
         }
-        // يُحلّ بمعرّف البند لا المرشح، فالنطاق يُطبَّق عبر علاقة candidate
+        // يُحلّ بمعرّف البند لا المشارك، فالنطاق يُطبَّق عبر علاقة candidate
         $item = $this->resolveItemInScope($request, $id);
         if (!$item) {
             return response()->json(['error' => 'البند غير موجود'], 404);
@@ -175,7 +175,7 @@ class DevelopmentPlanController extends Controller
         $validated = $request->validate(['candidateId' => 'required|integer']);
         $candidate = $this->resolveCandidate($request, $validated['candidateId']);
         if (!$candidate) {
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
         $assessment = $candidate->assessments()->orderByDesc('id')->first();
         $report = $assessment ? FinalReport::where('assessment_id', $assessment->id)->first() : null;
@@ -185,7 +185,7 @@ class DevelopmentPlanController extends Controller
         }
 
         // نداءان متزامنان لـseed كانا يقرآن نفس $existing (الفارغ) فيُدرجان كامل المجالات
-        // مكرّرةً. نُسلسل بقفل صف المرشّح ونعيد قراءة الموجود داخل القفل — دون فهرس فريد
+        // مكرّرةً. نُسلسل بقفل صف المشارك ونعيد قراءة الموجود داخل القفل — دون فهرس فريد
         // على (candidate,assessment,area) كي لا نكسر إضافة store اليدوية لبندين بنفس المجال.
         $created = 0;
         DB::transaction(function () use ($candidate, $assessment, $areas, $request, &$created) {

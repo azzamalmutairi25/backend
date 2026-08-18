@@ -10,25 +10,25 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 // إصلاحات مراجعة الإدارة/الإعدادات + التدقيق:
-//  - خطة التطوير تحترم تضييق المقيّم (لا يرى خطة مرشّح قطاعه لم يقيّمه).
-//  - seed خطة التطوير يبقى غير مكرِّر (تسلسل بقفل صف المرشّح).
-//  - سجل التدقيق يحجب تفاصيل صفوف الكيانات المرتبطة بمرشّح مصنّف عن غير المصرَّح له.
+//  - خطة التطوير تحترم تضييق المقيّم (لا يرى خطة مشارك قطاعه لم يقيّمه).
+//  - seed خطة التطوير يبقى غير مكرِّر (تسلسل بقفل صف المشارك).
+//  - سجل التدقيق يحجب تفاصيل صفوف الكيانات المرتبطة بمشارك مصنّف عن غير المصرَّح له.
 class AdminConfigFixesTest extends TestCase
 {
     use RefreshDatabase;
 
     protected $seed = true;
 
-    // ── Fix 1: المقيّم لا يرى خطة تطوير مرشّح قطاعه لم يقيّمه ──
+    // ── Fix 1: المقيّم لا يرى خطة تطوير مشارك قطاعه لم يقيّمه ──
     public function test_development_plan_index_respects_evaluator_narrowing(): void
     {
         $evaluator = $this->actingAsRole('EVALUATOR', 'DW'); // يملك REPORT_VIEW، محصور
 
-        // مرشّح لم يقيّمه هذا المقيّم — يُحجب (404)
+        // مشارك لم يقيّمه هذا المقيّم — يُحجب (404)
         [$notMine] = $this->makeCandidate(['sectorCode' => 'DW', 'status' => 'assessed']);
         $this->getJson("/api/development-plans/{$notMine->id}")->assertStatus(404);
 
-        // مرشّح قيّمه هذا المقيّم — مرئي (200)
+        // مشارك قيّمه هذا المقيّم — مرئي (200)
         [$mine, $a] = $this->makeCandidate(['sectorCode' => 'DW', 'status' => 'assessed']);
         Evaluation::create([
             'candidate_id' => $mine->id, 'assessment_id' => $a->id,
@@ -55,7 +55,7 @@ class AdminConfigFixesTest extends TestCase
         $this->assertSame(2, DevelopmentPlanItem::where('candidate_id', $c->id)->count());
     }
 
-    // ── Fix 3: سجل التدقيق يحجب تفاصيل صف كيان مرتبط بمرشّح عن غير المصرَّح له ──
+    // ── Fix 3: سجل التدقيق يحجب تفاصيل صف كيان مرتبط بمشارك عن غير المصرَّح له ──
     public function test_audit_log_redacts_candidate_linked_sibling_rows_for_uncleared_auditor(): void
     {
         $auditor = $this->actingAsRole('CENTER_MANAGER'); // AUDIT_VIEW بالدور
@@ -95,7 +95,7 @@ class AdminConfigFixesTest extends TestCase
         $this->assertSame($c->participant_code, $row['details']['candidate']);
     }
 
-    // ── Fix 3: صفّ المرشّح «العادي» المباشر يبقى مرئياً لغير المصرَّح له (لا إفراط بالحجب) ──
+    // ── Fix 3: صفّ المشارك «العادي» المباشر يبقى مرئياً لغير المصرَّح له (لا إفراط بالحجب) ──
     public function test_audit_log_keeps_normal_candidate_rows_visible(): void
     {
         $auditor = $this->actingAsRole('CENTER_MANAGER');

@@ -152,13 +152,13 @@ class PermissionMatrixInvariantsTest extends TestCase
         $this->assertEqualsCanonicalizing(
             ['ADMIN', 'CENTER_MANAGER', 'SCHEDULER', 'RECEPTIONIST', 'ASSESS_MANAGER'],
             $holders(Permissions::CANDIDATE_VIEW_NAMES),
-            'رؤية أسماء المرشحين — أي توسيع قرارٌ أمني'
+            'رؤية أسماء المشاركين — أي توسيع قرارٌ أمني'
         );
 
         $this->assertEqualsCanonicalizing(
             ['ADMIN', 'CENTER_MANAGER', 'ASSESS_MANAGER', 'DEV_MANAGER'],
             $holders(Permissions::CANDIDATE_VIEW_CLASSIFIED),
-            'رؤية المرشحين المصنّفين — أي توسيع قرارٌ أمني'
+            'رؤية المشاركين المصنّفين — أي توسيع قرارٌ أمني'
         );
 
         $this->assertEqualsCanonicalizing(
@@ -170,7 +170,7 @@ class PermissionMatrixInvariantsTest extends TestCase
         $this->assertEqualsCanonicalizing(
             ['ADMIN', 'SCHEDULER'],
             $holders(Permissions::CANDIDATE_UPDATE_APPROVE),
-            'اعتماد تحديث بيانات المرشحين'
+            'اعتماد تحديث بيانات المشاركين'
         );
     }
 

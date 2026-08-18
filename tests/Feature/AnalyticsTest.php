@@ -19,7 +19,7 @@ class AnalyticsTest extends TestCase
     private function approvedReport(int $candidateId, int $assessmentId, float $beh, float $tech): void
     {
         FinalReport::create([
-            'candidate_id' => $candidateId, 'assessment_id' => $assessmentId, 'recommendation' => 'مرشّح',
+            'candidate_id' => $candidateId, 'assessment_id' => $assessmentId, 'recommendation' => 'مشارك',
             'behavioral_fit' => $beh, 'technical_fit' => $tech, 'status' => 'approved', 'created_by' => null,
         ]);
     }

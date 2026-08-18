@@ -15,6 +15,7 @@ use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\SchedulingPeriodController;
 use App\Http\Controllers\SchedulingWorkflowController;
 use App\Http\Controllers\ExpertiseAreaController;
+use App\Http\Controllers\TechnicalAreaController;
 use App\Http\Controllers\DiscussionCircleController;
 use App\Http\Controllers\GoldenScheduleController;
 use App\Http\Controllers\DispatchController;
@@ -55,7 +56,7 @@ Route::pattern('candidateId', '[0-9]+');
 // تقييد بمعدّل حسب IP ضدّ رشّ كلمات المرور والتعداد (بالإضافة لقفل الحساب)
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 
-// ── بوابة المرشح العامة (رمز فريد في الرسالة النصية) — مقيّدة بالمعدل ضد التخمين ──
+// ── بوابة المشارك العامة (رمز فريد في الرسالة النصية) — مقيّدة بالمعدل ضد التخمين ──
 // لا تُكشف أي بيانات إلا بعد /verify بمطابقة رقم الهوية (بوابة العامل الثاني)
 //
 // مُعطَّلة الآن بمفتاح features.candidate_portal: لا تُسجَّل المسارات أصلاً،
@@ -69,7 +70,7 @@ if (config('features.candidate_portal')) {
     });
 }
 
-// ── كشك الاستقبال على الجهاز اللوحي (رمز يوم واحد يفتحه مسؤول المرشحين) ──
+// ── كشك الاستقبال على الجهاز اللوحي (رمز يوم واحد يفتحه مسؤول المشاركين) ──
 // نفس مبدأ البوّابة: لا بيانات قبل مطابقة رقم الهوية. والتقييد هنا أوسع
 // لأن الجهاز واحد يخدم طابور اليوم كلَّه، ومحكومٌ بحدٍّ ثانٍ لكل هوية داخل
 // المتحكّم يمنع تخمين شخصٍ بعينه من وراء سعة الكشك.
@@ -94,7 +95,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ═══ لوحة البداية — صفحة الهبوط لكل دور (لا بوّابة صلاحية: الأقسام تُحجب فرادى) ═══
     Route::get('/dashboard/overview', [DashboardController::class, 'overview']);
 
-    // ═══ المرشحون ═══
+    // ═══ المشاركون ═══
     Route::get('/candidates', [CandidateController::class, 'index']);
     Route::post('/candidates', [CandidateController::class, 'store']);
     Route::get('/candidates/stats', [CandidateController::class, 'stats']);
@@ -121,8 +122,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/candidates/{id}/reassess', [CandidateController::class, 'reassess']);
     Route::get('/candidates/{id}/history', [AuditController::class, 'candidateHistory']);
 
-    // ═══ طلبات تحديث بيانات المرشحين ═══
-    // يرفعها المستخدم الخارجي حين يجد المرشّح مسجّلاً مسبقاً، ويبتّ فيها صاحب صلاحية.
+    // ═══ طلبات تحديث بيانات المشاركين ═══
+    // يرفعها المستخدم الخارجي حين يجد المشارك مسجّلاً مسبقاً، ويبتّ فيها صاحب صلاحية.
     // «mine» قبل «{id}» وإلا ابتلعها المسار ذو المعرّف.
     Route::get('/candidate-update-requests', [CandidateUpdateRequestController::class, 'index']);
     Route::get('/candidate-update-requests/mine', [CandidateUpdateRequestController::class, 'mine']);
@@ -186,7 +187,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/sectors', [SectorController::class, 'index']);
     Route::put('/sectors/{id}/prefix', [SectorController::class, 'updatePrefix']);
 
-    // الرتب والمراتب — مرجعٌ يقرؤه كل من يملأ نموذج مرشّح، والإدارة داخل
+    // الرتب والمراتب — مرجعٌ يقرؤه كل من يملأ نموذج مشارك، والإدارة داخل
     // RankController على `settings.manage`. كان الصنف مكتوباً كاملاً بلا مسار
     // يبلغه، والتوثيق يذكره — فالميزة موجودة ولا سبيل إليها.
     // مجالات الخبرة — مرجعٌ يُدار من الإعدادات، تُوسَم به حسابات المقيّمين
@@ -197,6 +198,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/expertise-areas/{id}', [ExpertiseAreaController::class, 'destroy']);
     // وسم حساب مقيّم بمجالاته — بصلاحية إدارة المستخدمين
     Route::put('/users/{id}/expertise', [ExpertiseAreaController::class, 'setUserExpertise']);
+
+    // المجالات الفنية — مرجعٌ يُدار من الإعدادات، يُوسَم به المشارك ويُرشَّح
+    // عليه. القراءة أوسع من نظيرتها: نموذج الإضافة يعرضها وشاشة الترشيح تفلتر بها.
+    Route::get('/technical-areas', [TechnicalAreaController::class, 'index']);
+    Route::post('/technical-areas', [TechnicalAreaController::class, 'store']);
+    Route::put('/technical-areas/{id}', [TechnicalAreaController::class, 'update']);
+    Route::delete('/technical-areas/{id}', [TechnicalAreaController::class, 'destroy']);
 
     Route::get('/ranks', [RankController::class, 'index']);
     Route::post('/ranks', [RankController::class, 'store']);
@@ -239,7 +247,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/evaluations/{id}/submit', [EvaluationController::class, 'submit']);
     Route::post('/evaluations/{id}/approve', [EvaluationController::class, 'approve']);
     Route::post('/evaluations/{id}/return', [EvaluationController::class, 'returnEvaluation']);
-    // سيرة المرشح للمقيّم — بلا اسم، من لقطة الدورة المجمَّدة
+    // سيرة المشارك للمقيّم — بلا اسم، من لقطة الدورة المجمَّدة
     Route::get('/evaluations/{id}/cv', [EvaluationController::class, 'cv']);
 
     // ═══ التحليلات ═══
@@ -318,7 +326,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/distribution/{id}', [DistributionController::class, 'destroy']);
 
     // ═══ تسليم الجدولة للجهات ═══
-    // التقسيم على فئة المرشّح (مدني/عسكري/متعاقد)، والربط بالجهة بيانٌ يُحرَّر.
+    // التقسيم على فئة المشارك (مدني/عسكري/متعاقد)، والربط بالجهة بيانٌ يُحرَّر.
     // العرض بـschedule.view، والتسليم بـschedule.dispatch لمدير المركز.
     Route::get('/dispatch/authorities', [DispatchController::class, 'authorities']);
     Route::get('/dispatch/preview', [DispatchController::class, 'preview']);

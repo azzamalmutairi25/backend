@@ -37,7 +37,7 @@ class PlatformResetTest extends TestCase
 
         // full_name/national_id مُحوِّلات تشفير خارج $fillable — تُسنَد لا تُملأ
         $c = new Candidate(['sector_id' => $sector->id, 'participant_code' => 'TS-001', 'rank_label' => 'مدير عام']);
-        $c->full_name = 'مرشّح تجريبي';
+        $c->full_name = 'مشارك تجريبي';
         $c->national_id = '1234567890';
         $c->save();
 
@@ -50,7 +50,7 @@ class PlatformResetTest extends TestCase
 
         $this->artisan('platform:reset --force --skip-backup')->assertSuccessful();
 
-        $this->assertSame(0, Candidate::count(), 'المرشحون التجريبيون نجوا من التفريغ');
+        $this->assertSame(0, Candidate::count(), 'المشاركون التجريبيون نجوا من التفريغ');
         // جداول النظام: مسحها يُعطّل المنصّة، فوجودها بعد التفريغ شرط لا خيار
         $this->assertGreaterThan(0, Role::count(), 'الأدوار مقترنة بمصفوفة الصلاحيات ولا تُمسح');
         $this->assertGreaterThan(0, Sector::count(), 'المرجعيات لا تُمسح بلا --with-reference');

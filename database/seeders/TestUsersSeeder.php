@@ -19,7 +19,7 @@ class TestUsersSeeder extends Seeder
         $map = [
             'admin'      => 'ADMIN',            // كل الصلاحيات
             'center'     => 'CENTER_MANAGER',   // إشراف عام (عرض) + تحليلات + تدقيق
-            'scheduler'  => 'SCHEDULER',        // إضافة/اعتماد مرشّح + جدولة + دعوات
+            'scheduler'  => 'SCHEDULER',        // إضافة/اعتماد مشارك + جدولة + دعوات
             'reception'  => 'RECEPTIONIST',     // استقبال الموظفين: وصول + توقيع + توزيع
             'operations' => 'OPERATIONS',       // اعتماد الاستقبال وإعادة إسناد المردود
             'assess'     => 'ASSESS_MANAGER',   // اعتماد التقييم + إنشاء/تعديل التقارير + تحليلات
@@ -28,7 +28,7 @@ class TestUsersSeeder extends Seeder
             'assistant'  => 'ASSISTANT',        // مساعدة التقييم (رصد)
             'devmanager' => 'DEV_MANAGER',      // الاعتماد النهائي للتقارير + إدارة الكفاءات + تحليلات
             'measure'    => 'MEASURE_SUPER',    // رفع أدوات القياس + تسجيل حضور
-            'external'   => 'EXTERNAL_ADD',     // إضافة مرشّح فقط (صلاحية دنيا)
+            'external'   => 'EXTERNAL_ADD',     // إضافة مشارك فقط (صلاحية دنيا)
         ];
 
         // الأدوار المحصورة بقطاع تحتاج قطاعاً وإلا لم تُقيّم أحداً — نُسندها لديوان

@@ -45,7 +45,7 @@ class GoldenScheduleTest extends TestCase
         ]);
     }
 
-    /** يُنشئ جلسةً في الموجة ويرجع [المرشّح، الدورة] */
+    /** يُنشئ جلسةً في الموجة ويرجع [المشارك، الدورة] */
     private function makeSession(SchedulingPeriod $p, string $sectorCode = 'DW', ?string $date = null): array
     {
         [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => $sectorCode]);

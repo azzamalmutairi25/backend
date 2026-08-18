@@ -17,7 +17,7 @@ class CommunicationSecurityTest extends TestCase
     {
         $s = new SmsLog();
         $s->to_mobile = '0501234567';
-        $s->message = 'عزيزي مرشح، رمزك: DW-001. للتأكيد: http://x/confirm/SECRETTOKEN12345678901234567890';
+        $s->message = 'عزيزي مشارك، رمزك: DW-001. للتأكيد: http://x/confirm/SECRETTOKEN12345678901234567890';
         $s->sms_type = 'invitation';
         $s->candidate_id = $candidateId;
         $s->status = 'sent';

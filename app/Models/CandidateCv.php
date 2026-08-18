@@ -7,9 +7,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Support\Facades\Crypt;
 
-// سيرة ذاتية واحدة لكل مرشح. الوثيقة كلها مشفّرة في cv_data_enc، وتُقرأ/تُكتب
+// سيرة ذاتية واحدة لكل مشارك. الوثيقة كلها مشفّرة في cv_data_enc، وتُقرأ/تُكتب
 // عبر السمة المنطقية data (نفس نمط Candidate::fullName). النصّ الحرّ قد يحمل
-// اسم المرشح، فيُنقّى قبل الحفظ ويُطمَس عند العرض للمقيّم (عبر CvGuard).
+// اسم المشارك، فيُنقّى قبل الحفظ ويُطمَس عند العرض للمقيّم (عبر CvGuard).
 class CandidateCv extends Model
 {
     protected $fillable = ['candidate_id', 'data', 'version', 'source', 'updated_by'];
@@ -36,11 +36,22 @@ class CandidateCv extends Model
             // فلا يقع خلط بين هجري وميلادي ولا صيغ يوم/شهر مقلوبة.
             'birthDate' => null,        // يُشتقّ منه العمر عند العرض، فلا يقادم
             'appointmentDate' => null,
-            // إقرار المرشّح برتبته وإدارته — لا يستبدل candidates.rank_label الرسمي.
+            // إقرار المشارك برتبته وإدارته — لا يستبدل candidates.rank_label الرسمي.
             // الرتبة تقود تصنيف الفئة القيادية، فتغييرها من بوّابة عامة يعبث بالتصنيف.
             'rankLabel' => null,
             'department' => null,
             'region' => null,
+
+            // ── زيادات نموذج المركز (ملفّ الاستيراد) ──
+            // لقب الرتبة يُطبع على البطاقة والتصريح، وتاريخ الترقية يُقرأ مع
+            // سنوات الخبرة. كلاهما يُعرض ولا يُفلتَر به، فمكانهما الوثيقة.
+            'rankTitle' => null,
+            'rankPromotedAt' => null,
+            'generalDepartment' => null,
+            // مدينة العمل تُذكر صراحةً في النموذج، و`region` تبقى للصفوف السابقة:
+            // إعادةُ استعمال مفتاحٍ لمعنىً آخر تجعل بياناتٍ قديمة تكذب بصمت.
+            'workCity' => null,
+            'currentPositionYears' => null,
 
             'currentPosition' => null,
             'totalYearsExperience' => 0,
@@ -49,6 +60,64 @@ class CandidateCv extends Model
             'experiences' => [],
             'certifications' => [],
         ];
+    }
+
+    /**
+     * الدرجة العلمية من نصّها العربي — «بكالوريوس» ← `bachelor`.
+     *
+     * نموذج المركز يكتب المؤهل نصّاً حرّاً، والوثيقة تخزّنه قيمةً من قائمة
+     * مغلقة (تُبنى عليها الفلترة والعرض). فلا بدّ من جسر بينهما.
+     *
+     * **لا يُخمَّن ولا يُقاس بالتشابه.** مطابقةٌ صريحة على صيغٍ معروفة، وما
+     * لا يُعرف يُرجِع null فيُردّ الصفّ برسالة تقول القيم المقبولة. تخمينُ
+     * درجةٍ علمية يكتب في سجلٍّ رسمي ما لم يقله صاحبه.
+     */
+    public const DEGREE_ALIASES = [
+        'highschool' => ['ثانوية عامة', 'الثانوية العامة', 'ثانوية', 'الثانوية', 'ثانوي', 'شهادة الثانوية'],
+        'diploma' => ['دبلوم', 'دبلوما', 'دبلوم عالي', 'الدبلوم'],
+        'bachelor' => ['بكالوريوس', 'بكالريوس', 'بكالوريس', 'ليسانس', 'الليسانس', 'البكالوريوس'],
+        'master' => ['ماجستير', 'ماجيستير', 'الماجستير'],
+        'doctorate' => ['دكتوراه', 'دكتوراة', 'الدكتوراه', 'دكتورا'],
+        'fellowship' => ['زمالة', 'الزمالة', 'زماله'],
+    ];
+
+    public static function degreeFromArabic(?string $raw): ?string
+    {
+        $raw = trim((string) $raw);
+        if ($raw === '') {
+            return null;
+        }
+        // القيمة قد تصل مُحوَّلةً سلفاً من الواجهة — تُقبل كما هي
+        if (isset(self::DEGREE_ALIASES[$raw])) {
+            return $raw;
+        }
+
+        $norm = self::normalizeAr($raw);
+        foreach (self::DEGREE_ALIASES as $key => $forms) {
+            foreach ($forms as $form) {
+                if (self::normalizeAr($form) === $norm) {
+                    return $key;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /** الدرجات المقبولة بنصّها العربي — تُعرض في رسالة الرفض */
+    public static function degreeChoices(): string
+    {
+        return implode(' · ', array_map(fn ($f) => $f[0], self::DEGREE_ALIASES));
+    }
+
+    // تطبيع عربي: الهمزات والتاء المربوطة والتشكيل والمسافات — كي لا يسقط
+    // صفٌّ صحيح لأنّ كاتبه كتب «بكالوريوس ‏» بمسافةٍ زائدة أو «بكالوريوس» بألفٍ ممدودة
+    private static function normalizeAr(string $s): string
+    {
+        $s = preg_replace('/[\x{0640}\x{064B}-\x{0652}]/u', '', $s) ?? $s;
+        $s = strtr($s, ['أ' => 'ا', 'إ' => 'ا', 'آ' => 'ا', 'ة' => 'ه', 'ى' => 'ي']);
+
+        return trim(preg_replace('/\s+/u', ' ', $s) ?? $s);
     }
 
     // العمر من تاريخ الميلاد — يُحسب عند العرض ولا يُخزَّن

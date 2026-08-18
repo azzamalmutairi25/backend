@@ -28,7 +28,7 @@ class ExecutiveAnalyticsTest extends TestCase
         ]);
     }
 
-    // مرشّح كامل: تقييم معتمد + درجة كفاءة + تقرير (بحالة معطاة)
+    // مشارك كامل: تقييم معتمد + درجة كفاءة + تقرير (بحالة معطاة)
     private function scored(string $sectorCode, string $classification, int $score, int $evaluatorId, Competency $comp, string $reportStatus = 'approved'): void
     {
         [$c, $a] = $this->makeCandidate([

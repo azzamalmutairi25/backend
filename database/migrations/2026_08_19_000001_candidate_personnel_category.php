@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 // ════════════════════════════════════════════════════════════
-//  الفئة (مدني/عسكري/متعاقد) تنتقل من القطاع إلى المرشّح.
+//  الفئة (مدني/عسكري/متعاقد) تنتقل من القطاع إلى المشارك.
 //
 //  كانت مُعلَّقة على القطاع: `sectors.is_military` تحكم أن يُطلب «الرتبة» أم
 //  «المرتبة» وتُحسب عليها الطبقة. وهو خطأ في محلّه لا في منطقه — القطاع جهةٌ
@@ -24,7 +24,7 @@ use Illuminate\Support\Facades\Schema;
 //  ⚠ التعبئة الرجعية بمطابقة الرتبة المحفوظة على قائمة الرتب العسكرية:
 //    من رتبتُه «عقيد» عسكريٌّ، ومن سواها مدنيّ. لا مصدر أدقّ — الفئة لم تكن
 //    تُخزَّن أصلاً، وقطاعُ الحامل لا يدلّ عليها (كلّها مدنية اليوم). ومن أخطأت
-//    فيه المطابقة يُصحَّح من شاشة المرشحين بلا أثر جانبي.
+//    فيه المطابقة يُصحَّح من شاشة المشاركين بلا أثر جانبي.
 // ════════════════════════════════════════════════════════════
 return new class extends Migration
 {
@@ -52,7 +52,7 @@ return new class extends Migration
                 }
             });
 
-        // بعد التعبئة: العمود إلزاميّ — مرشّحٌ بلا فئة لا تُعرف قائمةُ رتبه
+        // بعد التعبئة: العمود إلزاميّ — مشاركٌ بلا فئة لا تُعرف قائمةُ رتبه
         DB::table('candidates')->whereNull('personnel_category')->update(['personnel_category' => 'civilian']);
         DB::statement("ALTER TABLE candidates ALTER COLUMN personnel_category SET DEFAULT 'civilian'");
         DB::statement('ALTER TABLE candidates ALTER COLUMN personnel_category SET NOT NULL');

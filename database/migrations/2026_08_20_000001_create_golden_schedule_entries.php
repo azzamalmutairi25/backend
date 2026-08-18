@@ -45,7 +45,7 @@ return new class extends Migration
         // ── تاريخ التقييم حقلاً لا انضماماً ──
         // «إضافة رموز المشاركين والتاريخ بقاعدة البيانات الأساسية» (الخطوة ١٠):
         // التاريخ كان علاقةً تُجلب بانضمام، فلا يُفلتَر ولا يُصدَّر ولا يُقرأ في
-        // بطاقة المرشّح. عمودان محسوبان من جلسات الدورة يجعلانه حقلاً أوّل درجة.
+        // بطاقة المشارك. عمودان محسوبان من جلسات الدورة يجعلانه حقلاً أوّل درجة.
         Schema::table('assessments', function (Blueprint $table) {
             $table->date('first_session_date')->nullable()->after('status');
             $table->date('last_session_date')->nullable()->after('first_session_date');

@@ -34,7 +34,7 @@ class CorrectnessRegressionTest extends TestCase
         return $ids;
     }
 
-    // ── #1: حذف مرشح له سجل رسالة نصية ينجح ويُوثَّق مرّة (لا 500 من قيد FK، لا تنافر تدقيقي) ──
+    // ── #1: حذف مشارك له سجل رسالة نصية ينجح ويُوثَّق مرّة (لا 500 من قيد FK، لا تنافر تدقيقي) ──
     public function test_destroy_candidate_with_sms_log_succeeds_and_audits_once(): void
     {
         [$c] = $this->makeCandidate(['status' => 'draft']);
@@ -52,7 +52,7 @@ class CorrectnessRegressionTest extends TestCase
             ->where('entity_id', (string) $c->id)->count());
     }
 
-    // ── #6: اعتماد مرشح غادر المسودة مرفوض ولا يُرجِع دورة مكتملة ──
+    // ── #6: اعتماد مشارك غادر المسودة مرفوض ولا يُرجِع دورة مكتملة ──
     public function test_approve_rejects_non_draft_and_preserves_completed_assessment(): void
     {
         [$c, $a] = $this->makeCandidate(['status' => 'completed', 'assessmentStatus' => 'completed']);
@@ -63,7 +63,7 @@ class CorrectnessRegressionTest extends TestCase
         $this->assertSame('completed', $c->fresh()->status);
     }
 
-    // ── #2: إرجاع التقييم يُعيد المرشح ودورته من assessed إلى scheduled ──
+    // ── #2: إرجاع التقييم يُعيد المشارك ودورته من assessed إلى scheduled ──
     public function test_return_evaluation_reverts_candidate_and_assessment(): void
     {
         [$c, $a] = $this->makeCandidate(['status' => 'scheduled']);
@@ -93,10 +93,10 @@ class CorrectnessRegressionTest extends TestCase
         $this->actingAsRole('SCHEDULER'); // CANDIDATE_CREATE
 
         $importedNid = $this->validNationalId();
-        $res = $this->postJson('/api/candidates/import', ['rows' => [[
+        $res = $this->postJson('/api/candidates/import', ['rows' => [$this->importRow([
             'nationalId' => $importedNid, 'fullName' => 'مستورد', 'mobile' => '0505550000',
             'email' => '', 'sectorCode' => 'DW', 'personnelCategory' => 'civilian', 'rankLabel' => 'الرابعة عشرة',
-        ]]])->assertOk();
+        ])]])->assertOk();
         $this->assertSame(1, $res->json('imported'));
 
         $imported = \App\Models\Candidate::where('national_id_hash', hash('sha256', $importedNid))->first();
@@ -104,10 +104,11 @@ class CorrectnessRegressionTest extends TestCase
         $this->assertSame(1, Assessment::where('candidate_id', $imported->id)->count()); // دورة أُنشئت
 
         // إضافة يدوية تالية لنفس القطاع يجب ألا تُصادم على participant_code
-        $this->postJson('/api/candidates', [
+        // (الجنس والمجالات الفنية والسيرة إلزامية على الإضافة اليدوية دون الاستيراد)
+        $this->postJson('/api/candidates', array_replace($this->candidateRequired(), [
             'nationalId' => $this->validNationalId(), 'fullName' => 'تالٍ', 'mobile' => '0505550001',
             'sectorId' => $ed->id, 'personnelCategory' => 'civilian', 'rankLabel' => 'الرابعة عشرة',
-        ])->assertCreated();
+        ]))->assertCreated();
     }
 
     // ── #17: resubmit يُرجِع 422 (كبقية حرّاس الحالة) لا 400 عند حالة خاطئة ──
@@ -115,7 +116,7 @@ class CorrectnessRegressionTest extends TestCase
     {
         [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed']);
         $report = FinalReport::create([
-            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'مرشّح',
+            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'مشارك',
             'status' => 'draft', 'created_by' => null,
         ]);
         $this->actingAsRole('ASSESS_MANAGER'); // REPORT_CREATE + REPORT_EDIT_ANY
@@ -127,7 +128,7 @@ class CorrectnessRegressionTest extends TestCase
     {
         [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed']);
         FinalReport::create([
-            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'مرشّح',
+            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'مشارك',
             'behavioral_fit' => 85.5, 'technical_fit' => 70.25, 'status' => 'draft', 'created_by' => null,
         ]);
         $this->actingAsRole('ASSESS_MANAGER');
@@ -201,7 +202,7 @@ class CorrectnessRegressionTest extends TestCase
     {
         [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed']);
         $report = FinalReport::create([
-            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'مرشّح',
+            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'مشارك',
             'status' => 'draft', 'created_by' => null,
         ]);
         $this->actingAsRole('ASSESS_MANAGER'); // REPORT_VIEW

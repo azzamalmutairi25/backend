@@ -41,7 +41,7 @@ class DistributionTest extends TestCase
         ]);
     }
 
-    // ينشئ n مرشحين جاهزين للتوزيع في قطاع
+    // ينشئ n مشاركين جاهزين للتوزيع في قطاع
     private function readyCandidates(int $n, string $sectorCode = 'DW'): array
     {
         $out = [];
@@ -103,7 +103,7 @@ class DistributionTest extends TestCase
 
         foreach ($proposal->items as $item) {
             $ev = User::find($item->evaluator_id);
-            $this->assertSame($item->sector_id, $ev->sector_id, 'المقيّم من قطاع المرشّح نفسه');
+            $this->assertSame($item->sector_id, $ev->sector_id, 'المقيّم من قطاع المشارك نفسه');
         }
         $this->assertSame(6, $proposal->items->count());
     }
@@ -180,7 +180,7 @@ class DistributionTest extends TestCase
         $actor = $this->actingAsRole('SCHEDULER');
         $proposal = $svc->propose($actor);
 
-        // مرشّح تقدّم لمرحلة أخرى بين الاقتراح والاعتماد
+        // مشارك تقدّم لمرحلة أخرى بين الاقتراح والاعتماد
         $cands[0]->update(['status' => 'assessed']);
 
         $result = $svc->approve($proposal, $actor);
@@ -354,7 +354,7 @@ class DistributionTest extends TestCase
         $this->readyCandidates(3, 'DW');
         $proposal = app(DistributionService::class)->propose($this->makeEvaluator('MS'));
 
-        // مقيّم واحد × 5 أيام × حدّ 1 → 3 مرشحين على 3 أيام، واحد لكل يوم
+        // مقيّم واحد × 5 أيام × حدّ 1 → 3 مشاركين على 3 أيام، واحد لكل يوم
         $byDay = $proposal->items->groupBy('scheduled_date');
         foreach ($byDay as $items) {
             $this->assertLessThanOrEqual(1, $items->count(), 'الحدّ المحفوظ 1 يُحترَم');

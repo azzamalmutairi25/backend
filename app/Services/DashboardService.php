@@ -81,9 +81,9 @@ class DashboardService
         ];
     }
 
-    // ═══════════════ مسار المرشّح ═══════════════
-    // ست مراحل يمرّ بها كلّ مرشّح من ترشيحه إلى اعتماد تقريره. اللوحة كانت
-    // تعرض المجاميع منفصلةً — كم مرشّحاً، كم تقييماً، كم اعتماداً — ولا تُظهر
+    // ═══════════════ مسار المشارك ═══════════════
+    // ست مراحل يمرّ بها كلّ مشارك من ترشيحه إلى اعتماد تقريره. اللوحة كانت
+    // تعرض المجاميع منفصلةً — كم مشاركاً، كم تقييماً، كم اعتماداً — ولا تُظهر
     // أين يتوقّف الناس. المسار يُظهر الفاقد بين كلّ مرحلتين، وهو السؤال
     // التشغيلي الوحيد الذي تُسأله الإدارة كلّ أسبوع.
     //
@@ -146,7 +146,7 @@ class DashboardService
         $p1 = $now->copy()->subDays(30);   // الفترة الحالية: آخر ٣٠ يوماً
         $p2 = $now->copy()->subDays(60);   // الفترة السابقة: ٣٠ يوماً قبلها
 
-        // ── المرشحون + نسبة الإتمام (candidate.view) ──
+        // ── المشاركون + نسبة الإتمام (candidate.view) ──
         if ($can['candidate']) {
             $cand = $scope['candidates'];
 
@@ -162,7 +162,7 @@ class DashboardService
             ];
 
             $completed = $cand()->where('status', 'completed')->count();
-            // بلا مرشحين أصلاً النسبة مجهولة لا صفر
+            // بلا مشاركين أصلاً النسبة مجهولة لا صفر
             $rate = $total > 0 ? (int) round($completed / $total * 100) : null;
 
             $currTotal = $cand()->where('created_at', '>=', $p1)->count();
@@ -186,7 +186,7 @@ class DashboardService
             $todayAgg = $this->attendanceAgg(
                 $scope['schedules']()->whereDate('schedule_date', $today)
             );
-            // يومٌ بلا جلسات نسبتُه مجهولة لا صفر — كالإكمال بلا مرشحين أعلاه.
+            // يومٌ بلا جلسات نسبتُه مجهولة لا صفر — كالإكمال بلا مشاركين أعلاه.
             // الصفر هنا كان يُقرأ «لم يحضر أحد»، فيصير كلُّ يوم عطلة إنذارَ
             // انهيارِ حضورٍ أحمر (٠٪ مقابل ٩٢٪ للأسبوع = ▼١٠٠٪) بلا واقعة.
             $todayRate = $todayAgg['total'] > 0
@@ -369,7 +369,7 @@ class DashboardService
             ->join('evaluations as e', 'es.evaluation_id', '=', 'e.id')
             ->join('candidates as c', 'e.candidate_id', '=', 'c.id')
             // حصرٌ مزدوج مقصود: النطاق الجاهز من المتحكّم، وفوقه التصنيف/القطاع صراحةً
-            // على جدول المرشحين — فلا يتسرّب صفٌّ لو تغيّرت دلالة المغلّف يوماً.
+            // على جدول المشاركين — فلا يتسرّب صفٌّ لو تغيّرت دلالة المغلّف يوماً.
             ->whereIn('e.id', $scope['evaluations']()->select('id'))
             ->whereIn('c.classification', $scope['classifications'])
             ->when($scope['sectorId'] !== null, fn ($q) => $q->where('c.sector_id', $scope['sectorId']))

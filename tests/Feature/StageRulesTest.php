@@ -173,13 +173,13 @@ class StageRulesTest extends TestCase
         $r = $this->reportBy(null, 'pending_manager');
         $this->actingAsRole('CENTER_MANAGER');
 
-        $this->postJson("/api/reports/{$r->id}/cancel", ['reason' => 'تغيّرت ظروف المرشّح'])
+        $this->postJson("/api/reports/{$r->id}/cancel", ['reason' => 'تغيّرت ظروف المشارك'])
             ->assertOk()->assertJsonPath('status', 'cancelled');
 
         // لا يُمحى — يبقى للتدقيق
         $this->assertSame('cancelled', $r->fresh()->status);
         $this->assertStringContainsString('تغيّرت ظروف', $r->fresh()->return_reason);
-        // والمرشّح يعود «مُقيَّم» فيُكتب له تقرير جديد
+        // والمشارك يعود «مُقيَّم» فيُكتب له تقرير جديد
         $this->assertSame('assessed', $r->candidate->fresh()->status);
         $this->assertDatabaseHas('audit_logs', ['action' => 'CANCEL_REPORT']);
     }

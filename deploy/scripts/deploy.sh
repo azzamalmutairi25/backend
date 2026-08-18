@@ -90,7 +90,7 @@ run "cd '$NEW' && composer install --no-dev --prefer-dist --no-interaction \
       --optimize-autoloader --classmap-authoritative --no-progress"
 
 # ── ٣) بناء الواجهتين ──
-# حزمتان: المنصّة الداخلية (index.html) وبوّابة المرشح (public.html).
+# حزمتان: المنصّة الداخلية (index.html) وبوّابة المشارك (public.html).
 # تُبنيان هنا لا على الخادم المُقدِّم: أدوات البناء لا تُنصَّب في الإنتاج.
 FE="$NEW/.frontend"
 run "git clone --depth 1 --branch '${KAFAAT_FRONTEND_BRANCH:-$BRANCH}' '$FRONTEND_REPO' '$FE'"
@@ -98,7 +98,7 @@ run "cd '$FE' && npm ci --no-audit --no-fund"
 # VITE_API_URL فارغ ⇒ المسار النسبي /api ⇒ نفس الأصل ⇒ لا CORS
 run "cd '$FE' && VITE_API_URL= npm run build"
 run "cp -r '$FE/dist/.' '$NEW/public/'"
-# بوّابة المرشح مُعطَّلة حتى إشعار آخر — لا تُبنى ولا تُنسَخ إلى portal-dist.
+# بوّابة المشارك مُعطَّلة حتى إشعار آخر — لا تُبنى ولا تُنسَخ إلى portal-dist.
 # KAFAAT_PORTAL=1 يعيدها، ولا بدّ معها من CANDIDATE_PORTAL_ENABLED=true في .env
 # وcandidatePortal:true في features.js — وإلا نُشرت حزمةٌ تصطدم بمساراتٍ مغلقة.
 if [[ ${KAFAAT_PORTAL:-0} == 1 ]]; then

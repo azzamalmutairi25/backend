@@ -9,8 +9,8 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// قاعدة ثابتة: كل مقيّم ومساعد مخصَّص لقطاع ولا يُقيّم إلا مرشحيه.
-// عبر القطاعات يُمنع إلا لحامل إدارة المرشحين، وبتأكيد صريح ومُدقَّق.
+// قاعدة ثابتة: كل مقيّم ومساعد مخصَّص لقطاع ولا يُقيّم إلا مشاركيه.
+// عبر القطاعات يُمنع إلا لحامل إدارة المشاركين، وبتأكيد صريح ومُدقَّق.
 class SectorBindingTest extends TestCase
 {
     use RefreshDatabase;

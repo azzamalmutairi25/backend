@@ -331,7 +331,7 @@ class ExecutiveAnalyticsService
         ];
     }
 
-    // ── المرشحون ──
+    // ── المشاركون ──
     private function ovCandidates(array $allowed): array
     {
         $cand = fn () => Candidate::whereIn('classification', $allowed);
@@ -343,7 +343,7 @@ class ExecutiveAnalyticsService
 
         return [
             'key' => 'candidates',
-            'label' => 'المرشحون',
+            'label' => 'المشاركون',
             'icon' => 'candidates',
             'route' => '/candidates',
             'metrics' => [
@@ -408,7 +408,7 @@ class ExecutiveAnalyticsService
             ->whereHas('candidate', fn ($q) => $q->whereIn('classification', $allowed));
         $byStatus = (clone $visits())->selectRaw('status, count(*) c')->groupBy('status')->pluck('c', 'status');
 
-        // إسنادٌ لم يبتّ فيه المقيّم بعد — المرشّح واقفٌ في البهو حتى يُقبل أو يُردّ
+        // إسنادٌ لم يبتّ فيه المقيّم بعد — المشارك واقفٌ في البهو حتى يُقبل أو يُردّ
         $pending = ReceptionAssignment::where('status', ReceptionAssignment::PENDING)
             ->whereHas('visit', fn ($q) => $q->whereDate('visit_date', $today))
             ->count();

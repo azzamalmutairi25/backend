@@ -7,7 +7,7 @@ use App\Models\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// الغياب ← إعادة الجدولة بتاريخ جديد + علم الغياب في قائمة المرشحين.
+// الغياب ← إعادة الجدولة بتاريخ جديد + علم الغياب في قائمة المشاركين.
 class RescheduleTest extends TestCase
 {
     use RefreshDatabase;
@@ -78,7 +78,7 @@ class RescheduleTest extends TestCase
     public function test_reschedule_requires_candidate_edit(): void
     {
         $s = $this->sessionWith('absent_unexcused');
-        // مشرف القياس يجدول لكن لا يدير المرشحين
+        // مشرف القياس يجدول لكن لا يدير المشاركين
         $this->actingAsRole('MEASURE_SUPER');
         $this->postJson("/api/schedules/{$s->id}/reschedule", ['date' => now()->addDay()->toDateString()])
             ->assertStatus(403);
@@ -107,7 +107,7 @@ class RescheduleTest extends TestCase
     {
         $s = $this->sessionWith('absent_unexcused'); // قطاع ED
         $this->actingAsRole('SCHEDULER');
-        // بمرشّح مصنّف خارج الصلاحية
+        // بمشارك مصنّف خارج الصلاحية
         [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'classification' => 'secret']);
         $classified = Schedule::create([
             'candidate_id' => $c->id, 'assessment_id' => $a->id,

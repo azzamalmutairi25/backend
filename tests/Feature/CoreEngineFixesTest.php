@@ -44,11 +44,11 @@ class CoreEngineFixesTest extends TestCase
         $this->assertLessThanOrEqual(100, $fit['behavioralFit']);
     }
 
-    // ── #7: المقيّم المحصور لا يرى فجوة مرشّح لم يقيّمه ──
+    // ── #7: المقيّم المحصور لا يرى فجوة مشارك لم يقيّمه ──
     public function test_evaluator_cannot_get_gap_for_uncevaluated_sector_mate(): void
     {
         [$c] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed', 'sectorCode' => 'DW']);
-        // مقيّم قطاع ED لم يقيّم هذا المرشّح
+        // مقيّم قطاع ED لم يقيّم هذا المشارك
         $this->actingAsRole('EVALUATOR', 'DW');
         $this->getJson("/api/reports/competency-gap?candidateId={$c->id}")->assertStatus(404);
     }
@@ -61,7 +61,7 @@ class CoreEngineFixesTest extends TestCase
         $this->getJson("/api/reports/competency-gap?candidateId={$c->id}")->assertOk();
     }
 
-    // ── #8: بدء تقييم لمرشّح خارج القطاع = 404 لا 403 ──
+    // ── #8: بدء تقييم لمشارك خارج القطاع = 404 لا 403 ──
     public function test_start_cross_sector_is_404_not_403(): void
     {
         [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'MS']);
@@ -103,7 +103,7 @@ class CoreEngineFixesTest extends TestCase
         Schedule::create(['candidate_id' => $existingCand->id, 'assessment_id' => $ea->id, 'schedule_date' => $day->toDateString(), 'activity' => 'interview', 'evaluator_id' => $ev->id]);
 
         \App\Models\Setting::updateOrCreate(['key' => 'distribution.daily_cap_per_evaluator'], ['value' => '2']);
-        // مرشّحان جاهزان في ED
+        // مشاركان جاهزان في ED
         for ($i = 0; $i < 2; $i++) $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW', 'code' => 'DC' . $i . random_int(100, 999)]);
 
         $proposal = $svc->propose($this->evaluator('MS'));

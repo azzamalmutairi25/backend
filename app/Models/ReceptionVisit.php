@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Support\Facades\Crypt;
 
-// وصول مرشّح إلى المركز في يومٍ بعينه — نقطة بداية مسار «استقبال الموظفين»
+// وصول مشارك إلى المركز في يومٍ بعينه — نقطة بداية مسار «استقبال الموظفين»
 class ReceptionVisit extends Model
 {
     protected $fillable = [
@@ -57,7 +57,7 @@ class ReceptionVisit extends Model
     public function approvedBy(): BelongsTo { return $this->belongsTo(User::class, 'approved_by'); }
     public function assignments(): HasMany { return $this->hasMany(ReceptionAssignment::class, 'visit_id'); }
 
-    // هل وقّع المرشّح وأقرّ بصحّة بياناته؟ الشرطان معاً — توقيعٌ بلا إقرار
+    // هل وقّع المشارك وأقرّ بصحّة بياناته؟ الشرطان معاً — توقيعٌ بلا إقرار
     // ليس إقراراً، وإقرارٌ بلا توقيع لا يُلزِم أحداً.
     public function isSigned(): bool
     {

@@ -65,7 +65,7 @@ class DevelopmentPlanTest extends TestCase
     {
         [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed']);
         FinalReport::create([
-            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'مرشّح',
+            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'مشارك',
             'development_areas' => ['التفويض', 'إدارة الوقت'], 'status' => 'approved', 'created_by' => null,
         ]);
         $this->actingAsRole('ASSESS_MANAGER');
@@ -113,7 +113,7 @@ class DevelopmentPlanTest extends TestCase
     {
         [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed']);
         FinalReport::create([
-            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'مرشّح',
+            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'مشارك',
             'development_areas' => ['القيادة', 'القيادة'], 'status' => 'approved', 'created_by' => null,
         ]);
         $this->actingAsRole('ASSESS_MANAGER');

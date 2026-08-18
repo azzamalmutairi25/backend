@@ -35,7 +35,7 @@ class DashboardOverviewTest extends TestCase
         ]);
     }
 
-    // مرشّح كامل الأثر: تقييم مُسلَّم بدرجة كفاءة + تقرير + جلسة اليوم مع حضور
+    // مشارك كامل الأثر: تقييم مُسلَّم بدرجة كفاءة + تقرير + جلسة اليوم مع حضور
     private function fullCandidate(
         string $sectorCode,
         int $evaluatorId,
@@ -170,7 +170,7 @@ class DashboardOverviewTest extends TestCase
         $this->assertSame('مقابلة شخصية — القيادة العليا', $schedule[0]['title']);
         $this->assertContains($schedule[0]['tone'], ['accent', 'info', 'purple', 'warn']);
         foreach ($schedule as $row) {
-            $this->assertStringNotContainsString('مرشح اختبار', $row['title']);
+            $this->assertStringNotContainsString('مشارك اختبار', $row['title']);
         }
 
         // العدّ الكلّي مستقلٌّ عن القصّ — وإلا ثبت الرقم المعروض على ٦
@@ -228,7 +228,7 @@ class DashboardOverviewTest extends TestCase
 
     public function test_user_without_analytics_permission_still_gets_200_and_permitted_kpis(): void
     {
-        // مسؤول الجدولة: مرشحون + جدولة + حضور، بلا تحليلات ولا تقييمات ولا تقارير
+        // مسؤول الجدولة: مشاركون + جدولة + حضور، بلا تحليلات ولا تقييمات ولا تقارير
         $this->actingAsRole('SCHEDULER');
         $ev = $this->evaluatorUser();
         $comp = Competency::orderBy('sort_order')->first();
@@ -283,7 +283,7 @@ class DashboardOverviewTest extends TestCase
         $comp = Competency::orderBy('sort_order')->first();
         $other = $this->evaluatorUser('MS');
 
-        // قطاعه: مرشّحان
+        // قطاعه: مشاركان
         $this->fullCandidate('DW', $mine->id, $comp, 4);
         $this->fullCandidate('DW', $mine->id, $comp, 5);
         // قطاع آخر: ثلاثة — يجب ألا تُعدّ

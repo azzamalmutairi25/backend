@@ -212,7 +212,7 @@ class RosterController extends Controller
 
         // ── إظهار الهوية الوطنية ──
         // يطلبه الطابع، ولا يُمنح إلا لحامل CANDIDATE_VIEW_NAMES. النظام كله
-        // مبني على حجب هوية المرشّح خلف رمزه، ووثيقة تخرج من المركز أولى
+        // مبني على حجب هوية المشارك خلف رمزه، ووثيقة تخرج من المركز أولى
         // بالحصر لا أدنى منه. من لا يملكها يُطبع له الكشف بالرموز.
         $wants = $request->boolean('showNationalId');
         $mayShow = $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_NAMES);

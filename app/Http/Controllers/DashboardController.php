@@ -62,7 +62,7 @@ class DashboardController extends Controller
                 $this->scopeViaCandidate($request, $q);
                 return $q;
             },
-            // مسار المرشّح: نفس حصر الجداول — التقييم يحمل candidate_id أيضاً
+            // مسار المشارك: نفس حصر الجداول — التقييم يحمل candidate_id أيضاً
             'assessments' => function () use ($request) {
                 $q = Assessment::query();
                 $this->scopeViaCandidate($request, $q);

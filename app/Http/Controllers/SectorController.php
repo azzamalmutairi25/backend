@@ -159,7 +159,7 @@ class SectorController extends Controller
         return response()->json(['message' => 'تم تحديث القطاع']);
     }
 
-    // DELETE /sectors/{id} — حذف قطاع (يُمنع إن ارتبط بمرشحين أو مستخدمين)
+    // DELETE /sectors/{id} — حذف قطاع (يُمنع إن ارتبط بمشاركين أو مستخدمين)
     public function destroy(Request $request, int $id)
     {
         if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
@@ -171,9 +171,9 @@ class SectorController extends Controller
             return response()->json(['error' => 'القطاع غير موجود'], 404);
         }
 
-        // حذف قطاع مرتبط يُيتّم مرشحيه/مستخدميه — يُمنع بدل كسر المرجعية
+        // حذف قطاع مرتبط يُيتّم مشاركيه/مستخدميه — يُمنع بدل كسر المرجعية
         if (Candidate::where('sector_id', $id)->exists() || User::where('sector_id', $id)->exists()) {
-            return response()->json(['error' => 'لا يمكن حذف قطاع مرتبط بمرشحين أو مستخدمين'], 422);
+            return response()->json(['error' => 'لا يمكن حذف قطاع مرتبط بمشاركين أو مستخدمين'], 422);
         }
 
         $code = $sector->code;

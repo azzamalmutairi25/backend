@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 
 // ════════════════════════════════════════════════════════════
-//  بوابة المرشح العامة (بدون مصادقة نظام) — عبر رمز فريد في الرسالة
+//  بوابة المشارك العامة (بدون مصادقة نظام) — عبر رمز فريد في الرسالة
 //  أمان: لا تُكشف أي بيانات قبل إثبات معرفة رقم الهوية.
 //  عاملان: رابط تملكه (something you have) + هوية تعرفها (something you know)
 // ════════════════════════════════════════════════════════════
@@ -61,14 +61,14 @@ class PublicAssessmentController extends Controller
             'participantCode' => $a->participant_code,
             'sectorName' => optional($a->candidate->sector)->name_ar,
             // الرتبة المسجّلة في ملفّه — قيمة ابتدائية لحقل الرتبة في السيرة.
-            // المرشّح يراها ويصحّحها، وإقراره يُخزَّن في السيرة ولا يستبدل ملفّه.
+            // المشارك يراها ويصحّحها، وإقراره يُخزَّن في السيرة ولا يستبدل ملفّه.
             'rankLabel' => $a->candidate->rank_label,
             'assessmentType' => $a->assessment_type === 'executive' ? 'تنفيذي' : 'شامل',
             'confirmed' => (bool) $a->confirmed_at,
             'arrived' => (bool) $a->arrived_at,
             'confirmedAt' => optional($a->confirmed_at)->toIso8601String(),
             'arrivedAt' => optional($a->arrived_at)->toIso8601String(),
-            // السيرة الذاتية (يملؤها المرشح عبر البوّابة) — تُقفَل بعد بدء التقييم لا الوصول
+            // السيرة الذاتية (يملؤها المشارك عبر البوّابة) — تُقفَل بعد بدء التقييم لا الوصول
             'cv' => $cv?->data ?? CandidateCv::emptyDoc(),
             'hasCv' => $cv ? !CandidateCv::isEmptyDoc($cv->data) : false,
             'cvLocked' => $a->cvFrozen(),
@@ -159,7 +159,7 @@ class PublicAssessmentController extends Controller
             ], 403);
         }
 
-        RateLimiter::clear($rlKey); // نجاح ← لا نعاقب المرشح الشرعي
+        RateLimiter::clear($rlKey); // نجاح ← لا نعاقب المشارك الشرعي
         $this->audit($request, $a, 'PUBLIC_VERIFY_OK');
 
         return response()->json([
@@ -230,7 +230,7 @@ class PublicAssessmentController extends Controller
     }
 
     // POST /public/assessment/{token}/cv  { accessToken, cv, expectedVersion }
-    // كتابة السيرة الذاتية من المرشح — كامل حزمة الأمان (حجم، عدد، تحقّق، تسرّب،
+    // كتابة السيرة الذاتية من المشارك — كامل حزمة الأمان (حجم، عدد، تحقّق، تسرّب،
     // تزامن، قفل بعد بدء التقييم). القراءة تركب مع present() المحمي، فلا مسار قراءة.
     public function saveCv(Request $request, string $token)
     {
@@ -248,7 +248,7 @@ class PublicAssessmentController extends Controller
             return response()->json(['error' => 'بيانات غير صحيحة'], 422);
         }
 
-        // تقييد بالمعدّل على المرشح (لا الدورة) — زيادة أولاً ثم مقارنة
+        // تقييد بالمعدّل على المشارك (لا الدورة) — زيادة أولاً ثم مقارنة
         $rl = 'pubcv:candidate:' . $a->candidate_id;
         if (RateLimiter::hit($rl, 600) > 10) {
             return response()->json(['error' => 'محاولات حفظ كثيرة، حاول لاحقاً'], 429);

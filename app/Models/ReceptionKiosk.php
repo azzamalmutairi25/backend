@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
-// رمز كشك الاستقبال — رابط يومٍ واحد يفتحه مسؤول المرشحين على الجهاز اللوحي
+// رمز كشك الاستقبال — رابط يومٍ واحد يفتحه مسؤول المشاركين على الجهاز اللوحي
 class ReceptionKiosk extends Model
 {
     protected $fillable = ['token', 'kiosk_date', 'label', 'created_by', 'revoked_at', 'last_used_at'];

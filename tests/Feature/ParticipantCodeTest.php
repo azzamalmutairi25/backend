@@ -130,15 +130,19 @@ class ParticipantCodeTest extends TestCase
         $this->actingAsRole('EXTERNAL_ADD');
         $sectorId = $this->sector()->id;
 
+        // الجنس والمجالات الفنية والسيرة صارت إلزامية عند الإضافة، وهي ثابتة
+        // عبر الدورة — الهوية وحدها تتغيّر، فالمقصود هنا تلاحق الترشيحات لا تنوّعها
+        $required = $this->candidateRequired();
+
         $codes = [];
         for ($i = 0; $i < 12; $i++) {
-            $res = $this->postJson('/api/candidates', [
+            $res = $this->postJson('/api/candidates', array_replace($required, [
                 'nationalId' => $this->validNationalId(),
-                'fullName' => "مرشح {$i}",
+                'fullName' => "مشارك {$i}",
                 'sectorId' => $sectorId,
                 'personnelCategory' => 'military',
-                'personnelCategory' => 'military', 'rankLabel' => 'عميد',
-            ])->assertStatus(201);
+                'rankLabel' => 'عميد',
+            ]))->assertStatus(201);
             $codes[] = $res->json('participantCode');
         }
 
@@ -152,10 +156,10 @@ class ParticipantCodeTest extends TestCase
 
         $rows = [];
         for ($i = 0; $i < 5; $i++) {
-            $rows[] = [
+            $rows[] = $this->importRow([
                 'nationalId' => $this->validNationalId(), 'fullName' => "مستورد {$i}",
                 'mobile' => '', 'email' => '', 'sectorCode' => 'DW', 'personnelCategory' => 'civilian', 'rankLabel' => 'الرابعة عشرة',
-            ];
+            ]);
         }
 
         $this->postJson('/api/candidates/import', ['rows' => $rows])->assertOk()
@@ -169,7 +173,7 @@ class ParticipantCodeTest extends TestCase
     // ═══ التكلفة ═══
 
     // العيب الثاني في الشيفرة القديمة: جلب كل رموز القطاع في كل إدراج،
-    // فالكلفة تنمو مع عدد المرشحين حتى تصير كل إضافةٍ مسحاً للجدول.
+    // فالكلفة تنمو مع عدد المشاركين حتى تصير كل إضافةٍ مسحاً للجدول.
     //
     // عدّ الاستعلامات لا يكشف هذا: الشيفرة القديمة تُصدر استعلاماً واحداً
     // أيضاً — لكنه يقرأ كل الصفوف. فنفحص شكل الاستعلام لا عدده: لا يجوز

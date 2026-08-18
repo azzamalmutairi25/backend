@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\DB;
 
 // ════════════════════════════════════════════════════════════
 //  خدمة الجدولة — إنشاء/إدارة مواعيد جلسات التقييم
-//  (المرشّح ← دورته الحالية ← جلسات بأنشطتها والمُقيّمين والقاعات)
+//  (المشارك ← دورته الحالية ← جلسات بأنشطتها والمُقيّمين والقاعات)
 // ════════════════════════════════════════════════════════════
 
 class ScheduleController extends Controller
@@ -55,7 +55,7 @@ class ScheduleController extends Controller
         return $user->isSectorBound() && $schedule->candidate->sector_id !== $user->sector_id;
     }
 
-    // GET /schedules — قائمة الجلسات (فلترة بالتاريخ/النشاط/المرشّح/المُقيّم)
+    // GET /schedules — قائمة الجلسات (فلترة بالتاريخ/النشاط/المشارك/المُقيّم)
     public function index(Request $request)
     {
         if (!$request->user()->hasPermission(Permissions::SCHEDULE_VIEW)) {
@@ -166,7 +166,7 @@ class ScheduleController extends Controller
         return null;
     }
 
-    // POST /schedules — جدولة جلسة لمرشّح ضمن دورته الحالية
+    // POST /schedules — جدولة جلسة لمشارك ضمن دورته الحالية
     // ── حدّ القطاع عند التوزيع ──
     // كل مقيّم ومساعد مخصَّص لقطاع ولا يُقيّم غيره. الإسناد عبر القطاعات يُمنع،
     // ولا يمرّ إلا لحامل CROSS_SECTOR_ASSIGN وبعد تأكيد صريح (confirmCrossSector).
@@ -193,11 +193,11 @@ class ScheduleController extends Controller
         }
 
         $sector = $candidate->sector?->name_ar ?? '—';
-        $warning = 'تنبيه: هذا المرشح ليس من نفس القطاع. المرشّح من قطاع «' . $sector
+        $warning = 'تنبيه: هذا المشارك ليس من نفس القطاع. المشارك من قطاع «' . $sector
             . '» بينما ' . implode(' و', $offenders) . '.';
 
         if (!$request->user()->hasPermission(Permissions::CROSS_SECTOR_ASSIGN)) {
-            return ['body' => ['error' => $warning . ' الإسناد عبر القطاعات يتطلّب صلاحية إدارة المرشحين.'], 'status' => 403];
+            return ['body' => ['error' => $warning . ' الإسناد عبر القطاعات يتطلّب صلاحية إدارة المشاركين.'], 'status' => 403];
         }
 
         // يملك الصلاحية لكنه لم يؤكّد بعد — أعِد التحذير ليُعرض قبل التوزيع
@@ -223,7 +223,7 @@ class ScheduleController extends Controller
         return false;
     }
 
-    // GET /candidates/{id}/interviewers — مستشارو المقابلة المؤهّلون لهذا المرشّح
+    // GET /candidates/{id}/interviewers — مستشارو المقابلة المؤهّلون لهذا المشارك
     // (مقيّمو قطاعه الفعّالون)، لاختيار المستشار عند الجدولة بعد مراجعة السيرة.
     //
     // بقي بمساره وشكل استجابته كما كان، وصار غلافاً لـassessors() — المتكامِل
@@ -233,7 +233,7 @@ class ScheduleController extends Controller
         return $this->assessors($request, $id);
     }
 
-    // GET /candidates/{id}/assessors — المؤهّلون لهذا المرشّح في نشاطٍ ومقعدٍ بعينه
+    // GET /candidates/{id}/assessors — المؤهّلون لهذا المشارك في نشاطٍ ومقعدٍ بعينه
     //
     // تعميم interviewers(): كانت تسأل عن الدور 'EVALUATOR' حرفياً، فلم يكن في
     // المنصّة أي مسارٍ يُرجع مستشاري حلقة النقاش ولا **المساعدين** — والعمود
@@ -261,7 +261,7 @@ class ScheduleController extends Controller
         $candidate = $this->resolveCandidateInScope($request, $id);
         if (!$candidate) {
             $this->log($request, 'DENIED_CANDIDATE_OUT_OF_SCOPE', $id);
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
 
         $roles = PeriodAssessor::eligibleRoles($activity, $seat);
@@ -362,18 +362,18 @@ class ScheduleController extends Controller
         ));
 
         // النطاق كاملاً (التصنيف + القطاع). كان التصنيف وحده، فمن مُنح schedule.manage
-        // بالاستثناء وهو محصور قطاعياً كان يجدول مرشّح قطاع آخر (خارج النطاق = «غير موجود»).
+        // بالاستثناء وهو محصور قطاعياً كان يجدول مشارك قطاع آخر (خارج النطاق = «غير موجود»).
         $candidate = $this->resolveCandidateInScope($request, $validated['candidateId']);
         if (!$candidate) {
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
         if (!in_array($candidate->status, ['scheduled', 'assessed'], true)) {
-            return response()->json(['error' => 'لا يمكن جدولة مرشّح غير معتمد للتقييم'], 422);
+            return response()->json(['error' => 'لا يمكن جدولة مشارك غير معتمد للتقييم'], 422);
         }
         // نربط الجلسة بالدورة الحالية غير المكتملة
         $assessment = $candidate->assessments()->where('status', '!=', 'completed')->orderByDesc('id')->first();
         if (!$assessment) {
-            return response()->json(['error' => 'لا توجد دورة تقييم نشطة للمرشّح'], 422);
+            return response()->json(['error' => 'لا توجد دورة تقييم نشطة للمشارك'], 422);
         }
 
         if ($err = $this->periodError($validated['periodId'] ?? null, $validated['date'])) {
@@ -429,7 +429,7 @@ class ScheduleController extends Controller
         if ($this->scheduleOutOfScope($request, $schedule)) {
             return response()->json(['error' => 'الجلسة غير موجودة'], 404);
         }
-        // القفل بعد تسجيل الحضور يبقى للجميع، إلا إدارة المرشحين (CANDIDATE_EDIT):
+        // القفل بعد تسجيل الحضور يبقى للجميع، إلا إدارة المشاركين (CANDIDATE_EDIT):
         // تعدّل مع تدوين التجاوز. القفل يمنع تنافر «حضورٌ لجلسة تغيّر تاريخها».
         $recorded = Attendance::where('schedule_id', $schedule->id)->exists();
         $canOverride = $request->user()->hasPermission(Permissions::CANDIDATE_EDIT);
@@ -602,12 +602,12 @@ class ScheduleController extends Controller
 
         $candidate = Candidate::find($candidateId);
         if (!$candidate || !in_array($candidate->classification, $this->allowedClassifications($request), true)) {
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
         // المحصور بقطاع لا يرى غياب قطاع آخر
         $user = $request->user();
         if ($user->isSectorBound() && $candidate->sector_id !== $user->sector_id) {
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
 
         $rows = Schedule::with('attendance')
@@ -628,7 +628,7 @@ class ScheduleController extends Controller
     }
 
     // POST /schedules/{id}/reschedule — إعادة جدولة جلسة غياب بتاريخ جديد.
-    // إدارة المرشحين (CANDIDATE_EDIT) وحدها: إعادة الجدولة قرار إداري لا تسجيل.
+    // إدارة المشاركين (CANDIDATE_EDIT) وحدها: إعادة الجدولة قرار إداري لا تسجيل.
     // تُنشئ جلسة جديدة بنفس النشاط والإسناد، وتُبقي جلسة الغياب للتدقيق.
     public function reschedule(Request $request, int $id)
     {
@@ -647,14 +647,14 @@ class ScheduleController extends Controller
             return response()->json(['error' => 'لا تُعاد جدولة إلا جلسة سُجّل فيها غياب'], 422);
         }
 
-        // نفس حرّاس store: لا نُنشئ جلسة حيّة لمرشّح غير مؤهّل أو داخل دورة منتهية.
+        // نفس حرّاس store: لا نُنشئ جلسة حيّة لمشارك غير مؤهّل أو داخل دورة منتهية.
         // نربط بالدورة الحالية غير المكتملة لا بدورة القديمة (قد تكون أُغلقت).
         if (!in_array($old->candidate->status, ['scheduled', 'assessed'], true)) {
-            return response()->json(['error' => 'لا يمكن إعادة جدولة مرشّح غير معتمد للتقييم'], 422);
+            return response()->json(['error' => 'لا يمكن إعادة جدولة مشارك غير معتمد للتقييم'], 422);
         }
         $assessment = $old->candidate->assessments()->where('status', '!=', 'completed')->orderByDesc('id')->first();
         if (!$assessment) {
-            return response()->json(['error' => 'لا توجد دورة تقييم نشطة للمرشّح'], 422);
+            return response()->json(['error' => 'لا توجد دورة تقييم نشطة للمشارك'], 422);
         }
 
         $validated = $request->validate([

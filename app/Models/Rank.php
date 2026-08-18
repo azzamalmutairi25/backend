@@ -9,10 +9,10 @@ class Rank extends Model
     protected $fillable = ['label', 'category', 'tier', 'sort_order', 'is_active'];
     protected $casts = ['is_active' => 'boolean', 'sort_order' => 'integer'];
 
-    // تصنيف رتبة مرشّح عبر القائمة المُدارة: أطول تسمية مطابِقة (احتواءً) تفوز —
+    // تصنيف رتبة مشارك عبر القائمة المُدارة: أطول تسمية مطابِقة (احتواءً) تفوز —
     // كي تسبق «مدير عام» «مدير». تُرجع 'upper'/'middle' أو null إن لا مطابقة.
     //
-    // الفئة تأتي من المرشّح لا من قطاعه: القطاع جهةٌ يعمل فيها الصنفان معاً.
+    // الفئة تأتي من المشارك لا من قطاعه: القطاع جهةٌ يعمل فيها الصنفان معاً.
     // والمتعاقد بلا قائمة مُدارة — طبقتُه تُختار صراحةً فلا يُسأل هذا الفحص عنها.
     public static function tierFor(string $rankLabel, string $category): ?string
     {

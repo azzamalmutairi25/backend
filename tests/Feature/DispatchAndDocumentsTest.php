@@ -27,7 +27,7 @@ class DispatchAndDocumentsTest extends TestCase
         ]);
     }
 
-    /** مرشّح بفئةٍ وقطاعٍ، مع جلسةٍ في التاريخ المطلوب */
+    /** مشارك بفئةٍ وقطاعٍ، مع جلسةٍ في التاريخ المطلوب */
     private function scheduled(string $category, string $sectorCode, string $date, ?int $periodId = null): Candidate
     {
         [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => $sectorCode]);

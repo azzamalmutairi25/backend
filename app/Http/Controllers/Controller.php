@@ -23,7 +23,7 @@ abstract class Controller
             : ['normal'];
     }
 
-    // ── حلّ مرشّح ضمن نطاق المستخدم كاملاً: التصنيف + القطاع ──
+    // ── حلّ مشارك ضمن نطاق المستخدم كاملاً: التصنيف + القطاع ──
     // يرجع null إن كان خارج النطاق — لا يفرّق بين «غير موجود» و«ليس لك»،
     // فلا يصير المعرّف أداةً لكشف من هو موجود.
     protected function resolveCandidateInScope(Request $request, int $id, array $with = []): ?Candidate
@@ -36,7 +36,7 @@ abstract class Controller
             ->find($id);
     }
 
-    // ── حصر استعلام مرشحين على نطاق المستخدم ──
+    // ── حصر استعلام مشاركين على نطاق المستخدم ──
     protected function scopeCandidateQuery(Request $request, $query): void
     {
         $user = $request->user();
@@ -58,9 +58,9 @@ abstract class Controller
         }
     }
 
-    // ── تضييق المقيّم على مرشّح مفرد ──
+    // ── تضييق المقيّم على مشارك مفرد ──
     // المقيّم/مستشار النقاش المحصور لا يرى إلا من قيّمهم هو. تُستعمل في مسارات
-    // تحلّ مرشّحاً بالمعرّف (score-preview/competency-gap) كي تطابق حصر القائمة.
+    // تحلّ مشاركاً بالمعرّف (score-preview/competency-gap) كي تطابق حصر القائمة.
     protected function evaluatorNarrowedOut(Request $request, Candidate $candidate): bool
     {
         $user = $request->user();

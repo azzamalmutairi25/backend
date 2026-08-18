@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 // قائمة الرتب/المراتب القابلة للإدارة — كل رتبة تُصنَّف عسكرية/مدنية وفئة قيادية
-// (عليا/وسطى). تقود تصنيف تير المرشّح (Candidate::classifyTier) مع بقاء المنطق
+// (عليا/وسطى). تقود تصنيف تير المشارك (Candidate::classifyTier) مع بقاء المنطق
 // القديم احتياطاً للرتب غير المُدرَجة.
 return new class extends Migration
 {

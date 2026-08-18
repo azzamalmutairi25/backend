@@ -21,9 +21,9 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 
 // ════════════════════════════════════════════════════════════
-//  طلبات تحديث بيانات المرشحين.
+//  طلبات تحديث بيانات المشاركين.
 //
-//  المستخدم الخارجي يُدخل مرشحاً فيجده مسجّلاً مسبقاً؛ لا يُسمح له بالكتابة
+//  المستخدم الخارجي يُدخل مشاركاً فيجده مسجّلاً مسبقاً؛ لا يُسمح له بالكتابة
 //  فوق السجلّ (فذلك تعديل لا إضافة)، فيرفع طلباً بما يراه صحيحاً. الطلب
 //  اقتراحٌ محفوظ مشفّراً، ولا يمسّ السجلّ حتى يعتمده صاحب صلاحية.
 //
@@ -45,7 +45,7 @@ class CandidateUpdateRequestController extends Controller
     {
         $user = $request->user();
         if (!$user->hasPermission(Permissions::CANDIDATE_UPDATE_REQUEST)) {
-            return response()->json(['error' => 'ليس لديك صلاحية طلب تحديث بيانات مرشح'], 403);
+            return response()->json(['error' => 'ليس لديك صلاحية طلب تحديث بيانات مشارك'], 403);
         }
 
         // الحجم قبل أي عمل ثقيل (نفخ الحمولة) — الطلب يحمل وثيقة كاملة
@@ -66,8 +66,8 @@ class CandidateUpdateRequestController extends Controller
             'tier' => 'nullable|in:upper,middle',
             'note' => 'nullable|string|max:500',
         ], [
-            'nationalId.required' => 'أدخل رقم هوية المرشح',
-            'fullName.required' => 'أدخل اسم المرشح',
+            'nationalId.required' => 'أدخل رقم هوية المشارك',
+            'fullName.required' => 'أدخل اسم المشارك',
             'sectorId.required' => 'اختر القطاع',
             'rankLabel.required' => 'أدخل الرتبة أو المرتبة',
         ]);
@@ -82,14 +82,14 @@ class CandidateUpdateRequestController extends Controller
             return response()->json(['error' => 'أرفق بيانات نموذج السيرة الذاتية'], 422);
         }
 
-        // ديدَاب المرشّح بالهوية. غير الموجود وغير المرئي (مصنّف) يُعطيان الردّ
+        // ديدَاب المشارك بالهوية. غير الموجود وغير المرئي (مصنّف) يُعطيان الردّ
         // نفسه — فلا يصير الطلب طريقاً لمعرفة من هو مسجّل ومصنَّف.
         $candidate = Candidate::with(['cv', 'sector'])
             ->where('national_id_hash', hash('sha256', $validated['nationalId']))
             ->first();
         if (!$candidate || !in_array($candidate->classification, $this->allowedClassifications($request))) {
             return response()->json([
-                'error' => 'لا يوجد مرشح مسجّل بهذا الرقم — أضِفه كمرشح جديد',
+                'error' => 'لا يوجد مشارك مسجّل بهذا الرقم — أضِفه كمشارك جديد',
             ], 404);
         }
 
@@ -104,7 +104,7 @@ class CandidateUpdateRequestController extends Controller
         // السيرة تصل المقيّم بلا اسم — الطلب ليس باباً خلفياً لإدراج المعرّفات
         if ($hit = CvGuard::directIdentifierHit($cleanCv, $candidate)) {
             return response()->json([
-                'error' => 'السيرة تحوي اسم المرشح أو معرّفاً — أزِله',
+                'error' => 'السيرة تحوي اسم المشارك أو معرّفاً — أزِله',
                 'field' => $hit,
             ], 422);
         }
@@ -113,7 +113,7 @@ class CandidateUpdateRequestController extends Controller
         $existing = CandidateUpdateRequest::where('candidate_id', $candidate->id)->pending()->first();
         if ($existing) {
             return response()->json([
-                'error' => 'يوجد طلب تحديث معلّق لهذا المرشح — بانتظار البتّ فيه',
+                'error' => 'يوجد طلب تحديث معلّق لهذا المشارك — بانتظار البتّ فيه',
                 'pendingRequest' => [
                     'id' => $existing->id,
                     'createdAt' => optional($existing->created_at)->toIso8601String(),
@@ -146,7 +146,7 @@ class CandidateUpdateRequestController extends Controller
             ]);
         } catch (QueryException $e) {
             // خسر سباق «طلب معلّق واحد» — الفهرس الفريد الجزئي حسمه
-            return response()->json(['error' => 'يوجد طلب تحديث معلّق لهذا المرشح'], 409);
+            return response()->json(['error' => 'يوجد طلب تحديث معلّق لهذا المشارك'], 409);
         }
 
         $this->log($request, 'REQUEST_CANDIDATE_UPDATE', $updateRequest->id, [
@@ -165,7 +165,7 @@ class CandidateUpdateRequestController extends Controller
     // ── طلباتي (مقدّم الطلب يتابع مصيرها) ──
     // GET /candidate-update-requests/mine
     //
-    // بلا رمز المشارك ولا حالة المرشّح: مقدّم الطلب لا يملك قراءة القاعدة،
+    // بلا رمز المشارك ولا حالة المشارك: مقدّم الطلب لا يملك قراءة القاعدة،
     // فلا يصير سجلّ طلباته نافذةً عليها. يرى ما أرسله هو ونتيجته.
     public function mine(Request $request)
     {
@@ -201,7 +201,7 @@ class CandidateUpdateRequestController extends Controller
         }
 
         $query = CandidateUpdateRequest::with(['candidate.sector', 'requester']);
-        // نطاق المرشّح كاملاً (تصنيف + قطاع) — الطلب لا يوسّع ما تراه من القاعدة
+        // نطاق المشارك كاملاً (تصنيف + قطاع) — الطلب لا يوسّع ما تراه من القاعدة
         $this->scopeViaCandidate($request, $query);
 
         if ($request->filled('status') && in_array($request->input('status'), self::STATUSES, true)) {
@@ -331,7 +331,7 @@ class CandidateUpdateRequestController extends Controller
             $candidate->email = $identity['email'] ?? null;
             $candidate->sector_id = $sector->id;
             $candidate->rank_label = $identity['rankLabel'];
-            // الفئة تأتي مع الطلب؛ وطلبٌ قديم أُنشئ قبل العمود يُبقي فئة المرشّح
+            // الفئة تأتي مع الطلب؛ وطلبٌ قديم أُنشئ قبل العمود يُبقي فئة المشارك
             $category = $identity['personnelCategory'] ?? $candidate->personnel_category ?? 'civilian';
             $candidate->personnel_category = $category;
             $candidate->tier = Candidate::resolveTier($category, $identity['rankLabel'], $identity['tier'] ?? null);
@@ -361,9 +361,9 @@ class CandidateUpdateRequestController extends Controller
             'candidateId' => $updateRequest->candidate_id,
             'code' => $updateRequest->candidate->participant_code,
         ]);
-        $this->notifyRequester($updateRequest, 'اعتُمد طلب تحديث بيانات المرشح', $validated['note'] ?? null);
+        $this->notifyRequester($updateRequest, 'اعتُمد طلب تحديث بيانات المشارك', $validated['note'] ?? null);
 
-        return response()->json(['message' => 'اعتُمد الطلب وطُبِّق على بيانات المرشح']);
+        return response()->json(['message' => 'اعتُمد الطلب وطُبِّق على بيانات المشارك']);
     }
 
     // ── الرفض ──
@@ -408,14 +408,14 @@ class CandidateUpdateRequestController extends Controller
         $this->log($request, 'REJECT_CANDIDATE_UPDATE', $updateRequest->id, [
             'candidateId' => $updateRequest->candidate_id,
         ]);
-        $this->notifyRequester($updateRequest, 'رُفض طلب تحديث بيانات المرشح', $validated['reason']);
+        $this->notifyRequester($updateRequest, 'رُفض طلب تحديث بيانات المشارك', $validated['reason']);
 
         return response()->json(['message' => 'رُفض الطلب وأُبلغ مقدّمه']);
     }
 
     // ══════ مساعدات ══════
 
-    // حلّ الطلب ضمن نطاق المستخدم (تصنيف المرشّح + قطاعه) — خارج النطاق «غير موجود»
+    // حلّ الطلب ضمن نطاق المستخدم (تصنيف المشارك + قطاعه) — خارج النطاق «غير موجود»
     private function resolveInScope(Request $request, int $id): ?CandidateUpdateRequest
     {
         $query = CandidateUpdateRequest::with(['candidate.sector', 'candidate.cv', 'requester', 'reviewer'])
@@ -512,10 +512,10 @@ class CandidateUpdateRequestController extends Controller
         ];
     }
 
-    // إشعار كل من يملك البتّ فعلاً (الدور أو استثناء فردي) ضمن نطاق المرشّح
+    // إشعار كل من يملك البتّ فعلاً (الدور أو استثناء فردي) ضمن نطاق المشارك
     private function notifyApprovers(Candidate $candidate, CandidateUpdateRequest $updateRequest, User $requester): void
     {
-        // المرشّحون للإشعار: حاملو الأدوار التي تملك الصلاحية + كل من له استثناء
+        // المشاركون للإشعار: حاملو الأدوار التي تملك الصلاحية + كل من له استثناء
         // فردي عليها (منحاً أو سحباً) — ثم يحسم hasPermission لكلٍّ منهم.
         // بلا هذا التضييق كان يُحمَّل كل مستخدمي النظام لفحصهم واحداً واحداً.
         $roleCodes = array_keys(array_filter(
@@ -539,7 +539,7 @@ class CandidateUpdateRequestController extends Controller
             $service->notify(
                 $u->id,
                 'approval',
-                'طلب تحديث بيانات مرشح',
+                'طلب تحديث بيانات مشارك',
                 "طلب من {$requester->full_name} لتحديث بيانات المشارك {$candidate->participant_code}",
                 'candidate_update_request',
                 (string) $updateRequest->id,

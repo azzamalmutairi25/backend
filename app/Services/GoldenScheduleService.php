@@ -101,7 +101,7 @@ class GoldenScheduleService
         $rows = $query->orderBy('entry_date')->orderBy('participant_code')->get();
 
         // الحصر يُطبَّق هنا لا في SQL: الصفّ اليدوي قد لا يحمل دورة، ورمزُه
-        // نصٌّ حرّ لا يقود إلى مرشّح. من لا دورةَ له يُعرض — لأنه ما كتبه
+        // نصٌّ حرّ لا يقود إلى مشارك. من لا دورةَ له يُعرض — لأنه ما كتبه
         // الموظّف بيده لا ما استخرجه النظام من سجلٍّ مصنّف.
         if ($allowedClassifications !== null) {
             $blocked = \App\Models\Assessment::whereIn('id', $rows->pluck('assessment_id')->filter()->unique())

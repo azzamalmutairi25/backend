@@ -11,11 +11,11 @@ use Illuminate\Http\Request;
 class AttendanceController extends Controller
 {
 
-    // ── من يستقبل المرشح يسجّل حضوره ──
+    // ── من يستقبل المشارك يسجّل حضوره ──
     // المقيّم/المساعد يسجّلان الجلسات المُسنَدة لهما وحدها؛ والاستقبال ومشرف
     // القياس يسجّلان أي جلسة (ATTENDANCE_RECORD_ANY) لأنهما يستقبلان من لا
     // إسناد لهما فيه. بلا هذا التمييز إمّا عجز المقيّم عن تسجيل جلسته، أو
-    // سجّل أيُّ مقيّم حضور مرشّح لم يره.
+    // سجّل أيُّ مقيّم حضور مشارك لم يره.
     private function canRecordFor(Request $request, Schedule $schedule): bool
     {
         $user = $request->user();
@@ -68,7 +68,7 @@ class AttendanceController extends Controller
                     'status' => $att?->status ?? 'pending',
                     'checkInTime' => $att?->check_in_time?->format('H:i'),
                     // موعد الجلسة ومكانها — تبني عليهما الشاشة خطّ اليوم الزمني
-                    // ومؤشّر التأخّر (موعدٌ مضى والمرشّح لم يُسجَّل بعد)
+                    // ومؤشّر التأخّر (موعدٌ مضى والمشارك لم يُسجَّل بعد)
                     'scheduleTime' => $sch->schedule_time
                         ? substr((string) $sch->schedule_time, 0, 5)
                         : null,

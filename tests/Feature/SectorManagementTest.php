@@ -81,7 +81,7 @@ class SectorManagementTest extends TestCase
     }
 
     // ── القطاع مسمّى فقط ──
-    // لا يحمل تصنيفاً عسكرياً/مدنياً: الفئة صفةُ المرشّح، فالقطاع الواحد
+    // لا يحمل تصنيفاً عسكرياً/مدنياً: الفئة صفةُ المشارك، فالقطاع الواحد
     // يعمل فيه الأصناف الثلاثة معاً.
     public function test_sector_carries_no_personnel_classification(): void
     {

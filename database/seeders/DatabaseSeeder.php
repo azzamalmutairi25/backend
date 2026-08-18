@@ -34,7 +34,7 @@ class DatabaseSeeder extends Seeder
             ['code' => 'ASSISTANT', 'name_ar' => 'مساعد التقييم'],
             ['code' => 'DEV_MANAGER', 'name_ar' => 'إدارة تطوير الكفاءات'],
             ['code' => 'MEASURE_SUPER', 'name_ar' => 'مشرف أدوات القياس'],
-            ['code' => 'EXTERNAL_ADD', 'name_ar' => 'مستخدم خارجي (إضافة مرشحين)'],
+            ['code' => 'EXTERNAL_ADD', 'name_ar' => 'مستخدم خارجي (إضافة مشاركين)'],
         ];
         foreach ($roles as $r) Role::updateOrCreate(['code' => $r['code']], $r);
 

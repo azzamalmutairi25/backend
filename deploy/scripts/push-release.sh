@@ -96,14 +96,14 @@ fi
 if [[ $SKIP_BUILD == 0 ]]; then
   log "بناء الواجهة الداخلية…"
   [[ $DRY == 1 ]] || (cd "$FRONTEND_DIR" && npm run build >/dev/null)
-  # بوّابة المرشح مُعطَّلة حتى إشعار آخر (config/features.php ⇒ candidate_portal).
+  # بوّابة المشارك مُعطَّلة حتى إشعار آخر (config/features.php ⇒ candidate_portal).
   # لا تُبنى ولا تُشحن: حزمةٌ منشورةٌ على الإنترنت لخدمةٍ مغلقةِ المسارات سطحُ
   # هجومٍ بلا مقابل. لإعادتها: KAFAAT_PORTAL=1 مع تشغيل المفتاحين.
   if [[ ${KAFAAT_PORTAL:-0} == 1 ]]; then
-    log "بناء بوّابة المرشح…"
+    log "بناء بوّابة المشارك…"
     [[ $DRY == 1 ]] || (cd "$FRONTEND_DIR" && npm run build:public >/dev/null)
   else
-    log "بوّابة المرشح مُعطَّلة — تُخطّى (KAFAAT_PORTAL=1 لإعادتها)"
+    log "بوّابة المشارك مُعطَّلة — تُخطّى (KAFAAT_PORTAL=1 لإعادتها)"
   fi
 fi
 [[ $DRY == 1 || -f "$FRONTEND_DIR/dist/index.html" ]] || die "لا توجد حزمة واجهة مبنيّة في $FRONTEND_DIR/dist"

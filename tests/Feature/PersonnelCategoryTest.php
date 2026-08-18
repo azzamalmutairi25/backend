@@ -21,11 +21,14 @@ class PersonnelCategoryTest extends TestCase
 
     protected $seed = true;
 
+    // الجنس والمجالات الفنية والسيرة صارت إلزامية على الإضافة، وهي ليست موضوع
+    // هذه الحزمة. تُدمج في البنّاء مرّة واحدة فتبقى كل حمولةٍ هنا صالحةً في
+    // ما عدا ما يقصد الاختبار كسره — فيفشل النداء بسببه وحده لا بسبب غيابها
     private function payload(array $over = []): array
     {
-        return array_merge([
+        return array_merge($this->candidateRequired(), [
             'nationalId' => $this->validNationalId(),
-            'fullName' => 'مرشح اختبار',
+            'fullName' => 'مشارك اختبار',
             'mobile' => '0501112223',
             'sectorId' => Sector::where('code', 'PS')->value('id'),
             'personnelCategory' => 'civilian',
@@ -59,7 +62,7 @@ class PersonnelCategoryTest extends TestCase
         );
     }
 
-    // الطبقة تُحسب من قائمة الفئة — لا من قطاع المرشّح
+    // الطبقة تُحسب من قائمة الفئة — لا من قطاع المشارك
     public function test_tier_follows_the_candidates_own_category(): void
     {
         $this->actingAsRole('SCHEDULER');
@@ -112,12 +115,14 @@ class PersonnelCategoryTest extends TestCase
     {
         $this->actingAsRole('SCHEDULER');
 
+        // الرفض يُنسب إلى الفئة نفسها — لا إلى حقلٍ آخر ناقص في الحمولة
         $missing = $this->payload();
         unset($missing['personnelCategory']);
-        $this->postJson('/api/candidates', $missing)->assertStatus(422);
+        $this->postJson('/api/candidates', $missing)->assertStatus(422)
+            ->assertJsonValidationErrors('personnelCategory');
 
         $this->postJson('/api/candidates', $this->payload(['personnelCategory' => 'ضابط']))
-            ->assertStatus(422);
+            ->assertStatus(422)->assertJsonValidationErrors('personnelCategory');
     }
 
     public function test_category_is_returned_by_the_api(): void
@@ -132,7 +137,7 @@ class PersonnelCategoryTest extends TestCase
             ->assertJsonPath('candidate.personnelCategory', 'military');
     }
 
-    // الرتبة المُدارة تُقرأ بفئة المرشّح: نفس التسمية في القائمتين تُصنَّف بحسبها
+    // الرتبة المُدارة تُقرأ بفئة المشارك: نفس التسمية في القائمتين تُصنَّف بحسبها
     public function test_managed_rank_lookup_is_scoped_to_the_category(): void
     {
         Rank::create(['label' => 'مراقب', 'category' => 'military', 'tier' => 'upper', 'sort_order' => 900, 'is_active' => true]);
