@@ -12,7 +12,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 // إصلاحات مراجعة المحادثات/الإشعارات:
-//  - notifyRole عن «تقرير» لا يُذيع رمز المشارك خارج قطاع المرشّح ولا للمصنّفين بلا صلاحية.
+//  - notifyRole عن «تقرير» لا يُذيع رمز المشارك خارج قطاع المشارك ولا للمصنّفين بلا صلاحية.
 //  - notify يقصّ العنوان إلى حدّ العمود (varchar 200) فلا يُسقط الإرسال بـ500.
 class ChatNotifScopeFixesTest extends TestCase
 {
@@ -53,29 +53,29 @@ class ChatNotifScopeFixesTest extends TestCase
         return app(NotificationService::class);
     }
 
-    // ── #1: مقيّم خارج القطاع لا يُشعَر بتقرير مرشّح قطاع آخر ──
+    // ── #1: مقيّم خارج القطاع لا يُشعَر بتقرير مشارك قطاع آخر ──
     public function test_report_role_notification_skips_out_of_sector_evaluator(): void
     {
-        $report = $this->reportFor('ED', 'normal');
-        $inSector = $this->userWith('EVALUATOR', 'ED');
-        $otherSector = $this->userWith('EVALUATOR', 'HI');
+        $report = $this->reportFor('DW', 'normal');
+        $inSector = $this->userWith('EVALUATOR', 'DW');
+        $otherSector = $this->userWith('EVALUATOR', 'MS');
 
         $this->svc()->notifyRole('EVALUATOR', 'approval', 'عنوان',
-            'تقرير المرشح ' . $report->candidate->participant_code . ' وصل مرحلة اعتمادك',
+            'تقرير المشارك ' . $report->candidate->participant_code . ' وصل مرحلة اعتمادك',
             'report', (string) $report->id, null);
 
         $this->assertSame(1, Notification::where('recipient_id', $inSector->id)->count());
         $this->assertSame(0, Notification::where('recipient_id', $otherSector->id)->count());
     }
 
-    // ── #2: مرشّح مصنّف لا يصل رمزه لمقيّم بلا صلاحية رؤية المصنّفين (ولو في قطاعه) ──
+    // ── #2: مشارك مصنّف لا يصل رمزه لمقيّم بلا صلاحية رؤية المصنّفين (ولو في قطاعه) ──
     public function test_classified_report_notification_skips_uncleared_evaluator(): void
     {
-        $report = $this->reportFor('ED', 'secret');
-        $evaluator = $this->userWith('EVALUATOR', 'ED'); // لا يملك CANDIDATE_VIEW_CLASSIFIED
+        $report = $this->reportFor('DW', 'secret');
+        $evaluator = $this->userWith('EVALUATOR', 'DW'); // لا يملك CANDIDATE_VIEW_CLASSIFIED
 
         $this->svc()->notifyRole('EVALUATOR', 'approval', 'عنوان',
-            'تقرير المرشح ' . $report->candidate->participant_code . ' وصل مرحلة اعتمادك',
+            'تقرير المشارك ' . $report->candidate->participant_code . ' وصل مرحلة اعتمادك',
             'report', (string) $report->id, null);
 
         $this->assertSame(0, Notification::where('recipient_id', $evaluator->id)->count());
@@ -84,11 +84,11 @@ class ChatNotifScopeFixesTest extends TestCase
     // ── #3: الدور المركزي المصرَّح له يبقى يُشعَر بأي قطاع/تصنيف ──
     public function test_central_cleared_role_still_notified_regardless_of_sector(): void
     {
-        $report = $this->reportFor('ED', 'secret');
+        $report = $this->reportFor('DW', 'secret');
         $manager = $this->userWith('ASSESS_MANAGER'); // مركزي + CANDIDATE_VIEW_CLASSIFIED
 
         $this->svc()->notifyRole('ASSESS_MANAGER', 'approval', 'عنوان',
-            'تقرير المرشح ' . $report->candidate->participant_code . ' وصل مرحلة اعتمادك',
+            'تقرير المشارك ' . $report->candidate->participant_code . ' وصل مرحلة اعتمادك',
             'report', (string) $report->id, null);
 
         $this->assertSame(1, Notification::where('recipient_id', $manager->id)->count());
@@ -97,8 +97,8 @@ class ChatNotifScopeFixesTest extends TestCase
     // ── #4: إشعار بلا كيان تقرير يبقى يُذاع لكل الدور (سلوك عام كما كان) ──
     public function test_non_report_role_notification_is_not_scoped(): void
     {
-        $a = $this->userWith('EVALUATOR', 'ED');
-        $b = $this->userWith('EVALUATOR', 'HI');
+        $a = $this->userWith('EVALUATOR', 'DW');
+        $b = $this->userWith('EVALUATOR', 'MS');
 
         $this->svc()->notifyRole('EVALUATOR', 'info', 'تذكير عام', 'رسالة', null, null, null);
 

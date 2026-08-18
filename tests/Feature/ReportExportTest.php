@@ -17,7 +17,7 @@ class ReportExportTest extends TestCase
     {
         [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed']);
         $report = FinalReport::create(array_merge([
-            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'مرشّح قوي',
+            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'مشارك قوي',
             'behavioral_fit' => 82.5, 'technical_fit' => 74, 'status' => 'approved',
             'strengths' => ['قيادة', 'تواصل'], 'development_areas' => ['التفويض'], 'created_by' => null,
         ], $attrs));
@@ -35,7 +35,7 @@ class ReportExportTest extends TestCase
         $this->assertStringContainsString('مركز تمكين الكفاءات لتقييم القيادات', $html);
         $this->assertStringContainsString($c->participant_code, $html);
         $this->assertStringContainsString('التوصية', $html);
-        $this->assertStringContainsString('مرشّح قوي', $html);
+        $this->assertStringContainsString('مشارك قوي', $html);
         $this->assertStringContainsString('التفويض', $html); // مجال تطوير
     }
 

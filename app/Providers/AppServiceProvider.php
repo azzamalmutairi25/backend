@@ -35,7 +35,9 @@ class AppServiceProvider extends ServiceProvider
             $user = auth('sanctum')->user();
             $key = $user?->getAuthIdentifier() ?: $request->ip();
 
-            return Limit::perMinute((int) env('API_RATE_LIMIT', 300))->by((string) $key);
+            // config لا env: مع config:cache في الإنتاج لا يُقرأ .env، فكانت
+            // env() ترجع الافتراضي دائماً ويصير الحدّ غير قابل للضبط أصلاً
+            return Limit::perMinute((int) config('security.api_rate_limit', 300))->by((string) $key);
         });
     }
 }

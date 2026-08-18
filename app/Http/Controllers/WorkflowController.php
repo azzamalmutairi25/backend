@@ -35,7 +35,8 @@ class WorkflowController extends Controller
     // GET /workflow/report — السلسلة الحالية + عدد التقارير العالقة في كل مرحلة
     public function show(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (!$request->user()->hasPermission(Permissions::WORKFLOW_MANAGE)
+            && !$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
         }
 
@@ -71,7 +72,8 @@ class WorkflowController extends Controller
     // PUT /workflow/report — إعادة ترتيب/تفعيل
     public function update(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (!$request->user()->hasPermission(Permissions::WORKFLOW_MANAGE)
+            && !$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
         }
 

@@ -9,7 +9,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // مرشح واحد لكل هوية (يمنع تكرار الاستيراد/الإضافة المتزامن)
+        // مشارك واحد لكل هوية (يمنع تكرار الاستيراد/الإضافة المتزامن)
         Schema::table('candidates', function (Blueprint $table) {
             $table->unique('national_id_hash', 'candidates_national_id_hash_unique');
         });

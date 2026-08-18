@@ -6,6 +6,7 @@ use App\Exceptions\CvTooLargeException;
 use App\Models\Candidate;
 use App\Models\Assessment;
 use App\Models\CandidateCv;
+use App\Models\CandidateUpdateRequest;
 use App\Models\Sector;
 use App\Models\User;
 use App\Models\AuditLog;
@@ -22,17 +23,43 @@ use Illuminate\Validation\ValidationException;
 
 class CandidateController extends Controller
 {
+    // ── الفرز: أسماء الواجهة ← أعمدة القاعدة ──
+    //
+    // قائمةٌ مغلقة لا تمرير مباشر: `orderBy($request->sort)` يضع نصّاً من
+    // المستخدم في جملة SQL. وتُشتقّ منها قاعدة التحقّق فيبقى المفتاحان —
+    // المسموح والمترجَم — شيئاً واحداً لا شيئين يفترقان.
+    private function sortable(): array
+    {
+        return [
+            'code' => 'participant_code',
+            'rank' => 'rank_label',
+            'tier' => 'tier',
+            'status' => 'status',
+            'classification' => 'classification',
+            'created' => 'created_at',
+            // اسم القطاع لا معرّفه — الترتيب الهجائي هو ما يراه المستخدم.
+            // استعلامٌ مرتبط لا انضمام: الانضمام يُدخِل أعمدة sectors في
+            // النتيجة فيتصادم `id` مع `candidates.id` بصمت.
+            'sector' => fn ($q, $dir) => $q->orderBy(
+                Sector::select('name_ar')->whereColumn('sectors.id', 'candidates.sector_id'),
+                $dir
+            ),
+        ];
+    }
 
     public function index(Request $request)
     {
         if (!$request->user()->hasPermission(Permissions::CANDIDATE_VIEW)) {
-            return response()->json(['error' => 'ليس لديك صلاحية عرض المرشحين'], 403);
+            return response()->json(['error' => 'ليس لديك صلاحية عرض المشاركين'], 403);
         }
 
-        $query = Candidate::with('sector');
+        $request->validate($this->listPagingRules($this->sortable()));
+
+        // المجالات تُحمَّل مع الصفحة لا مع كل صفّ — شاشة الترشيح تعرضها وتفلتر بها
+        $query = Candidate::with(['sector', 'technicalAreas']);
         $query->whereIn('classification', $this->allowedClassifications($request));
 
-        // المستخدم المحصور بقطاع لا يرى غير مرشحيه — الحصر قبل أي فلتر يطلبه هو،
+        // المستخدم المحصور بقطاع لا يرى غير مشاركيه — الحصر قبل أي فلتر يطلبه هو،
         // فلا يوسّعه بتمرير sectorId لقطاع آخر
         $user = $request->user();
         if ($user->isSectorBound()) {
@@ -56,12 +83,22 @@ class CandidateController extends Controller
             $query->where('participant_code', 'like', '%' . $request->search . '%');
         }
 
-        $candidates = $query->orderBy('participant_code')->get();
+        // نسخةٌ من الاستعلام المحصور قبل تنفيذه — تُستعمل استعلاماً فرعياً أدناه
+        $scopedIds = (clone $query)->select('candidates.id');
 
-        // المرشحون الذين لهم جلسة غياب مسجّلة — استعلام واحد لا N+1.
+        $meta = $this->applyListPaging($request, $query, $this->sortable(), 'code', 'participant_code');
+
+        $candidates = $query->get();
+
+        // المشاركون الذين لهم جلسة غياب مسجّلة — استعلام واحد لا N+1.
         // يظهر لهم في الواجهة علم غياب وخيار إعادة الجدولة بتاريخ جديد.
+        //
+        // استعلامٌ فرعي لا قائمة معرّفات: كان يُمرّر pluck('id') فيُبنى شرط
+        // IN بعدد صفوف القائمة كلّها. على مركزٍ فيه عشرون ألف مشارك يصير
+        // نصّ الاستعلام وحده مئات الكيلوبايتات تُرسَل في كل فتحة للشاشة.
+        // القاعدة تحصر بنفسها هنا، فلا تعبر المعرّفات الشبكة أصلاً.
         $absentIds = \App\Models\Schedule::query()
-            ->whereIn('candidate_id', $candidates->pluck('id'))
+            ->whereIn('candidate_id', $scopedIds)
             ->whereHas('attendance', fn ($q) => $q->whereIn('status', ['absent_excused', 'absent_unexcused']))
             ->pluck('candidate_id')->unique()->flip();
 
@@ -70,30 +107,39 @@ class CandidateController extends Controller
             'participantCode' => $c->participant_code,
             'sectorName' => $c->sector->name_ar,
             'sectorId' => $c->sector_id,
+            'gender' => $c->gender,
             'rankLabel' => $c->rank_label,
+            'personnelCategory' => $c->personnel_category,
             'tier' => $c->tier,
             'assessmentType' => $c->assessment_type,
             'status' => $c->status,
             'classification' => $c->classification,
+            'technicalAreas' => $c->technicalAreas->map(fn ($a) => [
+                'id' => $a->id, 'label' => $a->label_ar,
+            ])->values(),
             'hasAbsence' => $absentIds->has($c->id),
         ]);
 
-        return response()->json(['candidates' => $rows]);
+        // مُضافة لا بديلة: العميل القديم يقرأ candidates ويتجاهل هذه
+        return response()->json([
+            'candidates' => $rows,
+            'meta' => $meta + ['shown' => $rows->count()],
+        ]);
     }
 
     public function show(Request $request, int $id)
     {
         $user = $request->user();
         if (!$user->hasPermission(Permissions::CANDIDATE_VIEW)) {
-            return response()->json(['error' => 'ليس لديك صلاحية عرض المرشحين'], 403);
+            return response()->json(['error' => 'ليس لديك صلاحية عرض المشاركين'], 403);
         }
         // النطاق كاملاً — التصنيف والقطاع معاً. كان يفحص التصنيف وحده بينما
-        // index() محصور بالقطاع، فكانت التفاصيل الكاملة تُفتح بالمعرّف لمرشّح
+        // index() محصور بالقطاع، فكانت التفاصيل الكاملة تُفتح بالمعرّف لمشارك
         // من قطاع آخر لا يظهر في القائمة أصلاً.
-        $candidate = $this->resolveCandidateInScope($request, $id, ['sector']);
+        $candidate = $this->resolveCandidateInScope($request, $id, ['sector', 'technicalAreas']);
         if (!$candidate) {
             $this->log($request, 'DENIED_CANDIDATE_OUT_OF_SCOPE', $id);
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
 
         $canSeeNames = $user->hasPermission(Permissions::CANDIDATE_VIEW_NAMES);
@@ -111,7 +157,13 @@ class CandidateController extends Controller
             'email' => $canSeeNames ? $candidate->email : null,
             'sectorName' => $candidate->sector->name_ar,
             'sectorId' => $candidate->sector_id,
+            'gender' => $candidate->gender,
+            'technicalAreaIds' => $candidate->technicalAreas->pluck('id')->values(),
+            'technicalAreas' => $candidate->technicalAreas->map(fn ($a) => [
+                'id' => $a->id, 'label' => $a->label_ar,
+            ])->values(),
             'rankLabel' => $candidate->rank_label,
+            'personnelCategory' => $candidate->personnel_category,
             'tier' => $candidate->tier,
             'assessmentType' => $candidate->assessment_type,
             'status' => $candidate->status,
@@ -132,7 +184,7 @@ class CandidateController extends Controller
         $candidate = $this->resolveCandidateInScope($request, $id, ['cv']);
         if (!$candidate) {
             $this->log($request, 'DENIED_CANDIDATE_OUT_OF_SCOPE', $id);
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
 
         $cv = $candidate->cv;
@@ -144,6 +196,15 @@ class CandidateController extends Controller
 
         $this->log($request, 'VIEW_CV_ADMIN', $id, ['code' => $candidate->participant_code]);
 
+        // إقرار المشارك برتبته لا يستبدل الرتبة الرسمية في ملفّه — الرتبة تقود
+        // تصنيف الفئة القيادية، فتغييرها من بوّابة عامة يعبث بالتصنيف. لكنّ
+        // الاختلاف يُعلَن هنا كي تراجعه الإدارة وتحسم أيّهما الصحيح.
+        $declared = $doc['rankLabel'] ?? null;
+        $official = $candidate->rank_label;
+        $mismatch = $declared !== null && $declared !== ''
+            && $official !== null && $official !== ''
+            && trim($declared) !== trim($official);
+
         return response()->json(['cv' => [
             'participantCode' => $candidate->participant_code,
             'name' => $canSeeNames ? $candidate->full_name : null,
@@ -151,6 +212,9 @@ class CandidateController extends Controller
             'version' => $cv?->version ?? 0,
             'source' => $cv?->source,
             'document' => $doc,
+            'age' => CandidateCv::ageFrom($doc['birthDate'] ?? null),
+            'officialRank' => $official,
+            'rankMismatch' => $mismatch,
             'canSeeNames' => $canSeeNames,
         ]]);
     }
@@ -165,7 +229,7 @@ class CandidateController extends Controller
         $candidate = $this->resolveCandidateInScope($request, $id, ['cv']);
         if (!$candidate) {
             $this->log($request, 'DENIED_CANDIDATE_OUT_OF_SCOPE', $id);
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
 
         $cvInput = $request->input('cv');
@@ -181,9 +245,9 @@ class CandidateController extends Controller
             return response()->json(['error' => 'بيانات غير صحيحة', 'fields' => $e->errors()], 422);
         }
 
-        // الإدارة ليست معفاة من فحص التسرّب — لا تُدخل اسم المرشح في وثيقة يراها المقيّم
+        // الإدارة ليست معفاة من فحص التسرّب — لا تُدخل اسم المشارك في وثيقة يراها المقيّم
         if ($hit = CvGuard::directIdentifierHit($clean, $candidate)) {
-            return response()->json(['error' => 'السيرة تحوي اسم المرشح أو معرّفاً — أزِله', 'field' => $hit], 422);
+            return response()->json(['error' => 'السيرة تحوي اسم المشارك أو معرّفاً — أزِله', 'field' => $hit], 422);
         }
 
         $result = DB::transaction(function () use ($candidate, $clean, $request, $user) {
@@ -217,7 +281,7 @@ class CandidateController extends Controller
     public function store(Request $request)
     {
         if (!$request->user()->hasPermission(Permissions::CANDIDATE_CREATE)) {
-            return response()->json(['error' => 'ليس لديك صلاحية إضافة مرشح'], 403);
+            return response()->json(['error' => 'ليس لديك صلاحية إضافة مشارك'], 403);
         }
 
         $validated = $request->validate([
@@ -226,13 +290,50 @@ class CandidateController extends Controller
             'mobile' => ['nullable', 'string', 'regex:/^05\d{8}$/'],
             'email' => 'nullable|email',
             'sectorId' => 'required|exists:sectors,id',
+            'gender' => 'required|in:' . implode(',', Candidate::GENDERS),
             'rankLabel' => 'required|string',
+            // الفئة صفةُ الشخص لا صفةُ قطاعه — عليها تُبنى قائمة الرتب والطبقة
+            'personnelCategory' => 'required|in:civilian,military,contractor',
+            // المتعاقد بلا قائمة مُدارة، فطبقته تُرسَل صراحةً لا تُستنتج من مسمّاه
+            'tier' => 'required_if:personnelCategory,contractor|nullable|in:upper,middle',
             'assessmentType' => 'nullable|in:comprehensive,executive',
             'classification' => 'nullable|in:normal,secret,top_secret',
+            // المجالات الفنية — عليها تفلتر شاشة الترشيح، فبلا واحدٍ منها
+            // يدخل المشارك القاعدة ولا يظهر في أي قائمة ترشيح أبداً
+            'technicalAreaIds' => 'required|array|min:1',
+            'technicalAreaIds.*' => 'integer|exists:technical_areas,id',
+        ], [
+            'gender.required' => 'اختر الجنس',
+            'technicalAreaIds.required' => 'اختر مجالاً فنياً واحداً على الأقل',
+            'technicalAreaIds.min' => 'اختر مجالاً فنياً واحداً على الأقل',
         ]);
 
+        // ── نموذج السيرة الذاتية المرافق — إلزامي ──
+        // كانت اختيارية، فكان يدخل مشاركٌ بلا سيرة ثم يقف عند الترشيح بلا سببٍ
+        // ظاهر. الآن تصل مع بياناته في نداء واحد من كل باب: النموذج اليدوي،
+        // وبوّابة الإضافة الخارجية، والاستيراد. التحقّق البنيوي هنا (رخيص، يفشل
+        // مبكراً)؛ وفحص تسرّب الاسم يؤجَّل إلى ما بعد تعبئة بيانات المشارك.
+        $cvInput = $request->input('cv');
+        if (!is_array($cvInput) || $cvInput === []) {
+            return response()->json([
+                'error' => 'السيرة الذاتية إلزامية — أكمل بيانات السيرة قبل الحفظ',
+                'fields' => ['cv' => ['السيرة الذاتية إلزامية']],
+            ], 422);
+        }
+        if (strlen($request->getContent()) > CvValidator::MAX_BYTES) {
+            return response()->json(['error' => 'الحجم كبير جداً'], 413);
+        }
+        try {
+            $cleanCv = app(CvValidator::class)->clean($cvInput);
+        } catch (CvTooLargeException $e) {
+            return response()->json(['error' => 'عناصر أكثر من المسموح'], 413);
+        } catch (ValidationException $e) {
+            return response()->json(['error' => 'بيانات السيرة غير صحيحة', 'fields' => $e->errors()], 422);
+        }
+
         $sector = Sector::findOrFail($validated['sectorId']);
-        $tier = Candidate::classifyTier($validated['rankLabel'], $sector->is_military);
+        $category = $validated['personnelCategory'];
+        $tier = Candidate::resolveTier($category, $validated['rankLabel'], $validated['tier'] ?? null);
         $assessmentType = $validated['assessmentType'] ?? 'comprehensive';
 
         // ديدَاب الشخص بالهوية — شخص واحد ← عدة دورات/رموز
@@ -245,21 +346,40 @@ class CandidateController extends Controller
         }
 
         if ($candidate) {
+            // ── مشارك مسجّل مسبقاً، والمُدخِل لا يملك التعديل (المستخدم الخارجي) ──
+            // الكتابة فوق سجلٍّ قائم تعديلٌ لا إنشاء — تتطلّب CANDIDATE_EDIT.
+            // بدونها كان EXTERNAL_ADD (وصلاحيته الإضافة وحدها) يعيد تسمية أي
+            // مشارك ونقله بين القطاعات بمجرّد «إضافته» بهويته.
+            //
+            // الفحص قبل حارس الدورة النشطة عمداً: ذاك يُرجِع رمز المشارك في نصّ
+            // خطئه، فكان مَن لا يملك القراءة يحصد الرموز بتجريب أرقام الهوية.
+            // هنا يُعلَم بالتسجيل السابق وتاريخه فقط — لا رمز ولا اسم — ويُفتح
+            // له طريق «طلب تحديث البيانات» ليمرّ التغيير باعتماد صاحب صلاحية.
+            if (!$request->user()->hasPermission(Permissions::CANDIDATE_EDIT)) {
+                $pending = CandidateUpdateRequest::where('candidate_id', $candidate->id)
+                    ->pending()->first();
+                $this->log($request, 'DUPLICATE_CANDIDATE_ADD', $candidate->id);
+
+                return response()->json([
+                    'error' => 'هذا المشارك مُضاف مسبقاً في النظام',
+                    'duplicate' => true,
+                    'candidateId' => $candidate->id,
+                    'addedAt' => optional($candidate->created_at)->toIso8601String(),
+                    'canRequestUpdate' => $request->user()->hasPermission(Permissions::CANDIDATE_UPDATE_REQUEST),
+                    'pendingRequest' => $pending ? [
+                        'id' => $pending->id,
+                        'createdAt' => optional($pending->created_at)->toIso8601String(),
+                    ] : null,
+                ], 403);
+            }
+
             // امنع دورة جديدة إن كانت له دورة نشطة (لم تكتمل) — «كل رمز له تقييم»
             $active = $candidate->assessments()->where('status', '!=', 'completed')->orderByDesc('id')->first();
             if ($active) {
                 return response()->json([
-                    'error' => "لدى المرشح دورة تقييم نشطة ({$active->participant_code}) — يجب إكمالها قبل إنشاء دورة جديدة",
+                    'error' => "لدى المشارك دورة تقييم نشطة ({$active->participant_code}) — يجب إكمالها قبل إنشاء دورة جديدة",
                     'participantCode' => $active->participant_code,
                 ], 422);
-            }
-            // الكتابة فوق سجلٍّ قائم تعديلٌ لا إنشاء — تتطلّب CANDIDATE_EDIT.
-            // بدونها كان EXTERNAL_ADD (وصلاحيته الإضافة وحدها) يعيد تسمية أي
-            // مرشّح ونقله بين القطاعات بمجرّد «إضافته» بهويته.
-            if (!$request->user()->hasPermission(Permissions::CANDIDATE_EDIT)) {
-                return response()->json([
-                    'error' => 'المرشح مسجّل مسبقاً — تعديل بياناته يتطلّب صلاحية التعديل',
-                ], 403);
             }
 
             // تحديث بيانات الشخص للأحدث (قد يكون تغيّر قطاعه/رتبته). التصنيف يُدار عبر reclassify فقط.
@@ -267,7 +387,9 @@ class CandidateController extends Controller
             $candidate->mobile = $validated['mobile'] ?? null;
             $candidate->email = $validated['email'] ?? null;
             $candidate->sector_id = $sector->id;
+            $candidate->gender = $validated['gender'];
             $candidate->rank_label = $validated['rankLabel'];
+            $candidate->personnel_category = $category;
             $candidate->tier = $tier;
         } else {
             // شخص جديد
@@ -277,7 +399,9 @@ class CandidateController extends Controller
             $candidate->mobile = $validated['mobile'] ?? null;
             $candidate->email = $validated['email'] ?? null;
             $candidate->sector_id = $sector->id;
+            $candidate->gender = $validated['gender'];
             $candidate->rank_label = $validated['rankLabel'];
+            $candidate->personnel_category = $category;
             $candidate->tier = $tier;
             // تعيين تصنيف أمني يتطلب صلاحية VIEW_CLASSIFIED — منع التصعيد
             $requestedClass = $validated['classification'] ?? 'normal';
@@ -287,14 +411,42 @@ class CandidateController extends Controller
             $candidate->classification = $requestedClass;
         }
 
+        // فحص تسرّب هوية المشارك داخل السيرة — يحتاج بياناته، فيقع بعد تعبئتها.
+        // المُدخِل الخارجي ليس معفىً منه: السيرة تصل المقيّم بلا اسم.
+        if ($cleanCv !== null && ($hit = CvGuard::directIdentifierHit($cleanCv, $candidate))) {
+            return response()->json([
+                'error' => 'السيرة تحوي اسم المشارك أو معرّفاً — أزِله',
+                'field' => $hit,
+            ], 422);
+        }
+
+        // مصدر السيرة: من لا يملك التعديل جهةٌ خارجية لا إدارة — يُعلَن للمراجع
+        $cvSource = $request->user()->hasPermission(Permissions::CANDIDATE_EDIT) ? 'admin' : 'external';
+
         // دورة تقييم جديدة برمز فريد + مزامنة الحقول «الحالية» على سجل الشخص
         $code = Assessment::generateParticipantCode($sector);
         $candidate->participant_code = $code;
         $candidate->status = 'draft';
         $candidate->assessment_type = $assessmentType;
 
-        $assessment = DB::transaction(function () use ($candidate, $code, $assessmentType, $request) {
+        $areaIds = $validated['technicalAreaIds'];
+
+        $assessment = DB::transaction(function () use ($candidate, $code, $assessmentType, $request, $cleanCv, $cvSource, $areaIds) {
             $candidate->save();
+
+            // السيرة تُحفظ داخل المعاملة: إمّا مشارك بسيرته أو لا مشارك —
+            // لا سجلّ ناقص يستدعي إعادة إدخال النموذج كاملاً
+            $cv = CandidateCv::firstOrNew(['candidate_id' => $candidate->id]);
+            $cv->data = $cleanCv;
+            $cv->version = ($cv->version ?? 0) + 1;
+            $cv->source = $cvSource;
+            $cv->updated_by = $request->user()->id;
+            $cv->save();
+
+            // المجالات استبدالٌ لا إضافة: الدورة الجديدة تُعيد وصف المشارك،
+            // ووسمٌ من دورةٍ سابقة يبقى فيُرشَّح على مجالٍ لم يعد يوصف به
+            $candidate->technicalAreas()->sync($areaIds);
+
             return Assessment::create([
                 'candidate_id' => $candidate->id,
                 'participant_code' => $code,
@@ -319,32 +471,41 @@ class CandidateController extends Controller
         $smsQueued = $this->sendConfirmationSms($candidate, $assessment, $request->user()->id);
 
         return response()->json([
-            'message' => $isReturning ? 'تمّت إضافة دورة تقييم جديدة لمرشح موجود' : 'تمت إضافة المرشح',
+            'message' => $isReturning ? 'تمّت إضافة دورة تقييم جديدة لمشارك موجود' : 'تمت إضافة المشارك',
             'participantCode' => $code,
             'tier' => $tier,
             'isReturning' => $isReturning,
             'assessmentId' => $assessment->id,
+            'cvSaved' => $cleanCv !== null,
             'smsQueued' => $smsQueued,
             'idVerification' => $idVerification,
         ], 201);
     }
 
-    // إرسال رسالة تأكيد للمرشح تحوي بياناته ورابطًا فريدًا للتأكيد والوصول
+    // إرسال رسالة تأكيد للمشارك تحوي بياناته ورابطًا فريدًا للتأكيد والوصول
     private function sendConfirmationSms(Candidate $candidate, Assessment $assessment, ?int $actorId): bool
     {
         $mobile = $candidate->mobile; // فك التشفير عبر المُلحق
         if (!$mobile) {
             return false; // لا جوّال مسجّل — لا رسالة
         }
-        $link = rtrim(config('app.frontend_url'), '/') . '/confirm/' . $assessment->confirm_token;
-        $name = $candidate->full_name ?: 'المرشح';
+        $name = $candidate->full_name ?: 'المشارك';
         $message = "عزيزي {$name}، تم تسجيلك في مركز تمكين الكفاءات لتقييم القيادات."
-            . " رمز المشارك: {$assessment->participant_code}."
-            . " لتأكيد بياناتك وتسجيل الوصول: {$link}";
+            . " رمز المشارك: {$assessment->participant_code}.";
+
+        // رابط البوّابة يُضاف متى كانت مُشغَّلة وحدها. مع تعطيلها يبقى رمزُ
+        // المشارك — وهو المفيد فعلاً عند الاستقبال — ويسقط رابطٌ يفتح صفحة
+        // فارغة. رسالةٌ تحمل رابطاً ميتاً أسوأ من رسالةٍ بلا رابط.
+        if (config('features.candidate_portal')) {
+            $link = rtrim(config('app.frontend_url'), '/') . '/confirm/' . $assessment->confirm_token;
+            $message .= " لتأكيد بياناتك وتسجيل الوصول: {$link}";
+        } else {
+            $message .= ' وسيصلك موعد الحضور من إدارة المركز.';
+        }
 
         // غير متزامن: لا نحبس دورة الطلب بانتظار البوّابة (قد تتأخّر 10ث أو تسقط).
         // queueSms ينشئ سجلّاً معلّقاً ويجدول التسليم؛ يرجع true أي «جُدولت» لا «أُرسلت».
-        // فشل الجدولة (كتابة السجلّ) لا يُفشل إضافة المرشح (الدورة أُنشئت فعلاً).
+        // فشل الجدولة (كتابة السجلّ) لا يُفشل إضافة المشارك (الدورة أُنشئت فعلاً).
         try {
             return app(CommunicationService::class)->queueSms(
                 $mobile, $message, 'invitation', $candidate->id, $actorId
@@ -363,7 +524,7 @@ class CandidateController extends Controller
 
                 $candidate = $this->resolveCandidateInScope($request, $id);
         if (!$candidate) {
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
 
         $validated = $request->validate([
@@ -372,24 +533,38 @@ class CandidateController extends Controller
             'mobile' => ['nullable', 'string', 'regex:/^05\d{8}$/'],
             'email' => 'nullable|email',
             'sectorId' => 'required|exists:sectors,id',
+            'gender' => 'required|in:' . implode(',', Candidate::GENDERS),
             'rankLabel' => 'required|string',
+            // الفئة صفةُ الشخص لا صفةُ قطاعه — عليها تُبنى قائمة الرتب والطبقة
+            'personnelCategory' => 'required|in:civilian,military,contractor',
+            // المتعاقد بلا قائمة مُدارة، فطبقته تُرسَل صراحةً لا تُستنتج من مسمّاه
+            'tier' => 'required_if:personnelCategory,contractor|nullable|in:upper,middle',
             'assessmentType' => 'nullable|in:comprehensive,executive',
             'classification' => 'nullable|in:normal,secret,top_secret',
+            'technicalAreaIds' => 'required|array|min:1',
+            'technicalAreaIds.*' => 'integer|exists:technical_areas,id',
+        ], [
+            'gender.required' => 'اختر الجنس',
+            'technicalAreaIds.required' => 'اختر مجالاً فنياً واحداً على الأقل',
+            'technicalAreaIds.min' => 'اختر مجالاً فنياً واحداً على الأقل',
         ]);
 
         if (Candidate::nationalIdExists($validated['nationalId'], $id)) {
-            return response()->json(['error' => 'رقم الهوية مسجّل مسبقاً لمرشح آخر'], 422);
+            return response()->json(['error' => 'رقم الهوية مسجّل مسبقاً لمشارك آخر'], 422);
         }
 
         $sector = Sector::findOrFail($validated['sectorId']);
-        $tier = Candidate::classifyTier($validated['rankLabel'], $sector->is_military);
+        $category = $validated['personnelCategory'];
+        $tier = Candidate::resolveTier($category, $validated['rankLabel'], $validated['tier'] ?? null);
 
         $candidate->national_id = $validated['nationalId'];
         $candidate->full_name = $validated['fullName'];
         $candidate->mobile = $validated['mobile'] ?? null;
         $candidate->email = $validated['email'] ?? null;
         $candidate->sector_id = $sector->id;
+        $candidate->gender = $validated['gender'];
         $candidate->rank_label = $validated['rankLabel'];
+        $candidate->personnel_category = $category;
         $candidate->tier = $tier;
         $candidate->assessment_type = $validated['assessmentType'] ?? 'comprehensive';
         // تغيير التصنيف الأمني حوكمة حسّاسة — يتطلب صلاحية VIEW_CLASSIFIED (كما في reclassify) ويُسجَّل
@@ -405,8 +580,11 @@ class CandidateController extends Controller
 
         // نوع التقييم سمة للدورة الحالية — زامن الدورة الأحدث «غير المكتملة» فقط.
         // دورة مكتملة سجلٌّ تاريخي لما جرى فعلاً؛ إعادة كتابة نوعها تُفسد التاريخ (لا نمسّها)
-        DB::transaction(function () use ($candidate) {
+        $areaIds = $validated['technicalAreaIds'];
+
+        DB::transaction(function () use ($candidate, $areaIds) {
             $candidate->save();
+            $candidate->technicalAreas()->sync($areaIds);
             $latest = $candidate->assessments()->latest('id')->first();
             if ($latest && $latest->status !== 'completed'
                 && $latest->assessment_type !== $candidate->assessment_type) {
@@ -421,7 +599,7 @@ class CandidateController extends Controller
             ]);
         }
 
-        return response()->json(['message' => 'تم تحديث بيانات المرشح', 'tier' => $tier]);
+        return response()->json(['message' => 'تم تحديث بيانات المشارك', 'tier' => $tier]);
     }
 
     public function destroy(Request $request, int $id)
@@ -439,18 +617,18 @@ class CandidateController extends Controller
 
                 $candidate = $this->resolveCandidateInScope($request, $id);
         if (!$candidate) {
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
 
         if (!in_array($candidate->status, ['draft', 'scheduled'])) {
-            return response()->json(['error' => 'لا يمكن حذف مرشح بدأت عملية تقييمه'], 422);
+            return response()->json(['error' => 'لا يمكن حذف مشارك بدأت عملية تقييمه'], 422);
         }
 
         $code = $candidate->participant_code;
         $classification = $candidate->classification;
 
         // الحذف والتوثيق في معاملة واحدة (ذرّية): إمّا حذف موثّق أو لا حذف — فشل كتابة السجل يُرجِع الحذف،
-        // فلا يبقى سجل حذف لمرشح لم يُحذف، ولا حذف مُهلِك بلا أثر تدقيقي (كلاهما غير مقبول لسجل يُلزِم بسبب)
+        // فلا يبقى سجل حذف لمشارك لم يُحذف، ولا حذف مُهلِك بلا أثر تدقيقي (كلاهما غير مقبول لسجل يُلزِم بسبب)
         DB::transaction(function () use ($candidate, $request, $id, $code, $classification, $validated) {
             $candidate->delete();
             $this->log($request, 'DELETE_CANDIDATE', $id, [
@@ -460,7 +638,7 @@ class CandidateController extends Controller
             ]);
         });
 
-        return response()->json(['message' => "تم حذف المرشح {$code} (موثّق)"]);
+        return response()->json(['message' => "تم حذف المشارك {$code} (موثّق)"]);
     }
 
     public function approve(Request $request, int $id)
@@ -472,16 +650,16 @@ class CandidateController extends Controller
         // النطاق كاملاً — مصنّف أو خارج القطاع يُعامَل كـ«غير موجود»
         $candidate = $this->resolveCandidateInScope($request, $id);
         if (!$candidate) {
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
-        // الاعتماد انتقال مسودة→مجدول فقط — بلا حارس، يعيد اعتماد مرشح مكتمل فيُرجِع دورته من completed إلى scheduled
+        // الاعتماد انتقال مسودة→مجدول فقط — بلا حارس، يعيد اعتماد مشارك مكتمل فيُرجِع دورته من completed إلى scheduled
         if ($candidate->status !== 'draft') {
-            return response()->json(['error' => 'لا يمكن اعتماد مرشح غادر حالة المسودة'], 422);
+            return response()->json(['error' => 'لا يمكن اعتماد مشارك غادر حالة المسودة'], 422);
         }
         $candidate->setStatus('scheduled'); // يزامن الدورة الحالية
         $this->log($request, 'APPROVE_CANDIDATE', $id, ['code' => $candidate->participant_code]);
 
-        return response()->json(['message' => 'تم اعتماد المرشح']);
+        return response()->json(['message' => 'تم اعتماد المشارك']);
     }
 
     public function reclassify(Request $request, int $id)
@@ -495,10 +673,10 @@ class CandidateController extends Controller
         ]);
 
         // النطاق: حامل VIEW_CLASSIFIED يرى كل التصنيفات، لكن حدّ القطاع يبقى
-        // قائماً — لا يُصنَّف مرشّح خارج قطاع من يصنّفه
+        // قائماً — لا يُصنَّف مشارك خارج قطاع من يصنّفه
         $candidate = $this->resolveCandidateInScope($request, $id);
         if (!$candidate) {
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
         $old = $candidate->classification;
         $candidate->update(['classification' => $validated['classification']]);
@@ -512,17 +690,17 @@ class CandidateController extends Controller
         return response()->json(['message' => 'تم تحديث التصنيف']);
     }
 
-    // سجل دورات المرشح مع تقييماتها وتفاصيلها (لعرض التاريخ + التقييم السابق)
+    // سجل دورات المشارك مع تقييماتها وتفاصيلها (لعرض التاريخ + التقييم السابق)
     public function assessments(Request $request, int $id)
     {
         $user = $request->user();
         if (!$user->hasPermission(Permissions::CANDIDATE_VIEW)) {
-            return response()->json(['error' => 'ليس لديك صلاحية عرض المرشح'], 403);
+            return response()->json(['error' => 'ليس لديك صلاحية عرض المشارك'], 403);
         }
         // النطاق كاملاً: التصنيف + القطاع — الحارس الموحّد في Controller
         $candidate = $this->resolveCandidateInScope($request, $id);
         if (!$candidate) {
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
 
         $assessments = $candidate->assessments()
@@ -558,7 +736,7 @@ class CandidateController extends Controller
         return response()->json(['assessments' => $assessments]);
     }
 
-    // إنشاء دورة تقييم جديدة لمرشح موجود (زر «تقييم جديد»)
+    // إنشاء دورة تقييم جديدة لمشارك موجود (زر «تقييم جديد»)
     public function reassess(Request $request, int $id)
     {
         // القراءة شرط الكتابة: لا يُعاد تقييم من لا يُرى. بلا CANDIDATE_VIEW كان
@@ -570,14 +748,14 @@ class CandidateController extends Controller
         }
         $candidate = $this->resolveCandidateInScope($request, $id, ['sector']);
         if (!$candidate) {
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
 
         $active = $candidate->assessments()->where('status', '!=', 'completed')->orderByDesc('id')->first();
         if ($active) {
             // الرمز يُعاد لأن المستخدم يملك CANDIDATE_VIEW — يراه في القائمة أصلاً
             return response()->json([
-                'error' => "لدى المرشح دورة نشطة ({$active->participant_code}) — يجب إكمالها أولاً",
+                'error' => "لدى المشارك دورة نشطة ({$active->participant_code}) — يجب إكمالها أولاً",
                 'participantCode' => $active->participant_code,
             ], 422);
         }
@@ -602,16 +780,16 @@ class CandidateController extends Controller
         return response()->json(['message' => 'تمّت إضافة دورة تقييم جديدة', 'participantCode' => $code, 'smsQueued' => $smsQueued], 201);
     }
 
-    // ── رحلة المرشح: خط زمني كامل (إضافة → جدولة → حضور → تقييم → تقرير → اعتماد) ──
+    // ── رحلة المشارك: خط زمني كامل (إضافة → جدولة → حضور → تقييم → تقرير → اعتماد) ──
     public function journey(Request $request, int $id)
     {
         if (!$request->user()->hasPermission(Permissions::CANDIDATE_JOURNEY)) {
-            return response()->json(['error' => 'ليس لديك صلاحية عرض رحلة المرشح'], 403);
+            return response()->json(['error' => 'ليس لديك صلاحية عرض رحلة المشارك'], 403);
         }
         // النطاق كاملاً: التصنيف + القطاع — الحارس الموحّد في Controller
         $candidate = $this->resolveCandidateInScope($request, $id);
         if (!$candidate) {
-            return response()->json(['error' => 'المرشح غير موجود'], 404);
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
 
         $assessments = $candidate->assessments()
@@ -644,7 +822,7 @@ class CandidateController extends Controller
         $events[] = [
             'type' => 'candidate_created',
             'at' => optional($candidate->created_at)->toIso8601String(),
-            'title' => 'أُضيف المرشح إلى النظام',
+            'title' => 'أُضيف المشارك إلى النظام',
             'cycle' => null, 'meta' => null, 'actor' => null, 'status' => null,
             'icon' => 'user',
         ];
@@ -757,13 +935,13 @@ class CandidateController extends Controller
     public function stats(Request $request)
     {
         if (!$request->user()->hasPermission(Permissions::CANDIDATE_VIEW)) {
-            return response()->json(['error' => 'ليس لديك صلاحية عرض المرشحين'], 403);
+            return response()->json(['error' => 'ليس لديك صلاحية عرض المشاركين'], 403);
         }
         $allowed = $this->allowedClassifications($request);
         $user = $request->user();
         $base = Candidate::whereIn('classification', $allowed)
             // نفس حصر index — وإلا أفشى المؤشّر حجم ما تخفيه القائمة:
-            // مقيّم يرى ٥ مرشحين ومؤشّرٌ يقول ٤٤ يكشف اتساع القطاعات الأخرى
+            // مقيّم يرى ٥ مشاركين ومؤشّرٌ يقول ٤٤ يكشف اتساع القطاعات الأخرى
             ->when($user->isSectorBound(), fn ($q) => $q->where('sector_id', $user->sector_id));
 
         $total = (clone $base)->count();
@@ -796,7 +974,7 @@ class CandidateController extends Controller
     {
         $user = $request->user();
         if (!$user->hasPermission(Permissions::CANDIDATE_VIEW)) {
-            return response()->json(['error' => 'ليس لديك صلاحية تصدير المرشحين'], 403);
+            return response()->json(['error' => 'ليس لديك صلاحية تصدير المشاركين'], 403);
         }
         $canSeeNames = $user->hasPermission(Permissions::CANDIDATE_VIEW_NAMES);
 
@@ -822,8 +1000,9 @@ class CandidateController extends Controller
             $row = [
                 'الرمز' => $c->participant_code,
                 'القطاع' => $c->sector->name_ar,
-                'الرتبة' => $c->rank_label,
-                'الفئة' => $c->tier === 'upper' ? 'قيادة عليا' : 'قيادة وسطى',
+                'الفئة' => Candidate::categoryLabel((string) $c->personnel_category),
+                'الرتبة / المرتبة' => $c->rank_label,
+                'الفئة القيادية' => $c->tier === 'upper' ? 'قيادة عليا' : 'قيادة وسطى',
                 'الحالة' => $c->status,
                 'التصنيف' => $c->classification,
             ];
@@ -839,6 +1018,111 @@ class CandidateController extends Controller
             'includedNames' => $canSeeNames,
             'count' => $candidates->count(),
         ]);
+    }
+
+    // GET /candidates/{id}/cv/document — نموذج السيرة الذاتية المطبوع (المتصفّح → PDF)
+    //
+    // وثيقة إدارية: تحمل البيانات الوظيفية كاملة، فتلزمها صلاحية عرض السيرة
+    // نفسها التي يفرضها showCv — والاسم يبقى محجوباً كبقية المستندات.
+    public function cvDocument(Request $request, int $id)
+    {
+        if (!$request->user()->hasPermission(Permissions::CANDIDATE_CV_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض السيرة الذاتية'], 403);
+        }
+
+        $candidate = $this->resolveCandidateInScope($request, $id, ['cv', 'sector']);
+        if (!$candidate) {
+            $this->log($request, 'DENIED_CANDIDATE_OUT_OF_SCOPE', $id);
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
+        }
+
+        $doc = $candidate->cv?->data ?? CandidateCv::emptyDoc();
+        $canSeeNames = $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_NAMES);
+        if (!$canSeeNames) {
+            $doc = CvGuard::scrub($doc, $candidate);
+        }
+
+        // أقرب جلسة قادمة، وإلا آخر جلسة — لترويسة «تاريخ التقييم/الساعة»
+        $session = \App\Models\Schedule::where('candidate_id', $candidate->id)
+            ->orderByRaw('CASE WHEN schedule_date >= ? THEN 0 ELSE 1 END', [now()->toDateString()])
+            ->orderBy('schedule_date')
+            ->first();
+
+        // ── إقرار المشارك وتوقيعه ──
+        // من آخر زيارة استقبال موقّعة. `isSigned()` يشترط التوقيع والإقرار
+        // معاً، فلا يُطبع رسمٌ على لوحة بلا إقرارٍ خلفه.
+        //
+        // ⚠ التوقيع محجوز على صلاحية الأسماء لا على صلاحية السيرة: التوقيع
+        // اسمُ صاحبه مكتوباً بخطّ يده. من لا يملك رؤية الأسماء تُنقّى له
+        // السيرة نصّاً (CvGuard::scrub) ثم يقرأ الاسم من صورة التوقيع — فيسقط
+        // إخفاءُ الهوية الذي تقوم عليه المنصّة كلّها من بابٍ خلفي.
+        // ومن لا يملكها تُطبع له خانة توقيعٍ فارغة كما كان النموذج الورقي.
+        //
+        // وفكّ التشفير هنا لا في الخدمة: المفتاح يُستعمل في أضيق نطاق ممكن.
+        $attest = null;
+        if ($canSeeNames) {
+            $visit = \App\Models\ReceptionVisit::where('candidate_id', $candidate->id)
+                ->whereNotNull('signed_at')
+                ->where('attested', true)
+                ->orderByDesc('signed_at')
+                ->first();
+            if ($visit && $visit->isSigned()) {
+                $attest = ['signature' => $visit->signature, 'at' => optional($visit->signed_at)->toIso8601String()];
+            }
+        }
+
+        $this->log($request, 'PRINT_CV_SHEET', $id, ['code' => $candidate->participant_code, 'signed' => (bool) $attest]);
+
+        $html = app(\App\Services\CvSheetService::class)->renderHtml($candidate, $doc, [
+            'date' => $session?->schedule_date?->toDateString(),
+            'time' => $session?->schedule_time ? substr((string) $session->schedule_time, 0, 5) : null,
+            'attest' => $attest,
+        ]);
+
+        return response($html, 200)->header('Content-Type', 'text/html; charset=UTF-8');
+    }
+
+    // GET /candidates/cards — بطاقات المشاركين جاهزة للطباعة (المتصفّح → PDF)
+    //
+    // البطاقة تحمل الرمز وحده، فلا تلزمها صلاحية الأسماء. لكن النطاق
+    // يُطبَّق كاملاً كما في التصدير: البطاقة لا تكون طريقاً لمعرفة وجود
+    // مشارك خارج نطاقك — المعرّف خارج النطاق يسقط صامتاً.
+    public function cards(Request $request)
+    {
+        if (!$request->user()->hasPermission(Permissions::CANDIDATE_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض المشاركين'], 403);
+        }
+
+        $validated = $request->validate([
+            'ids' => 'required|string|max:4000',
+        ], [
+            'ids.required' => 'اختر مشاركاً واحداً على الأقل',
+        ]);
+
+        $ids = array_slice(array_filter(array_map(
+            'intval',
+            explode(',', $validated['ids'])
+        )), 0, 500);
+
+        if (!$ids) {
+            return response()->json(['error' => 'اختر مشاركاً واحداً على الأقل'], 422);
+        }
+
+        $query = Candidate::query()->whereIn('id', $ids);
+        $this->scopeCandidateQuery($request, $query);
+        $codes = $query->orderBy('participant_code')->pluck('participant_code')->all();
+
+        if (!$codes) {
+            return response()->json(['error' => 'لا يوجد مشاركون ضمن نطاقك في هذا الاختيار'], 422);
+        }
+
+        $this->log($request, 'PRINT_PARTICIPANT_CARDS', 0, [
+            'count' => count($codes),
+            'codes' => $codes,
+        ]);
+
+        return response(app(\App\Services\ParticipantCardService::class)->renderHtml($codes), 200)
+            ->header('Content-Type', 'text/html; charset=UTF-8');
     }
 
     private function log(Request $request, string $action, int $entityId, array $details = []): void

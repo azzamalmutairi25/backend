@@ -34,7 +34,7 @@ class SectorPrefixTest extends TestCase
 
     public function test_new_codes_use_the_updated_prefix(): void
     {
-        $s = Sector::where('code', 'ED')->first();
+        $s = Sector::where('code', 'DW')->first();
         $this->actingAsRole('ADMIN');
 
         $this->putJson("/api/sectors/{$s->id}/prefix", ['prefix' => 'EDU'])->assertOk();
@@ -45,10 +45,10 @@ class SectorPrefixTest extends TestCase
 
     public function test_existing_codes_are_not_rewritten(): void
     {
-        [$c, $a] = $this->makeCandidate(['sectorCode' => 'ED']);
+        [$c, $a] = $this->makeCandidate(['sectorCode' => 'DW']);
         $oldCode = $a->participant_code;
 
-        $s = Sector::where('code', 'ED')->first();
+        $s = Sector::where('code', 'DW')->first();
         $this->actingAsRole('ADMIN');
         $this->putJson("/api/sectors/{$s->id}/prefix", ['prefix' => 'EDU'])->assertOk();
 
@@ -58,13 +58,13 @@ class SectorPrefixTest extends TestCase
 
     public function test_duplicate_prefix_is_rejected(): void
     {
-        $ho = Sector::where('code', 'HO')->first();
+        $ho = Sector::where('code', 'PR')->first();
         $this->actingAsRole('ADMIN');
 
-        // HO بادئته الافتراضية HO؛ محاولة إعطاء التعليم نفس البادئة تُرفض
-        $this->putJson("/api/sectors/{$ho->id}/prefix", ['prefix' => 'HO'])->assertOk();
-        $ed = Sector::where('code', 'ED')->first();
-        $this->putJson("/api/sectors/{$ed->id}/prefix", ['prefix' => 'HO'])
+        // السجون بادئتها الافتراضية PR؛ محاولة إعطاء ديوان الوزارة نفس البادئة تُرفض
+        $this->putJson("/api/sectors/{$ho->id}/prefix", ['prefix' => 'PR'])->assertOk();
+        $ed = Sector::where('code', 'DW')->first();
+        $this->putJson("/api/sectors/{$ed->id}/prefix", ['prefix' => 'PR'])
             ->assertStatus(422);
     }
 
@@ -80,7 +80,7 @@ class SectorPrefixTest extends TestCase
 
     public function test_prefix_change_is_audited(): void
     {
-        $s = Sector::where('code', 'ED')->first();
+        $s = Sector::where('code', 'DW')->first();
         $this->actingAsRole('ADMIN');
         $this->putJson("/api/sectors/{$s->id}/prefix", ['prefix' => 'EDU'])->assertOk();
 

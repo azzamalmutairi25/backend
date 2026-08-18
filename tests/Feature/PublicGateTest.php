@@ -6,11 +6,14 @@ use App\Models\Attendance;
 use App\Models\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Tests\Concerns\EnablesCandidatePortal;
 use Tests\TestCase;
 
 class PublicGateTest extends TestCase
 {
     use RefreshDatabase;
+    // البوّابة مُعطَّلة في التشغيل — تُشغَّل هنا لتبقى شيفرتها مُختبَرة
+    use EnablesCandidatePortal;
 
     protected $seed = true;
 

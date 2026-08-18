@@ -9,7 +9,7 @@ use App\Security\Permissions;
 use App\Services\DistributionService;
 use Illuminate\Http\Request;
 
-// التوزيع الأسبوعي — اقتراح واعتماد. لمسؤول الجدولة (إدارة المرشحين).
+// التوزيع الأسبوعي — اقتراح واعتماد. لمسؤول الجدولة (إدارة المشاركين).
 class DistributionController extends Controller
 {
     public function __construct(private DistributionService $service) {}
@@ -101,7 +101,7 @@ class DistributionController extends Controller
         return response()->json([
             'message' => $result['dropped'] > 0
                 ? "تم الاعتماد — جُدوِل {$result['placed']}، وسقط {$result['dropped']} لتغيّر بياناتهم"
-                : "تم اعتماد التوزيع — جُدوِل {$result['placed']} مرشّح",
+                : "تم اعتماد التوزيع — جُدوِل {$result['placed']} مشارك",
             'placed' => $result['placed'],
             'dropped' => $result['dropped'],
         ]);
@@ -126,8 +126,8 @@ class DistributionController extends Controller
         return response()->json(['message' => 'تم حذف الاقتراح']);
     }
 
-    // مرشحون جاهزون للتوزيع: معتمدون للتقييم بلا جلسة مقابلة
-    // محصور بتصنيفات المُشغِّل: العدّ لا يكشف وجود مرشّح مصنّف لمن لا يملك تصريحه.
+    // مشاركون جاهزون للتوزيع: معتمدون للتقييم بلا جلسة مقابلة
+    // محصور بتصنيفات المُشغِّل: العدّ لا يكشف وجود مشارك مصنّف لمن لا يملك تصريحه.
     private function readyCandidatesQuery(Request $request)
     {
         return Candidate::where('status', 'scheduled')

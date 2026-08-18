@@ -44,7 +44,8 @@ class CandidateSecurityTest extends TestCase
 
         $res = $this->postJson('/api/candidates', [
             'nationalId' => $nid, 'fullName' => 'مهاجم', 'sectorId' => \App\Models\Sector::first()->id,
-            'rankLabel' => 'مدير عام',
+            'personnelCategory' => 'civilian',
+            'personnelCategory' => 'civilian', 'rankLabel' => 'الرابعة عشرة',
         ]);
         $res->assertStatus(422);
         // the classified record's name must NOT have been overwritten

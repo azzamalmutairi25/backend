@@ -96,7 +96,7 @@ class ScoringTest extends TestCase
 
         $this->actingAsRole('ASSESS_MANAGER');
         $this->postJson('/api/reports', [
-            'candidateId' => $c->id, 'recommendation' => 'مرشّح قوي',
+            'candidateId' => $c->id, 'recommendation' => 'مشارك قوي',
         ])->assertCreated();
 
         $report = FinalReport::where('assessment_id', $a->id)->first();
@@ -114,7 +114,7 @@ class ScoringTest extends TestCase
 
         $this->actingAsRole('ASSESS_MANAGER');
         $this->postJson('/api/reports', [
-            'candidateId' => $c->id, 'recommendation' => 'مرشّح', 'behavioralFit' => 95,
+            'candidateId' => $c->id, 'recommendation' => 'مشارك', 'behavioralFit' => 95,
         ])->assertCreated();
 
         $report = FinalReport::where('assessment_id', $a->id)->first();

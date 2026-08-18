@@ -7,13 +7,13 @@ use Illuminate\Validation\ValidationException;
 use Normalizer;
 
 // ════════════════════════════════════════════════════════════
-//  حارس السيرة الذاتية — نظافة يونيكود + منع تسرّب هوية المرشح.
+//  حارس السيرة الذاتية — نظافة يونيكود + منع تسرّب هوية المشارك.
 //
-//  السيرة نصّ حرّ يكتبه المرشح، والمقيّم يراها دون اسم. الخطر: أن يكتب
-//  المرشح اسمه في «نبذة» أو «ملخّص الخبرة» فتنهار السرّية أول ما يقرؤها المقيّم.
+//  السيرة نصّ حرّ يكتبه المشارك، والمقيّم يراها دون اسم. الخطر: أن يكتب
+//  المشارك اسمه في «نبذة» أو «ملخّص الخبرة» فتنهار السرّية أول ما يقرؤها المقيّم.
 //  دفاعان متكاملان:
-//   • directIdentifierHit — يُرفض الحفظ (لأي كاتب: مرشح أو إدارة) إن حوى نصٌّ
-//     حرّ اسمَ المرشح أو هويته أو جواله أو بريده. يرجع مفتاح الحقل لا محتواه.
+//   • directIdentifierHit — يُرفض الحفظ (لأي كاتب: مشارك أو إدارة) إن حوى نصٌّ
+//     حرّ اسمَ المشارك أو هويته أو جواله أو بريده. يرجع مفتاح الحقل لا محتواه.
 //   • scrub — الضابط الحاسم: يطمس أي معرّف عند كل حدود عرض للمقيّم، فلا تعتمد
 //     السرّية على طريقة الكتابة (يمسك تعديلات الإدارة والسجلّات القديمة والتحايل).
 //
@@ -106,7 +106,7 @@ class CvGuard
         return preg_replace('/(.)\1+/', '$1', $latin); // طيّ الأحرف المكرّرة
     }
 
-    // سياق مطابقة من بيانات المرشح (يفكّ التشفير مرة واحدة)
+    // سياق مطابقة من بيانات المشارك (يفكّ التشفير مرة واحدة)
     public static function context(Candidate $c): array
     {
         $connectors = array_map([self::class, 'normalizeAr'], ['بن', 'بنت', 'ابن', 'ابو', 'ال']);
@@ -164,7 +164,7 @@ class CvGuard
         return null;
     }
 
-    // هوية/جوال المرشح، أو أي سلسلة ≥9 أرقام، أو بريد/رابط
+    // هوية/جوال المشارك، أو أي سلسلة ≥9 أرقام، أو بريد/رابط
     private static function hasPii(string $val, array $ctx): bool
     {
         $digits = preg_replace('/\D/', '', strtr($val, [
@@ -179,7 +179,7 @@ class CvGuard
         return false;
     }
 
-    // هل يظهر أحد مقاطع اسم المرشح (عربي أو نقحرة لاتينية بمطابقة هيكل تامّة)؟
+    // هل يظهر أحد مقاطع اسم المشارك (عربي أو نقحرة لاتينية بمطابقة هيكل تامّة)؟
     private static function hasName(string $val, array $ctx): bool
     {
         $norm = ' ' . self::normalizeAr($val) . ' ';
@@ -241,9 +241,14 @@ class CvGuard
 
         $doc['currentPosition'] = $f($doc['currentPosition'] ?? null);
         $doc['briefBio'] = $f($doc['briefBio'] ?? null);
+        // البيانات الوظيفية نصّ حرّ كذلك — تمرّ بالطمس كأسماء الجهات
+        $doc['rankLabel'] = $f($doc['rankLabel'] ?? null);
+        $doc['department'] = $f($doc['department'] ?? null);
+        $doc['region'] = $f($doc['region'] ?? null);
         foreach (($doc['qualifications'] ?? []) as $i => $q) {
             $doc['qualifications'][$i]['major'] = $f($q['major'] ?? null);
             $doc['qualifications'][$i]['institution'] = $f($q['institution'] ?? null);
+            $doc['qualifications'][$i]['studyPlace'] = $f($q['studyPlace'] ?? null);
         }
         foreach (($doc['experiences'] ?? []) as $i => $e) {
             $doc['experiences'][$i]['position'] = $f($e['position'] ?? null);

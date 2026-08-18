@@ -18,7 +18,7 @@ class AssessmentDataFixesTest extends TestCase
 
     protected $seed = true;
 
-    // جلسة جاهزة لمرشّح في قطاع محدّد
+    // جلسة جاهزة لمشارك في قطاع محدّد
     private function scheduleFor(string $sectorCode, string $date, string $candidateStatus = 'assessed'): Schedule
     {
         [$c, $a] = $this->makeCandidate([
@@ -34,27 +34,27 @@ class AssessmentDataFixesTest extends TestCase
         ]);
     }
 
-    // ── Fix A: مقيّم (ED) مُنِح schedule.manage لا يجدول مرشّح قطاع آخر (HI) ──
+    // ── Fix A: مقيّم (ED) مُنِح schedule.manage لا يجدول مشارك قطاع آخر (HI) ──
     public function test_schedule_store_is_sector_scoped(): void
     {
-        $actor = $this->actingAsRole('EVALUATOR', 'ED');
+        $actor = $this->actingAsRole('EVALUATOR', 'DW');
         $actor->permissionOverrides()->create(['permission' => 'schedule.manage', 'granted' => true]);
 
-        [$otherSector] = $this->makeCandidate(['sectorCode' => 'HI', 'status' => 'assessed']);
+        [$otherSector] = $this->makeCandidate(['sectorCode' => 'MS', 'status' => 'assessed']);
         $this->postJson('/api/schedules', [
             'candidateId' => $otherSector->id, 'activity' => 'interview',
-            'date' => now()->addDay()->toDateString(),
+            'date' => now()->addDay()->toDateString(), 'time' => '09:30',
         ])->assertStatus(404);
     }
 
     // ── Fix A: تعديل/حذف جلسة قطاع آخر = «غير موجودة» (404) ──
     public function test_schedule_update_and_destroy_are_sector_scoped(): void
     {
-        $actor = $this->actingAsRole('EVALUATOR', 'ED');
+        $actor = $this->actingAsRole('EVALUATOR', 'DW');
         $actor->permissionOverrides()->create(['permission' => 'schedule.manage', 'granted' => true]);
         $actor->permissionOverrides()->create(['permission' => 'candidate.edit', 'granted' => true]);
 
-        $sch = $this->scheduleFor('HI', now()->addDay()->toDateString());
+        $sch = $this->scheduleFor('MS', now()->addDay()->toDateString());
 
         $this->putJson("/api/schedules/{$sch->id}", ['date' => now()->addDays(2)->toDateString()])
             ->assertStatus(404);
@@ -66,8 +66,8 @@ class AssessmentDataFixesTest extends TestCase
     // ── Fix B: الحضور خارج القطاع = 404 لا 403 (لا مِكشاف وجود) ──
     public function test_attendance_out_of_sector_returns_404_not_403(): void
     {
-        $this->actingAsRole('EVALUATOR', 'ED'); // يملك attendance.record بالدور
-        $sch = $this->scheduleFor('HI', now()->toDateString());
+        $this->actingAsRole('EVALUATOR', 'DW'); // يملك attendance.record بالدور
+        $sch = $this->scheduleFor('MS', now()->toDateString());
 
         $this->postJson("/api/attendance/{$sch->id}/checkin")->assertStatus(404);
         $this->postJson("/api/attendance/{$sch->id}/absence", ['excused' => true])->assertStatus(404);
@@ -78,7 +78,7 @@ class AssessmentDataFixesTest extends TestCase
     {
         $actor = $this->actingAsRole('SCHEDULER'); // SCHEDULE_MANAGE + CANDIDATE_EDIT
         $today = now()->toDateString();
-        $sch = $this->scheduleFor('ED', $today);
+        $sch = $this->scheduleFor('DW', $today);
         Attendance::create(['schedule_id' => $sch->id, 'status' => 'present', 'check_in_time' => now(), 'recorded_by' => $actor->id]);
 
         $res = $this->putJson("/api/schedules/{$sch->id}", ['location' => 'قاعة ب', 'date' => $today])->assertOk();
@@ -95,7 +95,7 @@ class AssessmentDataFixesTest extends TestCase
     public function test_reschedule_is_one_shot(): void
     {
         $actor = $this->actingAsRole('SCHEDULER'); // CANDIDATE_EDIT
-        $sch = $this->scheduleFor('ED', now()->subDay()->toDateString());
+        $sch = $this->scheduleFor('DW', now()->subDay()->toDateString());
         Attendance::create(['schedule_id' => $sch->id, 'status' => 'absent_unexcused', 'recorded_by' => $actor->id]);
 
         $date = now()->addDays(3)->toDateString();
@@ -106,11 +106,11 @@ class AssessmentDataFixesTest extends TestCase
         $this->assertSame(2, Schedule::where('candidate_id', $sch->candidate_id)->count());
     }
 
-    // ── Fix D: لا تُعاد جدولة مرشّح أنهى دورته (لا دورة نشطة) ──
+    // ── Fix D: لا تُعاد جدولة مشارك أنهى دورته (لا دورة نشطة) ──
     public function test_reschedule_rejects_completed_cycle(): void
     {
         $actor = $this->actingAsRole('SCHEDULER');
-        $sch = $this->scheduleFor('ED', now()->subDay()->toDateString(), 'completed');
+        $sch = $this->scheduleFor('DW', now()->subDay()->toDateString(), 'completed');
         Attendance::create(['schedule_id' => $sch->id, 'status' => 'absent_unexcused', 'recorded_by' => $actor->id]);
 
         $this->postJson("/api/schedules/{$sch->id}/reschedule", ['date' => now()->addDays(3)->toDateString()])
@@ -121,8 +121,8 @@ class AssessmentDataFixesTest extends TestCase
     public function test_index_excludes_old_schedules_when_unfiltered(): void
     {
         $this->actingAsRole('SCHEDULER'); // SCHEDULE_VIEW
-        $old = $this->scheduleFor('ED', now()->subDays(90)->toDateString());
-        $recent = $this->scheduleFor('ED', now()->addDay()->toDateString());
+        $old = $this->scheduleFor('DW', now()->subDays(90)->toDateString());
+        $recent = $this->scheduleFor('DW', now()->addDay()->toDateString());
 
         $ids = collect($this->getJson('/api/schedules')->assertOk()->json('schedules'))->pluck('id');
         $this->assertFalse($ids->contains($old->id));

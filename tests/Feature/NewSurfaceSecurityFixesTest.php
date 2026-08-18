@@ -23,15 +23,15 @@ class NewSurfaceSecurityFixesTest extends TestCase
     public function test_distribution_excludes_classified_candidates_from_uncleared_scheduler(): void
     {
         // مقيّم في القطاع (وإلا لا يُوزَّع أحد)
-        $edSector = Sector::where('code', 'ED')->value('id');
+        $edSector = Sector::where('code', 'DW')->value('id');
         User::create([
             'username' => 'ev_' . uniqid(), 'full_name' => 'مقيّم', 'password' => 'x',
             'role_id' => Role::where('code', 'EVALUATOR')->value('id'),
             'sector_id' => $edSector, 'is_active' => true, 'must_change_password' => false,
         ]);
 
-        [$normal] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED', 'classification' => 'normal', 'code' => 'DN1']);
-        [$secret] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED', 'classification' => 'top_secret', 'code' => 'DS1']);
+        [$normal] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW', 'classification' => 'normal', 'code' => 'DN1']);
+        [$secret] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW', 'classification' => 'top_secret', 'code' => 'DS1']);
 
         // SCHEDULER يملك DISTRIBUTION_MANAGE لكن لا CANDIDATE_VIEW_CLASSIFIED
         $scheduler = $this->actingAsRole('SCHEDULER');

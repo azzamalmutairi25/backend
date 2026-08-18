@@ -5,14 +5,14 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 // ════════════════════════════════════════════════════════════
-//  هجرة: المرشحون، الكفاءات، التقييمات
+//  هجرة: المشاركون، الكفاءات، التقييمات
 // ════════════════════════════════════════════════════════════
 
 return new class extends Migration
 {
     public function up(): void
     {
-        // ── المرشحون ──
+        // ── المشاركون ──
         Schema::create('candidates', function (Blueprint $table) {
             $table->id();
             $table->string('participant_code', 20)->unique();  // DA-001

@@ -17,7 +17,7 @@ class DailyReportTest extends TestCase
 
     private function sessionToday(string $attStatus, ?string $reason = null): Schedule
     {
-        [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED']);
+        [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
         $s = Schedule::create([
             'candidate_id' => $c->id, 'assessment_id' => $a->id,
             'schedule_date' => now()->toDateString(), 'schedule_time' => '10:00:00',
@@ -83,7 +83,7 @@ class DailyReportTest extends TestCase
     public function test_report_reflects_a_specific_date(): void
     {
         // جلسة أمس بغياب — لا تظهر في تقرير اليوم
-        [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED']);
+        [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
         $s = Schedule::create([
             'candidate_id' => $c->id, 'assessment_id' => $a->id,
             'schedule_date' => now()->subDay()->toDateString(), 'schedule_time' => '10:00:00',

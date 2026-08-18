@@ -10,7 +10,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
-// تكامل آلة حالة المرشح: draft → scheduled → assessed → (تقرير) → completed
+// تكامل آلة حالة المشارك: draft → scheduled → assessed → (تقرير) → completed
 // يُثبّت تزامن candidate ⇄ assessment عبر كل انتقال (الإصلاحات: حارس approve، مزامنة submit، اعتماد التقرير)
 class CandidateLifecycleTest extends TestCase
 {
@@ -35,7 +35,7 @@ class CandidateLifecycleTest extends TestCase
         $ids = $this->linkCompetencies('interview', 2);
         $this->actingAsRole('ADMIN'); // كل الصلاحيات — فاعل واحد يقود الدورة كاملة
 
-        // 1) اعتماد: draft → scheduled (المرشح + الدورة)
+        // 1) اعتماد: draft → scheduled (المشارك + الدورة)
         $this->postJson("/api/candidates/{$c->id}/approve")->assertOk();
         $this->assertSame('scheduled', $c->fresh()->status);
         $this->assertSame('scheduled', $a->fresh()->status);
@@ -43,7 +43,7 @@ class CandidateLifecycleTest extends TestCase
         // 2) المقيّم يُجري التقييم — لا مدير النظام:
         // المقيّم لا يرى ولا يعتمد إلا تقارير من قيّمهم هو، فلو قيّمه ADMIN
         // لما رأى المقيّمُ التقريرَ عند مرحلته.
-        $ev = $this->actingAsRole('EVALUATOR', 'ED');
+        $ev = $this->actingAsRole('EVALUATOR', 'DW');
         $evalId = $this->postJson('/api/evaluations/start', ['candidateId' => $c->id, 'activity' => 'interview'])
             ->assertCreated()->json('evaluation.id') ?? Evaluation::latest('id')->value('id');
         $this->postJson("/api/evaluations/{$evalId}/scores", ['scores' => [
@@ -57,10 +57,10 @@ class CandidateLifecycleTest extends TestCase
         // مرحلة مدير التقييم تمنع كاتب التقرير من اعتمادها («من يكتب لا يعتمد»)،
         // فلو كتبه الفاعل نفسه لعلق عندها. هذا هو المسار الحقيقي أصلاً.
         $mgr = $this->actingAsRole('ASSESS_MANAGER');
-        $this->actingAsRole('ASSISTANT', 'ED', $mgr);
+        $this->actingAsRole('ASSISTANT', 'DW', $mgr);
 
         $reportId = $this->postJson('/api/reports', [
-            'candidateId' => $c->id, 'recommendation' => 'مرشّح قوي',
+            'candidateId' => $c->id, 'recommendation' => 'مشارك قوي',
             'behavioralFit' => 88.5, 'technicalFit' => 77.0, 'submit' => true,
         ])->assertCreated()->json('reportId') ?? FinalReport::latest('id')->value('id');
         $this->assertSame('pending_evaluator', FinalReport::find($reportId)->status);
@@ -71,9 +71,9 @@ class CandidateLifecycleTest extends TestCase
         foreach ($chain as $stage) {
             $this->assertSame($stage->status_key, FinalReport::find($reportId)->status,
                 "التقرير عند المرحلة {$stage->position}");
-            $this->assertSame('assessed', $c->fresh()->status, 'المرشح لا يكتمل قبل نهاية السلسلة');
+            $this->assertSame('assessed', $c->fresh()->status, 'المشارك لا يكتمل قبل نهاية السلسلة');
 
-            // يُعاد استعمال الفاعلَين لا إنشاء غيرهما: المقيّم هو من قيّم المرشّح
+            // يُعاد استعمال الفاعلَين لا إنشاء غيرهما: المقيّم هو من قيّم المشارك
             // (وإلا لم يرَ تقريره)، والمدير هو مدير كاتب التقرير (تشترطه قاعدة
             // الفريق). المراحل الأخرى غير محصورة فيكفيها دورٌ جديد.
             if ($stage->role_code === 'EVALUATOR')          { \Laravel\Sanctum\Sanctum::actingAs($ev); }
@@ -83,7 +83,7 @@ class CandidateLifecycleTest extends TestCase
             $this->postJson("/api/reports/{$reportId}/approve")->assertOk();
         }
 
-        // 5) بعد آخر مرحلة: المرشح + الدورة → completed
+        // 5) بعد آخر مرحلة: المشارك + الدورة → completed
         $this->assertSame('approved', FinalReport::find($reportId)->status);
         $this->assertSame('completed', $c->fresh()->status);
         $this->assertSame('completed', $a->fresh()->status);
@@ -91,7 +91,7 @@ class CandidateLifecycleTest extends TestCase
 
     public function test_reassess_opens_a_second_cycle_and_resets_status(): void
     {
-        // مرشح أنهى دورة (completed) — «تقييم جديد» يفتح دورة ثانية بحالة draft
+        // مشارك أنهى دورة (completed) — «تقييم جديد» يفتح دورة ثانية بحالة draft
         [$c, $a1] = $this->makeCandidate(['status' => 'completed', 'assessmentStatus' => 'completed']);
         $this->actingAsRole('ADMIN'); // CANDIDATE_CREATE
 

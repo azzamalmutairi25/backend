@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 // سجلّ محاولات التحقق من الهوية — أثر تدقيقي: من تحقّق، ومتى، والنتيجة.
-// لا يُخزَّن رقم الهوية الخام (بيانات حسّاسة) — الربط بالمرشّح عبر candidate_id.
+// لا يُخزَّن رقم الهوية الخام (بيانات حسّاسة) — الربط بالمشارك عبر candidate_id.
 return new class extends Migration
 {
     public function up(): void

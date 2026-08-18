@@ -88,7 +88,7 @@ class DailyMaintenanceTest extends TestCase
         [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed']);
         $devManager = $this->userWithRole('DEV_MANAGER');
         $report = FinalReport::create([
-            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'مرشّح',
+            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'مشارك',
             'status' => 'pending_dev_approval', 'created_by' => null,
         ]);
         // اجعله متأخّراً 5 أيام (يتجاوز المهلة الافتراضية 3)
@@ -107,7 +107,7 @@ class DailyMaintenanceTest extends TestCase
         [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed']);
         $devManager = $this->userWithRole('DEV_MANAGER');
         FinalReport::create([
-            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'مرشّح',
+            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'مشارك',
             'status' => 'pending_dev_approval', 'created_by' => null,
         ]); // updated_at = now → ضمن المهلة
 
@@ -123,7 +123,7 @@ class DailyMaintenanceTest extends TestCase
         [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed']);
         $devManager = $this->userWithRole('DEV_MANAGER');
         $report = FinalReport::create([
-            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'مرشّح',
+            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'مشارك',
             'status' => 'pending_dev_approval', 'created_by' => null,
         ]);
         DB::table('final_reports')->where('id', $report->id)->update(['updated_at' => now()->subDays(5)]);

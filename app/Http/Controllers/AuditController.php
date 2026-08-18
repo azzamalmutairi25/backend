@@ -10,14 +10,20 @@ use Illuminate\Http\Request;
 class AuditController extends Controller
 {
     private array $actionLabels = [
-        'CREATE_CANDIDATE' => 'إضافة المرشح',
+        'CREATE_CANDIDATE' => 'إضافة المشارك',
         'UPDATE_CANDIDATE' => 'تعديل البيانات',
-        'DELETE_CANDIDATE' => 'حذف المرشح',
-        'APPROVE_CANDIDATE' => 'اعتماد المرشح',
+        'DELETE_CANDIDATE' => 'حذف المشارك',
+        'APPROVE_CANDIDATE' => 'اعتماد المشارك',
         'VIEW_CANDIDATE_PII' => 'الاطلاع على البيانات الشخصية',
         'IMPORT_CANDIDATES' => 'استيراد جماعي',
         'EXPORT_CANDIDATES' => 'تصدير القائمة',
         'RECLASSIFY_CANDIDATE' => 'تغيير تصنيف السرّية',
+        'CV_UPDATE' => 'تعديل السيرة الذاتية',
+        'DUPLICATE_CANDIDATE_ADD' => 'محاولة إضافة مشارك مسجّل مسبقاً',
+        'REQUEST_CANDIDATE_UPDATE' => 'طلب تحديث بيانات مشارك',
+        'VIEW_CANDIDATE_UPDATE_REQUEST' => 'عرض طلب تحديث بيانات',
+        'APPROVE_CANDIDATE_UPDATE' => 'اعتماد طلب تحديث بيانات',
+        'REJECT_CANDIDATE_UPDATE' => 'رفض طلب تحديث بيانات',
         'DENIED_CLASSIFIED_ACCESS' => 'محاولة وصول مرفوضة (مصنّف)',
         'CREATE_USER' => 'إضافة مستخدم',
         'UPDATE_USER' => 'تعديل مستخدم',
@@ -44,6 +50,35 @@ class AuditController extends Controller
         'CREATE_SCHEDULE' => 'جدولة جلسة',
         'UPDATE_SCHEDULE' => 'تعديل جلسة',
         'DELETE_SCHEDULE' => 'حذف جلسة',
+        'CREATE_PERIOD' => 'إنشاء موجة جدولة',
+        'UPDATE_PERIOD' => 'تعديل موجة جدولة',
+        'DELETE_PERIOD' => 'حذف موجة جدولة',
+        'SET_PERIOD_ASSESSORS' => 'ضبط لوحة المقيّمين والنصاب',
+        'SUBMIT_PERIOD' => 'إرسال الجدولة للاعتماد',
+        'APPROVE_PERIOD' => 'اعتماد موجة الجدولة',
+        'REJECT_PERIOD' => 'إرجاع موجة الجدولة',
+        'CLOSE_PERIOD' => 'إغلاق موجة الجدولة',
+        'CREATE_WORKFLOW_STEP' => 'إضافة خطوة لسير عمل الجدولة',
+        'UPDATE_WORKFLOW_STEP' => 'تعديل خطوة في سير عمل الجدولة',
+        'DELETE_WORKFLOW_STEP' => 'حذف خطوة من سير عمل الجدولة',
+        'REORDER_WORKFLOW_STEPS' => 'إعادة ترتيب خطوات الجدولة',
+        'MARK_WORKFLOW_STEP' => 'تأشير خطوة في سير عمل موجة',
+        'CREATE_EXPERTISE_AREA' => 'إضافة مجال خبرة',
+        'UPDATE_EXPERTISE_AREA' => 'تعديل مجال خبرة',
+        'DELETE_EXPERTISE_AREA' => 'حذف مجال خبرة',
+        'SET_USER_EXPERTISE' => 'وسم مستخدم بمجالات خبرته',
+        'CREATE_CIRCLE' => 'إنشاء حلقة نقاش',
+        'UPDATE_CIRCLE' => 'تعديل حلقة نقاش',
+        'DELETE_CIRCLE' => 'حذف حلقة نقاش',
+        'ATTACH_CIRCLE' => 'إسناد مشاركين لحلقة نقاش',
+        'DETACH_CIRCLE' => 'سحب مشارك من حلقة نقاش',
+        'SYNC_GOLDEN_SCHEDULE' => 'مزامنة الجدول الذهبي',
+        'ADD_GOLDEN_ROW' => 'إضافة صفّ للجدول الذهبي',
+        'DELETE_GOLDEN_ROW' => 'حذف صفّ من الجدول الذهبي',
+        'EXPORT_GOLDEN_SCHEDULE' => 'طباعة الجدول الذهبي',
+        'PRINT_ENTRY_PERMITS' => 'طباعة تصاريح الدخول',
+        'SEND_SCHEDULE_DISPATCH' => 'تسليم الجدولة لجهة',
+        'PRINT_DISPATCH_RECEIPT' => 'طباعة محضر تسليم',
         'RECORD_ATTENDANCE' => 'تسجيل حضور',
         'RECORD_ABSENCE' => 'تسجيل غياب',
         'UPLOAD_MEASUREMENT' => 'رفع نتيجة قياس',
@@ -63,18 +98,18 @@ class AuditController extends Controller
 
     public function candidateHistory(Request $request, int $id)
     {
-        // سجل التدقيق — لا عرض المرشح. كان محروساً بـCANDIDATE_VIEW فقرأه عشرة
+        // سجل التدقيق — لا عرض المشارك. كان محروساً بـCANDIDATE_VIEW فقرأه عشرة
         // أدوار من أحد عشر، بينما شقيقه systemLog على الجدول نفسه محروس بـAUDIT_VIEW.
-        // السجل يكشف من فعل ماذا ومتى: من رأى بيانات المرشّح، ومن حاول ورُفض.
+        // السجل يكشف من فعل ماذا ومتى: من رأى بيانات المشارك، ومن حاول ورُفض.
         $user = $request->user();
         if (!$user->hasPermission(Permissions::AUDIT_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض سجل التدقيق'], 403);
         }
-        // احترام تصنيف المرشح — فشل مغلق: مرشح محذوف قد يكون كان مصنّفاً
+        // احترام تصنيف المشارك — فشل مغلق: مشارك محذوف قد يكون كان مصنّفاً
         $candidate = \App\Models\Candidate::find($id);
         if (!$user->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
             if (!$candidate || $candidate->classification !== 'normal') {
-                return response()->json(['error' => 'المرشح غير موجود'], 404);
+                return response()->json(['error' => 'المشارك غير موجود'], 404);
             }
         }
 
@@ -126,11 +161,11 @@ class AuditController extends Controller
         $userIds = $logs->pluck('user_id')->unique()->filter();
         $users = User::whereIn('id', $userIds)->get()->keyBy('id');
 
-        // إخفاء تفاصيل المرشحين المصنّفين عمّن لا يملك التصريح (منع تسريب التصنيف عبر السجل).
-        // فشل مغلق: يُظهر فقط سجلّات المرشح «العادي الموجود». صفّ candidate يُميَّز بالمعرّف.
-        // أما الكيانات المرتبطة بمرشّح (تقرير/تقييم/جدولة/حضور/قياس/خطة/توزيع) فتحمل رمز
+        // إخفاء تفاصيل المشاركين المصنّفين عمّن لا يملك التصريح (منع تسريب التصنيف عبر السجل).
+        // فشل مغلق: يُظهر فقط سجلّات المشارك «العادي الموجود». صفّ candidate يُميَّز بالمعرّف.
+        // أما الكيانات المرتبطة بمشارك (تقرير/تقييم/جدولة/حضور/قياس/خطة/توزيع) فتحمل رمز
         // المشارك في details تحت مفاتيح غير موحّدة (candidate/code/candidateSector)، فحجب
-        // صفوف candidate وحدها كان يُسرّب رمز مرشّح مصنّف عبر صفوف أشقّائه — نُغلق على تفاصيلها كلها.
+        // صفوف candidate وحدها كان يُسرّب رمز مشارك مصنّف عبر صفوف أشقّائه — نُغلق على تفاصيلها كلها.
         $canSeeClassified = $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED);
         $candidateLinked = ['candidate', 'evaluation', 'report', 'schedule', 'attendance', 'measurement', 'development_plan', 'distribution'];
         $visibleCandidateIds = [];
@@ -146,9 +181,9 @@ class AuditController extends Controller
 
         $entries = $logs->map(function ($log) use ($users, $canSeeClassified, $candidateLinked, $visibleCandidateIds, $sensitive) {
             $user = $users->get($log->user_id);
-            // الإجراءات الجماعية (entity_id='0'/null) لا تخصّ مرشّحاً بعينه فلا تُحجب. صفّ
+            // الإجراءات الجماعية (entity_id='0'/null) لا تخصّ مشاركاً بعينه فلا تُحجب. صفّ
             // candidate يُظهر العادي الموجود؛ صفوف الأشقّاء تُحجب تفاصيلها كلها (schema غير
-            // موحّد) — يبقى الفعل/الفاعل/الوقت/الIP، ويغيب رمز/تفاصيل المرشّح.
+            // موحّد) — يبقى الفعل/الفاعل/الوقت/الIP، ويغيب رمز/تفاصيل المشارك.
             $redact = false;
             if (!$canSeeClassified
                 && in_array($log->entity_type, $candidateLinked, true)

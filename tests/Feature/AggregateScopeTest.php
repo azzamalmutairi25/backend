@@ -15,13 +15,13 @@ class AggregateScopeTest extends TestCase
 
     public function test_candidate_stats_match_the_list_for_a_bound_user(): void
     {
-        $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED']);
-        $this->makeCandidate(['status' => 'draft', 'sectorCode' => 'ED']);
+        $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
+        $this->makeCandidate(['status' => 'draft', 'sectorCode' => 'DW']);
         // خارج قطاعه — لا في القائمة ولا في العدّ
-        $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'HO']);
-        $this->makeCandidate(['status' => 'approved', 'sectorCode' => 'HO']);
+        $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'PR']);
+        $this->makeCandidate(['status' => 'approved', 'sectorCode' => 'PR']);
 
-        $this->actingAsRole('EVALUATOR', 'ED');
+        $this->actingAsRole('EVALUATOR', 'DW');
 
         $rows = $this->getJson('/api/candidates')->assertOk()->json('candidates');
         $stats = $this->getJson('/api/candidates/stats')->assertOk()->json();
@@ -33,8 +33,8 @@ class AggregateScopeTest extends TestCase
 
     public function test_candidate_stats_are_unrestricted_for_an_unbound_user(): void
     {
-        $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'ED']);
-        $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'HO']);
+        $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
+        $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'PR']);
         $this->actingAsRole('SCHEDULER');
 
         $rows = $this->getJson('/api/candidates')->assertOk()->json('candidates');
@@ -46,9 +46,9 @@ class AggregateScopeTest extends TestCase
 
     public function test_attendance_stats_match_the_list_for_a_bound_user(): void
     {
-        $ev = $this->actingAsRole('EVALUATOR', 'ED');
+        $ev = $this->actingAsRole('EVALUATOR', 'DW');
 
-        foreach ([['ED', $ev], ['HO', null]] as [$sector, $owner]) {
+        foreach ([['DW', $ev], ['PR', null]] as [$sector, $owner]) {
             [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => $sector]);
             \App\Models\Schedule::create([
                 'candidate_id' => $c->id, 'assessment_id' => $a->id,

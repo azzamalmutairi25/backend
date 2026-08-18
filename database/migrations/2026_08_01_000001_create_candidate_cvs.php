@@ -4,8 +4,8 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// سيرة المرشح الذاتية — وثيقة واحدة لكل مرشح (شخص، لا دورة). تُخزَّن مشفّرة
-// كلها ككتلة JSON واحدة (نفس نهج تشفير بيانات المرشح الحساسة)، لأن النصّ
+// سيرة المشارك الذاتية — وثيقة واحدة لكل مشارك (شخص، لا دورة). تُخزَّن مشفّرة
+// كلها ككتلة JSON واحدة (نفس نهج تشفير بيانات المشارك الحساسة)، لأن النصّ
 // الحرّ قد يحمل بيانات تعريفية. القيد الفريد على candidate_id يمنع سباق الإنشاء.
 return new class extends Migration
 {
@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('candidate_cvs', function (Blueprint $table) {
             $table->id();
             $table->foreignId('candidate_id')->constrained('candidates')->cascadeOnDelete();
-            $table->unique('candidate_id'); // سيرة واحدة لكل مرشح + يحسم سباق الإنشاء
+            $table->unique('candidate_id'); // سيرة واحدة لكل مشارك + يحسم سباق الإنشاء
             $table->text('cv_data_enc')->nullable(); // Crypt(JSON) للوثيقة كاملة
             $table->unsignedInteger('version')->default(0); // رمز قفل تفاؤلي متزايد
             $table->string('source', 10)->default('portal'); // 'portal' | 'admin' — مصدر آخر تعديل

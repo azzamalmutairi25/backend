@@ -25,12 +25,12 @@ class ReportFiltersTest extends TestCase
 
     public function test_filter_by_sector_tier_and_recommendation(): void
     {
-        $this->reportFor('ED', 'upper', 'يوصى به');
-        $this->reportFor('HI', 'middle', 'لا يوصى به');
-        $this->reportFor('ED', 'middle', 'يوصى به');
+        $this->reportFor('DW', 'upper', 'يوصى به');
+        $this->reportFor('MS', 'middle', 'لا يوصى به');
+        $this->reportFor('DW', 'middle', 'يوصى به');
 
         $this->actingAsRole('ASSESS_MANAGER'); // REPORT_VIEW, غير محصور بقطاع
-        $edId = Sector::where('code', 'ED')->value('id');
+        $edId = Sector::where('code', 'DW')->value('id');
 
         $bySector = $this->getJson("/api/reports?sectorId={$edId}")->assertOk()->json('reports');
         $this->assertCount(2, $bySector);
@@ -44,10 +44,10 @@ class ReportFiltersTest extends TestCase
 
     public function test_filter_by_date_range(): void
     {
-        $r = $this->reportFor('ED', 'upper', 'يوصى به');
+        $r = $this->reportFor('DW', 'upper', 'يوصى به');
         // created_at ليس ضمن fillable — نحدّثه مباشرة عبر الاستعلام
         FinalReport::where('id', $r->id)->update(['created_at' => now()->subDays(10)]);
-        $this->reportFor('ED', 'upper', 'يوصى به'); // اليوم
+        $this->reportFor('DW', 'upper', 'يوصى به'); // اليوم
 
         $this->actingAsRole('ASSESS_MANAGER');
         $recent = $this->getJson('/api/reports?dateFrom=' . now()->subDays(2)->toDateString())->json('reports');
@@ -56,9 +56,9 @@ class ReportFiltersTest extends TestCase
 
     public function test_analytics_aggregates_within_scope(): void
     {
-        $this->reportFor('ED', 'upper', 'يوصى به', 'approved', 90);
-        $this->reportFor('ED', 'middle', 'لا يوصى به', 'approved', 60);
-        $this->reportFor('HI', 'upper', 'يوصى به', 'draft'); // ليس معتمداً
+        $this->reportFor('DW', 'upper', 'يوصى به', 'approved', 90);
+        $this->reportFor('DW', 'middle', 'لا يوصى به', 'approved', 60);
+        $this->reportFor('MS', 'upper', 'يوصى به', 'draft'); // ليس معتمداً
 
         $this->actingAsRole('ASSESS_MANAGER');
         $a = $this->getJson('/api/reports/analytics')->assertOk()->json('analytics');
@@ -75,7 +75,7 @@ class ReportFiltersTest extends TestCase
     public function test_analytics_preserves_null_fit_not_zero(): void
     {
         // تقارير معتمدة بلا توافق فنّي (تقييم سلوكي فقط) — يجب أن يبقى null لا 0
-        [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed', 'sectorCode' => 'ED']);
+        [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed', 'sectorCode' => 'DW']);
         FinalReport::create(['candidate_id' => $c->id, 'assessment_id' => $a->id, 'status' => 'approved',
             'recommendation' => 'يوصى به', 'behavioral_fit' => 80, 'technical_fit' => null, 'created_by' => null]);
 
@@ -88,10 +88,10 @@ class ReportFiltersTest extends TestCase
 
     public function test_analytics_honors_the_same_filters_as_the_list(): void
     {
-        $this->reportFor('ED', 'upper', 'يوصى به', 'approved', 90);
-        $this->reportFor('HI', 'upper', 'يوصى به', 'approved', 50);
+        $this->reportFor('DW', 'upper', 'يوصى به', 'approved', 90);
+        $this->reportFor('MS', 'upper', 'يوصى به', 'approved', 50);
         $this->actingAsRole('ASSESS_MANAGER');
-        $edId = Sector::where('code', 'ED')->value('id');
+        $edId = Sector::where('code', 'DW')->value('id');
 
         $an = $this->getJson("/api/reports/analytics?sectorId={$edId}")->assertOk()->json('analytics');
         $this->assertSame(1, $an['total'], 'التحليلات تحترم فلتر القطاع كالقائمة');
@@ -107,9 +107,9 @@ class ReportFiltersTest extends TestCase
     public function test_sector_bound_evaluator_scope_not_widened_by_filter(): void
     {
         // مقيّم قطاع ED يفلتر بقطاع HI → لا يرى شيئاً (النطاق يبقى محصوراً)
-        $this->reportFor('HI', 'upper', 'يوصى به');
-        $this->actingAsRole('EVALUATOR', 'ED');
-        $hiId = Sector::where('code', 'HI')->value('id');
+        $this->reportFor('MS', 'upper', 'يوصى به');
+        $this->actingAsRole('EVALUATOR', 'DW');
+        $hiId = Sector::where('code', 'MS')->value('id');
         $rows = $this->getJson("/api/reports?sectorId={$hiId}")->assertOk()->json('reports');
         $this->assertCount(0, $rows);
     }

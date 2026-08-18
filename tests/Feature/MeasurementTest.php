@@ -24,7 +24,7 @@ class MeasurementTest extends TestCase
     public function test_upload_requires_measurement_upload(): void
     {
         [$c] = $this->makeCandidate(['status' => 'scheduled']);
-        $this->actingAsRole('CENTER_MANAGER'); // MEASUREMENT_VIEW فقط، لا UPLOAD
+        $this->actingAsRole('ASSISTANT'); // MEASUREMENT_VIEW فقط، لا UPLOAD
         $this->postJson('/api/measurements', [
             'candidateId' => $c->id, 'personalityScore' => 80,
         ])->assertStatus(403);
@@ -78,7 +78,7 @@ class MeasurementTest extends TestCase
     {
         [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed']);
         $report = FinalReport::create([
-            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'مرشّح',
+            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'recommendation' => 'مشارك',
             'status' => 'approved', 'created_by' => null,
         ]);
         MeasurementResult::create([

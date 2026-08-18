@@ -17,7 +17,7 @@ class CommunicationSecurityTest extends TestCase
     {
         $s = new SmsLog();
         $s->to_mobile = '0501234567';
-        $s->message = 'عزيزي مرشح، رمزك: ED-001. للتأكيد: http://x/confirm/SECRETTOKEN12345678901234567890';
+        $s->message = 'عزيزي مشارك، رمزك: DW-001. للتأكيد: http://x/confirm/SECRETTOKEN12345678901234567890';
         $s->sms_type = 'invitation';
         $s->candidate_id = $candidateId;
         $s->status = 'sent';
@@ -32,9 +32,9 @@ class CommunicationSecurityTest extends TestCase
         $rawMsg = DB::table('sms_logs')->where('id', $s->id)->value('message');
         $rawMob = DB::table('sms_logs')->where('id', $s->id)->value('to_mobile');
 
-        $this->assertStringNotContainsString('ED-001', $rawMsg);       // encrypted
+        $this->assertStringNotContainsString('DW-001', $rawMsg);       // encrypted
         $this->assertStringNotContainsString('0501234567', $rawMob);   // encrypted
-        $this->assertStringContainsString('ED-001', $s->fresh()->message); // model decrypts
+        $this->assertStringContainsString('DW-001', $s->fresh()->message); // model decrypts
     }
 
     public function test_history_requires_candidate_view(): void
@@ -51,8 +51,8 @@ class CommunicationSecurityTest extends TestCase
         [$c] = $this->makeCandidate();
         $this->smsFor($c->id);
 
-        // CENTER_MANAGER: CANDIDATE_VIEW but not VIEW_NAMES -> message null
-        $this->actingAsRole('CENTER_MANAGER');
+        // DEV_MANAGER: CANDIDATE_VIEW but not VIEW_NAMES -> message null
+        $this->actingAsRole('DEV_MANAGER');
         $res = $this->getJson("/api/communications/history/{$c->id}")->assertOk();
         $this->assertNull($res->json('sms.0.message'));
 
