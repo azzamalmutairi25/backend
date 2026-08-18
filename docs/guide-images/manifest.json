@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-17T08:39:37.386Z",
+  "updatedAt": "2026-08-18T11:33:52.680Z",
   "base": "http://localhost:5173",
   "screens": [
     {
@@ -8,7 +8,7 @@
       "file": "login.png",
       "route": "/login",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "dashboard",
@@ -16,7 +16,7 @@
       "file": "dashboard.png",
       "route": "/dashboard",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "candidates",
@@ -24,7 +24,7 @@
       "file": "candidates.png",
       "route": "/candidates",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "nominate",
@@ -32,7 +32,7 @@
       "file": "nominate.png",
       "route": "/nominate",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "reception",
@@ -40,7 +40,7 @@
       "file": "reception.png",
       "route": "/reception",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "schedules",
@@ -48,7 +48,7 @@
       "file": "schedules.png",
       "route": "/schedules",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "distribution",
@@ -56,7 +56,7 @@
       "file": "distribution.png",
       "route": "/distribution",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "attendance",
@@ -64,7 +64,7 @@
       "file": "attendance.png",
       "route": "/attendance",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "assessment",
@@ -72,7 +72,7 @@
       "file": "assessment.png",
       "route": "/assessment",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "measurements",
@@ -80,7 +80,7 @@
       "file": "measurements.png",
       "route": "/measurements",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "reports",
@@ -88,7 +88,7 @@
       "file": "reports.png",
       "route": "/reports",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "development-plans",
@@ -96,7 +96,7 @@
       "file": "development-plans.png",
       "route": "/development-plans",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "competency-framework",
@@ -104,7 +104,7 @@
       "file": "competency-framework.png",
       "route": "/competency-framework",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "competency-map",
@@ -112,7 +112,7 @@
       "file": "competency-map.png",
       "route": "/competency-map",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "analytics",
@@ -120,7 +120,7 @@
       "file": "analytics.png",
       "route": "/analytics",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "executive",
@@ -128,7 +128,7 @@
       "file": "executive.png",
       "route": "/executive",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "daily-report",
@@ -136,7 +136,7 @@
       "file": "daily-report.png",
       "route": "/daily-report",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "chat",
@@ -144,7 +144,7 @@
       "file": "chat.png",
       "route": "/chat",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "notifications",
@@ -152,7 +152,7 @@
       "file": "notifications.png",
       "route": "/notifications",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "workflow",
@@ -160,7 +160,7 @@
       "file": "workflow.png",
       "route": "/workflow",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "users",
@@ -168,7 +168,7 @@
       "file": "users.png",
       "route": "/users",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "roles",
@@ -176,7 +176,7 @@
       "file": "roles.png",
       "route": "/roles",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "settings",
@@ -184,7 +184,7 @@
       "file": "settings.png",
       "route": "/settings",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "audit",
@@ -192,7 +192,7 @@
       "file": "audit.png",
       "route": "/audit",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "change-password",
@@ -200,7 +200,7 @@
       "file": "change-password.png",
       "route": "/change-password",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "nav-admin",
@@ -208,7 +208,7 @@
       "file": "nav-admin.png",
       "route": "/dashboard",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "nav-center",
@@ -216,7 +216,7 @@
       "file": "nav-center.png",
       "route": "/dashboard",
       "role": "center",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "nav-scheduler",
@@ -224,7 +224,7 @@
       "file": "nav-scheduler.png",
       "route": "/dashboard",
       "role": "scheduler",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "nav-reception",
@@ -232,7 +232,7 @@
       "file": "nav-reception.png",
       "route": "/dashboard",
       "role": "reception",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "nav-operations",
@@ -240,7 +240,7 @@
       "file": "nav-operations.png",
       "route": "/dashboard",
       "role": "operations",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "nav-assess",
@@ -248,7 +248,7 @@
       "file": "nav-assess.png",
       "route": "/dashboard",
       "role": "assess",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "nav-evaluator",
@@ -256,7 +256,7 @@
       "file": "nav-evaluator.png",
       "route": "/dashboard",
       "role": "evaluator",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "nav-discussion",
@@ -264,7 +264,7 @@
       "file": "nav-discussion.png",
       "route": "/dashboard",
       "role": "discussion",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "nav-assistant",
@@ -272,7 +272,7 @@
       "file": "nav-assistant.png",
       "route": "/dashboard",
       "role": "assistant",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "nav-devmanager",
@@ -280,7 +280,7 @@
       "file": "nav-devmanager.png",
       "route": "/dashboard",
       "role": "devmanager",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "nav-measure",
@@ -288,7 +288,7 @@
       "file": "nav-measure.png",
       "route": "/dashboard",
       "role": "measure",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "nav-external",
@@ -296,7 +296,7 @@
       "file": "nav-external.png",
       "route": "/dashboard",
       "role": "external",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "candidates-evaluator",
@@ -304,7 +304,7 @@
       "file": "candidates-evaluator.png",
       "route": "/candidates",
       "role": "evaluator",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "reception-receptionist",
@@ -312,7 +312,7 @@
       "file": "reception-receptionist.png",
       "route": "/reception",
       "role": "reception",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "reception-evaluator",
@@ -320,7 +320,7 @@
       "file": "reception-evaluator.png",
       "route": "/reception",
       "role": "evaluator",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "reception-operations",
@@ -328,7 +328,7 @@
       "file": "reception-operations.png",
       "route": "/reception",
       "role": "operations",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "candidates-add",
@@ -336,7 +336,7 @@
       "file": "candidates-add.png",
       "route": "/candidates",
       "role": "admin",
-      "capturedAt": "2026-08-15T14:33:03.500Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "candidates-add-contractor",
@@ -352,7 +352,7 @@
       "file": "candidates-details.png",
       "route": "/candidates",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "candidates-cv",
@@ -360,7 +360,7 @@
       "file": "candidates-cv.png",
       "route": "/candidates",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "report-document",
@@ -368,7 +368,7 @@
       "file": "report-document.png",
       "route": "/reports",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "report-document-center",
@@ -376,7 +376,7 @@
       "file": "report-document-center.png",
       "route": "/reports",
       "role": "center",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "report-document-assess",
@@ -384,7 +384,7 @@
       "file": "report-document-assess.png",
       "route": "/reports",
       "role": "assess",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "roles-open",
@@ -392,7 +392,7 @@
       "file": "roles-open.png",
       "route": "/roles",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "users-add",
@@ -400,7 +400,7 @@
       "file": "users-add.png",
       "route": "/users",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "users-perms",
@@ -408,7 +408,7 @@
       "file": "users-perms.png",
       "route": "/users",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "ui-topbar",
@@ -416,7 +416,7 @@
       "file": "ui-topbar.png",
       "route": "/dashboard",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "ui-filters",
@@ -424,7 +424,7 @@
       "file": "ui-filters.png",
       "route": "/candidates",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "ui-pager",
@@ -432,7 +432,7 @@
       "file": "ui-pager.png",
       "route": "/candidates",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "ui-sidebar-collapsed",
@@ -440,7 +440,7 @@
       "file": "ui-sidebar-collapsed.png",
       "route": "/dashboard",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "assessment-scoring",
@@ -456,7 +456,7 @@
       "file": "workflow-stages.png",
       "route": "/workflow",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "audit-log",
@@ -464,7 +464,7 @@
       "file": "audit-log.png",
       "route": "/audit",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "assessment-draft-exists",
@@ -472,7 +472,7 @@
       "file": "assessment-draft-exists.png",
       "route": "/assessment",
       "role": "evaluator",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "assessment-evaluator",
@@ -480,7 +480,7 @@
       "file": "assessment-evaluator.png",
       "route": "/assessment",
       "role": "evaluator",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "candidates-roster-dialog",
@@ -488,7 +488,7 @@
       "file": "candidates-roster-dialog.png",
       "route": "/candidates",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "roster-sheet",
@@ -496,7 +496,7 @@
       "file": "roster-sheet.png",
       "route": "/candidates",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "settings-full",
@@ -504,7 +504,7 @@
       "file": "settings-full.png",
       "route": "/settings",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "distribution-proposal",
@@ -520,7 +520,7 @@
       "file": "dashboard-kpis.png",
       "route": "/dashboard",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "dashboard-trend-attendance",
@@ -528,7 +528,7 @@
       "file": "dashboard-trend-attendance.png",
       "route": "/dashboard",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "dashboard-heatmap",
@@ -536,7 +536,7 @@
       "file": "dashboard-heatmap.png",
       "route": "/dashboard",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "dashboard-insights-schedule",
@@ -544,7 +544,7 @@
       "file": "dashboard-insights-schedule.png",
       "route": "/dashboard",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "dashboard-drafts-activity",
@@ -552,7 +552,7 @@
       "file": "dashboard-drafts-activity.png",
       "route": "/dashboard",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "dashboard-evaluator",
@@ -560,7 +560,7 @@
       "file": "dashboard-evaluator.png",
       "route": "/dashboard",
       "role": "evaluator",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "login-empty",
@@ -568,7 +568,7 @@
       "file": "login-empty.png",
       "route": "/login",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "login-bad-credentials",
@@ -576,7 +576,7 @@
       "file": "login-bad-credentials.png",
       "route": "/login",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "login-show-password",
@@ -584,7 +584,7 @@
       "file": "login-show-password.png",
       "route": "/login",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "change-password-checks",
@@ -592,7 +592,7 @@
       "file": "change-password-checks.png",
       "route": "/change-password",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "change-password-mismatch",
@@ -600,7 +600,7 @@
       "file": "change-password-mismatch.png",
       "route": "/change-password",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "confirm",
@@ -624,7 +624,7 @@
       "file": "nominate-validation.png",
       "route": "/nominate",
       "role": "external",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "nominate-education-rows",
@@ -632,7 +632,7 @@
       "file": "nominate-education-rows.png",
       "route": "/nominate",
       "role": "external",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "nominate-duplicate",
@@ -664,7 +664,7 @@
       "file": "schedules-new-modal.png",
       "route": "/schedules",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "schedules-new-interview",
@@ -712,7 +712,7 @@
       "file": "schedules-time-free.png",
       "route": "/schedules",
       "role": "scheduler",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "distribution-cards",
@@ -720,7 +720,7 @@
       "file": "distribution-cards.png",
       "route": "/distribution",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "distribution-banner",
@@ -728,7 +728,7 @@
       "file": "distribution-banner.png",
       "route": "/distribution",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "candidates-journey",
@@ -736,7 +736,7 @@
       "file": "candidates-journey.png",
       "route": "/candidates",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "candidates-bulk",
@@ -744,7 +744,7 @@
       "file": "candidates-bulk.png",
       "route": "/candidates",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "candidates-group",
@@ -752,7 +752,7 @@
       "file": "candidates-group.png",
       "route": "/candidates",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "reception-day-board",
@@ -816,7 +816,7 @@
       "file": "reception-kiosk.png",
       "route": "/reception",
       "role": "reception",
-      "capturedAt": "2026-08-17T08:37:59.720Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "reception-print-queue",
@@ -824,7 +824,7 @@
       "file": "reception-print-queue.png",
       "route": "/reception",
       "role": "reception",
-      "capturedAt": "2026-08-17T08:39:37.386Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "kiosk-gate",
@@ -832,7 +832,7 @@
       "file": "kiosk-gate.png",
       "route": "/reception",
       "role": "reception",
-      "capturedAt": "2026-08-17T08:37:59.720Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "kiosk-review",
@@ -856,7 +856,7 @@
       "file": "attendance-filter-empty.png",
       "route": "/attendance",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "attendance-not-mine",
@@ -888,7 +888,7 @@
       "file": "assessment-start-selected.png",
       "route": "/assessment",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "assessment-session",
@@ -920,7 +920,7 @@
       "file": "measurement.png",
       "route": "/measurements",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "measurement-selected",
@@ -928,7 +928,7 @@
       "file": "measurement-selected.png",
       "route": "/measurements",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "measurement-saved",
@@ -936,7 +936,7 @@
       "file": "measurement-saved.png",
       "route": "/measurements",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "measurement-invalid",
@@ -944,7 +944,7 @@
       "file": "measurement-invalid.png",
       "route": "/measurements",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "measurement-readonly",
@@ -952,7 +952,7 @@
       "file": "measurement-readonly.png",
       "route": "/measurements",
       "role": "assess",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "development-plans-items",
@@ -976,7 +976,7 @@
       "file": "development-plans-add.png",
       "route": "/development-plans",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "development-plans-seed-error",
@@ -984,7 +984,7 @@
       "file": "development-plans-seed-error.png",
       "route": "/development-plans",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "development-plans-evaluator",
@@ -1008,7 +1008,7 @@
       "file": "competency-framework-edit.png",
       "route": "/competency-framework",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "competency-framework-add",
@@ -1016,7 +1016,7 @@
       "file": "competency-framework-add.png",
       "route": "/competency-framework",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "competency-framework-invalid",
@@ -1024,7 +1024,7 @@
       "file": "competency-framework-invalid.png",
       "route": "/competency-framework",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "competency-framework-readonly",
@@ -1032,7 +1032,7 @@
       "file": "competency-framework-readonly.png",
       "route": "/competency-framework",
       "role": "assess",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "competency-map-checked",
@@ -1040,7 +1040,7 @@
       "file": "competency-map-checked.png",
       "route": "/competency-map",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "reports-card-actions",
@@ -1056,7 +1056,7 @@
       "file": "reports-filters-advanced.png",
       "route": "/reports",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "reports-editor-create",
@@ -1064,7 +1064,7 @@
       "file": "reports-editor-create.png",
       "route": "/reports",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "reports-return-modal",
@@ -1088,7 +1088,7 @@
       "file": "reports-pager.png",
       "route": "/reports",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "reports-evaluator",
@@ -1096,7 +1096,7 @@
       "file": "reports-evaluator.png",
       "route": "/reports",
       "role": "evaluator",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "analytics-kpis",
@@ -1104,7 +1104,7 @@
       "file": "analytics-kpis.png",
       "route": "/analytics",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "analytics-charts",
@@ -1112,7 +1112,7 @@
       "file": "analytics-charts.png",
       "route": "/analytics",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "analytics-attendance",
@@ -1120,7 +1120,7 @@
       "file": "analytics-attendance.png",
       "route": "/analytics",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "analytics-gaps-sectors",
@@ -1128,7 +1128,7 @@
       "file": "analytics-gaps-sectors.png",
       "route": "/analytics",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "executive-kpis",
@@ -1136,7 +1136,7 @@
       "file": "executive-kpis.png",
       "route": "/executive",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "executive-insights",
@@ -1144,7 +1144,7 @@
       "file": "executive-insights.png",
       "route": "/executive",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "executive-heatmap",
@@ -1152,7 +1152,7 @@
       "file": "executive-heatmap.png",
       "route": "/executive",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "executive-trend",
@@ -1160,7 +1160,7 @@
       "file": "executive-trend.png",
       "route": "/executive",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "executive-period",
@@ -1168,7 +1168,7 @@
       "file": "executive-period.png",
       "route": "/executive",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "executive-sectors",
@@ -1176,7 +1176,7 @@
       "file": "executive-sectors.png",
       "route": "/executive",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "executive-tiers-dist",
@@ -1184,7 +1184,7 @@
       "file": "executive-tiers-dist.png",
       "route": "/executive",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "daily-report-kpis",
@@ -1192,7 +1192,7 @@
       "file": "daily-report-kpis.png",
       "route": "/daily-report",
       "role": "center",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "daily-report-actions",
@@ -1200,7 +1200,7 @@
       "file": "daily-report-actions.png",
       "route": "/daily-report",
       "role": "center",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "daily-report-day",
@@ -1224,7 +1224,7 @@
       "file": "chat-reports-list.png",
       "route": "/chat",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "chat-system-message",
@@ -1240,7 +1240,7 @@
       "file": "chat-empty-thread.png",
       "route": "/chat",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "chat-compose",
@@ -1248,7 +1248,7 @@
       "file": "chat-compose.png",
       "route": "/chat",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "chat-narrowed",
@@ -1256,7 +1256,7 @@
       "file": "chat-narrowed.png",
       "route": "/chat",
       "role": "evaluator",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "chat-no-reports",
@@ -1264,7 +1264,7 @@
       "file": "chat-no-reports.png",
       "route": "/chat",
       "role": "reception",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "notifications-head",
@@ -1296,7 +1296,7 @@
       "file": "workflow-chain.png",
       "route": "/workflow",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "workflow-stage",
@@ -1304,7 +1304,7 @@
       "file": "workflow-stage.png",
       "route": "/workflow",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "workflow-move-up",
@@ -1312,7 +1312,7 @@
       "file": "workflow-move-up.png",
       "route": "/workflow",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "workflow-notes",
@@ -1320,7 +1320,7 @@
       "file": "workflow-notes.png",
       "route": "/workflow",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "settings-ldap",
@@ -1328,7 +1328,7 @@
       "file": "settings-ldap.png",
       "route": "/settings",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "settings-sms",
@@ -1336,7 +1336,7 @@
       "file": "settings-sms.png",
       "route": "/settings",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "settings-idverify",
@@ -1344,7 +1344,7 @@
       "file": "settings-idverify.png",
       "route": "/settings",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "settings-smtp",
@@ -1352,7 +1352,7 @@
       "file": "settings-smtp.png",
       "route": "/settings",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "settings-sectors",
@@ -1360,7 +1360,7 @@
       "file": "settings-sectors.png",
       "route": "/settings",
       "role": "admin",
-      "capturedAt": "2026-08-15T14:33:03.500Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "settings-sectors-edit",
@@ -1368,7 +1368,7 @@
       "file": "settings-sectors-edit.png",
       "route": "/settings",
       "role": "admin",
-      "capturedAt": "2026-08-14T19:18:09.834Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "settings-session-times",
@@ -1376,7 +1376,7 @@
       "file": "settings-session-times.png",
       "route": "/settings",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "audit-filters",
@@ -1384,7 +1384,7 @@
       "file": "audit-filters.png",
       "route": "/audit",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "audit-sensitive",
@@ -1392,7 +1392,7 @@
       "file": "audit-sensitive.png",
       "route": "/audit",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "audit-empty",
@@ -1400,7 +1400,7 @@
       "file": "audit-empty.png",
       "route": "/audit",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "audit-center",
@@ -1408,7 +1408,7 @@
       "file": "audit-center.png",
       "route": "/audit",
       "role": "center",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "users-add-external",
@@ -1416,7 +1416,7 @@
       "file": "users-add-external.png",
       "route": "/users",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "users-add-internal",
@@ -1424,7 +1424,7 @@
       "file": "users-add-internal.png",
       "route": "/users",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "users-edit",
@@ -1432,7 +1432,7 @@
       "file": "users-edit.png",
       "route": "/users",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "users-permissions",
@@ -1456,7 +1456,7 @@
       "file": "users-password.png",
       "route": "/users",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "roles-detail",
@@ -1464,7 +1464,7 @@
       "file": "roles-detail.png",
       "route": "/roles",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "roles-system-locked",
@@ -1472,7 +1472,7 @@
       "file": "roles-system-locked.png",
       "route": "/roles",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "roles-unsaved-diff",
@@ -1480,7 +1480,7 @@
       "file": "roles-unsaved-diff.png",
       "route": "/roles",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "roles-admin-locked",
@@ -1488,7 +1488,7 @@
       "file": "roles-admin-locked.png",
       "route": "/roles",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "roles-new",
@@ -1496,7 +1496,7 @@
       "file": "roles-new.png",
       "route": "/roles",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "doc-participant-card",
@@ -1504,7 +1504,7 @@
       "file": "doc-participant-card.png",
       "route": "/candidates",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "doc-cv-sheet",
@@ -1512,7 +1512,7 @@
       "file": "doc-cv-sheet.png",
       "route": "/candidates",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "doc-report-brief",
@@ -1520,7 +1520,7 @@
       "file": "doc-report-brief.png",
       "route": "/reports",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "doc-daily-report",
@@ -1528,7 +1528,7 @@
       "file": "doc-daily-report.png",
       "route": "/daily-report",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "redesign-dashboard",
@@ -1536,7 +1536,7 @@
       "file": "redesign-dashboard.png",
       "route": "/dashboard",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "redesign-candidates",
@@ -1544,7 +1544,7 @@
       "file": "redesign-candidates.png",
       "route": "/candidates",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     },
     {
       "id": "redesign-nav",
@@ -1552,7 +1552,7 @@
       "file": "redesign-nav.png",
       "route": "/dashboard",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-18T11:33:52.680Z"
     }
   ]
 }
