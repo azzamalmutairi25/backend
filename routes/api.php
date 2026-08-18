@@ -148,6 +148,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/users', [UserController::class, 'index']);
     Route::get('/users/roles', [UserController::class, 'roles']);
     Route::get('/users/role-permissions', [UserController::class, 'rolePermissions']);
+    Route::get('/users/permission-catalog', [UserController::class, 'permissionCatalog']);
+    // وصولٌ واحد على مجموعة موظفين — قبل /users/{id} كي لا يبتلعها المعرّف
+    Route::post('/users/bulk-permissions', [UserController::class, 'bulkPermissions']);
     // استثناءات صلاحيات المستخدم فوق دوره
     Route::get('/users/{id}/permissions', [UserController::class, 'permissions']);
     Route::put('/users/{id}/permissions', [UserController::class, 'savePermissions']);
@@ -244,7 +247,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/daily-report', [DailyReportController::class, 'show']);
     Route::get('/daily-report/document', [DailyReportController::class, 'document']);
 
+    // القيادة التنفيذية للمركز — ثلاثة تبويبات، ثلاثة نداءات
     Route::get('/analytics/executive', [AnalyticsController::class, 'executive']);
+    Route::get('/analytics/executive/overview', [AnalyticsController::class, 'executiveOverview']);
+    Route::get('/analytics/executive/reports', [AnalyticsController::class, 'executiveReports']);
     Route::get('/analytics/dashboard', [AnalyticsController::class, 'dashboard']);
     Route::get('/analytics/by-sector', [AnalyticsController::class, 'bySector']);
     Route::get('/analytics/competency-gaps', [AnalyticsController::class, 'competencyGaps']);
