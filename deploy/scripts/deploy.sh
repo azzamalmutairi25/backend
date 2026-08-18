@@ -36,6 +36,28 @@ PHP=/usr/bin/php
 PHPV=$(ls -1d /etc/php/*/fpm 2>/dev/null | sed 's|/etc/php/||;s|/fpm||' | sort -V | tail -1)
 FPM_SERVICE="php${PHPV:-8.4}-fpm"
 
+# ── إعدادات النشر: ملفٌّ بجوار .env لا متغيّرات بيئة ──
+#
+# قاعدة sudo على الخادم مثبَّتة على مسار هذا السكربت بعينه وبلا SETENV، فلا
+# سبيل لتمرير متغيّر بيئة معها. ووضعُ الإعداد في ملفٍّ مشترك أصحّ على كل حال:
+# فرعُ النشر ومصدر حزمة الواجهة قرارُ تنصيبٍ يبقى، لا وسيطُ سطرِ أمرٍ يُنسى
+# فيُنشر من الفرع الخطأ بصمت.
+#
+# متغيّرات البيئة تبقى مقدَّمة عليه لمن يشغّله بيده.
+CONF="$SHARED/deploy.conf"
+if [[ -f "$CONF" ]]; then
+  # قراءةٌ محصورة: أسطر KEY=VALUE فقط، بلا تنفيذ محتوى الملفّ
+  while IFS='=' read -r k v; do
+    [[ $k =~ ^[A-Z_]+$ ]] || continue
+    [[ -n ${!k:-} ]] && continue          # ما جاء من البيئة أولى
+    printf -v "$k" '%s' "$v"
+  done < <(grep -E '^[A-Z_]+=' "$CONF" || true)
+  BRANCH="${KAFAAT_BRANCH:-$BRANCH}"
+  FRONTEND_DIST="${KAFAAT_FRONTEND_DIST:-$FRONTEND_DIST}"
+  REPO="${KAFAAT_REPO:-$REPO}"
+  FRONTEND_REPO="${KAFAAT_FRONTEND_REPO:-$FRONTEND_REPO}"
+fi
+
 REF=""; ROLLBACK=0; DRY=0
 for a in "$@"; do
   case "$a" in
