@@ -278,6 +278,53 @@ class CandidateController extends Controller
         return response()->json(['message' => 'تم حفظ السيرة', 'version' => $result->version]);
     }
 
+    // ══ فحص تكرار الهوية قبل ملء النموذج ══
+    // «هل هذا مسجَّل عندنا؟» سؤالٌ كان لا يُجاب إلا بمحاولة الحفظ: يُملأ نموذجٌ
+    // من اثني عشر حقلاً وسيرةٌ من عشرين، ثمّ يُردّ بأنه مُضاف مسبقاً. هنا يُجاب
+    // عنه لحظة كتابة الهوية — قبل أن يُبذل العمل الذي سيُرمى.
+    //
+    // وهو سطحُ تعدادٍ بطبعه: تُجرَّب أرقامُ هويةٍ فيُعرف أصحابُها مسجَّلين. لذا
+    // قُيّد بأربعة — صلاحيةُ الإضافة، وخنقٌ بالمعدّل، وردٌّ بلا اسمٍ ولا رمز لمن
+    // لا يملك التعديل، وقيدٌ في السجلّ عند كل إصابة. والمصنَّف فوق درجة الطالب
+    // يُردّ «غير موجود» كما في store: النفيُ الصادق هنا كشفٌ لوجوده.
+    //
+    // POST لا GET رغم أنه قراءة: الهوية في مسار GET تُكتب في سجلّات الخادم
+    // الوسيط وفي تاريخ المتصفّح — بيانٌ شخصي يتسرّب إلى حيث لا يُحمى.
+    public function lookup(Request $request)
+    {
+        if (!$request->user()->hasPermission(Permissions::CANDIDATE_CREATE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية إضافة مشارك'], 403);
+        }
+
+        $validated = $request->validate([
+            'nationalId' => ['required', 'string', new SaudiNationalId()],
+        ]);
+
+        $candidate = Candidate::where('national_id_hash', hash('sha256', $validated['nationalId']))->first();
+
+        if (!$candidate || !in_array($candidate->classification, $this->allowedClassifications($request))) {
+            return response()->json(['exists' => false]);
+        }
+
+        $this->log($request, 'LOOKUP_DUPLICATE_CANDIDATE', $candidate->id);
+
+        $canEdit = $request->user()->hasPermission(Permissions::CANDIDATE_EDIT);
+        $active = $candidate->assessments()
+            ->where('status', '!=', 'completed')->orderByDesc('id')->first();
+
+        return response()->json([
+            'exists' => true,
+            'addedAt' => optional($candidate->created_at)->toIso8601String(),
+            // دورةٌ نشطة تمنع إنشاء دورة جديدة — يُعلَم بها قبل أن يملأ النموذج
+            'hasActiveCycle' => (bool) $active,
+            // الرمز مفتاحُ الوصول إلى المشارك، فلا يُردّ إلا لمن يملك تعديله:
+            // ردُّه لكل من جرّب هويةً يُحوّل هذا الباب إلى حاصدة رموز
+            'activeCode' => $canEdit && $active ? $active->participant_code : null,
+            'canEdit' => $canEdit,
+            'canRequestUpdate' => $request->user()->hasPermission(Permissions::CANDIDATE_UPDATE_REQUEST),
+        ]);
+    }
+
     public function store(Request $request)
     {
         if (!$request->user()->hasPermission(Permissions::CANDIDATE_CREATE)) {
