@@ -13,6 +13,7 @@ use App\Models\WorkflowStage;
 use App\Security\Permissions;
 use App\Services\NotificationService;
 use App\Services\ScoringService;
+use App\Support\LakeEmitter;
 use Illuminate\Http\Request;
 
 class ReportController extends Controller
@@ -85,6 +86,10 @@ class ReportController extends Controller
     public function __construct(
         private NotificationService $notify,
         private ScoringService $scoring,
+        // بحيرة التقارير: يُكتب حدثٌ محلّي بعد كل انتقالٍ ناجح. معطّلٌ
+        // افتراضياً، ولا يرمي استثناءً إلى الطلب في أيّ حال — اعتماد تقريرٍ
+        // حكوميّ لا يفشل لأن بحيرةَ تحليلاتٍ تعثّرت.
+        private LakeEmitter $lake,
     ) {}
 
     // GET /reports/score-preview?candidateId= — توافق مُحتسَب آلياً + تفصيل الكفاءات (لتعبئة التقرير)
@@ -410,6 +415,7 @@ class ReportController extends Controller
         ]);
 
         $this->log($request, 'SAVE_EXEC_SUMMARY', $id, ['code' => $r->candidate->participant_code]);
+        $this->lake->report($r, 'report.exec_summary_saved', $r->status);
 
         return response()->json(['message' => 'تم حفظ الملخّص التنفيذي']);
     }
@@ -529,6 +535,7 @@ class ReportController extends Controller
         }
         $this->log($request, $submit ? 'CREATE_SUBMIT_REPORT' : 'CREATE_REPORT', $report->id,
             ['code' => $assessment->participant_code]);
+        $this->lake->report($report, 'report.created', $report->status);
 
         return response()->json([
             'message' => $submit ? 'تم إنشاء التقرير وإرساله للاعتماد' : 'تم حفظ التقرير كمسودة',
@@ -579,6 +586,7 @@ class ReportController extends Controller
             }
         }
         $this->log($request, $submit ? 'UPDATE_SUBMIT_REPORT' : 'UPDATE_REPORT', $report->id);
+        $this->lake->report($report, 'report.updated', $report->status);
 
         return response()->json([
             'message' => $submit ? 'تم حفظ التعديلات وإرسال التقرير للاعتماد' : 'تم حفظ التعديلات',
@@ -646,6 +654,10 @@ class ReportController extends Controller
             return response()->json(['error' => 'تغيّرت حالة التقرير — أعد التحميل'], 409);
         }
         $report->status = $next; // مزامنة الذاكرة للآثار الجانبية أدناه
+        // الحالة الوجهة تُمرَّر صراحةً: لولاها لَسجّلت البحيرة الحالة
+        // السابقة دائماً، فلا يظهر «معتمَد» فيها أبداً.
+        $this->lake->report($report, $next === WorkflowStage::FINAL_STATUS
+            ? 'report.approved' : 'report.stage_approved', $next);
 
         $final = $next === WorkflowStage::FINAL_STATUS;
         if ($final) {
@@ -742,6 +754,7 @@ class ReportController extends Controller
             return response()->json(['error' => 'تغيّرت حالة التقرير — أعد التحميل'], 409);
         }
         $report->return_count += 1; // مزامنة الذاكرة للرد/السجل
+        $this->lake->report($report, 'report.returned', $newStatus);
 
         if ($report->created_by) {
             $this->notify->notify($report->created_by, 'return',
@@ -816,6 +829,7 @@ class ReportController extends Controller
 
         // المشارك يعود «مُقيَّم» فيُكتب له تقرير جديد — الإلغاء يفتح الباب لا يغلقه
         $report->candidate->setStatus('assessed');
+        $this->lake->report($report, 'report.cancelled', 'cancelled');
 
         if ($report->created_by) {
             $this->notify->notify($report->created_by, 'return',
@@ -883,6 +897,7 @@ class ReportController extends Controller
             'report', (string) $id, $request->user()->id);
 
         $this->log($request, 'RESUBMIT_REPORT', $id);
+        $this->lake->report($report, 'report.resubmitted', $first->status_key);
 
         return response()->json(['message' => 'تم إعادة إرسال التقرير']);
     }

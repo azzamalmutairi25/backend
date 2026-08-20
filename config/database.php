@@ -99,6 +99,60 @@ return [
             'sslmode' => env('DB_SSLMODE', 'prefer'),
         ],
 
+        // ════════════════════════════════════════════════════════════════
+        //  بحيرة التقارير — اتصالان منفصلان لقاعدةٍ منفصلة
+        //
+        //  الفصل بين الدورين مقصود: التطبيق يكتب بـ lake_writer الذي لا
+        //  يملك DDL ولا حذفاً، والهجرات تعمل بـ lake_owner. لو استُخدم دورٌ
+        //  واحد لصار خادمُ التطبيق قادراً على إعادة كتابة تاريخ البحيرة.
+        //
+        //  نقلُ البحيرة إلى خادمٍ مستقل لاحقاً = تغيير DB_LAKE_HOST وحده.
+        //  الشيفرة لا تعرف أين تقع القاعدة، ولا تحتاج أن تعرف.
+        // ════════════════════════════════════════════════════════════════
+
+        // الكتابة وقت التشغيل: إدراج في raw + استدعاء دالّة الإسقاط. لا أكثر.
+        'pgsql_lake' => [
+            'driver' => 'pgsql',
+            'url' => env('DB_LAKE_URL'),
+            'host' => env('DB_LAKE_HOST', '127.0.0.1'),
+            'port' => env('DB_LAKE_PORT', '5432'),
+            'database' => env('DB_LAKE_DATABASE', 'kafaat_lake'),
+            'username' => env('DB_LAKE_USERNAME', 'lake_writer'),
+            'password' => env('DB_LAKE_PASSWORD', ''),
+            'charset' => env('DB_LAKE_CHARSET', 'utf8'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'search_path' => 'raw,contract_v1,meta,lake,public',
+            'sslmode' => env('DB_LAKE_SSLMODE', 'prefer'),
+            'options' => array_filter([
+                // يجعل الجلسة معروفةً في pg_stat_activity وسجلّات القاعدة —
+                // فيُميَّز حِمل البحيرة عن حِمل المنصّة عند التشخيص.
+                'application_name' => 'kafaat-lake',
+            ]),
+        ],
+
+        // الهجرات وحدها. لا يُستخدم في مسار طلبٍ أبداً.
+        // meta أوّل المسار عمداً: Laravel يُنشئ جدول migrations بلا مخطّطٍ
+        // صريح، فيهبط في أوّل مخطّطٍ في search_path — ولو كان raw لَلوّث
+        // منطقةَ الهبوط التي أُعلنت غيرَ قابلةٍ للتعديل.
+        'pgsql_lake_ddl' => [
+            'driver' => 'pgsql',
+            'url' => env('DB_LAKE_DDL_URL'),
+            'host' => env('DB_LAKE_HOST', '127.0.0.1'),
+            'port' => env('DB_LAKE_PORT', '5432'),
+            'database' => env('DB_LAKE_DATABASE', 'kafaat_lake'),
+            'username' => env('DB_LAKE_DDL_USERNAME', 'lake_owner'),
+            'password' => env('DB_LAKE_DDL_PASSWORD', ''),
+            'charset' => env('DB_LAKE_CHARSET', 'utf8'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'search_path' => 'meta,curated,raw,lake,contract_v1,public',
+            'sslmode' => env('DB_LAKE_SSLMODE', 'prefer'),
+            'options' => array_filter([
+                'application_name' => 'kafaat-lake-migrations',
+            ]),
+        ],
+
         'sqlsrv' => [
             'driver' => 'sqlsrv',
             'url' => env('DB_URL'),
