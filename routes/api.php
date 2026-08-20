@@ -111,6 +111,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/candidates/{id}', [CandidateController::class, 'destroy']);
     Route::post('/candidates/{id}/approve', [CandidateController::class, 'approve']);
     Route::post('/candidates/import', [ImportController::class, 'import']);
+    // ── الاستيراد الضخم: رفعةٌ تُجمَّع ثمّ تُعالَج في الخلفية ──
+    // الواجهة تُقطّع الملفّ (حتى ١٠٠٠ صفّ للنداء) لأن عشرة آلاف صفٍّ بسيَرها
+    // تتجاوز حدّ الحمولة قبل أن تبلغ الشيفرة. مخنوقٌ بالمعدّل: كل نداء يكتب.
+    Route::post('/candidates/import/batch', [ImportController::class, 'startBatch'])
+        ->middleware('throttle:60,1');
+    Route::get('/candidates/import/batch/{id}', [ImportController::class, 'batchStatus']);
     Route::patch('/candidates/{id}/classify', [CandidateController::class, 'reclassify']);
     // الملاحظات وحدها — لا تشترط الهوية والاسم كما يشترطهما التعديل الكامل
     Route::patch('/candidates/{id}/notes', [CandidateController::class, 'updateNotes']);
