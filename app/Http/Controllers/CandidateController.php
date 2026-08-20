@@ -154,7 +154,6 @@ class CandidateController extends Controller
             'name' => $canSeeNames ? $candidate->full_name : null,
             'nationalId' => $canSeeNames ? $candidate->national_id : null,
             'mobile' => $canSeeNames ? $candidate->mobile : null,
-            'email' => $canSeeNames ? $candidate->email : null,
             'sectorName' => $candidate->sector->name_ar,
             'sectorId' => $candidate->sector_id,
             'gender' => $candidate->gender,
@@ -335,7 +334,6 @@ class CandidateController extends Controller
             'nationalId' => ['required', 'string', new SaudiNationalId()],
             'fullName' => 'required|string|max:200',
             'mobile' => ['nullable', 'string', 'regex:/^05\d{8}$/'],
-            'email' => 'nullable|email',
             'sectorId' => 'required|exists:sectors,id',
             'gender' => 'required|in:' . implode(',', Candidate::GENDERS),
             'rankLabel' => 'required|string',
@@ -343,16 +341,21 @@ class CandidateController extends Controller
             'personnelCategory' => 'required|in:civilian,military,contractor',
             // المتعاقد بلا قائمة مُدارة، فطبقته تُرسَل صراحةً لا تُستنتج من مسمّاه
             'tier' => 'required_if:personnelCategory,contractor|nullable|in:upper,middle',
-            'assessmentType' => 'nullable|in:comprehensive,executive',
+            'assessmentType' => 'nullable|in:' . implode(',', Assessment::TYPES),
             'classification' => 'nullable|in:normal,secret,top_secret',
-            // المجالات الفنية — عليها تفلتر شاشة الترشيح، فبلا واحدٍ منها
-            // يدخل المشارك القاعدة ولا يظهر في أي قائمة ترشيح أبداً
-            'technicalAreaIds' => 'required|array|min:1',
+            // ── المجالات الفنية: تُحدَّد بعد الإضافة لا معها ──
+            // كانت شرطاً هنا، وهي أبطأ قرارٍ في النموذج: المُدخِل يعرف الهوية
+            // والرتبة والقطاع فوراً، ولا يعرف مجالات المشارك إلا بعد مراجعة
+            // سيرته أو سؤال جهته — فكان النموذج كلّه يقف على أبطأ حقوله.
+            //
+            // فبقيت مقبولةً هنا لمن يعرفها (والاستيراد يرسلها)، وصارت شرطاً
+            // في التعديل حيث تُستكمل. وثمنُ ذلك مُعلَن: مشاركٌ بلا مجال لا
+            // يظهر في أي قائمة ترشيح — ولذلك تردّ الاستجابة `needsTechnicalAreas`
+            // لتسوق الشاشة إلى استكمالها فور الحفظ.
+            'technicalAreaIds' => 'nullable|array',
             'technicalAreaIds.*' => 'integer|exists:technical_areas,id',
         ], [
             'gender.required' => 'اختر الجنس',
-            'technicalAreaIds.required' => 'اختر مجالاً فنياً واحداً على الأقل',
-            'technicalAreaIds.min' => 'اختر مجالاً فنياً واحداً على الأقل',
         ]);
 
         // ── نموذج السيرة الذاتية المرافق — إلزامي ──
@@ -432,7 +435,6 @@ class CandidateController extends Controller
             // تحديث بيانات الشخص للأحدث (قد يكون تغيّر قطاعه/رتبته). التصنيف يُدار عبر reclassify فقط.
             $candidate->full_name = $validated['fullName'];
             $candidate->mobile = $validated['mobile'] ?? null;
-            $candidate->email = $validated['email'] ?? null;
             $candidate->sector_id = $sector->id;
             $candidate->gender = $validated['gender'];
             $candidate->rank_label = $validated['rankLabel'];
@@ -444,7 +446,6 @@ class CandidateController extends Controller
             $candidate->national_id = $validated['nationalId']; // mutator: تشفير + hash
             $candidate->full_name = $validated['fullName'];
             $candidate->mobile = $validated['mobile'] ?? null;
-            $candidate->email = $validated['email'] ?? null;
             $candidate->sector_id = $sector->id;
             $candidate->gender = $validated['gender'];
             $candidate->rank_label = $validated['rankLabel'];
@@ -476,7 +477,10 @@ class CandidateController extends Controller
         $candidate->status = 'draft';
         $candidate->assessment_type = $assessmentType;
 
-        $areaIds = $validated['technicalAreaIds'];
+        // فرقٌ جوهري بين «لم تُرسَل» و«أُرسلت فارغة»: المشارك العائد له مجالات
+        // من دورةٍ سابقة، وsync([]) كان يمحوها لمجرّد أن النموذج لم يعد يرسلها.
+        // null ⇒ لا تُمسّ، ومصفوفةٌ ⇒ تحلّ محلّها.
+        $areaIds = $validated['technicalAreaIds'] ?? null;
 
         $assessment = DB::transaction(function () use ($candidate, $code, $assessmentType, $request, $cleanCv, $cvSource, $areaIds) {
             $candidate->save();
@@ -492,7 +496,9 @@ class CandidateController extends Controller
 
             // المجالات استبدالٌ لا إضافة: الدورة الجديدة تُعيد وصف المشارك،
             // ووسمٌ من دورةٍ سابقة يبقى فيُرشَّح على مجالٍ لم يعد يوصف به
-            $candidate->technicalAreas()->sync($areaIds);
+            if ($areaIds !== null) {
+                $candidate->technicalAreas()->sync($areaIds);
+            }
 
             return Assessment::create([
                 'candidate_id' => $candidate->id,
@@ -520,12 +526,17 @@ class CandidateController extends Controller
         return response()->json([
             'message' => $isReturning ? 'تمّت إضافة دورة تقييم جديدة لمشارك موجود' : 'تمت إضافة المشارك',
             'participantCode' => $code,
+            'candidateId' => $candidate->id,
             'tier' => $tier,
             'isReturning' => $isReturning,
             'assessmentId' => $assessment->id,
             'cvSaved' => $cleanCv !== null,
             'smsQueued' => $smsQueued,
             'idVerification' => $idVerification,
+            // ثمنُ رفع المجالات من نموذج الإضافة، مدفوعاً في العلن: مشاركٌ بلا
+            // مجالٍ فنيّ لا يظهر في أي قائمة ترشيح. تُحسب من العلاقة بعد الحفظ
+            // لا من المُدخَل، فتصدق على العائد الذي وَرِث مجالات دورةٍ سابقة.
+            'needsTechnicalAreas' => $candidate->technicalAreas()->count() === 0,
         ], 201);
     }
 
@@ -578,7 +589,6 @@ class CandidateController extends Controller
             'nationalId' => ['required', 'string', new SaudiNationalId()],
             'fullName' => 'required|string|max:200',
             'mobile' => ['nullable', 'string', 'regex:/^05\d{8}$/'],
-            'email' => 'nullable|email',
             'sectorId' => 'required|exists:sectors,id',
             'gender' => 'required|in:' . implode(',', Candidate::GENDERS),
             'rankLabel' => 'required|string',
@@ -586,7 +596,7 @@ class CandidateController extends Controller
             'personnelCategory' => 'required|in:civilian,military,contractor',
             // المتعاقد بلا قائمة مُدارة، فطبقته تُرسَل صراحةً لا تُستنتج من مسمّاه
             'tier' => 'required_if:personnelCategory,contractor|nullable|in:upper,middle',
-            'assessmentType' => 'nullable|in:comprehensive,executive',
+            'assessmentType' => 'nullable|in:' . implode(',', Assessment::TYPES),
             'classification' => 'nullable|in:normal,secret,top_secret',
             'technicalAreaIds' => 'required|array|min:1',
             'technicalAreaIds.*' => 'integer|exists:technical_areas,id',
@@ -607,7 +617,6 @@ class CandidateController extends Controller
         $candidate->national_id = $validated['nationalId'];
         $candidate->full_name = $validated['fullName'];
         $candidate->mobile = $validated['mobile'] ?? null;
-        $candidate->email = $validated['email'] ?? null;
         $candidate->sector_id = $sector->id;
         $candidate->gender = $validated['gender'];
         $candidate->rank_label = $validated['rankLabel'];

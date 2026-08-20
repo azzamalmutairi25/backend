@@ -358,7 +358,7 @@ class KioskController extends Controller
             'sector' => $c->sector?->name_ar,
             'rank' => $c->rank_label,
             'tier' => $c->tier === 'upper' ? 'قيادة عليا' : 'قيادة وسطى',
-            'assessmentType' => $a->assessment_type === 'executive' ? 'تنفيذي' : 'شامل',
+            'assessmentType' => Assessment::typeLabel($a->assessment_type),
             // البيانات الوظيفية من السيرة — هي محلّ الإقرار عملياً
             'cv' => $cv && !CandidateCv::isEmptyDoc($cv) ? [
                 'department' => $cv['department'] ?? null,
@@ -389,7 +389,7 @@ class KioskController extends Controller
         return [
             'participantCode' => $a->participant_code,
             'sector' => $a->candidate?->sector?->name_ar,
-            'assessmentType' => $a->assessment_type === 'executive' ? 'تنفيذي' : 'شامل',
+            'assessmentType' => Assessment::typeLabel($a->assessment_type),
             'schedules' => $this->schedules($a),
         ];
     }

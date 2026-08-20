@@ -63,7 +63,7 @@ class PublicAssessmentController extends Controller
             // الرتبة المسجّلة في ملفّه — قيمة ابتدائية لحقل الرتبة في السيرة.
             // المشارك يراها ويصحّحها، وإقراره يُخزَّن في السيرة ولا يستبدل ملفّه.
             'rankLabel' => $a->candidate->rank_label,
-            'assessmentType' => $a->assessment_type === 'executive' ? 'تنفيذي' : 'شامل',
+            'assessmentType' => Assessment::typeLabel($a->assessment_type),
             'confirmed' => (bool) $a->confirmed_at,
             'arrived' => (bool) $a->arrived_at,
             'confirmedAt' => optional($a->confirmed_at)->toIso8601String(),
