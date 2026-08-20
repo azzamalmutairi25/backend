@@ -19,6 +19,26 @@ class Assessment extends Model
         'confirm_token', 'confirmed_at', 'arrived_at',
     ];
 
+    // ── نوع التقييم ──
+    // اثنان لا ثلاثة: الشامل هو المسار المعتاد، و«طلب خاص» ما يخرج عنه.
+    // وحلَّ «طلبٌ خاص» محلّ «تنفيذي» لأن ذاك كان يصف صاحب التقييم لا التقييم،
+    // فيلتبس بطبقة القيادة (tier) وهي المكان الذي يوصف فيه الشخص فعلاً.
+    //
+    // والتسمية العربية هنا لا في المتحكّمات: كانت منسوخة في أربعة مواضع
+    // (البوّابة، الاستقبال، الكشك مرّتين)، فكانت إضافة نوعٍ ثالثٍ يوماً تعني
+    // تذكّر أربعة مواضع — ونسيانُ واحدٍ يُظهر «شامل» على ما ليس شاملاً.
+    public const TYPES = ['comprehensive', 'special_request'];
+
+    public const TYPE_LABELS = [
+        'comprehensive' => 'شامل',
+        'special_request' => 'طلب خاص',
+    ];
+
+    public static function typeLabel(?string $type): string
+    {
+        return self::TYPE_LABELS[$type] ?? self::TYPE_LABELS['comprehensive'];
+    }
+
     protected $casts = [
         'confirmed_at' => 'datetime',
         'arrived_at' => 'datetime',

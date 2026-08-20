@@ -27,11 +27,11 @@ class SelfReviewFixesTest extends TestCase
         // الجنس والمجالات الفنية إلزاميان على التعديل أيضاً (لا سيرة — التعديل لا يأخذها)
         $this->putJson("/api/candidates/{$c->id}", [
             'nationalId' => $nid, 'fullName' => 'محدّث', 'sectorId' => $c->sector_id,
-            'personnelCategory' => 'civilian', 'rankLabel' => 'الرابعة عشرة', 'assessmentType' => 'executive',
+            'personnelCategory' => 'civilian', 'rankLabel' => 'الرابعة عشرة', 'assessmentType' => 'special_request',
             'gender' => 'male', 'technicalAreaIds' => $this->technicalAreaIds(),
         ])->assertOk();
 
-        $this->assertSame('executive', $c->fresh()->assessment_type);      // سجل الشخص يتحدّث
+        $this->assertSame('special_request', $c->fresh()->assessment_type); // سجل الشخص يتحدّث
         $this->assertSame('comprehensive', $a->fresh()->assessment_type);  // الدورة المكتملة لا تُمَسّ
     }
 
