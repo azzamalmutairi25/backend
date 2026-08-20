@@ -765,7 +765,10 @@ pg_dump -Fc -Z6 -h "$LAKE_HOST" -U lake_owner -d kafaat_lake \
 **ما يتوقّف على الجواب:**
 
 - **`lake_narrative_reader`:** هل يُمنح أصلاً؟ ومع `LAKE_PUBLISH_NARRATIVE`
-  معطّلاً اليوم، منحُه يمنح دوراً على عرضٍ فارغ.
+  معطّلاً اليوم، `contract_v1.report_narratives` فارغ تماماً، و
+  `report_development_plan` يُرجع بنود الخطة بأعدادها وحالاتها (`priority`, `ord`)
+  ونصُّها (`area`, `action`) `NULL`. أي أن منح الدور اليوم يفتح معلومةً تشغيليّة
+  لا نصّاً.
 - **`LAKE_PUBLISH_PARTICIPANT_CODE`:** يُفتح فقط لو احتاج الطرفان مطابقةً يدويّة
   بين النظامين — وهو تنازلٌ عن قدرٍ من المجهوليّة.
 - **قناة تسليم بيانات الاعتماد** ودورة تدويرها.

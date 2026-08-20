@@ -210,7 +210,7 @@ CREATE TABLE IF NOT EXISTS curated.daily_snapshot (
 --  لأنها تعتمد على أعمدةِ حالةٍ راهنةٍ متغيّرة.
 CREATE TABLE IF NOT EXISTS curated.analytics_snapshot (
   snapshot_date date        NOT NULL,
-  kind          text        NOT NULL,   -- executive | executive_overview | dashboard | reports
+  kind          text        NOT NULL,   -- executive | platform_overview
   event_uuid    uuid        NOT NULL UNIQUE,
   captured_at   timestamptz NOT NULL,
   payload       jsonb       NOT NULL,

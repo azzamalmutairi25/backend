@@ -64,7 +64,32 @@ echo "═══ ٤) الأقسام تُهيَّأ بامتياز الكاتب �
 assert ok   lake_writer "$PW_WRITER" "يُهيّئ الأقسام (SECURITY DEFINER)"       "SELECT lake.ensure_partitions(15);"
 assert ok   lake_writer "$PW_WRITER" "يُهيّئ من تاريخٍ سابق"                   "SELECT lake.ensure_partitions_from('2026-01-01');"
 
-echo "═══ ٥) شريط التصنيف ═══"
+echo "═══ ٥) البيان يطابق المنح فعلاً ═══"
+# البيان وعدٌ للمستهلك، والمنحُ هو الواقع. انفراجُهما لا يظهر في أيّ اختبار
+# آخر: العرضُ موجود، والبيانُ يذكره، والقراءةُ تُرفض — فيقرأ المستهلك
+# وعداً ويصطدم بمنع. وقع هذا فعلاً مع published_snapshot، وهو عرضٌ
+# داخليّ يُخرج عمود payload بسرده كاملاً، فكان الوعدُ به تسريباً لا خطأً
+# في التوثيق.
+promised=$(PGPASSWORD="$PW_READER" "$PSQL" -h "$HOST" -p "$PORT" -U lake_reader -d "$DB" -Atc \
+  "SELECT view_name FROM contract_v1.contract_manifest WHERE granted_to = 'lake_reader';" 2>/dev/null)
+broken=0
+for v in $promised; do
+  PGPASSWORD="$PW_READER" "$PSQL" -h "$HOST" -p "$PORT" -U lake_reader -d "$DB" \
+    -Atc "SELECT 1 FROM contract_v1.$v LIMIT 1;" >/dev/null 2>&1 || {
+      echo "  ❌ البيان يَعِد بـ$v والقراءة مرفوضة"; broken=$((broken+1)); }
+done
+if [ "$broken" -eq 0 ]; then
+  echo "  ✅ كل ما يَعِد به البيان مقروءٌ فعلاً ($(echo "$promised" | wc -w | tr -d ' ') عرضاً)"
+  pass=$((pass+1))
+else
+  fail=$((fail+broken))
+fi
+
+# والعكس: العرضُ الداخليّ لا يُذكر في البيان ولا يُقرأ.
+assert deny lake_reader "$PW_READER" "العرض الداخليّ published_snapshot محجوب" \
+  "SELECT 1 FROM contract_v1.published_snapshot LIMIT 1;"
+
+echo "═══ ٦) شريط التصنيف ═══"
 assert deny lake_writer "$PW_WRITER" "يرفض صفّاً مُصنَّفاً" \
   "INSERT INTO raw.report_events (event_uuid,occurred_at,batch_id,emitter_seq,contract_version,event_type,subject_type,classification,payload,payload_sha256,payload_bytes)
    VALUES (gen_random_uuid(),now(),1,1,'report.v1','report.approved','report','secret','{}'::jsonb,repeat('a',64),2);"

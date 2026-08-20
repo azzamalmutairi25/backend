@@ -23,6 +23,10 @@ SET search_path = contract_v1, curated, public;
 --  كل الصفوف — لا يظهر فرق. وأوّلُ تحريرٍ بعد الاعتماد يجعلهما لقطتين،
 --  فتُرجع تلك العروضُ صفَّين لكل (دورة، ترتيب) بلا إنذار.
 --  التعريف هنا واحدٌ، وكلُّ عرضٍ يبني عليه.
+--  ⚠ داخليّ: لا يُمنح لأحد ولا يُذكر في البيان. يُخرج s.* من
+--  curated.report_snapshot، ومنها عمود payload الذي يحمل السرد كاملاً حين
+--  يُفعَّل التقاطُه. منحُه لقارئ الأرقام كان يُبطل الفصلَ الذي وُجد له دورُ
+--  سردٍ منفصل — تسريبٌ من الباب الذي أُقفل بابُه الأمامي.
 CREATE OR REPLACE VIEW contract_v1.published_snapshot AS
 SELECT DISTINCT ON (s.source_assessment_id) s.*
 FROM curated.report_snapshot s
@@ -252,7 +256,6 @@ SELECT * FROM (VALUES
   ('freshness',            'حالة التغذية',                                         'lake_reader'),
   ('contract_manifest',    'بيان العقد — هذا الجدول نفسه',                         'lake_reader'),
   ('events_stream',        'تدفّق الأحداث للترقيم بالمفتاح',                        'lake_reader'),
-  ('published_snapshot',   'قاعدة اختيار الصفّ المنشور (داخليّ للعقد)',              'lake_reader'),
   ('report_narratives',    'نصّ التقرير الحرّ',                          'lake_narrative_reader'),
   ('report_development_plan','بنود خطة التطوير',                        'lake_narrative_reader')
 ) AS t(view_name, description_ar, granted_to);

@@ -358,6 +358,10 @@ REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA lake FROM PUBLIC;
 
 --  ثم المنح فرديّاً: الكاتب يُسقط ويُهيّئ الأقسام. لا يُعيد البناء، ولا يمحو.
 GRANT EXECUTE ON FUNCTION lake.project_batch(bigint)                  TO lake_writer;
-GRANT EXECUTE ON FUNCTION lake.k_anonymity()                          TO lake_writer, lake_reader, lake_narrative_reader;
+-- للكاتب وحده: القارئ لا يملك USAGE على مخطّط lake ولا يجوز أن يملكه،
+-- فمنحُه EXECUTE هنا كان منحاً لا يعمل ويُوهم بخلاف الواقع. والحدُّ يصل
+-- القارئَ عبر contract_v1.freshness.k_anonymity_threshold — من العقد،
+-- كسائر ما يراه.
+GRANT EXECUTE ON FUNCTION lake.k_anonymity()                          TO lake_writer;
 GRANT EXECUTE ON FUNCTION lake.ensure_partitions(integer)             TO lake_writer;
 GRANT EXECUTE ON FUNCTION lake.ensure_partitions_from(date, integer)  TO lake_writer;
