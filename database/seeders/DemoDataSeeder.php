@@ -215,12 +215,19 @@ class DemoDataSeeder extends Seeder
         $done = in_array($status, ['assessed', 'approved', 'completed'], true);
         $day = $done ? now()->subDays(random_int(3, 25)) : now()->addDays(random_int(1, 21));
 
+        // دقيقةٌ مميّزة لكل مشارك داخل ساعته: كان الجميع على رأس الساعة تماماً
+        // (٩ و١١ و١٣) بمقيّمٍ عشوائي، فمشاركان يقعان في اليوم نفسه بالمقيّم نفسه
+        // يتصادمان — وهو ما يمنعه schedules_evaluator_slot_unique. فكانت بيانات
+        // العرض تُفشل `migrate:fresh --seed` على كل مطوّر.
+        static $slot = 0;
+        $minute = $slot++ % 60;
+
         foreach (['interview', 'discussion', 'measurement'] as $i => $activity) {
             $s = Schedule::create([
                 'candidate_id' => $c->id,
                 'assessment_id' => $a->id,
                 'schedule_date' => $day->toDateString(),
-                'schedule_time' => sprintf('%02d:00:00', 9 + $i * 2),
+                'schedule_time' => sprintf('%02d:%02d:00', 9 + $i * 2, $minute),
                 'activity' => $activity,
                 'evaluator_id' => $evaluators->random()->id,
                 'assistant_id' => $assistants->isNotEmpty() ? $assistants->random()->id : null,
