@@ -27,15 +27,24 @@ HOST="${KAFAAT_HOST:-172.16.0.73}"
 SSH_USER="${KAFAAT_SSH_USER:-tamkeenadmin}"
 ASKPASS="${KAFAAT_ASKPASS:-/tmp/.ka}"
 
-# أسماء الشهادة. localhost و127.0.0.1 محذوفة عمداً: لا تُستعمل في وصولٍ
-# حقيقي، ووجودها يُخالف قيود الأسماء أدناه فتُرفض الشهادة كلّها.
-DNS1=kafaat.internal.gov.sa
-DNS2=kafaat.local
-SANS="IP:${HOST},DNS:${DNS1},DNS:${DNS2}"
+# أسماء الشهادة. الاسم الأول هو رابط المنصّة المعتمد، والعنوان العددي يبقى في
+# SAN ليظل الوصول به عاملاً. localhost و127.0.0.1 محذوفة عمداً: لا تُستعمل في
+# وصولٍ حقيقي، ووجودها يُخالف قيود الأسماء أدناه فتُرفض الشهادة كلّها.
+DNS1=moitp.gov.sa
+DNS2=kafaat.internal.gov.sa
+DNS3=kafaat.local
+SANS="IP:${HOST},DNS:${DNS1},DNS:${DNS2},DNS:${DNS3}"
 
 # القيود: ما لا يقع تحتها لا يُقبل من هذا الجذر مهما وُقِّع به.
 # النطاق العددي 172.16.0.0/16 يغطّي الشبكة الداخلية وحدها.
-NAME_CONSTRAINTS="critical,permitted;DNS:internal.gov.sa,permitted;DNS:kafaat.local,permitted;IP:172.16.0.0/255.255.0.0"
+#
+# ⚠ moitp.gov.sa لا يقع تحت قيود الجذر المُنشأ سابقاً (internal.gov.sa وحدها
+#   كانت مسموحة)، والقيود مخبوزة في شهادة الجذر — فإضافتها هنا لا تسري على
+#   جذرٍ قائم. المتصفّح يرفض أي شهادة لهذا الاسم موقّعة بالجذر الحالي مهما
+#   صحّت. المسار الصحيح: `moi-csr` وشهادة من سلطة إصدار الوزارة — تعمل بلا
+#   تنصيب جذرٍ على الأجهزة. إعادة إنشاء الجذر بديلٌ أخير: يُبطل الثقة
+#   المنصَّبة على كل جهاز ويستلزم توزيعاً جديداً.
+NAME_CONSTRAINTS="critical,permitted;DNS:moitp.gov.sa,permitted;DNS:internal.gov.sa,permitted;DNS:kafaat.local,permitted;IP:172.16.0.0/255.255.0.0"
 
 SUBJ_BASE="/C=SA/O=Tamkeen Alkafaat Center"
 LEAF_DAYS=397     # دون حدّ Apple (٣٩٨ يوماً) بهامش

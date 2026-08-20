@@ -98,6 +98,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // ═══ المشاركون ═══
     Route::get('/candidates', [CandidateController::class, 'index']);
     Route::post('/candidates', [CandidateController::class, 'store']);
+    // فحص تكرار الهوية قبل ملء النموذج — POST لا GET كي لا تُكتب الهوية في
+    // سجلّات المسارات، ومخنوقٌ بالمعدّل لأنه سطح تعدادٍ بأرقام الهوية
+    Route::post('/candidates/lookup', [CandidateController::class, 'lookup'])
+        ->middleware('throttle:20,1');
     Route::get('/candidates/stats', [CandidateController::class, 'stats']);
     Route::get('/candidates/export', [CandidateController::class, 'export']);
     // GET /candidates/cards — بطاقات المشاركين للطباعة. قبل {id} وإلا ابتلعها

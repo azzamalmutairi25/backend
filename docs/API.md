@@ -64,6 +64,7 @@
 | GET | `/candidates` | `candidate.view` | قائمة المشاركين (محصورة بالنطاق) — انظر **الترقيم والفرز** أدناه |
 | GET | `/candidates/stats` | `candidate.view` | إحصاءات مطابقة لحصر القائمة |
 | POST | `/candidates` | `candidate.create` | إضافة مشارك (+ دورة تقييم) |
+| POST | `/candidates/lookup` | `candidate.create` | فحص تكرار الهوية قبل ملء النموذج — يرجع `exists` وحدها، والرمز لحاملي `candidate.edit` فقط. مخنوق ٢٠/دقيقة ومُقيَّد في السجلّ |
 | POST | `/candidates/import` · `/import/candidates` | `candidate.create` | استيراد جماعي — `rows[]` حتى ٥٠٠، انظر **الاستيراد الجماعي** أدناه |
 | GET | `/candidates/export` | `candidate.view` | تصدير القائمة |
 | GET | `/candidates/{id}` | `candidate.view` | تفاصيل مشارك |
