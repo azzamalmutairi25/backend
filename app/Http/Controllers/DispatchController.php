@@ -226,6 +226,20 @@ class DispatchController extends Controller
         }
         [$from, $to, $period] = $range;
 
+        // ── لا يُسلَّم إلا المعتمَد ──
+        // التسليم فعلٌ خارج المنصّة: ورقةٌ تذهب إلى وكالة الشؤون العسكرية أو إلى
+        // الموارد البشرية ويُبنى عليها حضور أناس. وكان يُقبل من موجةٍ مسودّة —
+        // أي من جدولٍ لم يره مدير المركز بعد — ومن موجةٍ مغلقة. والشاشة كانت
+        // تفتح على أحدث موجة أياً كانت حالتها، فالخطأ لا يحتاج قصداً.
+        // والإغلاق يأتي بعد التسليم في الإجراء (الخطوة ١١ ثم الإغلاق)، فالمغلقة
+        // تسليمٌ فات أوانه لا تسليمٌ متأخّر.
+        if ($period && $period->status !== 'approved') {
+            return response()->json([
+                'error' => 'لا تُسلَّم إلا موجة معتمَدة — موجة «' . $period->name . '» '
+                    . SchedulingPeriod::label($period->status),
+            ], 422);
+        }
+
         $authority = DispatchAuthority::find($validated['authorityId']);
         $rows = $this->rowsFor($request, $authority, $from, $to, $period?->id);
 

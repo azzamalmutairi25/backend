@@ -300,6 +300,14 @@ class SchedulingPeriodController extends Controller
         if (!$period) {
             return response()->json(['error' => 'الموجة غير موجودة'], 404);
         }
+        // ما اعتُمد لا يُحذف. كان الفحص على الجلسات وحدها، والقاعدة تسمح: موجةٌ
+        // معتمَدة بلا جلسة (رُفعت جلساتها ثم اعتُمدت) كانت تُحذف بنداءٍ مباشر —
+        // والزرّ مخفيٌّ في الشاشة وحدها، وإخفاءُ زرٍّ ليس حارساً.
+        if (!$period->isEditable()) {
+            return response()->json([
+                'error' => 'لا تُحذف موجة ' . SchedulingPeriod::label($period->status),
+            ], 422);
+        }
         // الجلسات لا تُحذف مع الموجة (nullOnDelete)، لكنّ فقدانها لانتمائها
         // صامتاً أسوأ من منعٍ صريح: تختفي من كل مستند يُبنى على الموجة.
         if ($period->schedules()->exists()) {
@@ -350,12 +358,21 @@ class SchedulingPeriodController extends Controller
         foreach ($loadEvaluator as $r) { $load['evaluator:' . $r->uid . ':' . $r->activity] = (int) $r->c; }
         foreach ($loadAssistant as $r) { $load['assistant:' . $r->uid . ':' . $r->activity] = (int) $r->c; }
 
-        $dayCount = max(1, $period->dayCount());
+        // ── السقف يُبنى على أيام الموجة التي فيها جلسات، لا على أيام تقويمها ──
+        // dayCount يعدّ كل الأيام عمداً (لا تقويم إجازات موثوق في المنصّة)، فكان
+        // السقف = النصاب × أيام التقويم يشمل جُمَعاً وسبوتاً لا يعمل فيها المركز
+        // — ينتفخ نحو الثلث، فيبتلع التجاوز الحقيقي ولا يُنذر أحد. وأيامُ الموجة
+        // التي جُدولت فيها جلسة هي أيام عملها كما أعلنها من بناها، بلا مفهومٍ
+        // جديد ولا هجرة.
+        $workedDays = Schedule::where('period_id', $period->id)
+            ->distinct()->count(DB::raw('schedule_date::date'));
+        $dayCount = max(1, $workedDays ?: $period->dayCount());
 
         return response()->json([
             'period' => $this->row($period->load(['creator', 'approver'])),
             'assessors' => $rows->map(function (PeriodAssessor $a) use ($load, $dayCount) {
                 $assigned = $load[$a->seat . ':' . $a->user_id . ':' . $a->activity] ?? 0;
+                $capacity = $a->period_quota ?? ($a->dailyQuota() * $dayCount);
                 return [
                     'id' => $a->id,
                     'userId' => $a->user_id,
@@ -373,7 +390,16 @@ class SchedulingPeriodController extends Controller
                     // الحمل مقابل السقف: النصاب اليومي × عدد الأيام هو سقف الموجة
                     // ما لم يُصرَّح بسقفٍ آخر — رقمٌ يُقرأ لا يُفرض.
                     'assigned' => $assigned,
-                    'periodCapacity' => $a->period_quota ?? ($a->dailyQuota() * $dayCount),
+                    'periodCapacity' => $capacity,
+                    // القرار في الخادم لا في القالب: كانت كل شاشة تحسبه بنفسها،
+                    // فحسبته شاشةٌ وسكتت عنه أخرى — ونافذة الجدولة، وهي موضع
+                    // الاختيار الفعلي، كانت تعرض «٣/٥» نصّاً بلا إنذار.
+                    // والمقارنة `>=` لا `>`: من بلغ نصابه بلغه، ومن نصابه صفر
+                    // (مُدرَجٌ ولا يُسنَد إليه) يُنذَر عند أول إسناد — وكان
+                    // السقف صفراً يسقط في الشاشة لأنه قيمةٌ كاذبة في جافاسكربت.
+                    'overQuota' => $capacity > 0
+                        ? $assigned > $capacity
+                        : $assigned > 0,
                 ];
             })->values(),
             'activities' => collect(self::ACTIVITIES)->map(fn ($a) => [
@@ -409,9 +435,13 @@ class SchedulingPeriodController extends Controller
         $rows = User::with(['role', 'sector'])
             ->where('is_active', true)
             ->whereHas('role', fn ($q) => $q->whereIn('code', $roles))
-            // المحصور بقطاع لا يرى غير أهل قطاعه — كما في كل قائمة أخرى
+            // المحصور بقطاع لا يرى غير أهل قطاعه — كما في كل قائمة أخرى.
+            // ومن لا يحصره قطاع (مشرف أدوات القياس، وsector_id فيه NULL دائماً
+            // بحكم UserController) يبقى ظاهراً للجميع: حصرُه بقطاعٍ لا ينتمي
+            // إليه يُخفيه عن كل مُجدوِل محصور.
             ->when($request->user()->isSectorBound(),
-                fn ($q) => $q->where('sector_id', $request->user()->sector_id))
+                fn ($q) => $q->where(fn ($w) => $w->where('sector_id', $request->user()->sector_id)
+                    ->orWhereHas('role', fn ($r) => $r->whereNotIn('code', User::SECTOR_BOUND_ROLES))))
             ->orderBy('full_name')
             ->get()
             ->map(fn (User $u) => [
@@ -602,6 +632,20 @@ class SchedulingPeriodController extends Controller
         }
         if ($period->status !== 'pending_center') {
             return response()->json(['error' => 'لا تُعتمد إلا موجة مُرسَلة للاعتماد'], 422);
+        }
+        // ── من يبني الجدول لا يعتمده ──
+        // الهجرة التي منحت هذه الصلاحية كتبت غرضها صراحةً: «فصل مهام لا صلاحية
+        // تجميلية». لكنها فصلت الأدوار ولم تفصل الأشخاص — ومدير المركز يحمل
+        // schedule.manage وschedule.approve_center معاً، فكان يبني ويرسل ويعتمد
+        // وحده، وخطوة «إرسال الجدولة إلى مدير المركز» بلا معنى.
+        //
+        // والفحص على المُرسِل لا على المُنشِئ ولا على من مسّ اللوحة: الإرسال هو
+        // فعل «أُعلنُها جاهزة»، وهو ما يقابله الاعتماد. ومديرٌ صحّح نصاب اسمٍ في
+        // لوحة موجةٍ بناها غيره لا يفقد حقّه في اعتمادها.
+        if ($period->submitted_by === $request->user()->id) {
+            return response()->json([
+                'error' => 'لا تعتمد موجةً أرسلتَها بنفسك — الاعتماد لمن لم يبنِها',
+            ], 422);
         }
 
         $period->status = 'approved';

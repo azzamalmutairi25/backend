@@ -62,9 +62,15 @@ class DashboardOverviewTest extends TestCase
             'behavioral_fit' => 80, 'technical_fit' => 70, 'created_by' => null,
         ]);
 
+        // وقتٌ مختلف لكل جلسة: المُقيّم واحدٌ في كل نداءات هذا المساعد، وقيد
+        // schedules_evaluator_slot_unique يرفض وقوعه في مقابلتين في لحظةٍ واحدة.
+        // ما يقيسه هذا الاختبار تجميعات اللوحة لا مواعيدها، فالدقيقة تكفي.
+        static $slot = 0;
+        $time = sprintf('09:%02d', $slot++ % 60);
+
         $s = Schedule::create([
             'candidate_id' => $c->id, 'assessment_id' => $a->id,
-            'schedule_date' => now()->toDateString(), 'schedule_time' => '09:00',
+            'schedule_date' => now()->toDateString(), 'schedule_time' => $time,
             'activity' => 'interview', 'evaluator_id' => $evaluatorId,
         ]);
         if ($attendanceStatus !== null) {

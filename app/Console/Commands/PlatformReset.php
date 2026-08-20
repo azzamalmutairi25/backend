@@ -41,13 +41,19 @@ class PlatformReset extends Command
         // في بذرةٍ تُعاد: مسحُه يترك المنصّة بلا إجراءٍ تُقاس عليه الموجات، ولا
         // سبيل لاستعادته إلا بإعادة الهجرة.
         'scheduling_workflow_steps',
+        // جهات التسليم — لنفس سبب خطوات الإجراء تماماً: تُبذَر في هجرتها ولا
+        // بذرةَ لها في database/seeders، ولا شاشةَ تُنشئها (المسار قراءةٌ فقط:
+        // GET /dispatch/authorities). فمسحُها بـ--with-reference يُفقد المنصّة
+        // وكالةَ الشؤون العسكرية والموارد البشرية بلا طريق عودة، ويترك الخطوة
+        // الحادية عشرة (period.dispatched) لا تكتمل أبداً.
+        // وليست ممّا «يُدخله الموظفون بأنفسهم»، فمكانها هنا لا هناك.
+        'dispatch_authorities',
         'settings',          // قوالب الرسائل وأوقات الجلسات
     ];
 
     /** مرجعيات يُدخلها الموظفون بأنفسهم — تُمسح مع --with-reference فقط */
     private const REFERENCE = [
         'sectors',
-        'dispatch_authorities',
         'expertise_areas',
         'user_expertise',
         // تصنيف المركز لمجالاته الفنية — يُحرَّر من الإعدادات كـ`ranks`،

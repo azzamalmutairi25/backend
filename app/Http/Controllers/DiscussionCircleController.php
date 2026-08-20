@@ -7,9 +7,9 @@ use App\Models\Candidate;
 use App\Models\DiscussionCircle;
 use App\Models\PeriodAssessor;
 use App\Models\Schedule;
-use App\Models\SchedulingPeriod;
 use App\Models\User;
 use App\Security\Permissions;
+use App\Services\WaveGuard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -23,6 +23,10 @@ use Illuminate\Support\Facades\DB;
 // بديلٌ عنها.
 class DiscussionCircleController extends Controller
 {
+    public function __construct(private WaveGuard $waves)
+    {
+    }
+
     private function log(Request $request, string $action, int $entityId, array $details = []): void
     {
         AuditLog::create([
@@ -163,22 +167,11 @@ class DiscussionCircleController extends Controller
         return null;
     }
 
-    private function periodError(?int $periodId, string $date): ?string
+    // نصّ الفحص في WaveGuard: كان مكرّراً هنا وفي ScheduleController برسالتين
+    // مختلفتين لنفس الرفض، وكان يُستدعى في ثلاثة من خمسة مسارات تكتب في موجة.
+    private function periodError(?int $periodId, ?string $date = null): ?string
     {
-        if (!$periodId) {
-            return null;
-        }
-        $p = SchedulingPeriod::find($periodId);
-        if (!$p) {
-            return 'موجة الجدولة غير موجودة';
-        }
-        if (!$p->isEditable()) {
-            return 'موجة «' . $p->name . '» ' . SchedulingPeriod::label($p->status) . ' — لا تُعدَّل';
-        }
-        if ($date < $p->start_date->toDateString() || $date > $p->end_date->toDateString()) {
-            return 'التاريخ خارج مدى موجة «' . $p->name . '»';
-        }
-        return null;
+        return $this->waves->refuse($periodId, $date);
     }
 
     // POST /discussion-circles
@@ -336,6 +329,12 @@ class DiscussionCircleController extends Controller
         if ($circle->seatsTaken() > 0) {
             return response()->json(['error' => 'اسحب المشاركين قبل حذف الحلقة'], 422);
         }
+        // الحلقة من بنية الموجة كجلساتها: ما اعتُمد لا يُنقَص. كان الحارس على
+        // الإنشاء والتعديل والإسناد، وغاب عن الحذف والسحب — فكان ما يُمنع بناءً
+        // يمرّ هدماً، وهو الأثقل: الإسناد يُضيف صفّاً والسحب يمحو صفّاً قائماً.
+        if ($err = $this->periodError($circle->period_id)) {
+            return response()->json(['error' => $err], 422);
+        }
 
         $circle->delete();
         $this->log($request, 'DELETE_CIRCLE', $id);
@@ -462,6 +461,11 @@ class DiscussionCircleController extends Controller
         // نفس قاعدة حذف الجلسة: ما سُجّل حضوره لا يُمحى
         if ($schedule->attendance) {
             return response()->json(['error' => 'لا يُسحب مشارك سُجّل حضوره'], 422);
+        }
+        // والسحب حذفُ جلسةٍ فعليّ (delete لا تفكيك ارتباط)، فيلزمه حارس الموجة
+        // كما يلزم ScheduleController::destroy تماماً
+        if ($err = $this->periodError($circle->period_id)) {
+            return response()->json(['error' => $err], 422);
         }
 
         $code = optional($schedule->candidate)->participant_code;
