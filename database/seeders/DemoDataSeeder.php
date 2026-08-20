@@ -175,7 +175,7 @@ class DemoDataSeeder extends Seeder
         };
 
         $name = $this->pick(self::FIRST) . ' ' . $this->pick(self::LAST);
-        $type = $tier === 'upper' && $this->seq % 4 === 0 ? 'executive' : 'comprehensive';
+        $type = $tier === 'upper' && $this->seq % 4 === 0 ? 'special_request' : 'comprehensive';
         $code = sprintf('%s-%03d', self::CODE_PREFIX, $this->seq);
 
         $c = new Candidate();

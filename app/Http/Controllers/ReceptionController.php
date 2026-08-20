@@ -956,7 +956,7 @@ class ReceptionController extends Controller
             'visitId' => $v->id,
             'participantCode' => $a?->participant_code,
             'sector' => $v->candidate?->sector?->name_ar,
-            'assessmentType' => $a?->assessment_type === 'executive' ? 'تنفيذي' : 'شامل',
+            'assessmentType' => Assessment::typeLabel($a?->assessment_type),
             'requestedAt' => $v->badge_requested_at?->format('H:i'),
             'schedules' => collect($a?->schedules ?? [])
                 ->sortBy(fn ($s) => substr((string) $s->schedule_date, 0, 10) . ' ' . $s->schedule_time)
