@@ -112,6 +112,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/candidates/{id}/approve', [CandidateController::class, 'approve']);
     Route::post('/candidates/import', [ImportController::class, 'import']);
     Route::patch('/candidates/{id}/classify', [CandidateController::class, 'reclassify']);
+    // الملاحظات وحدها — لا تشترط الهوية والاسم كما يشترطهما التعديل الكامل
+    Route::patch('/candidates/{id}/notes', [CandidateController::class, 'updateNotes']);
     Route::get('/candidates/{id}/assessments', [CandidateController::class, 'assessments']);
     Route::get('/candidates/{id}/journey', [CandidateController::class, 'journey']);
     // السيرة الذاتية — مسار الإدارة (قراءة بصلاحية CANDIDATE_CV_VIEW، تعديل بـ CANDIDATE_EDIT)

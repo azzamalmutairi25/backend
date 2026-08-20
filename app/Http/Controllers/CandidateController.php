@@ -158,6 +158,7 @@ class CandidateController extends Controller
             'sectorId' => $candidate->sector_id,
             'gender' => $candidate->gender,
             'technicalAreaIds' => $candidate->technicalAreas->pluck('id')->values(),
+            'notes' => $candidate->notes,
             'technicalAreas' => $candidate->technicalAreas->map(fn ($a) => [
                 'id' => $a->id, 'label' => $a->label_ar,
             ])->values(),
@@ -168,8 +169,37 @@ class CandidateController extends Controller
             'status' => $candidate->status,
             'classification' => $candidate->classification,
             'createdAt' => $candidate->created_at,
+            'trail' => array_slice(array_reverse($this->writeTrail($candidate)), 0, 6),
             'canSeeNames' => $canSeeNames,
         ]]);
+    }
+
+    // ── PATCH /candidates/{id}/notes — الملاحظات وحدها ──
+    // مسارٌ مستقلّ عن `update` عمداً: ذاك يشترط الهوية والاسم في حمولته،
+    // وهما يُحجبان عمّن لا يملك CANDIDATE_VIEW_NAMES — فكان مَن يرى المشارك
+    // بلا اسمه لا يستطيع كتابة ملاحظةٍ عليه، أو يُضطرّ أن يُعيد إرسال هويةٍ
+    // لا يراها أصلاً. والملاحظة ليست بياناً شخصياً يُحرَس بحارسه.
+    public function updateNotes(Request $request, int $id)
+    {
+        if (!$request->user()->hasPermission(Permissions::CANDIDATE_EDIT)) {
+            return response()->json(['error' => 'ليس لديك صلاحية تعديل المشارك'], 403);
+        }
+
+        $candidate = $this->resolveCandidateInScope($request, $id);
+        if (!$candidate) {
+            return response()->json(['error' => 'المشارك غير موجود'], 404);
+        }
+
+        $validated = $request->validate(['notes' => 'nullable|string|max:2000']);
+
+        $candidate->notes = $validated['notes'] ?: null;
+        $candidate->save();
+
+        $this->log($request, 'UPDATE_CANDIDATE_NOTES', $candidate->id, [
+            'code' => $candidate->participant_code,
+        ]);
+
+        return response()->json(['message' => 'حُفظت الملاحظات', 'notes' => $candidate->notes]);
     }
 
     // GET /candidates/{id}/cv — قراءة السيرة (مسار الإدارة، صلاحية مستقلّة)
@@ -354,6 +384,9 @@ class CandidateController extends Controller
             // لتسوق الشاشة إلى استكمالها فور الحفظ.
             'technicalAreaIds' => 'nullable|array',
             'technicalAreaIds.*' => 'integer|exists:technical_areas,id',
+            // ملاحظاتٌ حرّة اختيارية — ما كان لها موضع فكانت تُكتب في حقولٍ
+            // ليست لها (الإدارة، المسمّى) فتُفسدها للتصفية والتقارير
+            'notes' => 'nullable|string|max:2000',
         ], [
             'gender.required' => 'اختر الجنس',
         ]);
@@ -440,6 +473,9 @@ class CandidateController extends Controller
             $candidate->rank_label = $validated['rankLabel'];
             $candidate->personnel_category = $category;
             $candidate->tier = $tier;
+            // الملاحظة تُكتب فوق سابقتها فقط إن أُرسلت — الدورة الجديدة لا
+            // تمحو ملاحظةً كُتبت على الشخص في دورةٍ ماضية بلا أن يُطلَب ذلك
+            if (array_key_exists('notes', $validated)) $candidate->notes = $validated['notes'];
         } else {
             // شخص جديد
             $candidate = new Candidate();
@@ -451,6 +487,7 @@ class CandidateController extends Controller
             $candidate->rank_label = $validated['rankLabel'];
             $candidate->personnel_category = $category;
             $candidate->tier = $tier;
+            $candidate->notes = $validated['notes'] ?? null;
             // تعيين تصنيف أمني يتطلب صلاحية VIEW_CLASSIFIED — منع التصعيد
             $requestedClass = $validated['classification'] ?? 'normal';
             if ($requestedClass !== 'normal' && !$request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
@@ -600,6 +637,7 @@ class CandidateController extends Controller
             'classification' => 'nullable|in:normal,secret,top_secret',
             'technicalAreaIds' => 'required|array|min:1',
             'technicalAreaIds.*' => 'integer|exists:technical_areas,id',
+            'notes' => 'nullable|string|max:2000',
         ], [
             'gender.required' => 'اختر الجنس',
             'technicalAreaIds.required' => 'اختر مجالاً فنياً واحداً على الأقل',
@@ -622,6 +660,7 @@ class CandidateController extends Controller
         $candidate->rank_label = $validated['rankLabel'];
         $candidate->personnel_category = $category;
         $candidate->tier = $tier;
+        $candidate->notes = $validated['notes'] ?? null;
         $candidate->assessment_type = $validated['assessmentType'] ?? 'comprehensive';
         // تغيير التصنيف الأمني حوكمة حسّاسة — يتطلب صلاحية VIEW_CLASSIFIED (كما في reclassify) ويُسجَّل
         $classChanged = false;
@@ -837,6 +876,65 @@ class CandidateController extends Controller
     }
 
     // ── رحلة المشارك: خط زمني كامل (إضافة → جدولة → حضور → تقييم → تقرير → اعتماد) ──
+    // ══ أثرُ الكتابة على سجلّ المشارك: من أضاف، ومن عدّل، ومتى ══
+    //
+    // كان هذا الجواب محبوساً في شاشة التدقيق خلف AUDIT_VIEW — صلاحيةٌ لا
+    // يملكها إلا دوران، وليس منهما مسؤولُ الجدولة الذي يُدخل المشاركين
+    // ويعدّلهم. فصار يُقرأ من موضعين: درجُ التفاصيل لكل من يرى المشارك،
+    // ورحلتُه الكاملة لمن يملك عرضها.
+    //
+    // وأفعال **القراءة** خارجه عمداً: «فلانٌ اطّلع على البيانات الشخصية»
+    // سجلٌّ رقابي موضعُه شاشة التدقيق بحارسها — لا درجٌ يفتحه كل من يرى
+    // المشارك. القائمة بيضاء لا سوداء، فالفعلُ الجديد يغيب حتى يُدرَج
+    // عمداً — وهو أسلم من أن يظهر لأن أحداً لم يتذكّر استثناءه.
+    private const WRITE_ACTIONS = [
+        'CREATE_CANDIDATE' => ['أُضيف المشارك إلى النظام', 'user'],
+        'IMPORT_CANDIDATE' => ['أُضيف عبر الاستيراد الجماعي', 'upload'],
+        'UPDATE_CANDIDATE' => ['عُدّلت بيانات المشارك', 'edit'],
+        'UPDATE_CANDIDATE_NOTES' => ['عُدّلت الملاحظات', 'edit'],
+        'REASSESS_CANDIDATE' => ['فُتحت دورة تقييم جديدة', 'refresh'],
+        'APPROVE_CANDIDATE' => ['اعتُمد المشارك', 'check'],
+        'RECLASSIFY_CANDIDATE' => ['غُيّرت الدرجة', 'lock'],
+        'CV_UPDATE' => ['عُدّلت السيرة الذاتية', 'file'],
+    ];
+
+    private function writeTrail(Candidate $candidate): array
+    {
+        $logs = AuditLog::where('entity_type', 'candidate')
+            ->where('entity_id', (string) $candidate->id)
+            ->whereIn('action', array_keys(self::WRITE_ACTIONS))
+            ->orderBy('created_at')
+            ->get();
+
+        $names = User::whereIn('id', $logs->pluck('user_id')->filter()->unique())
+            ->pluck('full_name', 'id');
+
+        $events = [];
+        foreach ($logs as $log) {
+            [$title, $icon] = self::WRITE_ACTIONS[$log->action];
+            $events[] = [
+                'type' => 'audit', 'at' => optional($log->created_at)->toIso8601String(),
+                'title' => $title, 'meta' => null, 'cycle' => null,
+                'actor' => $log->user_id ? ($names[$log->user_id] ?? 'مستخدم محذوف') : 'النظام',
+                'status' => null, 'icon' => $icon,
+            ];
+        }
+
+        // سجلّ التدقيق بدأ بعد أن دخل بعضُ المشاركين، فمن أُضيف قبله لا قيدَ
+        // لإضافته. تُصطنع له بدايةٌ من تاريخ سجلّه كي لا يبدأ أثرُه من فراغ.
+        if (!$logs->contains(fn ($l) => in_array($l->action, ['CREATE_CANDIDATE', 'IMPORT_CANDIDATE'], true))) {
+            array_unshift($events, [
+                'type' => 'candidate_created',
+                'at' => optional($candidate->created_at)->toIso8601String(),
+                'title' => 'أُضيف المشارك إلى النظام',
+                'cycle' => null, 'meta' => null, 'actor' => null, 'status' => null,
+                'icon' => 'user',
+            ]);
+        }
+
+        return $events;
+    }
+
     public function journey(Request $request, int $id)
     {
         if (!$request->user()->hasPermission(Permissions::CANDIDATE_JOURNEY)) {
@@ -874,14 +972,7 @@ class CandidateController extends Controller
         ];
         $act = fn ($a) => $activityLabel[$a] ?? $a;
 
-        $events = [];
-        $events[] = [
-            'type' => 'candidate_created',
-            'at' => optional($candidate->created_at)->toIso8601String(),
-            'title' => 'أُضيف المشارك إلى النظام',
-            'cycle' => null, 'meta' => null, 'actor' => null, 'status' => null,
-            'icon' => 'user',
-        ];
+        $events = $this->writeTrail($candidate);
 
         foreach ($assessments as $a) {
             $code = $a->participant_code;

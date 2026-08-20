@@ -78,6 +78,7 @@ class PlatformReset extends Command
         'evaluations',
         'final_reports',
         'golden_schedule_entries',
+        'import_batches',            // رفعاتُ الاستيراد وصفوفها — بيانات تشغيل تذهب مع المشاركين
         'identity_verifications',
         'measurement_results',
         'notifications',

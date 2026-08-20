@@ -16,7 +16,7 @@ class Candidate extends Model
         'participant_code', 'national_id_enc', 'national_id_hash',
         'full_name_enc', 'mobile_enc', 'email_enc',
         'sector_id', 'gender', 'rank_label', 'personnel_category', 'tier', 'assessment_type', 'status',
-        'classification',
+        'classification', 'notes',
     ];
 
     // الجنس — قيمتان لا ثالثة، وتسميتهما تُقرأ من مكان واحد.
