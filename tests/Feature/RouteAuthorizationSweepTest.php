@@ -56,6 +56,11 @@ class RouteAuthorizationSweepTest extends TestCase
     // الثلاثة تحت الشبكة.
     private const WITHIN_EXTERNAL_ROLE = [
         'POST api/candidates',
+        // فحص تكرار الهوية: صلاحيته candidate.create نفسها، فهو داخل سلطة هذا
+        // الدور لا خارجها. ولا يمنحه شيئاً جديداً — store كان يردّ عليه
+        // «مُضاف مسبقاً» بعد حمولةٍ كاملة، وهذا يردّها قبل بذل العمل. والرمز
+        // والاسم محجوبان عنه هنا كما هناك (CandidateLookupTest).
+        'POST api/candidates/lookup',
         'POST api/candidates/import',
         'POST api/import/candidates',
         'POST api/candidate-update-requests',

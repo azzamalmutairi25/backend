@@ -56,6 +56,11 @@ class ApiSurfaceDenialTest extends TestCase
     // ما يملكه المستخدم الخارجي فعلاً بدوره — يجب ألّا يُمنَع منها
     private const ALLOWED_FOR_EXTERNAL = [
         'api/candidates',                        // POST وحده؛ وGET مُختبَر أدناه
+        // فحص تكرار الهوية: صلاحيته candidate.create نفسها، فهو مملوكٌ لهذا
+        // الدور لا مكشوفٌ له. ولا يمنحه ما لم يكن يملكه: store كان يردّ عليه
+        // بـ«مُضاف مسبقاً» بعد حمولةٍ كاملة، وهذا يردّها قبلها — والرمز والاسم
+        // محجوبان عنه هنا كما هناك، والباب مخنوق بالمعدّل ومُقيَّد في السجلّ.
+        'api/candidates/lookup',
         'api/candidate-update-requests',
         'api/candidate-update-requests/mine',
         'api/candidates/import',
