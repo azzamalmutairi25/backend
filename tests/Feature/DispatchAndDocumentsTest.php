@@ -236,6 +236,48 @@ class DispatchAndDocumentsTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['action' => 'SEND_SCHEDULE_DISPATCH']);
     }
 
+    public function test_a_date_range_cannot_dispatch_an_unapproved_wave(): void
+    {
+        $p = $this->period();                       // مسودّة
+        $date = $p->start_date->toDateString();
+        $this->actingAsRole('SCHEDULER');
+        $this->scheduled('military', 'DW', $date, $p->id);
+
+        $authority = DispatchAuthority::where('code', 'MILITARY_AFFAIRS')->first();
+        $this->actingAsRole('CENTER_MANAGER');
+
+        // اختيار الموجة يُردّ بحارس الحالة
+        $this->post('/api/dispatch/send', [
+            'authorityId' => $authority->id, 'periodId' => $p->id,
+        ])->assertStatus(422);
+
+        // وكتابةُ تاريخيها لا تلتفّ عليه: لا صفوف تُسلَّم
+        $this->post('/api/dispatch/send', [
+            'authorityId' => $authority->id,
+            'from' => $date, 'to' => $p->end_date->toDateString(),
+        ])->assertStatus(422);
+
+        $this->assertSame(0, ScheduleDispatch::count(), 'لا سجلّ تسليمٍ لموجةٍ لم تُعتمد');
+    }
+
+    public function test_a_date_range_still_dispatches_sessions_with_no_wave(): void
+    {
+        // جلسات الاستقبال والتوزيع الآلي بلا موجة — لا موجة لها تُعتمد،
+        // فاشتراطُ الاعتماد عليها يعني ألّا تُسلَّم أبداً
+        $date = now()->addDay()->toDateString();
+        $this->actingAsRole('SCHEDULER');
+        $this->scheduled('military', 'DW', $date);   // بلا periodId
+
+        $authority = DispatchAuthority::where('code', 'MILITARY_AFFAIRS')->first();
+        $this->actingAsRole('CENTER_MANAGER');
+
+        $this->post('/api/dispatch/send', [
+            'authorityId' => $authority->id, 'from' => $date, 'to' => $date,
+        ])->assertOk();
+
+        $this->assertSame(1, ScheduleDispatch::count());
+    }
+
     public function test_sending_needs_the_dispatch_permission(): void
     {
         $p = $this->period();

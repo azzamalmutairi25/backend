@@ -112,7 +112,7 @@ class DispatchController extends Controller
      *
      * جلسةٌ لكل صفّ لا مشاركاً: الجهة تستقبل جدولاً — من يحضر، متى، وفي أي نشاط.
      */
-    private function rowsFor(Request $request, DispatchAuthority $authority, string $from, string $to, ?int $periodId): array
+    private function rowsFor(Request $request, DispatchAuthority $authority, string $from, string $to, ?int $periodId, bool $approvedOnly = false): array
     {
         $categories = $authority->categoryList();
         if (!$categories) {
@@ -128,6 +128,25 @@ class DispatchController extends Controller
         $this->scopeViaCandidate($request, $query);
         if ($periodId) {
             $query->where('period_id', $periodId);
+        }
+
+        // ── لا يُسلَّم ما لم يُعتمد، ولو جاء من طريق التاريخين ──
+        //
+        // حارسُ الحالة في send() يقف على `periodId` وحده، وطريقُ «من/إلى» يبلغ
+        // الجلسات نفسها بلا أن يمرّ عليه: من يكتب تاريخَي موجةٍ مسودّة يُخرج
+        // ملفّها كاملاً إلى الوزارة قبل أن يراه مدير المركز. والحارس الذي
+        // يُتجاوَز بكتابة تاريخين بدل اختيارٍ من قائمة ليس حارساً.
+        //
+        // والاستثناء على **الموجة غير المعتمَدة** لا على «بلا موجة»: مسارا
+        // الاستقبال والتوزيع الآلي ينشئان جلساتٍ بـ`period_id = NULL`، واشتراطُ
+        // موجةٍ معتمَدة عليها يعني ألّا تُسلَّم أبداً — لا موجة لها تُعتمد.
+        //
+        // وعلى الإرسال وحده: العرض أداةُ مراجعةٍ يُنظر فيها إلى ما **سيُسلَّم**
+        // قبل الاعتماد، فحجبُ صفوف المسودّة عنه يُفرغ الشاشة في الوقت الذي
+        // يُراجَع فيه الجدول — ولا شيء يخرج من العرض إلى أحد.
+        if ($approvedOnly) {
+            $query->where(fn ($q) => $q->whereNull('period_id')
+                ->orWhereHas('period', fn ($p) => $p->where('status', 'approved')));
         }
 
         $activityLabel = [
@@ -241,7 +260,7 @@ class DispatchController extends Controller
         }
 
         $authority = DispatchAuthority::find($validated['authorityId']);
-        $rows = $this->rowsFor($request, $authority, $from, $to, $period?->id);
+        $rows = $this->rowsFor($request, $authority, $from, $to, $period?->id, approvedOnly: true);
 
         if (!$rows) {
             return response()->json(['error' => 'لا صفوف لهذه الجهة في هذا المدى — لا شيء يُسلَّم'], 422);
