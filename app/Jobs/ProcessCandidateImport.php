@@ -37,7 +37,15 @@ class ProcessCandidateImport implements ShouldQueue
     public int $timeout = 3600;
     public int $tries = 1;   // إعادةُ المحاولة تُعيد إنشاء ما أُنشئ — لا تُعاد
 
-    public function __construct(public int $batchId) {}
+    // ── طابورٌ مستقلّ: `imports` لا `default` ──
+    // عشرة آلاف صفٍّ تشغل العامل نحو ربع ساعة. وعاملا `default` مشغولان
+    // برسائل التأكيد — وهي قصيرة ومتقطّعة ويجب أن تخرج في حينها. رفعةٌ
+    // واحدة على الطابور نفسه تحبس كل رسالة خلفها ربع ساعة، ورفعتان
+    // تحبسانها حتى يفرغ الاثنان. فلها طابورها وعاملها.
+    public function __construct(public int $batchId)
+    {
+        $this->onQueue('imports');
+    }
 
     public function handle(CandidateImporter $importer): void
     {

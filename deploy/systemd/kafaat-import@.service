@@ -1,0 +1,64 @@
+# ════════════════════════════════════════════════════════════
+#  عامل طابور الاستيراد — /etc/systemd/system/kafaat-import@.service
+#
+#      systemctl enable --now kafaat-import@1
+#
+#  لماذا وحدةٌ مستقلّة عن kafaat-queue؟
+#  رفعةُ عشرة آلاف صفّ تشغل عاملها نحو ربع ساعة: كل صفٍّ معاملةٌ تُنشئ
+#  مشاركاً ودورةً وسيرةً مشفّرة. وعاملا `default` مشغولان برسائل التأكيد —
+#  قصيرةٌ متقطّعة يجب أن تخرج في حينها. لو تقاسم الاثنان طابوراً واحداً
+#  لحبست رفعةٌ كلَّ رسالة خلفها ربع ساعة.
+#
+#  وعاملٌ واحد يكفي — بل يُقصد: رفعتان متوازيتان تتنافسان على القاعدة
+#  وتُبطئان كلتيهما، والتسلسل هنا أسرع من التوازي.
+# ════════════════════════════════════════════════════════════
+
+[Unit]
+Description=عامل استيراد كفاءات %i
+After=network.target redis-server.service
+Requires=redis-server.service
+
+[Service]
+Type=simple
+User=kafaat
+Group=kafaat
+WorkingDirectory=/srv/kafaat/current
+
+# --timeout=3700 أطول من timeout الوظيفة (3600) عمداً: العامل يجب أن يمنح
+#   الوظيفة مهلتها كاملةً ثم يقتلها هو، لا أن يقتلها قبل أن تبلغها.
+# --tries=1: إعادةُ المحاولة تُعيد إنشاء ما أُنشئ. الرفعة المنقطعة تُقيَّد
+#   «متوقّفة» بعدّادها، فيُستأنف الباقي بملفٍّ مُصحَّح لا بإعادة الملفّ كلّه.
+# --max-jobs=25: يخرج بعد خمسٍ وعشرين رفعة فيُعيده systemd — قطعٌ لأي
+#   تسريب ذاكرة تراكمي، ورفعةٌ كبيرة تخلّف أثراً في الذاكرة لا يُستهان به.
+ExecStart=/usr/bin/php /srv/kafaat/current/artisan queue:work redis \
+    --queue=imports \
+    --sleep=5 \
+    --tries=1 \
+    --max-jobs=25 \
+    --timeout=3700
+
+# مهلةُ إيقافٍ أطول من الوحدة القصيرة: رفعةٌ جارية تُترك لتُكمل دفعتها
+# الحالية وتُحدّث عدّادها قبل الخروج — وإلا قُتلت بين دفعتين فبقيت «تُعالَج»
+# وهي لا تُعالَج.
+KillSignal=SIGTERM
+TimeoutStopSec=300
+
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=0
+
+StandardOutput=append:/var/log/kafaat/import.log
+StandardError=append:/var/log/kafaat/import.log
+
+# ── تقييد العملية ──
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/kafaat/shared /var/log/kafaat
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

@@ -196,7 +196,7 @@ appendonly no
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable --now php8.3-fpm nginx redis-server
-sudo systemctl enable --now kafaat-queue@1 kafaat-queue@2 kafaat-scheduler.timer
+sudo systemctl enable --now kafaat-queue@1 kafaat-queue@2 kafaat-import@1 kafaat-scheduler.timer
 ```
 
 **sudoers** — سكربت النشر يحتاج إعادة تحميل FPM وحدها:
