@@ -1226,7 +1226,7 @@
         {
           "action": "select",
           "selector": ".modal-body > label.fld:nth-of-type(1) select",
-          "value": "110"
+          "value": "29"
         },
         {
           "action": "waitFor",
@@ -1234,7 +1234,7 @@
         },
         {
           "action": "waitFor",
-          "selector": "text=مستشار تجريبي"
+          "selector": "text=EVALUATOR"
         }
       ]
     },
@@ -3483,6 +3483,109 @@
       "route": "/dashboard",
       "clip": ".sidebar",
       "title": "القائمة الجديدة"
+    },
+    {
+      "id": "periods",
+      "route": "/scheduling-periods",
+      "role": "scheduler",
+      "wait": "main",
+      "title": "موجات الجدولة — قائمة الموجات وحالاتها"
+    },
+    {
+      "id": "periods-new",
+      "route": "/scheduling-periods",
+      "role": "scheduler",
+      "wait": "main",
+      "clip": ".modal",
+      "title": "نافذة «موجة جديدة»: الاسم وتاريخا البداية والنهاية وأوقات الجلسات",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".head .btn.primary"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".modal"
+        }
+      ]
+    },
+    {
+      "id": "periods-panel",
+      "route": "/scheduling-periods",
+      "role": "scheduler",
+      "wait": "main",
+      "title": "لوحة الموجة: الأسماء ومقاعدها وأنشطتها ونصاب كلٍّ منها، وعدّاد الحمل «٣/٥»",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": "table tbody tr"
+        },
+        {
+          "action": "click",
+          "selector": "button:has-text('اللوحة')"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".panel-tbl"
+        },
+        {
+          "action": "wait",
+          "value": "1000"
+        }
+      ],
+      "clip": ".two-col"
+    },
+    {
+      "id": "periods-workflow",
+      "route": "/scheduling-periods",
+      "role": "scheduler",
+      "wait": "main",
+      "title": "سير عمل الجدولة: الخطوات الاثنتا عشرة وحالة كلٍّ منها على هذه الموجة",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": "table tbody tr"
+        },
+        {
+          "action": "click",
+          "selector": "button:has-text('اللوحة')"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".wf-title"
+        },
+        {
+          "action": "wait",
+          "value": "1000"
+        }
+      ],
+      "clip": ".section:has(.wf-list)"
+    },
+    {
+      "id": "schedules-assigned",
+      "route": "/schedules",
+      "role": "admin",
+      "wait": "main",
+      "title": "الجلسة بعد إسنادها: المشارك ونشاطه وموعده ومستشار المقابلة ومساعده والموجة التي تنتمي إليها",
+      "steps": [
+        {
+          "action": "fill",
+          "selector": ".toolbar input[type=date]",
+          "value": "2026-08-25"
+        },
+        {
+          "action": "wait",
+          "value": "1500"
+        },
+        {
+          "action": "waitFor",
+          "selector": "table tbody tr"
+        },
+        {
+          "action": "wait",
+          "value": "600"
+        }
+      ]
     }
   ]
 }
