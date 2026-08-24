@@ -129,12 +129,28 @@ pending=${pending:-0}
 for svc in "$FPM_SERVICE" nginx kafaat-scheduler.timer; do
   systemctl is-active --quiet "$svc" && ok "الخدمة $svc تعمل" || bad "الخدمة $svc متوقّفة"
 done
-qw=$(systemctl list-units 'kafaat-queue@*' --state=running --no-legend 2>/dev/null | wc -l)
-[[ "$qw" -ge 1 ]] && ok "$qw عامل طابور يعمل" || bad "لا عمّال طابور" "الرسائل لن تُرسَل أبداً"
-# عاملُ الاستيراد مستقلّ عن عمّال الرسائل ويُفحص مستقلّاً: غيابه لا يُعطّل
-# رسالةً واحدة، فلا يظهر في أي فحصٍ آخر — وتبقى كل رفعةٍ «في الانتظار» أبداً
-iw=$(systemctl list-units 'kafaat-import@*' --state=running --no-legend 2>/dev/null | wc -l)
-[[ "$iw" -ge 1 ]] && ok "$iw عامل استيراد يعمل" || bad "لا عامل استيراد" "رفعات الاستيراد الكبيرة تبقى في الانتظار"
+# العمّال بنمطين: Horizon (redis، الافتراض) أو وحدات queue:work (بديل database).
+# Horizon يحلّ محلّ kafaat-queue@/kafaat-import@، ففحصُ الوحدتين وحده يُفشل
+# زوراً حين يُدير Horizon الطابور. نفحص أيّهما يعمل حسب المحرّك.
+qc_now=$(envv QUEUE_CONNECTION)
+if systemctl is-active --quiet kafaat-horizon 2>/dev/null; then
+  ok "Horizon يعمل (kafaat-horizon)"
+  hs=$($PHP "$APP/artisan" horizon:status 2>/dev/null | tail -1)
+  echo "$hs" | grep -qi 'running' \
+    && ok "حالة Horizon: يعمل (يُدير default وimports)" \
+    || soft "حالة Horizon غير مؤكّدة: ${hs:-؟}" "راجِع: php artisan horizon:status"
+elif [[ "$qc_now" == "redis" ]]; then
+  bad "QUEUE_CONNECTION=redis لكن Horizon متوقّف" \
+      "فعّل kafaat-horizon، وإلا لا رسالةٌ ولا رفعةٌ تُعالَج"
+else
+  # بديلُ database: وحدات systemd queue:work المستقلّة
+  qw=$(systemctl list-units 'kafaat-queue@*' --state=running --no-legend 2>/dev/null | wc -l)
+  [[ "$qw" -ge 1 ]] && ok "$qw عامل طابور يعمل" || bad "لا عمّال طابور" "الرسائل لن تُرسَل أبداً"
+  # عاملُ الاستيراد مستقلّ عن عمّال الرسائل ويُفحص مستقلّاً: غيابه لا يُعطّل
+  # رسالةً واحدة، فلا يظهر في أي فحصٍ آخر — وتبقى كل رفعةٍ «في الانتظار» أبداً
+  iw=$(systemctl list-units 'kafaat-import@*' --state=running --no-legend 2>/dev/null | wc -l)
+  [[ "$iw" -ge 1 ]] && ok "$iw عامل استيراد يعمل" || bad "لا عامل استيراد" "رفعات الاستيراد الكبيرة تبقى في الانتظار"
+fi
 
 # الطابور المتزامن يُبطل الوحدتين معاً: الوظيفة تُنفَّذ داخل دورة الطلب
 qc=$(grep -m1 '^QUEUE_CONNECTION=' "$APP/.env" 2>/dev/null | cut -d= -f2)

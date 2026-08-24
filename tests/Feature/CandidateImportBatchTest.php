@@ -61,6 +61,24 @@ class CandidateImportBatchTest extends TestCase
         Queue::assertPushed(ProcessCandidateImport::class);
     }
 
+    // ── الرفعة معزولةٌ على اتصالها وطابورها ──
+    // ProcessCandidateImport يجب أن يذهب إلى طابور `imports` على اتصال
+    // `redis-imports` (مهلةُ إعادته ٣٩٠٠ث أطولُ من مهلة الوظيفة ٣٦٠٠ث)،
+    // لا إلى `default` الذي تخرج منه رسائل التأكيد القصيرة. خلطُهما يحبس
+    // كل رسالةٍ خلف رفعةٍ بربع ساعة، أو يُعالِج الرفعةَ مرّتين لو أُعيدت
+    // بعد ٩٠ث وهي تعمل.
+    public function test_the_import_is_routed_to_its_own_connection_and_queue(): void
+    {
+        Queue::fake();
+
+        ProcessCandidateImport::dispatch(1);
+
+        Queue::assertPushed(
+            ProcessCandidateImport::class,
+            fn ($job) => $job->queue === 'imports' && $job->connection === 'redis-imports'
+        );
+    }
+
     public function test_processing_creates_the_candidates_and_reports_progress(): void
     {
         $user = $this->actingAsRole('SCHEDULER');

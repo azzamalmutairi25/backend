@@ -200,8 +200,13 @@ run "ln -sfn '$NEW' '$CURRENT.tmp' && mv -Tf '$CURRENT.tmp' '$CURRENT'"
 # opcache.validate_timestamps=0 يعني أن PHP لن يلاحظ الشيفرة الجديدة أبداً
 # بلا إعادة التحميل. reload لا restart: يُنهي العمّال بلطف بعد إتمام طلباتهم.
 run "sudo systemctl reload $FPM_SERVICE"
-# queue:restart إشارةٌ للعمّال بالخروج بعد المهمة الجارية، فيعودون على الشيفرة الجديدة
+# queue:restart إشارةٌ لعمّال queue:work بالخروج بعد المهمة الجارية، فيعودون
+# على الشيفرة الجديدة. (يخصّ وحدات kafaat-queue@/kafaat-import@ على database.)
 run "$PHP '$CURRENT/artisan' queue:restart"
+# horizon:terminate نظيرُها لـHorizon: عمّاله يتجاهلون queue:restart، ويخرجون
+# بلطف بهذه بعد إتمام المهمّة الجارية فيعيدهم systemd على الشيفرة الجديدة.
+# متسامحٌ: على سائق database (بلا Horizon مثبّت) لا يوجد الأمر، فلا يُفشل النشر.
+run "$PHP '$CURRENT/artisan' horizon:terminate 2>/dev/null || true"
 
 # ── ١٠) التحقّق بعد التقديم ──
 sleep 2

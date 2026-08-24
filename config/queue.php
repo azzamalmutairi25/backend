@@ -73,6 +73,20 @@ return [
             'after_commit' => false,
         ],
 
+        // اتصالٌ خاصّ برفعة المشاركين الطويلة (ProcessCandidateImport).
+        // مهلة الوظيفة ٣٦٠٠ث؛ لو بقيت retry_after=90 (كطابور الرسائل) لأُعيدت
+        // الرفعةُ إلى الطابور وهي تعمل بعد ٩٠ث فتُعالَج مرّتين. فمهلة إعادته
+        // ٣٩٠٠ث — أطولُ من الوظيفة عمداً. طابورٌ منفصل كي لا تبطؤ إعادةُ
+        // الرسائل القصيرة عند فشلها بانتظار مهلة الاستيراد.
+        'redis-imports' => [
+            'driver' => 'redis',
+            'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
+            'queue' => 'imports',
+            'retry_after' => (int) env('REDIS_IMPORTS_RETRY_AFTER', 3900),
+            'block_for' => null,
+            'after_commit' => false,
+        ],
+
         'deferred' => [
             'driver' => 'deferred',
         ],

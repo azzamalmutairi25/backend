@@ -7,7 +7,7 @@
 deploy/
   nginx/     kafaat-internal.conf · kafaat-dmz.conf · kafaat-app-portal.conf · snippets/
   php/       kafaat-fpm-pool.conf · opcache.ini
-  systemd/   kafaat-queue@.service · kafaat-scheduler.service · .timer
+  systemd/   kafaat-horizon.service · kafaat-queue@.service · kafaat-import@.service · kafaat-scheduler.service · .timer
   postgres/  kafaat-tuning.conf
   env/       backend.env.production.example
   scripts/   deploy.sh (نشر بلا انقطاع + رجوع) · preflight.sh (فحص جاهزية)
@@ -187,17 +187,34 @@ sudo -u kafaat php artisan key:generate --show   # ← احفظه في خزنة 
 bind 127.0.0.1
 requirepass <كلمة قوية>
 maxmemory 2gb
-maxmemory-policy allkeys-lru
-appendonly no
+maxmemory-policy volatile-lru
+appendonly yes
 ```
-`allkeys-lru` لا `noeviction`: امتلاء الذاكرة مع `noeviction` يُسقط كتابة الجلسات
-والطابور. الطابور في قاعدة Redis منفصلة (`REDIS_QUEUE_DB`) كي لا يُطرَد بضغط الذاكرة المؤقّتة.
+مع Horizon صار الطابور في Redis، فالدوام يهمّ:
+
+- **`appendonly yes`** (AOF): المهامّ المنتظرة تنجو من إعادة تشغيل Redis. مع
+  `appendonly no` تُفقد كل رفعةٍ ورسالةٍ في الطابور عند أي إعادة تشغيل.
+- **`volatile-lru` لا `allkeys-lru`**: يطرد المفاتيح ذات العمر (الذاكرة المؤقّتة
+  والجلسات لها TTL) دون مهامّ الطابور (بلا TTL) — فلا تُطرَد رفعةٌ منتظرة تحت
+  ضغط الذاكرة. الذاكرة في قاعدة ١ والطابور في قاعدة ٠ (`config/database.php`).
+  سياسة الطرد تشمل الخادم كلّه لا قاعدةً بعينها، فالحماية بغياب الـTTL لا بالفصل.
+
+> لأقصى عزل: نسختا Redis — واحدةٌ للذاكرة (`allkeys-lru`، بلا AOF) وأخرى للطابور
+> (`noeviction` + AOF). النسخة الواحدة أعلاه تكفي إطلاقاً بحجمٍ متوسّط.
 
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable --now php8.3-fpm nginx redis-server
-sudo systemctl enable --now kafaat-queue@1 kafaat-queue@2 kafaat-import@1 kafaat-scheduler.timer
+
+# نمط Redis + Horizon (الافتراض): عمليةٌ واحدة تُدير الطابورين.
+sudo systemctl enable --now kafaat-horizon kafaat-scheduler.timer
+
+# — أو — بديلُ database (بلا Redis): وحدات queue:work المستقلّة.
+#   لا تُفعِّل الاثنين معاً وإلا عُولجت كل مهمّةٍ مرّتين.
+# sudo systemctl enable --now kafaat-queue@1 kafaat-queue@2 kafaat-import@1 kafaat-scheduler.timer
 ```
+
+انظر **§ Horizon** أدناه لتركيب الحزمة وتأمين اللوحة قبل تفعيل `kafaat-horizon`.
 
 **sudoers** — سكربت النشر يحتاج إعادة تحميل FPM وحدها:
 ```
@@ -229,6 +246,58 @@ sudo mkdir -p /srv/kafaat-portal
 ```bash
 rsync -a --delete kafaat@10.10.10.20:/srv/kafaat/current/portal-dist/ /srv/kafaat-portal/current/
 ```
+
+---
+
+## ٣·٥ · Horizon (المحرّكات على Redis)
+
+الطابور انتقل من قاعدة البيانات إلى Redis، وHorizon يُدير عمّاله: عمليةٌ
+واحدة (`kafaat-horizon`) تُشغّل مُشرِفَين معرَّفين في `config/horizon.php`:
+
+| المُشرِف | الطابور | الوظيفة | العمّال | المهلة |
+|---|---|---|---|---|
+| supervisor-default | `default` | SendSmsJob (رسائل قصيرة) | ١–٦ (موازنةٌ تلقائية) | ٩٠ث |
+| supervisor-imports | `imports` | ProcessCandidateImport (رفعة) | ١ (ثابت) | ٣٦٠٠ث |
+
+عاملٌ واحد للاستيراد مقصود: رفعتان متوازيتان تتنافسان على القاعدة فتُبطئان.
+واتصال `redis-imports` مهلةُ إعادته ٣٩٠٠ث — أطولُ من الوظيفة كي لا تُعالَج مرّتين.
+
+**التركيب** (مرّةً على جهاز التطوير، فيُحمَل في حزمة النشر):
+```bash
+composer require laravel/horizon    # يحلّ الإصدار المتوافق ويحدّث القفل
+# الإعداد والمزوّد والبوّابة مكتوبةٌ في المستودع (config/horizon.php،
+# HorizonServiceProvider) — لا حاجة لـhorizon:install.
+php artisan horizon:publish          # ينشر أصول اللوحة فقط
+```
+
+**قلبُ المحرّكات** في `.env` على الخادم (وقد ضُبطت في `.env.example`):
+```
+QUEUE_CONNECTION=redis
+CACHE_STORE=redis
+SESSION_DRIVER=redis
+REDIS_CLIENT=predis        # phpredis متاحٌ هنا (php8.3-redis) وأسرع إن آثرتَه
+```
+⚠ لا تقلبها قبل أن يستجيب Redis (`redis-cli ping` → `PONG`). preflight يرفض
+النشر إن كان `QUEUE_CONNECTION=redis` وHorizon متوقّف.
+
+**تأمين اللوحة** — `/horizon` تكشف حمولات المهامّ (أسماء، رسائل)، فبوّابتها في
+`HorizonServiceProvider` تقصرها على دور `ADMIN`. والنظام يصادق بالرمز لا بالجلسة،
+فلا جلسة للوحة إلا بتسجيل دخول ويب لمدير النظام. الأسلم: بلّغها عبر نفق SSH:
+```bash
+ssh -L 8088:127.0.0.1:443 kafaat@10.10.10.20   # ثم https://localhost:8088/horizon
+```
+
+**التفعيل والتحقّق**:
+```bash
+sudo systemctl enable --now kafaat-horizon
+php artisan horizon:status          # Horizon is running
+sudo systemctl disable --now 'kafaat-queue@*' 'kafaat-import@*'   # لا تعمل مع Horizon
+```
+النشر يُعيد Horizon بلطف تلقائياً (`horizon:terminate` في `deploy.sh`): يُكمل
+المهمّة الجارية ثم يخرج فيعيده systemd على الشيفرة الجديدة.
+
+**البديل (بلا Redis)**: الوظائف لا تعرف محرّكها، فتعمل على `QUEUE_CONNECTION=database`
+مع وحدات `kafaat-queue@`/`kafaat-import@` بدل Horizon. أبطأ، لكن بلا Redis إطلاقاً.
 
 ---
 

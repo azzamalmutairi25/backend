@@ -1,0 +1,57 @@
+# ════════════════════════════════════════════════════════════
+#  Horizon — /etc/systemd/system/kafaat-horizon.service
+#
+#  عمليةٌ واحدة تُدير كل عمّال الطابور عبر مُشرِفي config/horizon.php:
+#      supervisor-default → طابور default (SendSmsJob)
+#      supervisor-imports → طابور imports (ProcessCandidateImport)
+#
+#  تحلّ محلّ kafaat-queue@ وkafaat-import@ — لا تُشغَّل معها، وإلا عُولجت
+#  كل مهمّةٍ مرّتين. عطّلهما قبل تفعيلها:
+#      systemctl disable --now 'kafaat-queue@*' 'kafaat-import@*'
+#      systemctl enable  --now kafaat-horizon
+#
+#  يلزمه QUEUE_CONNECTION=redis وredis-server قائم. على database لا يعمل
+#  Horizon — تُشغَّل العمّال يدوياً حينها.
+# ════════════════════════════════════════════════════════════
+
+[Unit]
+Description=عامل Horizon كفاءات
+After=network.target redis-server.service
+Requires=redis-server.service
+
+[Service]
+Type=simple
+User=kafaat
+Group=kafaat
+WorkingDirectory=/srv/kafaat/current
+
+# Horizon يُدير العمّال، مقاييسه ومهله في config/horizon.php لا هنا.
+ExecStart=/usr/bin/php /srv/kafaat/current/artisan horizon
+
+# النشر يُنهي Horizon بلطف عبر `artisan horizon:terminate`، فيُكمل المهمّة
+# الجارية ثم يخرج، ويعيده systemd بالكود الجديد. هنا SIGTERM لنفس اللطف.
+KillSignal=SIGTERM
+
+# ⚠ أطولُ من أطول وظيفة (رفعةُ الاستيراد ٣٦٠٠ث): على الإيقاف ينتظر Horizon
+#   المهمّة الجارية حتى تكتمل. مهلةٌ أقصر تقتل رفعةً في منتصفها.
+TimeoutStopSec=3900
+
+Restart=always
+RestartSec=3
+StartLimitIntervalSec=0
+
+StandardOutput=append:/var/log/kafaat/horizon.log
+StandardError=append:/var/log/kafaat/horizon.log
+
+# ── تقييد العملية (كما في عمّال الطابور) ──
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/kafaat/shared /var/log/kafaat
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target
