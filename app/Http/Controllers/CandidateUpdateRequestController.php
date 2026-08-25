@@ -58,6 +58,7 @@ class CandidateUpdateRequestController extends Controller
             'fullName' => 'required|string|max:200',
             'mobile' => ['nullable', 'string', 'regex:/^05\d{8}$/'],
             'email' => 'nullable|email',
+            'gender' => 'nullable|in:male,female',
             'sectorId' => 'required|exists:sectors,id',
             'rankLabel' => 'required|string|max:50',
             'personnelCategory' => 'required|in:civilian,military,contractor',
@@ -135,6 +136,7 @@ class CandidateUpdateRequestController extends Controller
                         'fullName' => $validated['fullName'],
                         'mobile' => $validated['mobile'] ?? null,
                         'email' => $validated['email'] ?? null,
+                        'gender' => $validated['gender'] ?? null,
                         'sectorId' => $sector->id,
                         'sectorName' => $sector->name_ar,
                         'rankLabel' => $validated['rankLabel'],
@@ -329,6 +331,7 @@ class CandidateUpdateRequestController extends Controller
             $candidate->full_name = $identity['fullName'];
             $candidate->mobile = $identity['mobile'] ?? null;
             $candidate->email = $identity['email'] ?? null;
+            $candidate->gender = $identity['gender'] ?? $candidate->gender;
             $candidate->sector_id = $sector->id;
             $candidate->rank_label = $identity['rankLabel'];
             // الفئة تأتي مع الطلب؛ وطلبٌ قديم أُنشئ قبل العمود يُبقي فئة المشارك
@@ -433,6 +436,7 @@ class CandidateUpdateRequestController extends Controller
                 'fullName' => $candidate->full_name,
                 'mobile' => $candidate->mobile,
                 'email' => $candidate->email,
+                'gender' => $candidate->gender,
                 'sectorId' => $candidate->sector_id,
                 'sectorName' => optional($candidate->sector)->name_ar,
                 'rankLabel' => $candidate->rank_label,
@@ -452,6 +456,7 @@ class CandidateUpdateRequestController extends Controller
             'fullName' => 'الاسم',
             'mobile' => 'الجوال',
             'email' => 'البريد الإلكتروني',
+            'gender' => 'الجنس',
             'sectorName' => 'القطاع',
             'rankLabel' => 'الرتبة / المرتبة',
             'personnelCategory' => 'الفئة',
@@ -480,6 +485,17 @@ class CandidateUpdateRequestController extends Controller
                 ];
             }
         }
+        // الجنس يُخزَّن مفتاحاً ويُعرَض عربياً — «male» في جدول الفروق لا يُقرأ
+        $genderAr = fn ($v) => ['male' => 'ذكر', 'female' => 'أنثى'][$v] ?? $v;
+
+        if ($norm($oldIdentity['gender'] ?? null) !== $norm($newIdentity['gender'] ?? null)) {
+            $changes[] = [
+                'key' => 'gender', 'label' => $labels['gender'],
+                'from' => $genderAr($oldIdentity['gender'] ?? null),
+                'to' => $genderAr($newIdentity['gender'] ?? null),
+            ];
+        }
+
         foreach (['birthDate', 'appointmentDate', 'department', 'region', 'currentPosition', 'totalYearsExperience', 'briefBio'] as $key) {
             if ($norm($oldCv[$key] ?? null) !== $norm($newCv[$key] ?? null)) {
                 $changes[] = [

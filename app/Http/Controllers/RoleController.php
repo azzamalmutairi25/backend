@@ -67,7 +67,10 @@ class RoleController extends Controller
         $counts = User::selectRaw('role_id, count(*) as n')->groupBy('role_id')
             ->pluck('n', 'role_id');
 
-        $rows = Role::orderBy('name_ar')->get()->map(fn (Role $r) => [
+        // «مستخدم خارجي (إضافة مشاركين)» لا يُعرض في شاشة الأدوار: دورٌ مبنيّ
+        // في الشيفرة بصلاحية واحدة، لا يُسنَد من نموذج المستخدمين (UserController
+        // يُخفيه أصلاً) ولا تُحرَّر صلاحياته — فبقاؤه هنا بابٌ لتوسيعه بلا قصد.
+        $rows = Role::where('code', '!=', 'EXTERNAL_ADD')->orderBy('name_ar')->get()->map(fn (Role $r) => [
             'id' => $r->id,
             'code' => $r->code,
             'nameAr' => $r->name_ar,

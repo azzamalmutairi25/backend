@@ -92,6 +92,55 @@ class CandidateUpdateRequestTest extends TestCase
         $this->assertSame('الإدارة العامة للعمليات', $cv->data['department']);
     }
 
+    // ── الحمولة كما تبنيها الشاشة، بلا مساعدٍ يسدّ نقصها ──
+    // بقية اختبارات الإضافة تمرّ عبر candidateRequired() فتحقن «الجنس» — فبقيت
+    // الاستمارة الخارجية بلا الحقل والاختبارات خضراء، وكلّ ترشيح حقيقي يُردّ
+    // ٤٢٢ «اختر الجنس». هذان يبنيان الحمولة يدوياً كما يبنيها buildPayload().
+    private function screenPayload(array $over = []): array
+    {
+        return array_merge([
+            'nationalId' => $this->validNationalId(),
+            'fullName' => 'مشارك من جهة خارجية',
+            'mobile' => '0501112223',
+            'email' => 'x@example.com',
+            'sectorId' => $this->edId(),
+            'gender' => 'male',
+            'personnelCategory' => 'military',
+            'rankLabel' => 'عميد',
+            'tier' => null,
+            'assessmentType' => 'comprehensive',
+            'cv' => $this->validCv(),
+        ], $over);
+    }
+
+    public function test_the_screens_own_payload_is_accepted(): void
+    {
+        $this->actingAsRole('EXTERNAL_ADD');
+
+        $res = $this->postJson('/api/candidates', $this->screenPayload())
+            ->assertStatus(201);
+
+        $this->assertSame('male', Candidate::find($res->json('candidateId'))->gender);
+    }
+
+    // المتعاقد بلا قائمة رتب تُصنّفه: طبقته تصل مع الحمولة أو يُردّ الطلب
+    public function test_a_contractor_nomination_carries_its_own_tier(): void
+    {
+        $this->actingAsRole('EXTERNAL_ADD');
+
+        $res = $this->postJson('/api/candidates', $this->screenPayload([
+            'personnelCategory' => 'contractor',
+            'rankLabel' => 'مستشار تقنية المعلومات',
+            'tier' => 'upper',
+            'cv' => $this->validCv([
+                'personnelCategory' => 'contractor',
+                'rankLabel' => 'مستشار تقنية المعلومات',
+            ]),
+        ]))->assertStatus(201);
+
+        $this->assertSame('upper', Candidate::find($res->json('candidateId'))->tier);
+    }
+
     // انقلبت القاعدة: كانت السيرة اختياريةً فيدخل المشارك بلا سيرة ثم يقف عند
     // الترشيح بلا سبب ظاهر. صارت إلزامية — فالطلب بلا مفتاح `cv` يُردّ ٤٢٢
     // ولا يُنشأ منه مشارك ولا سيرة. باقي الحقول الإلزامية سليمة عمداً ليقع
