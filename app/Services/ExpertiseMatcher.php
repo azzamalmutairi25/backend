@@ -47,9 +47,14 @@ class ExpertiseMatcher
             $doc['currentPosition'] ?? '',
             $doc['briefBio'] ?? '',
             $doc['department'] ?? '',
+            // «الإدارة العامة» تحمل أدلَّ ما في السيرة على المجال أحياناً
+            // («الإدارة العامة للأدلة الجنائية»)، وكانت خارج المُطابَقة كلّها
+            $doc['generalDepartment'] ?? '',
+            $doc['rankTitle'] ?? '',
         ];
         foreach (($doc['experiences'] ?? []) as $x) {
-            $parts[] = ($x['position'] ?? '') . ' ' . ($x['organization'] ?? '');
+            // و«القسم» كذلك («قسم مكافحة المخدرات») — نصٌّ دالٌّ كان يُهمَل
+            $parts[] = ($x['position'] ?? '') . ' ' . ($x['organization'] ?? '') . ' ' . ($x['section'] ?? '');
         }
         foreach (($doc['certifications'] ?? []) as $x) {
             $parts[] = is_array($x) ? ($x['name'] ?? '') : (string) $x;

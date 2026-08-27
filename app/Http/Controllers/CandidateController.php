@@ -154,6 +154,10 @@ class CandidateController extends Controller
             'name' => $canSeeNames ? $candidate->full_name : null,
             'nationalId' => $canSeeNames ? $candidate->national_id : null,
             'mobile' => $canSeeNames ? $candidate->mobile : null,
+            // مُعرِّفان مباشران — خلف صلاحية عرض البيانات الشخصية كالجوال تماماً.
+            // ونافذة التعديل تُروى من هنا: بلا إرجاعهما كان الحفظ يمحوهما.
+            'email' => $canSeeNames ? $candidate->email : null,
+            'militaryNumber' => $canSeeNames ? $candidate->military_number : null,
             'sectorName' => $candidate->sector->name_ar,
             'sectorId' => $candidate->sector_id,
             'gender' => $candidate->gender,
@@ -365,12 +369,23 @@ class CandidateController extends Controller
             'fullName' => 'required|string|max:200',
             'mobile' => ['nullable', 'string', 'regex:/^05\d{8}$/'],
             'sectorId' => 'required|exists:sectors,id',
-            'gender' => 'required|in:' . implode(',', Candidate::GENDERS),
-            'rankLabel' => 'required|string',
-            // الفئة صفةُ الشخص لا صفةُ قطاعه — عليها تُبنى قائمة الرتب والطبقة
-            'personnelCategory' => 'required|in:civilian,military,contractor',
-            // المتعاقد بلا قائمة مُدارة، فطبقته تُرسَل صراحةً لا تُستنتج من مسمّاه
-            'tier' => 'required_if:personnelCategory,contractor|nullable|in:upper,middle',
+            // ── ما رُفع عنه الإلزام ──
+            // القرار في config/participants.php: أربعةٌ إلزامية وحدها (الهوية
+            // والاسم والقطاع والرتبة) وهي أعمدة NOT NULL في القاعدة. ما عداها
+            // يُتحقَّق من صيغته إن كُتب ولا يُطلب — فلا إلزامَ بلا سندٍ في المخطّط.
+            'gender' => 'nullable|in:' . implode(',', Candidate::GENDERS),
+            // max:50 يوافق varchar(50) في القاعدة — بدونه يخرج ٥٠٠ من طبقة
+            // القاعدة على مسمّى متعاقدٍ طويل بدل رسالة تحقّقٍ عربية
+            'rankLabel' => 'required|string|max:50',
+            // الفئة صفةُ الشخص لا صفةُ قطاعه — عليها تُبنى قائمة الرتب والطبقة.
+            // العمود NOT NULL DEFAULT 'civilian'، فالغائب يأخذ الافتراضي ولا يُسند null.
+            'personnelCategory' => 'nullable|in:civilian,military,contractor',
+            // المتعاقد بلا قائمة مُدارة، فطبقته تُرسَل صراحةً لا تُستنتج من مسمّاه.
+            // وإن لم تُرسَل هبط على «وسطى» عبر Candidate::resolveTier.
+            'tier' => 'nullable|in:upper,middle',
+            // ── مُعرِّفان مباشران، مشفّران في القاعدة كالهوية والجوال ──
+            'email' => 'nullable|email|max:200',
+            'militaryNumber' => 'nullable|string|max:30',
             'assessmentType' => 'nullable|in:' . implode(',', Assessment::TYPES),
             'classification' => 'nullable|in:normal,secret,top_secret',
             // ── المجالات الفنية: تُحدَّد بعد الإضافة لا معها ──
@@ -387,35 +402,33 @@ class CandidateController extends Controller
             // ملاحظاتٌ حرّة اختيارية — ما كان لها موضع فكانت تُكتب في حقولٍ
             // ليست لها (الإدارة، المسمّى) فتُفسدها للتصفية والتقارير
             'notes' => 'nullable|string|max:2000',
-        ], [
-            'gender.required' => 'اختر الجنس',
         ]);
 
         // ── نموذج السيرة الذاتية المرافق — إلزامي ──
-        // كانت اختيارية، فكان يدخل مشاركٌ بلا سيرة ثم يقف عند الترشيح بلا سببٍ
-        // ظاهر. الآن تصل مع بياناته في نداء واحد من كل باب: النموذج اليدوي،
-        // وبوّابة الإضافة الخارجية، والاستيراد. التحقّق البنيوي هنا (رخيص، يفشل
-        // مبكراً)؛ وفحص تسرّب الاسم يؤجَّل إلى ما بعد تعبئة بيانات المشارك.
+        // السيرة اختيارية: حمولةٌ بلا `cv` تُحفَظ بلا سيرة ولا يُنشأ لها صفّ.
+        // وما وصل منها يُتحقَّق من صيغته كاملاً بنفس CvValidator الذي يتحقّق من
+        // النموذج اليدوي — الاختياريّ ليس المُهمَل. والتحقّق البنيوي هنا (رخيص،
+        // يفشل مبكراً)؛ وفحص تسرّب الاسم يؤجَّل إلى ما بعد تعبئة بيانات المشارك.
         $cvInput = $request->input('cv');
-        if (!is_array($cvInput) || $cvInput === []) {
-            return response()->json([
-                'error' => 'السيرة الذاتية إلزامية — أكمل بيانات السيرة قبل الحفظ',
-                'fields' => ['cv' => ['السيرة الذاتية إلزامية']],
-            ], 422);
-        }
+        $cvInput = is_array($cvInput) && $cvInput !== [] ? $cvInput : null;
         if (strlen($request->getContent()) > CvValidator::MAX_BYTES) {
             return response()->json(['error' => 'الحجم كبير جداً'], 413);
         }
-        try {
-            $cleanCv = app(CvValidator::class)->clean($cvInput);
-        } catch (CvTooLargeException $e) {
-            return response()->json(['error' => 'عناصر أكثر من المسموح'], 413);
-        } catch (ValidationException $e) {
-            return response()->json(['error' => 'بيانات السيرة غير صحيحة', 'fields' => $e->errors()], 422);
+        $cleanCv = null;
+        if ($cvInput !== null) {
+            try {
+                $cleanCv = app(CvValidator::class)->clean($cvInput);
+            } catch (CvTooLargeException $e) {
+                return response()->json(['error' => 'عناصر أكثر من المسموح'], 413);
+            } catch (ValidationException $e) {
+                return response()->json(['error' => 'بيانات السيرة غير صحيحة', 'fields' => $e->errors()], 422);
+            }
         }
 
         $sector = Sector::findOrFail($validated['sectorId']);
-        $category = $validated['personnelCategory'];
+        // الفئة رُفع عنها الإلزام والعمود NOT NULL — فالغائب يأخذ الافتراضي هنا
+        // مرّةً واحدة، ولا يُسند null في أي موضعٍ بعدها
+        $category = $validated['personnelCategory'] ?? config('participants.defaults.personnelCategory', 'civilian');
         $tier = Candidate::resolveTier($category, $validated['rankLabel'], $validated['tier'] ?? null);
         $assessmentType = $validated['assessmentType'] ?? 'comprehensive';
 
@@ -469,7 +482,13 @@ class CandidateController extends Controller
             $candidate->full_name = $validated['fullName'];
             $candidate->mobile = $validated['mobile'] ?? null;
             $candidate->sector_id = $sector->id;
-            $candidate->gender = $validated['gender'];
+            // ── ما رُفع عنه الإلزام: الغائب لا يمحو المحفوظ ──
+            // `?? null` كان يمسح جنساً أو بريداً مسجّلاً لمجرّد أنّ النافذة لم
+            // ترسله. المفتاح الحاضر يكتب، والغائب يترك ما هو قائم — وهو نفس
+            // منطق `notes` أسفلَه.
+            if (array_key_exists('gender', $validated)) $candidate->gender = $validated['gender'];
+            if (array_key_exists('email', $validated)) $candidate->email = $validated['email'];
+            if (array_key_exists('militaryNumber', $validated)) $candidate->military_number = $validated['militaryNumber'];
             $candidate->rank_label = $validated['rankLabel'];
             $candidate->personnel_category = $category;
             $candidate->tier = $tier;
@@ -483,7 +502,10 @@ class CandidateController extends Controller
             $candidate->full_name = $validated['fullName'];
             $candidate->mobile = $validated['mobile'] ?? null;
             $candidate->sector_id = $sector->id;
-            $candidate->gender = $validated['gender'];
+            $candidate->gender = $validated['gender'] ?? null;
+            // مُعرِّفان مشفّران كالجوال — mutator يتولّى التشفير
+            $candidate->email = $validated['email'] ?? null;
+            $candidate->military_number = $validated['militaryNumber'] ?? null;
             $candidate->rank_label = $validated['rankLabel'];
             $candidate->personnel_category = $category;
             $candidate->tier = $tier;
@@ -522,14 +544,19 @@ class CandidateController extends Controller
         $assessment = DB::transaction(function () use ($candidate, $code, $assessmentType, $request, $cleanCv, $cvSource, $areaIds) {
             $candidate->save();
 
-            // السيرة تُحفظ داخل المعاملة: إمّا مشارك بسيرته أو لا مشارك —
-            // لا سجلّ ناقص يستدعي إعادة إدخال النموذج كاملاً
-            $cv = CandidateCv::firstOrNew(['candidate_id' => $candidate->id]);
-            $cv->data = $cleanCv;
-            $cv->version = ($cv->version ?? 0) + 1;
-            $cv->source = $cvSource;
-            $cv->updated_by = $request->user()->id;
-            $cv->save();
+            // السيرة تُحفظ داخل المعاملة متى وردت: إمّا مشارك بسيرته أو لا
+            // مشارك — لا سجلّ ناقص يستدعي إعادة إدخال النموذج كاملاً.
+            //
+            // ومتى لم تَرِد لا يُنشأ لها صفّ أصلاً: صفٌّ بوثيقةٍ فارغة يجعل
+            // «هل له سيرة؟» تُجاب بنعم في كل شاشة تسألها بوجود الصفّ.
+            if ($cleanCv !== null) {
+                $cv = CandidateCv::firstOrNew(['candidate_id' => $candidate->id]);
+                $cv->data = $cleanCv;
+                $cv->version = ($cv->version ?? 0) + 1;
+                $cv->source = $cvSource;
+                $cv->updated_by = $request->user()->id;
+                $cv->save();
+            }
 
             // المجالات استبدالٌ لا إضافة: الدورة الجديدة تُعيد وصف المشارك،
             // ووسمٌ من دورةٍ سابقة يبقى فيُرشَّح على مجالٍ لم يعد يوصف به
@@ -627,21 +654,32 @@ class CandidateController extends Controller
             'fullName' => 'required|string|max:200',
             'mobile' => ['nullable', 'string', 'regex:/^05\d{8}$/'],
             'sectorId' => 'required|exists:sectors,id',
-            'gender' => 'required|in:' . implode(',', Candidate::GENDERS),
-            'rankLabel' => 'required|string',
-            // الفئة صفةُ الشخص لا صفةُ قطاعه — عليها تُبنى قائمة الرتب والطبقة
-            'personnelCategory' => 'required|in:civilian,military,contractor',
-            // المتعاقد بلا قائمة مُدارة، فطبقته تُرسَل صراحةً لا تُستنتج من مسمّاه
-            'tier' => 'required_if:personnelCategory,contractor|nullable|in:upper,middle',
+            // ── ما رُفع عنه الإلزام ──
+            // القرار في config/participants.php: أربعةٌ إلزامية وحدها (الهوية
+            // والاسم والقطاع والرتبة) وهي أعمدة NOT NULL في القاعدة. ما عداها
+            // يُتحقَّق من صيغته إن كُتب ولا يُطلب — فلا إلزامَ بلا سندٍ في المخطّط.
+            'gender' => 'nullable|in:' . implode(',', Candidate::GENDERS),
+            // max:50 يوافق varchar(50) في القاعدة — بدونه يخرج ٥٠٠ من طبقة
+            // القاعدة على مسمّى متعاقدٍ طويل بدل رسالة تحقّقٍ عربية
+            'rankLabel' => 'required|string|max:50',
+            // الفئة صفةُ الشخص لا صفةُ قطاعه — عليها تُبنى قائمة الرتب والطبقة.
+            // العمود NOT NULL DEFAULT 'civilian'، فالغائب يأخذ الافتراضي ولا يُسند null.
+            'personnelCategory' => 'nullable|in:civilian,military,contractor',
+            // المتعاقد بلا قائمة مُدارة، فطبقته تُرسَل صراحةً لا تُستنتج من مسمّاه.
+            // وإن لم تُرسَل هبط على «وسطى» عبر Candidate::resolveTier.
+            'tier' => 'nullable|in:upper,middle',
+            // ── مُعرِّفان مباشران، مشفّران في القاعدة كالهوية والجوال ──
+            'email' => 'nullable|email|max:200',
+            'militaryNumber' => 'nullable|string|max:30',
             'assessmentType' => 'nullable|in:' . implode(',', Assessment::TYPES),
             'classification' => 'nullable|in:normal,secret,top_secret',
-            'technicalAreaIds' => 'required|array|min:1',
+            // كانت إلزاميةً في التعديل وحده (مقبولةً فارغةً في الإضافة) — تفاوتٌ
+            // مقصودٌ حينها، ورُفع الآن ضمن القرار العامّ. وثمنُه مُعلَن كما كان:
+            // مشاركٌ بلا مجال لا يظهر في أي قائمة ترشيح، ولذلك تبقى الشاشة
+            // تسوق إلى استكمالها عبر `needsTechnicalAreas`.
+            'technicalAreaIds' => 'nullable|array',
             'technicalAreaIds.*' => 'integer|exists:technical_areas,id',
             'notes' => 'nullable|string|max:2000',
-        ], [
-            'gender.required' => 'اختر الجنس',
-            'technicalAreaIds.required' => 'اختر مجالاً فنياً واحداً على الأقل',
-            'technicalAreaIds.min' => 'اختر مجالاً فنياً واحداً على الأقل',
         ]);
 
         if (Candidate::nationalIdExists($validated['nationalId'], $id)) {
@@ -649,14 +687,21 @@ class CandidateController extends Controller
         }
 
         $sector = Sector::findOrFail($validated['sectorId']);
-        $category = $validated['personnelCategory'];
+        // الفئة رُفع عنها الإلزام. في التعديل يسبق المحفوظُ الافتراضيَّ: نافذةٌ
+        // لم تُرسل الفئة يجب ألّا تُعيد عسكريّاً إلى «مدني» بصمت.
+        $category = $validated['personnelCategory']
+            ?? $candidate->personnel_category
+            ?? config('participants.defaults.personnelCategory', 'civilian');
         $tier = Candidate::resolveTier($category, $validated['rankLabel'], $validated['tier'] ?? null);
 
         $candidate->national_id = $validated['nationalId'];
         $candidate->full_name = $validated['fullName'];
         $candidate->mobile = $validated['mobile'] ?? null;
         $candidate->sector_id = $sector->id;
-        $candidate->gender = $validated['gender'];
+        // الغائب لا يمحو المحفوظ — راجع التعليق نفسه في store()
+        if (array_key_exists('gender', $validated)) $candidate->gender = $validated['gender'];
+        if (array_key_exists('email', $validated)) $candidate->email = $validated['email'];
+        if (array_key_exists('militaryNumber', $validated)) $candidate->military_number = $validated['militaryNumber'];
         $candidate->rank_label = $validated['rankLabel'];
         $candidate->personnel_category = $category;
         $candidate->tier = $tier;

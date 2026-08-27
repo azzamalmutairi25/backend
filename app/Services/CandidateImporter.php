@@ -94,6 +94,8 @@ class CandidateImporter
             $rankLabel = trim((string) ($row['rankLabel'] ?? ''));
             $categoryRaw = trim((string) ($row['personnelCategory'] ?? ''));
             $genderRaw = trim((string) ($row['gender'] ?? ''));
+            $email = trim((string) ($row['email'] ?? ''));
+            $militaryNumber = trim((string) ($row['militaryNumber'] ?? ''));
             $areasRaw = is_array($row['technicalAreas'] ?? null) ? $row['technicalAreas'] : [];
             $cvRaw = is_array($row['cv'] ?? null) ? $row['cv'] : [];
 
@@ -140,7 +142,9 @@ class CandidateImporter
             if ($rankLabel === '') {
                 $reasons[] = "{$rankWord} مفقود" . ($category === 'contractor' ? '' : 'ة');
             } elseif ($category === null) {
-                $reasons[] = "«{$rankLabel}» ليست في الرتب العسكرية ولا المراتب المدنية — أضف عمود «الفئة»";
+                // كانت تُردّ. والفئة رُفع عنها الإلزام، فرتبةٌ لم تُعرف تهبط على
+                // الافتراضي بدل أن يُردّ صفٌّ حمل رتبةً صحيحةً غير مُدرَجة بعد.
+                $category = config('participants.defaults.personnelCategory', 'civilian');
             } elseif ($category !== 'contractor') {
                 // المتعاقد مسمّاه حرّ فلا قائمة تُطابَق عليها؛ وغير المُدرَج من
                 // رتب الصنفين يدخل ويُصنَّف «وسطى» صامتةً، فيُقيَّم لواءٌ بمعايير
@@ -157,12 +161,18 @@ class CandidateImporter
             if ($mobile !== '' && !preg_match('/^05\d{8}$/', $mobile)) {
                 $reasons[] = 'الجوال يجب أن يبدأ بـ05 ويكون ١٠ أرقام';
             }
+            if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $reasons[] = "البريد الإلكتروني «{$email}» غير صحيح";
+            }
+            if (mb_strlen($militaryNumber) > 30) {
+                $reasons[] = 'الرقم العسكري/الوظيفي أطول من ٣٠ خانة';
+            }
 
             // ── الجنس ──
+            // النقص لم يعد سبب ردّ (رُفع الإلزام)، والقيمة المكتوبة غير المفهومة
+            // تبقى سبباً: «غير محدّد» خطأُ كاتبٍ يُقال له، لا حقلٌ تُرك فارغاً.
             $gender = self::genderFromInput($genderRaw);
-            if ($genderRaw === '') {
-                $reasons[] = 'الجنس مفقود';
-            } elseif ($gender === null) {
+            if ($genderRaw !== '' && $gender === null) {
                 $reasons[] = "الجنس «{$genderRaw}» غير معروف — ذكر أو أنثى";
             }
 
@@ -181,18 +191,16 @@ class CandidateImporter
                     $reasons[] = "مجال فنّي غير معروف ({$label})";
                 }
             }
+            // مجالٌ غير معروف يبقى سبب ردّ (خطأ كتابة)، وغيابُها كلَّها لم يعد
+            // كذلك. والثمن مُعلَن: مشاركٌ بلا مجال لا يظهر في قوائم الترشيح.
             $areaIds = array_values(array_unique($areaIds));
-            if (!$areaIds && !array_filter($areasRaw)) {
-                $reasons[] = 'لم يُحدَّد أي مجال فنّي — عليها يُبنى الترشيح';
-            }
 
-            // ── السيرة الذاتية — إلزامية كما في الإضافة اليدوية ──
+            // ── السيرة الذاتية — اختيارية كما في الإضافة اليدوية ──
             // يُعاد استعمال CvValidator نفسه: مسارُ تحقّقٍ واحد لكل الأبواب،
-            // فلا تدخل من الاستيراد وثيقةٌ يردّها النموذج اليدوي.
+            // فلا تدخل من الاستيراد وثيقةٌ يردّها النموذج اليدوي — ولا تُردّ من
+            // هنا وثيقةٌ يقبلها هو.
             $cleanCv = null;
-            if (!$cvRaw) {
-                $reasons[] = 'بيانات السيرة الذاتية مفقودة';
-            } else {
+            if ($cvRaw) {
                 $cvRaw = self::mapCvDegrees($cvRaw, $reasons);
                 try {
                     $cleanCv = app(CvValidator::class)->clean($cvRaw);
@@ -234,12 +242,14 @@ class CandidateImporter
                 // بقي المشارك بلا دورة فكسر ثابت المزامنة و/confirm، أو بلا سيرة
                 // فدخل من هذا الباب ما يردّه النموذج اليدوي
                 $leak = null;
-                DB::transaction(function () use ($code, $nationalId, $fullName, $mobile, $sector, $gender, $rankLabel, $category, $tier, $userId, $cleanCv, $areaIds, &$leak) {
+                DB::transaction(function () use ($code, $nationalId, $fullName, $mobile, $email, $militaryNumber, $sector, $gender, $rankLabel, $category, $tier, $userId, $cleanCv, $areaIds, &$leak) {
                     $c = new Candidate();
                     $c->participant_code = $code;
                     $c->national_id = $nationalId;
                     $c->full_name = $fullName;
                     $c->mobile = $mobile ?: null;
+                    $c->email = $email ?: null;
+                    $c->military_number = $militaryNumber ?: null;
                     $c->sector_id = $sector->id;
                     $c->gender = $gender;
                     $c->rank_label = $rankLabel;
@@ -252,18 +262,22 @@ class CandidateImporter
                     // تسرّب اسم المشارك داخل سيرته — الفحص يحتاج بياناته فيقع
                     // بعد حفظه، والرمي يُرجِع المعاملة كلّها فلا يبقى صفٌّ ناقص.
                     // السيرة تصل المقيّم بلا اسم، فالمستورَد ليس معفىً منه.
-                    if ($hit = CvGuard::directIdentifierHit($cleanCv, $c)) {
-                        $leak = $hit;
-                        throw new \RuntimeException('cv_identifier_leak');
-                    }
+                    // السيرة اختيارية: بلا وثيقةٍ لا فحصَ تسرّبٍ ولا صفَّ سيرة.
+                    // وتمريرُ null على directIdentifierHit كان يرمي TypeError.
+                    if ($cleanCv !== null) {
+                        if ($hit = CvGuard::directIdentifierHit($cleanCv, $c)) {
+                            $leak = $hit;
+                            throw new \RuntimeException('cv_identifier_leak');
+                        }
 
-                    $cv = new CandidateCv();
-                    $cv->candidate_id = $c->id;
-                    $cv->data = $cleanCv;
-                    $cv->version = 1;
-                    $cv->source = 'admin';
-                    $cv->updated_by = $userId;
-                    $cv->save();
+                        $cv = new CandidateCv();
+                        $cv->candidate_id = $c->id;
+                        $cv->data = $cleanCv;
+                        $cv->version = 1;
+                        $cv->source = 'admin';
+                        $cv->updated_by = $userId;
+                        $cv->save();
+                    }
 
                     $c->technicalAreas()->sync($areaIds);
 

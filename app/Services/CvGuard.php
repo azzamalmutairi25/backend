@@ -127,6 +127,10 @@ class CvGuard
             'skeletons' => array_values(array_unique($skeletons)), // هياكل لاتينية للنقحرة
             'id' => preg_replace('/\D/', '', (string) ($c->national_id ?? '')),
             'mobile' => preg_replace('/\D/', '', (string) ($c->mobile ?? '')),
+            // الرقم العسكري/الوظيفي — مُعرِّفٌ مباشر يجب أن يُذكر صراحةً هنا.
+            // الشبكة العامّة تلتقط ٩ أرقاماً فأكثر، وهذا الرقم خمسةٌ إلى ثمانية
+            // غالباً — فبلا ذكرِه يمرّ في نصّ السيرة إلى المقيّم بلا طمس.
+            'militaryNumber' => preg_replace('/\D/', '', (string) ($c->military_number ?? '')),
         ];
     }
 
@@ -173,6 +177,9 @@ class CvGuard
         ]));
         if ($ctx['id'] !== '' && str_contains($digits, $ctx['id'])) return true;
         if ($ctx['mobile'] !== '' && mb_strlen($ctx['mobile']) >= 9 && str_contains($digits, $ctx['mobile'])) return true;
+        // حدٌّ أدنى أربعة أرقام: أقصرُ منه يطابق سنةً أو عدداً فيُطمَس ما ليس معرّفاً
+        if (($ctx['militaryNumber'] ?? '') !== '' && mb_strlen($ctx['militaryNumber']) >= 5
+            && str_contains($digits, $ctx['militaryNumber'])) return true;
         if (preg_match('/[0-9\x{0660}-\x{0669}]{9,}/u', $val)) return true;
         if (preg_match('/[\w.%+\-]+@[\w.\-]+\.[a-z]{2,}/iu', $val)) return true;
         if (preg_match('#https?://|www\.#iu', $val)) return true;
@@ -268,6 +275,19 @@ class CvGuard
         $val = preg_replace('/[\w.%+\-]+@[\w.\-]+\.[a-z]{2,}/iu', self::REDACT, $val);
         $val = preg_replace('#https?://\S+|www\.\S+#iu', self::REDACT, $val);
 
+        // ── الرقم العسكري/الوظيفي: مطابقةٌ صريحة قبل الشبكة العامّة ──
+        // الشبكة أدناه لا تلتقط إلا تسعة أرقام فأكثر، وهذا الرقم أقصر من ذلك
+        // غالباً (خمسة إلى ثمانية) — فبلا هذا المرور يبلغ المقيّمَ سليماً.
+        $mil = $ctx['militaryNumber'] ?? '';
+        if ($mil !== '' && mb_strlen($mil) >= 5) {   // نفس حدّ hasPii — لا يُفترقان
+            // حدود غير رقمية على الطرفين: «12345» لا تُطمَس داخل «7123456»
+            $val = preg_replace(
+                '/(?<![0-9\x{0660}-\x{0669}])' . preg_quote($mil, '/') . '(?![0-9\x{0660}-\x{0669}])/u',
+                self::REDACT,
+                $val
+            ) ?? $val;
+        }
+
         // أرقام طويلة — متتالية أو متباعدة بفواصل (١ ٢ ٣ …): تُجمَع ثم تُطابَق هوية/جوال
         // أو ≥9 رقماً. يشمل الحالة المتتالية (الفواصل اختيارية) فيغني عن نمطٍ منفصل.
         $val = preg_replace_callback('/[0-9\x{0660}-\x{0669}](?:[^\p{L}\p{N}]*[0-9\x{0660}-\x{0669}]){8,}/u', function ($m) use ($ctx) {
@@ -277,6 +297,8 @@ class CvGuard
             ]));
             $hit = ($ctx['id'] !== '' && str_contains($digits, $ctx['id']))
                 || ($ctx['mobile'] !== '' && mb_strlen($ctx['mobile']) >= 9 && str_contains($digits, $ctx['mobile']))
+                || (($ctx['militaryNumber'] ?? '') !== '' && mb_strlen($ctx['militaryNumber']) >= 5
+                    && str_contains($digits, $ctx['militaryNumber']))
                 || mb_strlen($digits) >= 9;
             return $hit ? self::REDACT : $m[0];
         }, $val);

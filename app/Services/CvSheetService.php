@@ -94,6 +94,7 @@ class CvSheetService
         $ageTxt = $age !== null ? e($age) : '—';
         $years = e((string) ($doc['totalYearsExperience'] ?? 0));
         $appointment = $this->bothCalendars($doc['appointmentDate'] ?? null);
+        $promoted = $this->bothCalendars($doc['rankPromotedAt'] ?? null);
         $attestBlock = $this->attestBlock($session['attest'] ?? null);
 
         return <<<HTML
@@ -164,6 +165,18 @@ class CvSheetService
    <td class="lbl">القطاع</td><td>{$sector}</td>
    <td class="lbl">الإدارة</td><td>{$d('department')}</td>
    <td class="lbl">المنطقة</td><td>{$d('region')}</td>
+  </tr>
+  <!-- زيادات نموذج الوزارة: تُحفَظ منذ الاستيراد ولم يكن لها خانةٌ في الورقة،
+       فتُقرأ ناقصةً وهي موجودة -->
+  <tr>
+   <td class="lbl">لقب الرتبة</td><td>{$d('rankTitle')}</td>
+   <td class="lbl">تاريخ الترقية</td><td>{$promoted}</td>
+   <td class="lbl">مدينة العمل</td><td>{$d('workCity')}</td>
+  </tr>
+  <tr>
+   <td class="lbl">الإدارة العامة</td><td>{$d('generalDepartment')}</td>
+   <td class="lbl">الوظيفة الحالية</td><td>{$d('currentPosition')}</td>
+   <td class="lbl">مدة الخدمة فيها</td><td>{$d('currentPositionYears')}</td>
   </tr>
  </table>
 
@@ -255,14 +268,27 @@ HTML;
     {
         $out = '';
         foreach ($exps as $i => $x) {
+            // ── «مدة الخدمة»: نصّاً أوّلاً ثم السنتان ──
+            // العمود اسمُه في نموذج الوزارة «مدة الخدمة في الوظيفة»، والملفّ
+            // يعطيها نصّاً («٤ سنوات») لا سنتَي بداية ونهاية. وكان يُطبع «—»
+            // لكلّ مستورَد لأن العمود يُبنى من السنتين وحدهما — تُقرأ الورقة
+            // فارغةً والبيانات محفوظة.
             $from = $x['fromYear'] ?? null;
             $to = !empty($x['current']) ? 'حتى الآن' : ($x['toYear'] ?? null);
-            $span = $from ? e($from) . ' — ' . (e($to) ?: '—') : '—';
+            $span = trim((string) ($x['years'] ?? '')) !== ''
+                ? e($x['years'])
+                : ($from ? e($from) . ' — ' . (e($to) ?: '—') : '—');
+
+            // «الشعبة» في ترويسة النموذج هي `section` — تُذكر تحت الجهة
+            $org = (e($x['organization'] ?? null) ?: '—');
+            if (trim((string) ($x['section'] ?? '')) !== '') {
+                $org .= ' <span style="color:#666">— ' . e($x['section']) . '</span>';
+            }
 
             $out .= '<tr>'
                 . '<td>' . e($i + 1) . '</td>'
                 . '<td>' . (e($x['position'] ?? null) ?: '—') . '</td>'
-                . '<td>' . (e($x['organization'] ?? null) ?: '—') . '</td>'
+                . '<td>' . $org . '</td>'
                 . '<td>' . $span . '</td>'
                 . '</tr>';
         }

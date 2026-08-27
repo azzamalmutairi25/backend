@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Crypt;
 
 // رفعةُ استيراد واحدة: صفوفها، وحالتها، وما أُنشئ منها وما رُفض.
 class ImportBatch extends Model
@@ -15,11 +17,38 @@ class ImportBatch extends Model
     ];
 
     protected $casts = [
-        'payload' => 'array',
         'failures' => 'array',
         'started_at' => 'datetime',
         'finished_at' => 'datetime',
     ];
+
+    // الحمولة لا تُقرأ من خارج الطابور، وحملُها في استجابةٍ سهوٌ لا قصد
+    protected $hidden = ['payload'];
+
+    // ── الحمولة مشفّرة، لا `json` عارياً ──
+    // كانت `'payload' => 'array'` تكتب الصفوف نصّاً صريحاً: الأسماء والهويات
+    // والجوالات والسيرة كاملةً. وجدولُ المشاركين يشفّر الثلاثة، فصفٌّ واحد هنا
+    // كان يُبطل تشفيرَه. الآن نصّ مشفّر يُفكّ عند القراءة — والعمود صار `text`.
+    protected function payload(): Attribute
+    {
+        return Attribute::make(
+            get: function ($value) {
+                if ($value === null || $value === '') {
+                    return null;
+                }
+                // حمولةٌ كُتبت قبل التشفير (رفعةٌ عالقة من قبل الترقية) تُقرأ
+                // كما هي بدل أن يُرمى الطابور كلّه على استثناء فكّ تشفير
+                try {
+                    return json_decode(Crypt::decryptString($value), true);
+                } catch (\Throwable) {
+                    return json_decode($value, true);
+                }
+            },
+            set: fn ($value) => ['payload' => $value === null
+                ? null
+                : Crypt::encryptString(json_encode($value, JSON_UNESCAPED_UNICODE))],
+        );
+    }
 
     public function user(): BelongsTo { return $this->belongsTo(User::class); }
 

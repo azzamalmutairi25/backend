@@ -50,12 +50,15 @@ class CvValidator
         $today = date('Y-m-d');
 
         $v = Validator::make($in, [
-            // ── البيانات الوظيفية — إلزامية في نموذج المركز ──
-            'birthDate' => "required|date_format:Y-m-d|after_or_equal:$bornAfter|before_or_equal:$bornBefore",
-            'appointmentDate' => "required|date_format:Y-m-d|before_or_equal:$today",
-            'rankLabel' => 'required|string|max:50',
-            'department' => 'required|string|max:150',
-            'region' => 'required|string|max:100',
+            // ── البيانات الوظيفية ──
+            // رُفع عنها الإلزام بقرارٍ قائم (راجع config/participants.php): وثيقة
+            // السيرة كلّها اختيارية، وما يُكتب منها يُتحقَّق من صيغته وحدها. نوافذ
+            // التواريخ وحدودُ الطول تبقى كما هي — الاختياريّ ليس المُهمَل.
+            'birthDate' => "nullable|date_format:Y-m-d|after_or_equal:$bornAfter|before_or_equal:$bornBefore",
+            'appointmentDate' => "nullable|date_format:Y-m-d|before_or_equal:$today",
+            'rankLabel' => 'nullable|string|max:50',
+            'department' => 'nullable|string|max:150',
+            'region' => 'nullable|string|max:100',
 
             // ── زيادات نموذج المركز ── تُعرض ولا يُفلتَر بها، فلا عمود لها
             'rankTitle' => 'nullable|string|max:60',
@@ -68,23 +71,24 @@ class CvValidator
             'totalYearsExperience' => 'nullable|integer|min:0|max:60',
             'briefBio' => 'nullable|string|max:600',
 
-            // مؤهلٌ واحد على الأقل — حدّ «السيرة المكتملة». ومن عُيّن حديثاً قد
-            // لا تكون له وظيفة سابقة ولا دورة، فتبقى الكتلتان الأخريان اختياريتين.
-            'qualifications' => 'required|array|min:1|max:15',
-            'qualifications.*.degree' => 'required|in:' . implode(',', self::DEGREES),
+            // لا حدّ أدنى للمؤهلات: السيرة وثيقةٌ اختيارية، ومَن لم يُدخل منها
+            // شيئاً يُحفَظ. والدرجة العلمية متى كُتبت تبقى من القائمة المغلقة —
+            // «بكالوريس» غيرُ معروفةٍ يُقال عنها، ولا تُخمَّن ولا تُقبل نصّاً حرّاً.
+            'qualifications' => 'nullable|array|max:15',
+            'qualifications.*.degree' => 'nullable|in:' . implode(',', self::DEGREES),
             'qualifications.*.major' => 'nullable|string|max:120',
-            'qualifications.*.institution' => 'required|string|max:150',
-            // يبقى إلزامياً: قرارٌ قائم يثبته اختبار، ولا يُخفَّف لأجل خطأ
-            // ترقيمٍ في قالب المركز (يكرّر «(4)» ويُسقط الرابع). القالب الذي
-            // تُصدره المنصّة يرقّم الأربعة صحيحةً — فالإصلاح في الملفّ لا في القاعدة.
-            'qualifications.*.studyPlace' => 'required|string|max:120',
+            'qualifications.*.institution' => 'nullable|string|max:150',
+            // كان إلزامياً بقرارٍ سابق يثبته اختبار. رُفع الآن ضمن قرارٍ أعمّ:
+            // لا حقل إلزاميّ خارج الأربعة (راجع config/participants.php). حدّ
+            // الطول يبقى، والاختبار قُلب ليثبت القرار الجديد لا القديم.
+            'qualifications.*.studyPlace' => 'nullable|string|max:120',
             // سنة التخرّج لا عمود لها في نموذج المركز. اشتراطُها يردّ كل ملفّ
             // وارد، فصارت اختياريةً هنا ومطلوبةً في نموذج الإضافة اليدوي وحده.
             'qualifications.*.gradYear' => "nullable|integer|min:$yMin|max:" . ($yMax + 1),
 
             'experiences' => 'nullable|array|max:20',
-            'experiences.*.position' => 'required|string|max:120',
-            'experiences.*.organization' => 'required|string|max:150',
+            'experiences.*.position' => 'nullable|string|max:120',
+            'experiences.*.organization' => 'nullable|string|max:150',
             // النموذج يعطي **مدّة خدمة** نصّاً («٣ سنوات») لا سنتَي بداية ونهاية.
             // تُحفظ كما وردت، وتبقى السنتان لمن يُدخل يدوياً فيعرفهما بدقّة.
             'experiences.*.years' => 'nullable|string|max:40',
@@ -96,24 +100,16 @@ class CvValidator
 
             // ٢٦ خانة دورة في النموذج — والسقف عشرون كان يردّ من ملأها كلها
             'certifications' => 'nullable|array|max:30',
-            'certifications.*.name' => 'required|string|max:150',
+            'certifications.*.name' => 'nullable|string|max:150',
             'certifications.*.issuer' => 'nullable|string|max:150',
             'certifications.*.year' => "nullable|integer|min:$yMin|max:$yMax",
         ], [
-            'birthDate.required' => 'أدخل تاريخ الميلاد',
             'birthDate.date_format' => 'تاريخ الميلاد بالميلادي (سنة-شهر-يوم)',
             'birthDate.after_or_equal' => 'تاريخ الميلاد غير منطقي — راجِعه',
             'birthDate.before_or_equal' => 'تاريخ الميلاد غير منطقي — راجِعه',
-            'appointmentDate.required' => 'أدخل تاريخ التعيين',
             'appointmentDate.date_format' => 'تاريخ التعيين بالميلادي (سنة-شهر-يوم)',
             'appointmentDate.before_or_equal' => 'تاريخ التعيين لا يكون في المستقبل',
-            'rankLabel.required' => 'أدخل الرتبة أو المرتبة',
-            'department.required' => 'أدخل الإدارة',
-            'region.required' => 'أدخل المنطقة',
-            'qualifications.*.studyPlace.required' => 'أدخل مقر/دولة الدراسة',
             'qualifications.*.degree.in' => 'الدرجة العلمية غير معروفة',
-            'qualifications.required' => 'السيرة الذاتية إلزامية — أضِف مؤهلاً علمياً واحداً على الأقل',
-            'qualifications.min' => 'السيرة الذاتية إلزامية — أضِف مؤهلاً علمياً واحداً على الأقل',
             'qualifications.max' => 'عدد المؤهلات أكثر من المسموح',
             'experiences.max' => 'عدد الخبرات أكثر من المسموح',
             'certifications.max' => 'عدد الشهادات أكثر من المسموح',
@@ -150,9 +146,8 @@ class CvValidator
             if ($cur && !empty($e['toYear'])) {
                 $this->fail("experiences.$i.toYear", 'خبرة حالية لا تحمل سنة انتهاء');
             }
-            if (!$cur && empty($e['toYear'])) {
-                $this->fail("experiences.$i.toYear", 'أدخل سنة الانتهاء أو علّم «حتى الآن»');
-            }
+            // «سنة بداية بلا نهاية ولا علامة» كانت تُردّ. رُفع الإلزام: خبرةٌ
+            // مفتوحة تُحفَظ كما كُتبت، والتناقض وحده يُردّ — لا النقص.
             if (!$cur && !empty($e['toYear']) && (int) $e['toYear'] < (int) $e['fromYear']) {
                 $this->fail("experiences.$i.toYear", 'سنة الانتهاء قبل سنة البداية');
             }
@@ -192,22 +187,27 @@ class CvValidator
             'currentPositionYears' => CvGuard::sanitize($v['currentPositionYears'] ?? null),
 
             'currentPosition' => CvGuard::sanitize($v['currentPosition'] ?? null),
+            // الصفر هنا سنتيلٌ لا بيان: «لم يُذكر» و«صفر سنوات» يُقرآن سواءً.
+            // أُبقي على ما هو قائم لأنّ الوثيقة المطبوعة والمُطابِق يقرآنه عدداً.
             'totalYearsExperience' => (int) ($v['totalYearsExperience'] ?? 0),
             'briefBio' => CvGuard::sanitize($v['briefBio'] ?? null),
 
+            // ── قراءاتٌ كانت آمنةً بحكم `required` وحده ──
+            // رفعُ الإلزام يجعل كل مفتاحٍ منها قد يغيب، وقراءةُ مفتاحٍ غائب في
+            // PHP 8 استثناءٌ لا تحذير — أي ٥٠٠ على صفٍّ ناقص بدل حفظِه ناقصاً.
             'qualifications' => array_values(array_map(fn ($q) => [
-                'degree' => $q['degree'],
+                'degree' => $q['degree'] ?? null,
                 'major' => CvGuard::sanitize($q['major'] ?? null),
-                'institution' => CvGuard::sanitize($q['institution']),
-                'studyPlace' => CvGuard::sanitize($q['studyPlace']),
+                'institution' => CvGuard::sanitize($q['institution'] ?? null),
+                'studyPlace' => CvGuard::sanitize($q['studyPlace'] ?? null),
                 // القيم الغائبة تبقى null لا صفراً: «٠» سنةَ تخرّجٍ تُطبع على
                 // الوثيقة فتُقرأ بياناً، والفراغ يُقرأ فراغاً.
                 'gradYear' => isset($q['gradYear']) ? (int) $q['gradYear'] : null,
             ], $v['qualifications'] ?? [])),
 
             'experiences' => array_values(array_map(fn ($e) => [
-                'position' => CvGuard::sanitize($e['position']),
-                'organization' => CvGuard::sanitize($e['organization']),
+                'position' => CvGuard::sanitize($e['position'] ?? null),
+                'organization' => CvGuard::sanitize($e['organization'] ?? null),
                 'section' => CvGuard::sanitize($e['section'] ?? null),
                 'years' => CvGuard::sanitize($e['years'] ?? null),
                 'fromYear' => isset($e['fromYear']) ? (int) $e['fromYear'] : null,
@@ -217,7 +217,7 @@ class CvValidator
             ], $v['experiences'] ?? [])),
 
             'certifications' => array_values(array_map(fn ($c) => [
-                'name' => CvGuard::sanitize($c['name']),
+                'name' => CvGuard::sanitize($c['name'] ?? null),
                 'issuer' => CvGuard::sanitize($c['issuer'] ?? null),
                 'year' => isset($c['year']) ? (int) $c['year'] : null,
             ], $v['certifications'] ?? [])),
