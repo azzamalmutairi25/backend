@@ -474,6 +474,11 @@ class CandidateUpdateRequestController extends Controller
             'email' => 'البريد الإلكتروني',
             'militaryNumber' => 'الرقم العسكري/الوظيفي',
             'gender' => 'الجنس',
+            'rankTitle' => 'لقب الرتبة',
+            'rankPromotedAt' => 'تاريخ الترقية',
+            'generalDepartment' => 'الإدارة العامة',
+            'workCity' => 'مدينة العمل',
+            'currentPositionYears' => 'مدة الخدمة في الوظيفة الحالية',
             'sectorName' => 'القطاع',
             'rankLabel' => 'الرتبة / المرتبة',
             'personnelCategory' => 'الفئة',
@@ -513,7 +518,11 @@ class CandidateUpdateRequestController extends Controller
             ];
         }
 
-        foreach (['birthDate', 'appointmentDate', 'department', 'region', 'currentPosition', 'totalYearsExperience', 'briefBio'] as $key) {
+        // زيادات نموذج الوزارة معها: الاعتماد يستبدل الوثيقة كاملةً، فتغييرُ
+        // «الإدارة العامة» أو «مدينة العمل» كان يُطبَّق بلا أن يراه المعتمِد —
+        // ثغرةُ حوكمةٍ في شاشةٍ وظيفتُها أن تُري ما سيقع قبل أن يقع.
+        foreach (['birthDate', 'appointmentDate', 'department', 'region', 'currentPosition', 'totalYearsExperience', 'briefBio',
+            'rankTitle', 'rankPromotedAt', 'generalDepartment', 'workCity', 'currentPositionYears'] as $key) {
             if ($norm($oldCv[$key] ?? null) !== $norm($newCv[$key] ?? null)) {
                 $changes[] = [
                     'key' => $key, 'label' => $labels[$key],
