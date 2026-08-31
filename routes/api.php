@@ -35,7 +35,6 @@ use App\Http\Controllers\ChatController;
 use App\Http\Controllers\CommunicationController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\SectorController;
-use App\Http\Controllers\SetupStatusController;
 use App\Http\Controllers\ActivityCompetencyController;
 use App\Http\Controllers\CompetencyController;
 use App\Http\Controllers\PublicAssessmentController;
@@ -193,9 +192,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/settings/smtp', [SettingsController::class, 'saveSmtp']);
     // اختبار يفتح اتصالاً خارجياً — يُخنق كنظيره في الرسائل
     Route::post('/settings/smtp/test', [SettingsController::class, 'testSmtp'])->middleware('throttle:5,1');
-    // حالة التهيئة الأولى — تُرشد اللوحة إلى ما بقي من خطوات على منصّة جديدة
-    Route::get('/setup-status', [SetupStatusController::class, 'show']);
-
     Route::get('/sectors', [SectorController::class, 'index']);
     Route::put('/sectors/{id}/prefix', [SectorController::class, 'updatePrefix']);
 

@@ -396,7 +396,6 @@
 | GET · POST | `/settings/scheduling-workflow` | خطوات سير عمل الجدولة — القراءة تكفيها `schedule.view`، والإضافة `settings.manage` |
 | PUT · DELETE | `/settings/scheduling-workflow/{id}` | تعديل/حذف خطوة (`settings.manage`) |
 | PUT | `/settings/scheduling-workflow/reorder` | إعادة الترتيب — `ids[]` كاملةً لا جزئية (`settings.manage`) |
-| GET | `/setup-status` | ما بقي من خطوات التهيئة على منصّة جديدة |
 | PUT | `/sectors/{id}/prefix` | بادئة رمز المشارك للقطاع |
 | POST · PUT · DELETE | `/sectors` · `/sectors/{id}` | إدارة القطاعات |
 | POST · PUT · DELETE | `/ranks` · `/ranks/{id}` | إدارة الرتب — **تقود تصنيف الفئة القيادية** |
