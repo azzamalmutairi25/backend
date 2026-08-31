@@ -618,19 +618,6 @@
       ]
     },
     {
-      "id": "dashboard-setup",
-      "route": "/dashboard",
-      "wait": "main",
-      "title": "بطاقة «تهيئة المنصّة» وحدها: العدّاد ٣/٤ وشريط التقدّم والخطوات الستّ بأزرار «اب",
-      "clip": ".setup",
-      "steps": [
-        {
-          "action": "scrollTo",
-          "selector": ".setup"
-        }
-      ]
-    },
-    {
       "id": "dashboard-kpis",
       "route": "/dashboard",
       "wait": "main",
