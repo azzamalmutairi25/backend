@@ -26,8 +26,14 @@ from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.join(HERE, 'USER_GUIDE.md')
-OUT = os.path.join(HERE, 'USER_GUIDE.docx')
+# المصدر والوجهة قابلان للتمرير: الباني نفسه يخدم دليل المستخدم الكامل
+# وأي مستندٍ مشتقّ منه بنفس العرف (عناوين Word حقيقية، وصور مضمَّنة، واتجاه
+# من اليمين إلى اليسار). بلا هذا كان كل مستندٍ جديد ينسخ الملف كلّه فيتفرّع.
+#     python3 docs/build-guide-docx.py [مصدر.md] [وجهة.docx]
+import sys
+
+SRC = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else os.path.join(HERE, 'USER_GUIDE.md')
+OUT = os.path.abspath(sys.argv[2]) if len(sys.argv) > 2 else os.path.join(HERE, 'USER_GUIDE.docx')
 IMG = os.path.join(HERE, 'guide-images')
 CACHE = os.path.join(HERE, '.guide-build-cache')
 
@@ -257,10 +263,23 @@ def add_quote(lines):
 
 
 # ── الغلاف ──────────────────────────────────────────────────
+# العنوان والتمهيد من المصدر لا من الشيفرة: باني واحد يخدم أكثر من مستند،
+# وغلافٌ مثبَّت فيه يجعل كل مستندٍ جديد يحمل اسم غيره.
+_raw = open(SRC, encoding='utf-8').read()
+_m = re.search(r'^#\s+(.+?)\s*$', _raw, re.M)
+# العنوان قبل الشرطة الطويلة: عنوان المصدر قد يحمل اسم المنصّة بعدها
+# («دليل المستخدم — منصة مركز تمكين الكفاءات») وهو نفسه العنوان الفرعي تحته،
+# فتُكرَّر الجملة على الغلاف مرّتين.
+COVER_TITLE = (_m.group(1).split(' — ')[0].strip() if _m else 'دليل المستخدم')
+_lead = re.findall(r'^>\s?(.*)$', _raw[:_raw.find('---')] if '---' in _raw else _raw, re.M)
+COVER_LEAD = ' '.join(x.strip() for x in _lead if x.strip()) or (
+    'دليل تشغيلي لموظّفي المركز. يشرح لكل شاشة: مَن يفتحها، وكيف يعمل فيها '
+    'خطوةً خطوة، وما الذي يمنعه النظام ولماذا.')
+
 t = doc.add_paragraph()
 t.alignment = WD_ALIGN_PARAGRAPH.CENTER
 t.paragraph_format.space_before = Pt(190)
-r = t.add_run('دليل المستخدم')
+r = t.add_run(COVER_TITLE)
 r.font.size = Pt(34)
 r.bold = True
 r.font.color.rgb = ACCENT
@@ -278,8 +297,7 @@ n.alignment = WD_ALIGN_PARAGRAPH.CENTER
 n.paragraph_format.space_before = Pt(26)
 n.paragraph_format.left_indent = Inches(0.9)
 n.paragraph_format.right_indent = Inches(0.9)
-r = n.add_run('دليل تشغيلي لموظّفي المركز. يشرح لكل شاشة: مَن يفتحها، وكيف يعمل فيها '
-              'خطوةً خطوة، وما الذي يمنعه النظام ولماذا.')
+r = n.add_run(COVER_LEAD)
 r.font.size = Pt(11)
 r.font.color.rgb = MUTED
 rtl_run(r)

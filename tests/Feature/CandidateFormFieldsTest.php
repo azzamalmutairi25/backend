@@ -60,7 +60,10 @@ class CandidateFormFieldsTest extends TestCase
         $this->assertEqualsCanonicalizing($ids, $c->technicalAreas->pluck('id')->all());
     }
 
-    public function test_the_edit_screen_still_demands_at_least_one_area(): void
+    // كانت الشاشة تشترط مجالاً واحداً في التعديل وحده. رُفع الإلزام (راجع
+    // config/participants.php)، والثمن مُعلَن كما كان: مشاركٌ بلا مجال لا يظهر
+    // في قوائم الترشيح — ولذلك يبقى العَلَم `needsTechnicalAreas` يسوق إليها.
+    public function test_the_edit_screen_no_longer_demands_an_area(): void
     {
         [$c] = $this->makeCandidate();
         $nid = $c->national_id;
@@ -70,7 +73,9 @@ class CandidateFormFieldsTest extends TestCase
             'nationalId' => $nid, 'fullName' => 'محدّث', 'sectorId' => $c->sector_id,
             'gender' => 'male', 'personnelCategory' => 'civilian', 'rankLabel' => 'الرابعة عشرة',
             'technicalAreaIds' => [],
-        ])->assertStatus(422);
+        ])->assertOk();
+
+        $this->assertSame([], $c->fresh()->technicalAreas->pluck('id')->all());
     }
 
     // أخطر أثرٍ لجعلها اختيارية: sync([]) على العائد كان يمحو مجالات دورته
@@ -91,7 +96,10 @@ class CandidateFormFieldsTest extends TestCase
     }
 
     // ── ٢) البريد الإلكتروني ──
-    public function test_email_is_neither_stored_at_creation_nor_returned(): void
+    // كان العمود المشفّر قائماً بلا مسار كتابةٍ إليه إطلاقاً: تُرسَل القيمة
+    // فتُهمَل بصمت، فلا تصل صاحبَها دعوةٌ بالبريد أبداً. الآن يُقبل ويُخزَّن
+    // مشفّراً، ويعود خلف صلاحية عرض البيانات الشخصية كالجوال تماماً.
+    public function test_email_is_stored_at_creation_and_returned_to_the_privileged(): void
     {
         $this->actingAsRole('SCHEDULER');
 
@@ -99,11 +107,30 @@ class CandidateFormFieldsTest extends TestCase
             ->assertStatus(201);
 
         $c = Candidate::find($res->json('candidateId'));
-        $this->assertNull($c->email);
+        $this->assertSame('x@moi.gov.sa', $c->email);
+        // مشفّرٌ في القاعدة لا نصّاً — العمود العاري يُبطل تشفير الجدول
+        $this->assertNotSame('x@moi.gov.sa', $c->getRawOriginal('email_enc'));
 
         $this->getJson("/api/candidates/{$c->id}")
             ->assertOk()
-            ->assertJsonMissingPath('candidate.email');
+            ->assertJsonPath('candidate.email', 'x@moi.gov.sa');
+    }
+
+    // الرقم العسكري/الوظيفي — مُعرِّفٌ مباشر يسلك مسلك الجوال والبريد
+    public function test_military_number_is_stored_encrypted_and_returned(): void
+    {
+        $this->actingAsRole('SCHEDULER');
+
+        $res = $this->postJson('/api/candidates', $this->payload(['militaryNumber' => '480321']))
+            ->assertStatus(201);
+
+        $c = Candidate::find($res->json('candidateId'));
+        $this->assertSame('480321', $c->military_number);
+        $this->assertNotSame('480321', $c->getRawOriginal('military_number_enc'));
+
+        $this->getJson("/api/candidates/{$c->id}")
+            ->assertOk()
+            ->assertJsonPath('candidate.militaryNumber', '480321');
     }
 
     // الفخّ: حذف قاعدة التحقّق مع بقاء الإسناد كان يُفرّغ بريد كل من يُعدَّل

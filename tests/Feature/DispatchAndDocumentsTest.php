@@ -27,6 +27,19 @@ class DispatchAndDocumentsTest extends TestCase
         ]);
     }
 
+    /**
+     * اعتماد الموجة بعد بناء جلساتها — التسليم لا يُقبل إلا منها معتمَدة.
+     *
+     * الحالة تُكتب مباشرةً لا عبر submit/approve: المسار يشترط مُرسِلاً غير
+     * المعتمِد، وهو ما تختبره SchedulingPeriodTest؛ وما يُختبَر هنا التسليم.
+     */
+    private function approve(SchedulingPeriod $p): SchedulingPeriod
+    {
+        $p->update(['status' => 'approved']);
+
+        return $p->fresh();
+    }
+
     /** مشارك بفئةٍ وقطاعٍ، مع جلسةٍ في التاريخ المطلوب */
     private function scheduled(string $category, string $sectorCode, string $date, ?int $periodId = null): Candidate
     {
@@ -208,6 +221,7 @@ class DispatchAndDocumentsTest extends TestCase
 
         $authority = DispatchAuthority::where('code', 'MILITARY_AFFAIRS')->first();
 
+        $this->approve($p);
         $this->actingAsRole('CENTER_MANAGER');
         $res = $this->post('/api/dispatch/send', ['authorityId' => $authority->id, 'periodId' => $p->id])
             ->assertOk();
@@ -220,6 +234,48 @@ class DispatchAndDocumentsTest extends TestCase
         $this->assertSame(hash('sha256', $csv), $row->checksum, 'البصمة بصمةُ ما خرج فعلاً');
         $this->assertStringStartsWith("\xEF\xBB\xBF", $csv, 'BOM كي تفتحه Excel بالعربية');
         $this->assertDatabaseHas('audit_logs', ['action' => 'SEND_SCHEDULE_DISPATCH']);
+    }
+
+    public function test_a_date_range_cannot_dispatch_an_unapproved_wave(): void
+    {
+        $p = $this->period();                       // مسودّة
+        $date = $p->start_date->toDateString();
+        $this->actingAsRole('SCHEDULER');
+        $this->scheduled('military', 'DW', $date, $p->id);
+
+        $authority = DispatchAuthority::where('code', 'MILITARY_AFFAIRS')->first();
+        $this->actingAsRole('CENTER_MANAGER');
+
+        // اختيار الموجة يُردّ بحارس الحالة
+        $this->post('/api/dispatch/send', [
+            'authorityId' => $authority->id, 'periodId' => $p->id,
+        ])->assertStatus(422);
+
+        // وكتابةُ تاريخيها لا تلتفّ عليه: لا صفوف تُسلَّم
+        $this->post('/api/dispatch/send', [
+            'authorityId' => $authority->id,
+            'from' => $date, 'to' => $p->end_date->toDateString(),
+        ])->assertStatus(422);
+
+        $this->assertSame(0, ScheduleDispatch::count(), 'لا سجلّ تسليمٍ لموجةٍ لم تُعتمد');
+    }
+
+    public function test_a_date_range_still_dispatches_sessions_with_no_wave(): void
+    {
+        // جلسات الاستقبال والتوزيع الآلي بلا موجة — لا موجة لها تُعتمد،
+        // فاشتراطُ الاعتماد عليها يعني ألّا تُسلَّم أبداً
+        $date = now()->addDay()->toDateString();
+        $this->actingAsRole('SCHEDULER');
+        $this->scheduled('military', 'DW', $date);   // بلا periodId
+
+        $authority = DispatchAuthority::where('code', 'MILITARY_AFFAIRS')->first();
+        $this->actingAsRole('CENTER_MANAGER');
+
+        $this->post('/api/dispatch/send', [
+            'authorityId' => $authority->id, 'from' => $date, 'to' => $date,
+        ])->assertOk();
+
+        $this->assertSame(1, ScheduleDispatch::count());
     }
 
     public function test_sending_needs_the_dispatch_permission(): void
@@ -274,6 +330,7 @@ class DispatchAndDocumentsTest extends TestCase
         $this->scheduled('military', 'DW', $date, $p->id);
         $authority = DispatchAuthority::where('code', 'MILITARY_AFFAIRS')->first();
 
+        $this->approve($p);
         $this->actingAsRole('CENTER_MANAGER');
         $this->post('/api/dispatch/send', ['authorityId' => $authority->id, 'periodId' => $p->id])->assertOk();
         $row = ScheduleDispatch::first();
@@ -297,6 +354,7 @@ class DispatchAndDocumentsTest extends TestCase
         $byKey = fn ($res, $k) => collect($res->json('steps'))->firstWhere('autoKey', $k);
         $this->assertSame('pending', $byKey($this->getJson("/api/scheduling-periods/{$p->id}/workflow"), 'period.dispatched')['status']);
 
+        $this->approve($p);
         $this->actingAsRole('CENTER_MANAGER');
         $mil = DispatchAuthority::where('code', 'MILITARY_AFFAIRS')->first();
         $hr = DispatchAuthority::where('code', 'HR')->first();
@@ -316,6 +374,7 @@ class DispatchAndDocumentsTest extends TestCase
         $this->actingAsRole('SCHEDULER');
         $this->scheduled('civilian', 'DW', $date, $p->id);   // لا عسكريين في هذه الدورة
 
+        $this->approve($p);
         $this->actingAsRole('CENTER_MANAGER');
         $hr = DispatchAuthority::where('code', 'HR')->first();
         $this->post('/api/dispatch/send', ['authorityId' => $hr->id, 'periodId' => $p->id])->assertOk();

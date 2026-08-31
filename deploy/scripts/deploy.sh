@@ -155,6 +155,19 @@ run "ln -sfn '$SHARED/.env' '$NEW/.env'"
 # وإلا كسر الإصدارُ القديم بين الهجرة والتبديل.
 run "cd '$NEW' && $PHP artisan migrate --force --no-interaction"
 
+# ── ٥-ب) هجرات بحيرة التقارير ──
+# خطوةٌ ثانية مستقلّة: الهجرة أعلاه تعمل على الاتصال الافتراضي وحده، ولا
+# ترى database/migrations/lake (بحثُ Laravel عن الهجرات غير متعاودٍ في
+# المجلّدات الفرعية). ولا يجوز دمجُهما: مخطّط البحيرة يجب أن يُطبَّق بدور
+# lake_owner لا بدور المنصّة.
+#
+# مشروطةٌ بـKAFAAT_LAKE في deploy.conf: خادمٌ بلا بحيرةٍ مُهيّأة ينشر كما
+# كان دون أن يفشل على قاعدةٍ غير موجودة.
+if [[ "${KAFAAT_LAKE:-0}" == "1" ]]; then
+  run "cd '$NEW' && $PHP artisan migrate:install --database=pgsql_lake_ddl --no-interaction || true"
+  run "cd '$NEW' && $PHP artisan migrate --database=pgsql_lake_ddl --path=database/migrations/lake --force --no-interaction"
+fi
+
 # ── ٦) خبز الذاكرات المؤقّتة ──
 # ⚠ config:cache يُلغي قراءة .env وقت التشغيل: كل env() خارج ملفات الإعدادات
 #   يرجع افتراضيَّه. لهذا تُقرأ إعدادات الأمان من config/security.php.

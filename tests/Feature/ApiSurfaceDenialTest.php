@@ -64,6 +64,7 @@ class ApiSurfaceDenialTest extends TestCase
         'api/candidate-update-requests',
         'api/candidate-update-requests/mine',
         'api/candidates/import',
+        'api/candidates/import/batch',   // نظيرُه الضخم — candidate.create نفسها
         'api/import/candidates',
     ];
 

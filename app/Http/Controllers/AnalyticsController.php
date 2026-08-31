@@ -53,6 +53,29 @@ class AnalyticsController extends Controller
         $upcoming = Schedule::whereDate('schedule_date', '>=', $today)
             ->whereHas('candidate', fn ($q) => $q->whereIn('classification', $allowed))->count();
 
+        // ── سطرُ المقارنة تحت كل مؤشّر ──
+        // البطاقة تعرض رقماً مجرّداً لا يقول أصاعدٌ هو أم هابط. هذه أرقامُ
+        // سياقه، محسوبةٌ من البيانات نفسها لا مستهدفاتٌ مُفترضة: المنصّة لا
+        // تعرّف «مستهدفاً» للتوافق، فاختراعُ سبعين بالمئة هنا حكمٌ إداريّ لا
+        // يملكه هذا الكود. المقارنة بالربع السابق كما في مقياس الجاهزية،
+        // و‎null‎ حين لا ربعَ سابقاً يُقارَن — لا صفراً يُقرأ ثباتاً.
+        $qStart = now()->startOfQuarter();
+        $prevQStart = now()->startOfQuarter()->subMonths(3);
+
+        $newThisQuarter = (clone $cand())->where('created_at', '>=', $qStart)->count();
+
+        $fitDelta = function (string $column) use ($reports, $qStart, $prevQStart): ?float {
+            $curr = $this->round1((clone $reports)->where('status', 'approved')
+                ->where('updated_at', '>=', $qStart)->avg($column));
+            $prev = $this->round1((clone $reports)->where('status', 'approved')
+                ->whereBetween('updated_at', [$prevQStart, $qStart])->avg($column));
+            return ($curr !== null && $prev !== null) ? round($curr - $prev, 1) : null;
+        };
+
+        $horizonDays = 14;
+        $upcomingSoon = Schedule::whereBetween('schedule_date', [$today, now()->addDays($horizonDays)->toDateString()])
+            ->whereHas('candidate', fn ($q) => $q->whereIn('classification', $allowed))->count();
+
         return response()->json([
             'candidates' => [
                 'total' => (clone $cand())->count(),
@@ -74,6 +97,14 @@ class AnalyticsController extends Controller
                 'pending' => max(0, $totalToday - $present - $absent),
             ],
             'upcomingSessions' => $upcoming,
+            // سياقُ كل بطاقة — الواجهة تصوغه نصّاً، والخادم يعطي الرقم وحده
+            'context' => [
+                'candidatesThisQuarter' => $newThisQuarter,
+                'behavioralFitDeltaPoints' => $fitDelta('behavioral_fit'),
+                'technicalFitDeltaPoints' => $fitDelta('technical_fit'),
+                'upcomingHorizonDays' => $horizonDays,
+                'upcomingWithinHorizon' => $upcomingSoon,
+            ],
         ]);
     }
 

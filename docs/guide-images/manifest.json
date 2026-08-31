@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-18T11:33:52.680Z",
+  "updatedAt": "2026-08-23T05:28:02.040Z",
   "base": "http://localhost:5173",
   "screens": [
     {
@@ -8,7 +8,7 @@
       "file": "login.png",
       "route": "/login",
       "role": "admin",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-08-23T05:07:52.610Z"
     },
     {
       "id": "dashboard",
@@ -24,7 +24,7 @@
       "file": "candidates.png",
       "route": "/candidates",
       "role": "admin",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-08-23T05:07:52.610Z"
     },
     {
       "id": "nominate",
@@ -32,7 +32,7 @@
       "file": "nominate.png",
       "route": "/nominate",
       "role": "admin",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-08-23T05:07:52.610Z"
     },
     {
       "id": "reception",
@@ -40,7 +40,7 @@
       "file": "reception.png",
       "route": "/reception",
       "role": "admin",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-08-23T05:26:33.923Z"
     },
     {
       "id": "schedules",
@@ -48,7 +48,7 @@
       "file": "schedules.png",
       "route": "/schedules",
       "role": "admin",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-08-23T05:07:52.610Z"
     },
     {
       "id": "distribution",
@@ -72,7 +72,7 @@
       "file": "assessment.png",
       "route": "/assessment",
       "role": "admin",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-08-23T05:26:33.923Z"
     },
     {
       "id": "measurements",
@@ -256,7 +256,7 @@
       "file": "nav-evaluator.png",
       "route": "/dashboard",
       "role": "evaluator",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-08-23T05:17:24.533Z"
     },
     {
       "id": "nav-discussion",
@@ -304,7 +304,7 @@
       "file": "candidates-evaluator.png",
       "route": "/candidates",
       "role": "evaluator",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-08-23T05:17:24.533Z"
     },
     {
       "id": "reception-receptionist",
@@ -336,7 +336,7 @@
       "file": "candidates-add.png",
       "route": "/candidates",
       "role": "admin",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-08-23T05:07:52.610Z"
     },
     {
       "id": "candidates-add-contractor",
@@ -352,7 +352,7 @@
       "file": "candidates-details.png",
       "route": "/candidates",
       "role": "admin",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-08-23T05:07:52.610Z"
     },
     {
       "id": "candidates-cv",
@@ -448,7 +448,7 @@
       "file": "assessment-scoring.png",
       "route": "/assessment",
       "role": "evaluator",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-23T05:28:02.040Z"
     },
     {
       "id": "workflow-stages",
@@ -560,7 +560,7 @@
       "file": "dashboard-evaluator.png",
       "route": "/dashboard",
       "role": "evaluator",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-08-23T05:17:24.533Z"
     },
     {
       "id": "login-empty",
@@ -664,7 +664,7 @@
       "file": "schedules-new-modal.png",
       "route": "/schedules",
       "role": "admin",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-08-23T05:07:52.610Z"
     },
     {
       "id": "schedules-new-interview",
@@ -672,7 +672,7 @@
       "file": "schedules-new-interview.png",
       "route": "/schedules",
       "role": "admin",
-      "capturedAt": "2026-08-12T16:27:53.662Z"
+      "capturedAt": "2026-08-23T05:28:02.040Z"
     },
     {
       "id": "schedules-cv-review",
@@ -1553,6 +1553,46 @@
       "route": "/dashboard",
       "role": "admin",
       "capturedAt": "2026-08-18T11:33:52.680Z"
+    },
+    {
+      "id": "periods",
+      "title": "موجات الجدولة — قائمة الموجات وحالاتها",
+      "file": "periods.png",
+      "route": "/scheduling-periods",
+      "role": "scheduler",
+      "capturedAt": "2026-08-23T05:16:02.415Z"
+    },
+    {
+      "id": "periods-new",
+      "title": "نافذة «موجة جديدة»: الاسم وتاريخا البداية والنهاية وأوقات الجلسات",
+      "file": "periods-new.png",
+      "route": "/scheduling-periods",
+      "role": "scheduler",
+      "capturedAt": "2026-08-23T05:11:33.182Z"
+    },
+    {
+      "id": "periods-panel",
+      "title": "لوحة الموجة: الأسماء ومقاعدها وأنشطتها ونصاب كلٍّ منها، وعدّاد الحمل «٣/٥»",
+      "file": "periods-panel.png",
+      "route": "/scheduling-periods",
+      "role": "scheduler",
+      "capturedAt": "2026-08-23T05:16:02.415Z"
+    },
+    {
+      "id": "periods-workflow",
+      "title": "سير عمل الجدولة: الخطوات الاثنتا عشرة وحالة كلٍّ منها على هذه الموجة",
+      "file": "periods-workflow.png",
+      "route": "/scheduling-periods",
+      "role": "scheduler",
+      "capturedAt": "2026-08-23T05:16:02.415Z"
+    },
+    {
+      "id": "schedules-assigned",
+      "title": "الجلسة بعد إسنادها: المشارك ونشاطه وموعده ومستشار المقابلة ومساعده والموجة التي تنتمي إليها",
+      "file": "schedules-assigned.png",
+      "route": "/schedules",
+      "role": "admin",
+      "capturedAt": "2026-08-23T05:16:41.077Z"
     }
   ]
 }

@@ -3,12 +3,14 @@
 namespace Tests\Feature;
 
 use App\Models\Candidate;
+use App\Models\CandidateCv;
 use App\Models\TechnicalArea;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// عقد الاستيراد بعد نموذج المركز: الجنس والمجالات الفنية والسيرة إلزامية،
-// وما يردّه النموذج اليدوي يردّه الاستيراد بالسبب نفسه.
+// عقد الاستيراد بعد نموذج المركز: الجنس والمجالات الفنية والسيرة اختيارية
+// (راجع config/participants.php)، وما يردّه النموذج اليدوي يردّه الاستيراد
+// بالسبب نفسه — والعكس. الردّ الآن على الصيغة الخاطئة لا على النقص.
 //
 // السبب أن الاستيراد كان باباً أوسع من الإضافة: يقبل ما ترفضه الشاشة، فيدخل
 // من المسار الجماعي ما لا يدخل من الفردي. الرفضُ هنا يُقال بسببه لا برمز حالة:
@@ -44,17 +46,19 @@ class ParticipantImportContractTest extends TestCase
         $this->assertSame('bachelor', $c->cv->data['qualifications'][0]['degree']);
     }
 
-    public function test_a_row_without_a_cv_is_rejected_with_its_reason(): void
+    // السيرة اختيارية في الاستيراد كما في الإضافة اليدوية — والصفّ يدخل
+    // بلا صفِّ سيرةٍ فارغ يُلبِس الشاشات
+    public function test_a_row_without_a_cv_is_imported_with_no_cv_row(): void
     {
         $this->actingAsRole('SCHEDULER');
 
         $res = $this->import([$this->importRow(['cv' => []])])->assertOk();
 
-        $this->assertSame(0, $res->json('imported'));
-        $this->assertStringContainsString('السيرة الذاتية مفقودة', implode(' ', $res->json('errors')));
+        $this->assertSame(1, $res->json('imported'));
+        $this->assertSame(0, CandidateCv::count(), 'لا يُنشأ صفُّ سيرةٍ فارغ');
     }
 
-    public function test_a_cv_without_a_qualification_is_rejected(): void
+    public function test_a_cv_without_a_qualification_is_imported(): void
     {
         $this->actingAsRole('SCHEDULER');
 
@@ -62,8 +66,8 @@ class ParticipantImportContractTest extends TestCase
             'cv' => $this->validCvDoc(['qualifications' => []]),
         ])])->assertOk();
 
-        $this->assertSame(0, $res->json('imported'));
-        $this->assertStringContainsString('مؤهلاً علمياً واحداً على الأقل', implode(' ', $res->json('errors')));
+        $this->assertSame(1, $res->json('imported'));
+        $this->assertSame([], Candidate::first()->cv->data['qualifications']);
     }
 
     public function test_an_unknown_degree_names_the_accepted_values(): void
@@ -114,14 +118,16 @@ class ParticipantImportContractTest extends TestCase
         $this->assertStringContainsString('مجال لا وجود له', implode(' ', $res->json('errors')));
     }
 
-    public function test_a_row_with_no_technical_area_is_rejected(): void
+    // غيابُ المجالات كلِّها لم يعد سبب ردّ (مجالٌ مكتوبٌ غير معروف ما زال كذلك،
+    // ويثبته الاختبار أعلاه). والثمن مُعلَن: مشاركٌ بلا مجال لا يظهر في الترشيح.
+    public function test_a_row_with_no_technical_area_is_imported(): void
     {
         $this->actingAsRole('SCHEDULER');
 
         $res = $this->import([$this->importRow(['technicalAreas' => []])])->assertOk();
 
-        $this->assertSame(0, $res->json('imported'));
-        $this->assertStringContainsString('مجال فنّي', implode(' ', $res->json('errors')));
+        $this->assertSame(1, $res->json('imported'));
+        $this->assertSame([], Candidate::first()->technicalAreas->pluck('id')->all());
     }
 
     public function test_an_unknown_gender_names_the_accepted_values(): void
@@ -183,16 +189,21 @@ class ParticipantImportContractTest extends TestCase
         $this->assertCount(26, $cv['certifications']);
     }
 
-    // صفٌّ يُردّ لا يترك مشاركاً بلا سيرة — المعاملة تُرجَع كلّها
+    // صفٌّ يُردّ لا يترك مشاركاً بلا سيرة — المعاملة تُرجَع كلّها.
+    // المُطلِق درجةٌ علمية غير معروفة: النقص لم يعد يردّ، والصيغة الخاطئة تردّ.
     public function test_a_rejected_row_leaves_nothing_behind(): void
     {
         $this->actingAsRole('SCHEDULER');
         $before = Candidate::count();
 
-        $this->import([$this->importRow(['cv' => $this->validCvDoc(['qualifications' => []])])])
-            ->assertOk()->assertJsonPath('imported', 0);
+        $this->import([$this->importRow([
+            'cv' => $this->validCvDoc(['qualifications' => [
+                ['degree' => 'شهادة لا وجود لها', 'institution' => 'جامعة', 'studyPlace' => 'السعودية'],
+            ]]),
+        ])])->assertOk()->assertJsonPath('imported', 0);
 
         $this->assertSame($before, Candidate::count(), 'لا صفَّ ناقصاً يبقى بعد الرفض');
+        $this->assertSame(0, CandidateCv::count());
     }
 
     // الأسباب تُجمع كلّها: من يصحّح ملفّه لا يعود إليه ثلاث مرّات
@@ -201,9 +212,9 @@ class ParticipantImportContractTest extends TestCase
         $this->actingAsRole('SCHEDULER');
 
         $res = $this->import([$this->importRow([
-            'gender' => 'غير محدّد',
-            'technicalAreas' => ['مجال لا وجود له'],
-            'cv' => [],
+            'gender' => 'غير محدّد',                       // قيمة مكتوبة غير مفهومة
+            'technicalAreas' => ['مجال لا وجود له'],        // مجال غير معروف
+            'mobile' => '966501234567',                    // صيغة جوال خاطئة
         ])])->assertOk();
 
         $reasons = $res->json('failures.0.reasons');

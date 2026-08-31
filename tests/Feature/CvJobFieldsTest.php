@@ -45,29 +45,48 @@ class CvJobFieldsTest extends TestCase
         ], $over);
     }
 
-    // ── الإلزام ──
+    // ── الاختياريّة ──
+    // كانت البيانات الوظيفية الخمس إلزامية، ورُفع الإلزام عن السيرة كلّها
+    // (راجع config/participants.php). ما يبقى هو فحص الصيغة وحده — وهذا
+    // الاختبار يثبت القرار الجديد كما كان يثبت القديم.
 
-    public function test_job_fields_are_required(): void
+    public function test_job_fields_are_optional_and_survive_absent(): void
     {
         foreach (['birthDate', 'appointmentDate', 'rankLabel', 'department', 'region'] as $field) {
             $doc = $this->doc();
             unset($doc[$field]);
-            try {
-                (new CvValidator())->clean($doc);
-                $this->fail("الحقل {$field} مرّ بلا قيمة وهو إلزامي");
-            } catch (ValidationException $e) {
-                $this->assertArrayHasKey($field, $e->errors());
-            }
+            $clean = (new CvValidator())->clean($doc);
+            $this->assertNull($clean[$field], "الحقل {$field} رُفع عنه الإلزام فيمرّ فارغاً");
         }
     }
 
-    public function test_study_place_is_required_per_qualification(): void
+    // الاختياريّ ليس المُهمَل: قيمةٌ مكتوبةٌ بصيغةٍ خاطئة تبقى مرفوضة
+    public function test_a_written_job_field_is_still_format_checked(): void
+    {
+        $doc = $this->doc();
+        $doc['birthDate'] = '1985/03/01';   // ليست YYYY-MM-DD
+
+        $this->expectException(ValidationException::class);
+        (new CvValidator())->clean($doc);
+    }
+
+    public function test_study_place_is_optional_per_qualification(): void
     {
         $doc = $this->doc();
         unset($doc['qualifications'][0]['studyPlace']);
 
-        $this->expectException(ValidationException::class);
-        (new CvValidator())->clean($doc);
+        $clean = (new CvValidator())->clean($doc);
+        $this->assertNull($clean['qualifications'][0]['studyPlace']);
+    }
+
+    // مؤهّلٌ بلا درجةٍ ولا جهة يمرّ الآن — ووثيقةٌ بلا مؤهلات إطلاقاً كذلك
+    public function test_a_cv_with_no_qualifications_is_accepted(): void
+    {
+        $doc = $this->doc();
+        $doc['qualifications'] = [];
+
+        $clean = (new CvValidator())->clean($doc);
+        $this->assertSame([], $clean['qualifications']);
     }
 
     // ── التواريخ ميلادية بصيغة واحدة ──

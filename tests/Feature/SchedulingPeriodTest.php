@@ -351,6 +351,57 @@ class SchedulingPeriodTest extends TestCase
         $this->assertSame('approved', $period->fresh()->status);
     }
 
+    public function test_a_center_manager_cannot_approve_a_wave_they_submitted(): void
+    {
+        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
+        $period = $this->makePeriod();
+
+        // مدير المركز يحمل schedule.manage وschedule.approve_center معاً، فكان
+        // يبني ويرسل ويعتمد وحده — وخطوة «الإرسال للاعتماد» بلا معنى.
+        $this->actingAsRole('CENTER_MANAGER');
+        $this->postJson('/api/schedules', [
+            'candidateId' => $c->id, 'activity' => 'interview',
+            'date' => $period->start_date->toDateString(), 'time' => '10:15', 'periodId' => $period->id,
+        ])->assertStatus(201);
+        $this->postJson("/api/scheduling-periods/{$period->id}/submit")->assertOk();
+
+        $this->postJson("/api/scheduling-periods/{$period->id}/approve")->assertStatus(422);
+        $this->assertSame('pending_center', $period->fresh()->status);
+
+        // ومديرٌ آخر يعتمدها — المنع على الشخص لا على الدور
+        $other = $this->person('CENTER_MANAGER');
+        $this->actingAs($other);
+        $this->postJson("/api/scheduling-periods/{$period->id}/approve")->assertOk();
+        $this->assertSame('approved', $period->fresh()->status);
+    }
+
+    public function test_an_approved_wave_refuses_session_deletion(): void
+    {
+        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
+        $period = $this->makePeriod();
+
+        $this->actingAsRole('SCHEDULER');
+        $id = $this->postJson('/api/schedules', [
+            'candidateId' => $c->id, 'activity' => 'interview',
+            'date' => $period->start_date->toDateString(), 'time' => '10:15', 'periodId' => $period->id,
+        ])->assertStatus(201)->json('scheduleId');
+
+        $period->update(['status' => 'approved']);
+
+        // كان الحارس على الإنشاء والتعديل دون الحذف: ما يُمنع إضافةً كان يمرّ حذفاً
+        $this->deleteJson('/api/schedules/' . $id)->assertStatus(422);
+    }
+
+    public function test_an_approved_but_empty_wave_cannot_be_deleted(): void
+    {
+        $period = $this->makePeriod(['status' => 'approved']);
+
+        // الزرّ مخفيٌّ في الشاشة، وإخفاء زرٍّ ليس حارساً
+        $this->actingAsRole('SCHEDULER');
+        $this->deleteJson("/api/scheduling-periods/{$period->id}")->assertStatus(422);
+        $this->assertNotNull($period->fresh());
+    }
+
     public function test_submitting_an_empty_period_is_refused(): void
     {
         $period = $this->makePeriod();
@@ -468,6 +519,68 @@ class SchedulingPeriodTest extends TestCase
         ])->assertStatus(403);
         $this->putJson("/api/scheduling-periods/{$period->id}/assessors", ['rows' => []])->assertStatus(403);
         $this->postJson("/api/scheduling-periods/{$period->id}/submit")->assertStatus(403);
+    }
+
+    public function test_a_make_up_session_does_not_enter_the_approved_wave(): void
+    {
+        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
+        $period = $this->makePeriod();
+
+        $schedule = Schedule::create([
+            'candidate_id' => $c->id,
+            'assessment_id' => $c->assessments()->first()->id,
+            'period_id' => $period->id,
+            'schedule_date' => $period->start_date->toDateString(),
+            'schedule_time' => '10:15',
+            'activity' => 'interview',
+        ]);
+        $schedule->attendance()->create(['status' => 'absent_excused', 'recorded_by' => null]);
+
+        // الغياب لا يقع إلا وموجةٌ معتمَدة تعمل — فكان التعويض داخل مداها يُضاف
+        // إليها، فيرتفع عدد جلساتها بعد ختم مدير المركز بلا رفضٍ ولا أثر.
+        $period->update(['status' => 'approved']);
+
+        $this->actingAsRole('SCHEDULER');
+        $this->postJson("/api/schedules/{$schedule->id}/reschedule", [
+            'date' => $period->end_date->toDateString(),   // داخل المدى
+            'time' => '12:30',
+        ])->assertStatus(201);
+
+        $created = Schedule::where('candidate_id', $c->id)->where('id', '!=', $schedule->id)->first();
+        $this->assertNull($created->period_id, 'المعتمَدة لا تُزاد جلسةً');
+        $this->assertSame(1, $period->fresh()->schedules()->count());
+    }
+
+    public function test_a_make_up_session_joins_the_open_wave_covering_its_date(): void
+    {
+        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
+        $period = $this->makePeriod();
+
+        $schedule = Schedule::create([
+            'candidate_id' => $c->id,
+            'assessment_id' => $c->assessments()->first()->id,
+            'period_id' => $period->id,
+            'schedule_date' => $period->start_date->toDateString(),
+            'schedule_time' => '10:15',
+            'activity' => 'interview',
+        ]);
+        $schedule->attendance()->create(['status' => 'absent_excused', 'recorded_by' => null]);
+        $period->update(['status' => 'approved']);
+
+        // موجةٌ تالية ما زالت تُبنى تشمل تاريخ التعويض — إليها يذهب
+        $next = $this->makePeriod([
+            'start_date' => now()->addDays(10)->toDateString(),
+            'end_date' => now()->addDays(14)->toDateString(),
+        ]);
+
+        $this->actingAsRole('SCHEDULER');
+        $this->postJson("/api/schedules/{$schedule->id}/reschedule", [
+            'date' => now()->addDays(11)->toDateString(),
+            'time' => '10:15',
+        ])->assertStatus(201);
+
+        $created = Schedule::where('candidate_id', $c->id)->where('id', '!=', $schedule->id)->first();
+        $this->assertSame($next->id, $created->period_id, 'التعويض يدخل الموجة المفتوحة التي تشمل تاريخه');
     }
 
     public function test_rescheduling_outside_the_wave_drops_the_period_link(): void

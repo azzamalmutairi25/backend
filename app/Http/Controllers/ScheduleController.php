@@ -6,11 +6,11 @@ use App\Models\Candidate;
 use App\Models\Schedule;
 use App\Models\Attendance;
 use App\Models\PeriodAssessor;
-use App\Models\SchedulingPeriod;
 use App\Models\User;
 use App\Models\AuditLog;
 use App\Services\EntryPermitService;
 use App\Services\ExpertiseMatcher;
+use App\Services\WaveGuard;
 use App\Security\Permissions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -29,6 +29,9 @@ class ScheduleController extends Controller
         'integration' => 'التمرين التكاملي',
     ];
 
+    public function __construct(private WaveGuard $waves)
+    {
+    }
 
     private function log(Request $request, string $action, int $entityId, array $details = []): void
     {
@@ -140,30 +143,16 @@ class ScheduleController extends Controller
     }
 
     // ── حارس الموجة ──
-    // موجةٌ مغلقة أو معتمَدة لا يُضاف إليها ولا يُعدَّل فيها من هذا المسار: ما
-    // اعتُمد يُقرأ. والتاريخ خارج مدى الموجة يُرفض — جلسةٌ تنتمي لموجة لا يشملها
-    // تاريخها تظهر في الجدول وتغيب عن كل مستند يُبنى من أيام الموجة.
-    // يرجع رسالة الخطأ، أو null إن كان سليماً.
+    // موجةٌ مغلقة أو معتمَدة لا يُضاف إليها ولا يُعدَّل فيها: ما اعتُمد يُقرأ.
+    // والتاريخ خارج مدى الموجة يُرفض — جلسةٌ تنتمي لموجة لا يشملها تاريخها تظهر
+    // في الجدول وتغيب عن كل مستند يُبنى من أيام الموجة.
+    //
+    // نُقل نصّ الفحص إلى WaveGuard وبقي النداء هنا: كان مكرّراً حرفياً في هذا
+    // المتحكّم وفي DiscussionCircleController، فافترقا — استُدعي في خمسة مواضع
+    // من أحد عشر تكتب في موجة، وكتبت الستّةُ الباقية في موجةٍ معتمَدة بلا رفض.
     private function periodError(?int $periodId, ?string $date): ?string
     {
-        if (!$periodId) {
-            return null;
-        }
-        $period = SchedulingPeriod::find($periodId);
-        if (!$period) {
-            return 'موجة الجدولة غير موجودة';
-        }
-        if (!$period->isEditable()) {
-            return 'موجة «' . $period->name . '» ' . SchedulingPeriod::label($period->status) . ' — لا تُعدَّل جلساتها';
-        }
-        if ($date !== null) {
-            $d = substr($date, 0, 10);
-            if ($d < $period->start_date->toDateString() || $d > $period->end_date->toDateString()) {
-                return 'التاريخ خارج مدى موجة «' . $period->name . '» ('
-                    . $period->start_date->toDateString() . ' — ' . $period->end_date->toDateString() . ')';
-            }
-        }
-        return null;
+        return $this->waves->refuse($periodId, $date);
     }
 
     // POST /schedules — جدولة جلسة لمشارك ضمن دورته الحالية
@@ -268,7 +257,17 @@ class ScheduleController extends Controller
         $people = User::with('expertiseAreas')
             ->whereHas('role', fn ($q) => $q->whereIn('code', $roles))
             ->where('is_active', true)
-            ->where('sector_id', $candidate->sector_id)
+            // ── من لا يحصره قطاع يخدم القطاعات كلّها ──
+            // المساواةُ بالعمود وحدها كانت تُفرغ قائمة «أدوات القياس» أبداً:
+            // MEASURE_SUPER ليس في User::SECTOR_BOUND_ROLES، وUserController
+            // يرفض أن يُعطى قطاعاً أصلاً («هذا الدور غير محصور بقطاع») —
+            // فـsector_id فيه NULL دائماً، وNULL لا يساوي قطاع المشارك. فلم
+            // يكن يظهر في الشاشة مشرفُ أدوات قياسٍ واحد.
+            //
+            // والشرط على **الدور** لا على خلوّ العمود: دورٌ محصورٌ بقطاع صادف
+            // أن قطاعه فارغ خللٌ في بياناته لا إذنٌ بعرضه على كل القطاعات.
+            ->where(fn ($q) => $q->where('sector_id', $candidate->sector_id)
+                ->orWhereHas('role', fn ($r) => $r->whereNotIn('code', User::SECTOR_BOUND_ROLES)))
             ->orderBy('full_name')
             ->get();
 
@@ -327,6 +326,15 @@ class ScheduleController extends Controller
                 'periodQuota' => $seatRow?->period_quota,
                 'periodLoad' => (int) ($periodLoad[$u->id] ?? 0),
                 'dayLoad' => array_key_exists($u->id, $dayLoad) ? (int) $dayLoad[$u->id] : null,
+                // «ينذر ولا يمنع» — والإنذار يُحسب هنا لا في القالب: نافذة
+                // الجدولة هي موضع اختيار المقيّم، وكانت تعرض «٣/٥» نصّاً أبيض
+                // بلا أي إشارةٍ إلى التجاوز، فالقاعدة مكتوبةٌ في تعليقٍ ومطبَّقةٌ
+                // في جدول اللوحة وحده. وصفر النصاب يُنذَر عند أول إسناد.
+                'overDayQuota' => $seatRow && array_key_exists($u->id, $dayLoad)
+                    ? ($seatRow->dailyQuota() > 0
+                        ? $dayLoad[$u->id] > $seatRow->dailyQuota()
+                        : $dayLoad[$u->id] > 0)
+                    : false,
             ];
         });
 
@@ -385,17 +393,26 @@ class ScheduleController extends Controller
         }
         $crossed = $this->isCrossSector($request, $candidate, $validated);
 
-        $schedule = Schedule::create([
-            'candidate_id' => $candidate->id,
-            'assessment_id' => $assessment->id,
-            'period_id' => $validated['periodId'] ?? null,
-            'schedule_date' => $validated['date'],
-            'schedule_time' => $validated['time'],
-            'activity' => $validated['activity'],
-            'evaluator_id' => $validated['evaluatorId'] ?? null,
-            'assistant_id' => $validated['assistantId'] ?? null,
-            'location' => $validated['location'] ?? null,
-        ]);
+        // تعارض الوقت يحسمه القيد لا فحصٌ يسبقه: ضغطتان متزامنتان تمرّان من أي
+        // فحصٍ في الكود، والقيد لا تمرّان منه. وهنا يُترجَم إلى عربية.
+        try {
+            $schedule = Schedule::create([
+                'candidate_id' => $candidate->id,
+                'assessment_id' => $assessment->id,
+                'period_id' => $validated['periodId'] ?? null,
+                'schedule_date' => $validated['date'],
+                'schedule_time' => $validated['time'],
+                'activity' => $validated['activity'],
+                'evaluator_id' => $validated['evaluatorId'] ?? null,
+                'assistant_id' => $validated['assistantId'] ?? null,
+                'location' => $validated['location'] ?? null,
+            ]);
+        } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+            if ($msg = $this->waves->conflictMessage($e)) {
+                return response()->json(['error' => $msg], 409);
+            }
+            throw $e;
+        }
 
         // تاريخا الدورة حقلان يُصدَّران ويُفلتَران — يتبعان كل كتابة على الجلسات
         $assessment->refreshSessionDates();
@@ -472,12 +489,20 @@ class ScheduleController extends Controller
         // السابقة: إدخال حضور متزامن بعد تلك القراءة كان ينجو من الحذف فيبقى حضورٌ
         // لموعد تبدّل (TOCTOU).
         $attendanceCleared = false;
-        DB::transaction(function () use ($schedule, $timeChanged, &$attendanceCleared) {
-            $schedule->save();
-            if ($timeChanged) {
-                $attendanceCleared = Attendance::where('schedule_id', $schedule->id)->delete() > 0;
+        try {
+            DB::transaction(function () use ($schedule, $timeChanged, &$attendanceCleared) {
+                $schedule->save();
+                if ($timeChanged) {
+                    $attendanceCleared = Attendance::where('schedule_id', $schedule->id)->delete() > 0;
+                }
+            });
+        } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+            // نقلُ جلسةٍ إلى وقتٍ مشغول كإنشائها فيه — نفس القيد ونفس الرسالة
+            if ($msg = $this->waves->conflictMessage($e)) {
+                return response()->json(['error' => $msg], 409);
             }
-        });
+            throw $e;
+        }
 
         \App\Models\Assessment::refreshDatesFor($schedule->assessment_id);
 
@@ -512,6 +537,11 @@ class ScheduleController extends Controller
         }
         if (Attendance::where('schedule_id', $schedule->id)->exists()) {
             return response()->json(['error' => 'لا يمكن حذف جلسة سُجّل حضورها'], 422);
+        }
+        // الحذف كالإضافة: موجةٌ اعتُمدت بجلساتها لا تُنقَص إحداها بعد ختمها.
+        // كان الحارس على الإنشاء والتعديل وحدهما، فكان ما يُمنع إضافةً يُبلَغ حذفاً.
+        if ($err = $this->periodError($schedule->period_id, null)) {
+            return response()->json(['error' => $err], 422);
         }
 
         $code = $schedule->candidate->participant_code;
@@ -667,34 +697,46 @@ class ScheduleController extends Controller
 
         // مرّة واحدة لكل غياب: نقفل الصف القديم ونضع rescheduled_at داخل معاملة.
         // نداءان متكرّران/متزامنان كانا يُنشئان جلسات مكرّرة (لا عمود يستهلك الغياب).
-        $new = DB::transaction(function () use ($old, $assessment, $validated) {
-            $locked = Schedule::whereKey($old->id)->lockForUpdate()->first();
-            if ($locked->rescheduled_at !== null) {
-                return null; // استُهلك الغياب مسبقاً
-            }
-            // الموجة تُورَّث فقط إن كان التاريخ الجديد داخل مداها: غيابٌ يُعوَّض
-            // بعد انتهاء الموجة جلسةٌ خارجها، ونسبتها إليها تُفسد كل مستند يُبنى
-            // على أيامها. وخارج ذلك تبقى الجلسة بلا موجة كما كانت الحال قبلها.
-            $period = $old->period_id ? SchedulingPeriod::find($old->period_id) : null;
-            $inRange = $period
-                && $validated['date'] >= $period->start_date->toDateString()
-                && $validated['date'] <= $period->end_date->toDateString();
+        try {
+            $new = DB::transaction(function () use ($old, $assessment, $validated) {
+                $locked = Schedule::whereKey($old->id)->lockForUpdate()->first();
+                if ($locked->rescheduled_at !== null) {
+                    return null; // استُهلك الغياب مسبقاً
+                }
+                // ── موجة الجلسة المُعوِّضة: تُختار بالتاريخ ولا تُورَّث عن الغياب ──
+                //
+                // كانت تُورَّث متى وقع التاريخ الجديد داخل مدى موجة الغياب. والغياب
+                // لا يقع إلا في موجةٍ تعمل، ومعنى «تعمل» أنها اعتُمدت — فكانت كل جلسة
+                // تعويضٍ تُضاف إلى موجةٍ ختمها مدير المركز، فيصير المنفَّذ غيرَ
+                // المعتمَد بلا رفضٍ ولا أثر. وهو الباب الوحيد الذي كان يلتفّ على القفل.
+                //
+                // والمُعوِّضة تذهب إلى موجةٍ أخرى: التي تشمل تاريخها الجديد وما زالت
+                // تُبنى. فإن لم توجد — أو وُجدت أكثر من واحدة فالقسمة بينهما قرار
+                // المُجدوِل لا ترجيح استعلام — بقيت بلا موجة حتى يُسنِدها بيده.
+                $target = $this->waves->openPeriodOn($validated['date']);
 
-            $created = Schedule::create([
-                'candidate_id' => $old->candidate_id,
-                'assessment_id' => $assessment->id,        // الدورة الحالية لا القديمة
-                'period_id' => $inRange ? $period->id : null,
-                'schedule_date' => $validated['date'],
-                'schedule_time' => $validated['time'] ?? $old->schedule_time,
-                'activity' => $old->activity,              // نفس النشاط الذي تغيّب عنه
-                'evaluator_id' => $old->evaluator_id,       // نفس الإسناد
-                'assistant_id' => $old->assistant_id,
-                'location' => $validated['location'] ?? $old->location,
-            ]);
-            $locked->rescheduled_at = now();
-            $locked->save();
-            return $created;
-        });
+                $created = Schedule::create([
+                    'candidate_id' => $old->candidate_id,
+                    'assessment_id' => $assessment->id,        // الدورة الحالية لا القديمة
+                    'period_id' => $target,
+                    'schedule_date' => $validated['date'],
+                    'schedule_time' => $validated['time'] ?? $old->schedule_time,
+                    'activity' => $old->activity,              // نفس النشاط الذي تغيّب عنه
+                    'evaluator_id' => $old->evaluator_id,       // نفس الإسناد
+                    'assistant_id' => $old->assistant_id,
+                    'location' => $validated['location'] ?? $old->location,
+                ]);
+                $locked->rescheduled_at = now();
+                $locked->save();
+                return $created;
+            });
+        } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+            // التعويض يقع في وقتٍ مشغول — نفس حارس الإنشاء
+            if ($msg = $this->waves->conflictMessage($e)) {
+                return response()->json(['error' => $msg], 409);
+            }
+            throw $e;
+        }
 
         if ($new === null) {
             return response()->json(['error' => 'أُعيدت جدولة هذا الغياب مسبقاً'], 409);
@@ -707,6 +749,7 @@ class ScheduleController extends Controller
             'fromSchedule' => $old->id,
             'activity' => $old->activity,
             'date' => $validated['date'],
+            'toPeriod' => $new->period_id,
         ]);
 
         return response()->json([

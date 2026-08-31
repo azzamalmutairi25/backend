@@ -96,12 +96,17 @@ class PersonnelCategoryTest extends TestCase
         $this->assertSame('upper', $c->tier, 'طبقة المتعاقد المرسَلة لم تُحفظ');
     }
 
-    public function test_contractor_without_a_tier_is_rejected(): void
+    // كان يُردّ لأن طبقة المتعاقد لا تُستنتج من مسمّىً حرّ. رُفع الإلزام،
+    // فصار يهبط على «وسطى» عبر Candidate::resolveTier — لا تخمينَ ولا ردّ،
+    // والتصحيح من شاشة المشاركين. (classifyTier ما زالت ترفض التخمين أدناه.)
+    public function test_contractor_without_a_tier_lands_on_middle(): void
     {
         $this->actingAsRole('SCHEDULER');
-        $this->postJson('/api/candidates', $this->payload([
+        $res = $this->postJson('/api/candidates', $this->payload([
             'personnelCategory' => 'contractor', 'rankLabel' => 'مستشار', 'tier' => null,
-        ]))->assertStatus(422);
+        ]))->assertStatus(201);
+
+        $this->assertSame('middle', Candidate::find($res->json('candidateId'))->tier);
     }
 
     // استنتاج طبقة المتعاقد من مسمّىً حرّ تخمينٌ يُقيَّم به إنسان — يُمنع في المنبع
@@ -111,15 +116,19 @@ class PersonnelCategoryTest extends TestCase
         Candidate::classifyTier('مستشار تقنية المعلومات', 'contractor');
     }
 
-    public function test_category_is_required_and_validated(): void
+    // الفئة رُفع عنها الإلزام: الغائبة تأخذ الافتراضي من config/participants.php
+    // (والعمود NOT NULL فلا يُسند null أبداً). والقيمة المكتوبة الخاطئة تبقى مرفوضة.
+    public function test_category_is_optional_but_still_validated(): void
     {
         $this->actingAsRole('SCHEDULER');
 
-        // الرفض يُنسب إلى الفئة نفسها — لا إلى حقلٍ آخر ناقص في الحمولة
         $missing = $this->payload();
         unset($missing['personnelCategory']);
-        $this->postJson('/api/candidates', $missing)->assertStatus(422)
-            ->assertJsonValidationErrors('personnelCategory');
+        $res = $this->postJson('/api/candidates', $missing)->assertStatus(201);
+        $this->assertSame(
+            config('participants.defaults.personnelCategory'),
+            Candidate::find($res->json('candidateId'))->personnel_category
+        );
 
         $this->postJson('/api/candidates', $this->payload(['personnelCategory' => 'ضابط']))
             ->assertStatus(422)->assertJsonValidationErrors('personnelCategory');

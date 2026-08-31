@@ -65,6 +65,8 @@
 | GET | `/candidates/stats` | `candidate.view` | إحصاءات مطابقة لحصر القائمة |
 | POST | `/candidates` | `candidate.create` | إضافة مشارك (+ دورة تقييم). `assessmentType`: `comprehensive` أو `special_request`. السيرة (`cv`) إلزامية. `technicalAreaIds` اختيارية هنا وإلزامية في التعديل — والاستجابة تردّ `needsTechnicalAreas` و`candidateId` لسَوق الشاشة إلى استكمالها |
 | POST | `/candidates/lookup` | `candidate.create` | فحص تكرار الهوية قبل ملء النموذج — يرجع `exists` وحدها، والرمز لحاملي `candidate.edit` فقط. مخنوق ٢٠/دقيقة ومُقيَّد في السجلّ |
+| POST | `/candidates/import/batch` | `candidate.create` | الاستيراد الضخم: تُجمَّع الصفوف على نداءات (حتى ١٠٠٠ صفّ للنداء، و١٠٠٠٠ للملفّ) ثمّ تُعالَج في الخلفية. أوّل نداء بلا `batchId` يفتح رفعة، و`final:true` يُغلقها ويُطلق المعالجة. مخنوق ٦٠/دقيقة |
+| GET | `/candidates/import/batch/{}` | — | حالة الرفعة وتقدّمها وإخفاقاتها (لصاحبها وحده). الصفوف لا تُردّ، والإخفاقات تُقتطع عند ٢٠٠ |
 | POST | `/candidates/import` · `/import/candidates` | `candidate.create` | استيراد جماعي — `rows[]` حتى ٥٠٠، انظر **الاستيراد الجماعي** أدناه |
 | GET | `/candidates/export` | `candidate.view` | تصدير القائمة |
 | GET | `/candidates/{id}` | `candidate.view` | تفاصيل مشارك |
@@ -72,6 +74,7 @@
 | DELETE | `/candidates/{id}` | `candidate.edit` | حذف |
 | POST | `/candidates/{id}/approve` | `candidate.edit` | اعتماد للتقييم |
 | PATCH | `/candidates/{id}/classify` | `candidate.view_classified` | تغيير تصنيف السرّية |
+| PATCH | `/candidates/{id}/notes` | `candidate.edit` | حفظ ملاحظات المشارك وحدها — لا تشترط الهوية والاسم كما يشترطهما التعديل الكامل، فيكتبها من يرى المشارك بلا بياناته الشخصية |
 | GET | `/candidates/{id}/assessments` | `candidate.view` | دورات المشارك |
 | GET | `/candidates/{id}/journey` | `candidate.journey` | رحلة المشارك |
 | POST | `/candidates/{id}/reassess` | `candidate.edit` | دورة تقييم جديدة |

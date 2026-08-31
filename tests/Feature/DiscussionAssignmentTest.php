@@ -22,12 +22,18 @@ class DiscussionAssignmentTest extends TestCase
 
     private function person(string $roleCode, string $sectorCode = 'DW'): User
     {
+        // القطاع للمحصورين بقطاعٍ وحدهم — كما يفرض UserController::sectorRuleError.
+        // كان المساعد يكتبه لكل دور، فيُعطي MEASURE_SUPER قطاعاً لا يملكه في
+        // الإنتاج أبداً — فمرّ اختبارُ «مشرفو القياس يُبلَغون» وهو في الشاشة
+        // قائمةٌ فارغة. مساعدُ اختبارٍ يتجاوز قاعدة المسار يُخفي العطل لا يكشفه.
+        $bound = in_array($roleCode, User::SECTOR_BOUND_ROLES, true);
+
         return User::create([
             'username' => 'u_' . substr(md5(uniqid('', true)), 0, 8),
             'full_name' => 'مستخدم ' . $roleCode,
             'password' => 'Kafaat@2026',
             'role_id' => Role::where('code', $roleCode)->value('id'),
-            'sector_id' => Sector::where('code', $sectorCode)->value('id'),
+            'sector_id' => $bound ? Sector::where('code', $sectorCode)->value('id') : null,
             'is_active' => true,
             'must_change_password' => false,
         ]);
