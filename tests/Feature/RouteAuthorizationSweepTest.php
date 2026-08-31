@@ -62,6 +62,9 @@ class RouteAuthorizationSweepTest extends TestCase
         // والاسم محجوبان عنه هنا كما هناك (CandidateLookupTest).
         'POST api/candidates/lookup',
         'POST api/candidates/import',
+        // نظيرُه للملفّات الضخمة — الصلاحية نفسها candidate.create، والرفعة
+        // مقصورةٌ على صاحبها فلا يقرأ بها أحدٌ رفعةَ غيره
+        'POST api/candidates/import/batch',
         'POST api/import/candidates',
         'POST api/candidate-update-requests',
         'GET api/candidate-update-requests/mine',

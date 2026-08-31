@@ -26,7 +26,7 @@ class SchedulingWorkflowService
     public const CHECKS = [
         'period.dates' => 'مدى الموجة محدَّد (تاريخا البداية والنهاية)',
         'period.assessors' => 'أُدرِج اسمٌ واحد على الأقل في لوحة الموجة',
-        'period.activities' => 'أُسنِد مقيّم لكل نشاطٍ في اللوحة',
+        'period.activities' => 'أُسنِد مقيّم متاح لكل نشاطٍ تُجدوَل جلساته في الموجة',
         'period.participants' => 'جُدولت جلسةٌ واحدة على الأقل في الموجة',
         'period.evaluators_linked' => 'كل جلسة في الموجة لها مقيّم',
         'period.daily_spread' => 'كل يومٍ من أيام الموجة فيه جلسة',
@@ -64,10 +64,13 @@ class SchedulingWorkflowService
 
             'period.assessors' => PeriodAssessor::where('period_id', $period->id)->exists(),
 
-            // لكل نشاطٍ مذكور في اللوحة مقعدُ مقيّمٍ متاح — لوحةٌ فيها مساعدون
-            // وحدهم ليست إسناداً للنشاط
-            'period.activities' => PeriodAssessor::where('period_id', $period->id)
-                ->where('seat', 'evaluator')->where('is_available', true)->exists(),
+            // لكل نشاطٍ **تُجدوَل جلساته في الموجة** مقعدُ مقيّمٍ متاح في اللوحة.
+            //
+            // كان الفحص وجوداً واحداً غير مقيَّد بنشاط: مقيّم مقابلاتٍ واحد يُرضي
+            // الخطوة عن موجةٍ كلّها حلقات نقاشٍ بلا مستشارٍ واحد. والمقارنة على
+            // أنشطة الجلسات لا على أنشطة اللوحة: اللوحة قد تحمل اسماً لنشاطٍ لم
+            // يُجدوَل، وغيابُ مقيّمٍ لنشاطٍ لا جلسة له ليس نقصاً.
+            'period.activities' => $this->everyScheduledActivityHasEvaluator($period),
 
             'period.participants' => Schedule::where('period_id', $period->id)->exists(),
 
@@ -106,13 +109,17 @@ class SchedulingWorkflowService
      */
     private function goldenCoversPeriod(SchedulingPeriod $period): bool
     {
-        $sessions = Schedule::with('assessment')->where('period_id', $period->id)->get();
+        $sessions = Schedule::with(['assessment', 'candidate'])->where('period_id', $period->id)->get();
         if ($sessions->isEmpty()) {
             return false;
         }
 
+        // الرمز من GoldenScheduleService::codeFor لا من قراءةٍ ثانية بجانبها:
+        // كان الكاتب يقع على رمز المشارك حين تعوز الدورةُ رمزَها، وكان الفاحص
+        // يقرأ رمز الدورة وحده ثم **يُسقط** ما خلا منه — فيفحص أقلّ ممّا كُتب،
+        // ويُعلن التغطية تامّةً وفيها ناقص.
         $needed = $sessions->map(fn ($s) => substr((string) $s->schedule_date, 0, 10)
-            . '|' . ($s->assessment?->participant_code ?? ''))->unique()->filter(fn ($k) => !str_ends_with($k, '|'));
+            . '|' . (GoldenScheduleService::codeFor($s) ?? ''))->unique()->filter(fn ($k) => !str_ends_with($k, '|'));
 
         $have = \App\Models\GoldenScheduleEntry::where('period_id', $period->id)
             ->get()
@@ -142,6 +149,30 @@ class SchedulingWorkflowService
                 return false;
             }
         }
+        return true;
+    }
+
+    /** لكل نشاطٍ في جلسات الموجة مقعدُ مقيّمٍ متاح في لوحتها */
+    private function everyScheduledActivityHasEvaluator(SchedulingPeriod $period): bool
+    {
+        $scheduled = Schedule::where('period_id', $period->id)
+            ->distinct()->pluck('activity')->filter()->all();
+
+        if (!$scheduled) {
+            return false;   // لا جلسات ⇒ لا إسناد يُقاس
+        }
+
+        $covered = PeriodAssessor::where('period_id', $period->id)
+            ->where('seat', 'evaluator')
+            ->where('is_available', true)
+            ->distinct()->pluck('activity')->all();
+
+        foreach ($scheduled as $activity) {
+            if (!in_array($activity, $covered, true)) {
+                return false;
+            }
+        }
+
         return true;
     }
 

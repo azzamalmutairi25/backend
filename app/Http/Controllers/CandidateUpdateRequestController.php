@@ -57,10 +57,13 @@ class CandidateUpdateRequestController extends Controller
             'nationalId' => ['required', 'string', new SaudiNationalId()],
             'fullName' => 'required|string|max:200',
             'mobile' => ['nullable', 'string', 'regex:/^05\d{8}$/'],
-            'email' => 'nullable|email',
+            'email' => 'nullable|email|max:200',
+            'militaryNumber' => 'nullable|string|max:30',
+            'gender' => 'nullable|in:male,female',
             'sectorId' => 'required|exists:sectors,id',
             'rankLabel' => 'required|string|max:50',
-            'personnelCategory' => 'required|in:civilian,military,contractor',
+            // رُفع عنها الإلزام كبقية الحقول — والاعتماد يُبقي فئة المشارك متى غابت
+            'personnelCategory' => 'nullable|in:civilian,military,contractor',
             // الطبقة لا تُفرض على المُرشِّح الخارجي: حكمٌ داخليّ يضبطه الموظّف
             // عند الاعتماد. المتعاقد يدخل «وسطى» افتراضاً ويُصحَّح من الشاشة.
             'tier' => 'nullable|in:upper,middle',
@@ -77,10 +80,10 @@ class CandidateUpdateRequestController extends Controller
             return response()->json(['error' => 'طلبات كثيرة، حاول لاحقاً'], 429);
         }
 
+        // السيرة اختيارية — وطلبٌ لا يحمل سيرةً ولا تغييراً في الهوية لا معنى
+        // له، فيُردّ بذلك لا بـ«أرفق السيرة»: التغيير هو موضوع الطلب.
         $cvInput = $request->input('cv');
-        if (!is_array($cvInput) || $cvInput === []) {
-            return response()->json(['error' => 'أرفق بيانات نموذج السيرة الذاتية'], 422);
-        }
+        $cvInput = is_array($cvInput) && $cvInput !== [] ? $cvInput : null;
 
         // ديدَاب المشارك بالهوية. غير الموجود وغير المرئي (مصنّف) يُعطيان الردّ
         // نفسه — فلا يصير الطلب طريقاً لمعرفة من هو مسجّل ومصنَّف.
@@ -93,16 +96,19 @@ class CandidateUpdateRequestController extends Controller
             ], 404);
         }
 
-        try {
-            $cleanCv = app(CvValidator::class)->clean($cvInput);
-        } catch (CvTooLargeException $e) {
-            return response()->json(['error' => 'عناصر أكثر من المسموح'], 413);
-        } catch (ValidationException $e) {
-            return response()->json(['error' => 'بيانات السيرة غير صحيحة', 'fields' => $e->errors()], 422);
+        $cleanCv = null;
+        if ($cvInput !== null) {
+            try {
+                $cleanCv = app(CvValidator::class)->clean($cvInput);
+            } catch (CvTooLargeException $e) {
+                return response()->json(['error' => 'عناصر أكثر من المسموح'], 413);
+            } catch (ValidationException $e) {
+                return response()->json(['error' => 'بيانات السيرة غير صحيحة', 'fields' => $e->errors()], 422);
+            }
         }
 
         // السيرة تصل المقيّم بلا اسم — الطلب ليس باباً خلفياً لإدراج المعرّفات
-        if ($hit = CvGuard::directIdentifierHit($cleanCv, $candidate)) {
+        if ($cleanCv !== null && ($hit = CvGuard::directIdentifierHit($cleanCv, $candidate))) {
             return response()->json([
                 'error' => 'السيرة تحوي اسم المشارك أو معرّفاً — أزِله',
                 'field' => $hit,
@@ -135,6 +141,8 @@ class CandidateUpdateRequestController extends Controller
                         'fullName' => $validated['fullName'],
                         'mobile' => $validated['mobile'] ?? null,
                         'email' => $validated['email'] ?? null,
+                        'militaryNumber' => $validated['militaryNumber'] ?? null,
+                        'gender' => $validated['gender'] ?? null,
                         'sectorId' => $sector->id,
                         'sectorName' => $sector->name_ar,
                         'rankLabel' => $validated['rankLabel'],
@@ -303,8 +311,10 @@ class CandidateUpdateRequestController extends Controller
 
         $payload = $updateRequest->payload;
         $identity = $payload['identity'] ?? [];
-        $cvDoc = $payload['cv'] ?? null;
-        if (!$identity || !is_array($cvDoc)) {
+        // السيرة اختيارية: طلبٌ حُفظ بلا سيرة كان يصير غيرَ قابلٍ للاعتماد أبداً
+        // («محتوى الطلب تالف») — أي طلبٌ مسجونٌ لا يُبتّ فيه بنعم ولا بلا.
+        $cvDoc = is_array($payload['cv'] ?? null) ? $payload['cv'] : null;
+        if (!$identity) {
             return response()->json(['error' => 'محتوى الطلب تالف — تعذّر تطبيقه'], 422);
         }
 
@@ -326,23 +336,31 @@ class CandidateUpdateRequestController extends Controller
 
             // الهوية والتصنيف الأمني خارج نطاق الطلب: الأول مفتاح الشخص،
             // والثاني حوكمة تُدار عبر reclassify وحدها
-            $candidate->full_name = $identity['fullName'];
+            // قراءاتٌ كانت آمنةً بحكم `required` — والحقلان صارا اختياريين،
+            // فالمفتاح قد يغيب عن طلبٍ أُنشئ بعد رفع الإلزام
+            $candidate->full_name = $identity['fullName'] ?? $candidate->full_name;
             $candidate->mobile = $identity['mobile'] ?? null;
             $candidate->email = $identity['email'] ?? null;
+            $candidate->military_number = $identity['militaryNumber'] ?? $candidate->military_number;
+            $candidate->gender = $identity['gender'] ?? $candidate->gender;
             $candidate->sector_id = $sector->id;
-            $candidate->rank_label = $identity['rankLabel'];
+            $candidate->rank_label = $identity['rankLabel'] ?? $candidate->rank_label;
             // الفئة تأتي مع الطلب؛ وطلبٌ قديم أُنشئ قبل العمود يُبقي فئة المشارك
             $category = $identity['personnelCategory'] ?? $candidate->personnel_category ?? 'civilian';
             $candidate->personnel_category = $category;
-            $candidate->tier = Candidate::resolveTier($category, $identity['rankLabel'], $identity['tier'] ?? null);
+            $candidate->tier = Candidate::resolveTier($category, $candidate->rank_label, $identity['tier'] ?? null);
             $candidate->save();
 
-            $cv = CandidateCv::firstOrNew(['candidate_id' => $candidate->id]);
-            $cv->data = $cvDoc;
-            $cv->version = ($cv->version ?? 0) + 1;
-            $cv->source = 'external'; // أصلها جهة خارجية، واعتمدها موظّف — كلاهما مسجَّل
-            $cv->updated_by = $user->id;
-            $cv->save();
+            // طلبٌ بلا سيرة يُعدِّل الهوية وحدها ولا يمسّ سيرةً قائمة — استبدالُها
+            // بوثيقةٍ فارغة كان يمحو سيرةً لم يطلب أحدٌ محوَها
+            if ($cvDoc !== null) {
+                $cv = CandidateCv::firstOrNew(['candidate_id' => $candidate->id]);
+                $cv->data = $cvDoc;
+                $cv->version = ($cv->version ?? 0) + 1;
+                $cv->source = 'external'; // أصلها جهة خارجية، واعتمدها موظّف — كلاهما مسجَّل
+                $cv->updated_by = $user->id;
+                $cv->save();
+            }
 
             $locked->status = CandidateUpdateRequest::APPROVED;
             $locked->review_note = $validated['note'] ?? null;
@@ -433,6 +451,8 @@ class CandidateUpdateRequestController extends Controller
                 'fullName' => $candidate->full_name,
                 'mobile' => $candidate->mobile,
                 'email' => $candidate->email,
+                'militaryNumber' => $candidate->military_number,
+                'gender' => $candidate->gender,
                 'sectorId' => $candidate->sector_id,
                 'sectorName' => optional($candidate->sector)->name_ar,
                 'rankLabel' => $candidate->rank_label,
@@ -452,6 +472,13 @@ class CandidateUpdateRequestController extends Controller
             'fullName' => 'الاسم',
             'mobile' => 'الجوال',
             'email' => 'البريد الإلكتروني',
+            'militaryNumber' => 'الرقم العسكري/الوظيفي',
+            'gender' => 'الجنس',
+            'rankTitle' => 'لقب الرتبة',
+            'rankPromotedAt' => 'تاريخ الترقية',
+            'generalDepartment' => 'الإدارة العامة',
+            'workCity' => 'مدينة العمل',
+            'currentPositionYears' => 'مدة الخدمة في الوظيفة الحالية',
             'sectorName' => 'القطاع',
             'rankLabel' => 'الرتبة / المرتبة',
             'personnelCategory' => 'الفئة',
@@ -472,7 +499,7 @@ class CandidateUpdateRequestController extends Controller
         $changes = [];
         $norm = fn ($v) => $v === null ? '' : trim((string) $v);
 
-        foreach (['fullName', 'mobile', 'email', 'sectorName', 'rankLabel'] as $key) {
+        foreach (['fullName', 'mobile', 'email', 'militaryNumber', 'sectorName', 'rankLabel'] as $key) {
             if ($norm($oldIdentity[$key] ?? null) !== $norm($newIdentity[$key] ?? null)) {
                 $changes[] = [
                     'key' => $key, 'label' => $labels[$key],
@@ -480,7 +507,22 @@ class CandidateUpdateRequestController extends Controller
                 ];
             }
         }
-        foreach (['birthDate', 'appointmentDate', 'department', 'region', 'currentPosition', 'totalYearsExperience', 'briefBio'] as $key) {
+        // الجنس يُخزَّن مفتاحاً ويُعرَض عربياً — «male» في جدول الفروق لا يُقرأ
+        $genderAr = fn ($v) => ['male' => 'ذكر', 'female' => 'أنثى'][$v] ?? $v;
+
+        if ($norm($oldIdentity['gender'] ?? null) !== $norm($newIdentity['gender'] ?? null)) {
+            $changes[] = [
+                'key' => 'gender', 'label' => $labels['gender'],
+                'from' => $genderAr($oldIdentity['gender'] ?? null),
+                'to' => $genderAr($newIdentity['gender'] ?? null),
+            ];
+        }
+
+        // زيادات نموذج الوزارة معها: الاعتماد يستبدل الوثيقة كاملةً، فتغييرُ
+        // «الإدارة العامة» أو «مدينة العمل» كان يُطبَّق بلا أن يراه المعتمِد —
+        // ثغرةُ حوكمةٍ في شاشةٍ وظيفتُها أن تُري ما سيقع قبل أن يقع.
+        foreach (['birthDate', 'appointmentDate', 'department', 'region', 'currentPosition', 'totalYearsExperience', 'briefBio',
+            'rankTitle', 'rankPromotedAt', 'generalDepartment', 'workCity', 'currentPositionYears'] as $key) {
             if ($norm($oldCv[$key] ?? null) !== $norm($newCv[$key] ?? null)) {
                 $changes[] = [
                     'key' => $key, 'label' => $labels[$key],

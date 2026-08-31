@@ -41,13 +41,19 @@ class PlatformReset extends Command
         // في بذرةٍ تُعاد: مسحُه يترك المنصّة بلا إجراءٍ تُقاس عليه الموجات، ولا
         // سبيل لاستعادته إلا بإعادة الهجرة.
         'scheduling_workflow_steps',
+        // جهات التسليم — لنفس سبب خطوات الإجراء تماماً: تُبذَر في هجرتها ولا
+        // بذرةَ لها في database/seeders، ولا شاشةَ تُنشئها (المسار قراءةٌ فقط:
+        // GET /dispatch/authorities). فمسحُها بـ--with-reference يُفقد المنصّة
+        // وكالةَ الشؤون العسكرية والموارد البشرية بلا طريق عودة، ويترك الخطوة
+        // الحادية عشرة (period.dispatched) لا تكتمل أبداً.
+        // وليست ممّا «يُدخله الموظفون بأنفسهم»، فمكانها هنا لا هناك.
+        'dispatch_authorities',
         'settings',          // قوالب الرسائل وأوقات الجلسات
     ];
 
     /** مرجعيات يُدخلها الموظفون بأنفسهم — تُمسح مع --with-reference فقط */
     private const REFERENCE = [
         'sectors',
-        'dispatch_authorities',
         'expertise_areas',
         'user_expertise',
         // تصنيف المركز لمجالاته الفنية — يُحرَّر من الإعدادات كـ`ranks`،
@@ -78,6 +84,7 @@ class PlatformReset extends Command
         'evaluations',
         'final_reports',
         'golden_schedule_entries',
+        'import_batches',            // رفعاتُ الاستيراد وصفوفها — بيانات تشغيل تذهب مع المشاركين
         'identity_verifications',
         'measurement_results',
         'notifications',
@@ -90,6 +97,10 @@ class PlatformReset extends Command
         // ورموز كشك التجربة لا تبقى على منصّةٍ صُفِّرت للإنتاج — كلٌّ منها
         // بابُ تسجيلِ وصولٍ وتوقيعٍ بلا مصادقة.
         'reception_kiosks',
+        // أحداثُ تقارير التجربة في طريقها إلى البحيرة. تُفرَّغ مع التقارير
+        // التي وصفتها — وإلّا شُحنت بعد التصفير فهبطت بياناتُ تجربةٍ في
+        // بحيرةٍ تقرؤها منصّةٌ أخرى، وهي أسوأ موضعٍ يُكتشف فيه ذلك.
+        'report_lake_outbox',
         'roster_groups',
         'schedule_dispatches',      // سجلّات تسليمٍ تجريبية (الجهات نفسها مرجعٌ يبقى)
         'schedules',

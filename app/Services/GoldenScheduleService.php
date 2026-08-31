@@ -23,6 +23,17 @@ class GoldenScheduleService
     private const EMBLEM_PATH = 'brand/moi-emblem.png';
 
     /**
+     * رمز المشارك لجلسة — رمز الدورة، وإلا رمز المشارك.
+     *
+     * دالّةٌ واحدة يقرؤها الكاتب هنا والفاحص في SchedulingWorkflowService: كانا
+     * يشتقّانه بسطرين مختلفين، فاختلفا — والخطوة تُعلَن مكتملةً وفي الجدول نقص.
+     */
+    public static function codeFor(Schedule $s): ?string
+    {
+        return $s->assessment?->participant_code ?? $s->candidate?->participant_code;
+    }
+
+    /**
      * مزامنة الموجة: كل جلسة فيها تصير صفّاً (تاريخ × رمز).
      *
      * `updateOrCreate` على المفتاح الفريد فتُشغَّل مرّتين بلا مضاعفة، و**الصفّ
@@ -42,7 +53,7 @@ class GoldenScheduleService
 
         DB::transaction(function () use ($sessions, $period, $userId, &$created, &$updated) {
             foreach ($sessions as $s) {
-                $code = $s->assessment?->participant_code ?? $s->candidate?->participant_code;
+                $code = self::codeFor($s);
                 if (!$code || !$s->candidate) {
                     continue;
                 }

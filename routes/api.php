@@ -35,7 +35,6 @@ use App\Http\Controllers\ChatController;
 use App\Http\Controllers\CommunicationController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\SectorController;
-use App\Http\Controllers\SetupStatusController;
 use App\Http\Controllers\ActivityCompetencyController;
 use App\Http\Controllers\CompetencyController;
 use App\Http\Controllers\PublicAssessmentController;
@@ -111,7 +110,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/candidates/{id}', [CandidateController::class, 'destroy']);
     Route::post('/candidates/{id}/approve', [CandidateController::class, 'approve']);
     Route::post('/candidates/import', [ImportController::class, 'import']);
+    // ── الاستيراد الضخم: رفعةٌ تُجمَّع ثمّ تُعالَج في الخلفية ──
+    // الواجهة تُقطّع الملفّ (حتى ١٠٠٠ صفّ للنداء) لأن عشرة آلاف صفٍّ بسيَرها
+    // تتجاوز حدّ الحمولة قبل أن تبلغ الشيفرة. مخنوقٌ بالمعدّل: كل نداء يكتب.
+    Route::post('/candidates/import/batch', [ImportController::class, 'startBatch'])
+        ->middleware('throttle:60,1');
+    Route::get('/candidates/import/batch/{id}', [ImportController::class, 'batchStatus']);
     Route::patch('/candidates/{id}/classify', [CandidateController::class, 'reclassify']);
+    // الملاحظات وحدها — لا تشترط الهوية والاسم كما يشترطهما التعديل الكامل
+    Route::patch('/candidates/{id}/notes', [CandidateController::class, 'updateNotes']);
     Route::get('/candidates/{id}/assessments', [CandidateController::class, 'assessments']);
     Route::get('/candidates/{id}/journey', [CandidateController::class, 'journey']);
     // السيرة الذاتية — مسار الإدارة (قراءة بصلاحية CANDIDATE_CV_VIEW، تعديل بـ CANDIDATE_EDIT)
@@ -185,9 +192,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/settings/smtp', [SettingsController::class, 'saveSmtp']);
     // اختبار يفتح اتصالاً خارجياً — يُخنق كنظيره في الرسائل
     Route::post('/settings/smtp/test', [SettingsController::class, 'testSmtp'])->middleware('throttle:5,1');
-    // حالة التهيئة الأولى — تُرشد اللوحة إلى ما بقي من خطوات على منصّة جديدة
-    Route::get('/setup-status', [SetupStatusController::class, 'show']);
-
     Route::get('/sectors', [SectorController::class, 'index']);
     Route::put('/sectors/{id}/prefix', [SectorController::class, 'updatePrefix']);
 

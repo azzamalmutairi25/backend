@@ -14,9 +14,9 @@ class Candidate extends Model
 {
     protected $fillable = [
         'participant_code', 'national_id_enc', 'national_id_hash',
-        'full_name_enc', 'mobile_enc', 'email_enc',
+        'full_name_enc', 'mobile_enc', 'email_enc', 'military_number_enc',
         'sector_id', 'gender', 'rank_label', 'personnel_category', 'tier', 'assessment_type', 'status',
-        'classification',
+        'classification', 'notes',
     ];
 
     // الجنس — قيمتان لا ثالثة، وتسميتهما تُقرأ من مكان واحد.
@@ -97,6 +97,16 @@ class Candidate extends Model
         );
     }
 
+    // الرقم العسكري/الوظيفي — مُعرِّفٌ مباشر كالهوية والجوال، فيُشفَّر مثلهما.
+    // تحمله كشوف الجهات ومراسلاتها، وبه تُطابَق كشوفُها بكشوفنا.
+    protected function militaryNumber(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => $this->military_number_enc ? Crypt::decryptString($this->military_number_enc) : null,
+            set: fn ($value) => ['military_number_enc' => $value ? Crypt::encryptString($value) : null],
+        );
+    }
+
     // حذف المشارك يزيل سجلّات مراسلاته أولاً — وإلا منعت قيود FK (RESTRICT) الحذف فترمي 500
     // (assessments/schedules/evaluations/reports تُحذف تلقائياً عبر cascade، لكن sms/email لا)
     protected static function booted(): void
@@ -160,8 +170,18 @@ class Candidate extends Model
 
     // الطبقة لأي فئة — نقطةٌ واحدة تستعملها كلُّ مسارات الكتابة (الإضافة
     // والتعديل والاستيراد وطلب التحديث)، فلا يسهو مسارٌ عن حالة المتعاقد
-    public static function resolveTier(string $category, string $rankLabel, ?string $explicitTier): string
+    // الفئة والرتبة صارتا تصلان فارغتين: الفئة رُفع عنها الإلزام (تأخذ
+    // الافتراضي من config/participants.php)، والرتبة إلزاميةٌ لكنّ مسارات
+    // قديمة قد تمرّ بلا قيمة. تلميحٌ غير قابلٍ للإفراغ هنا كان يرمي TypeError
+    // فيخرج ٥٠٠ بلا رسالةٍ عربية بدل أن يهبط المشارك على الطبقة الوسطى.
+    public static function resolveTier(?string $category, ?string $rankLabel, ?string $explicitTier): string
     {
+        $category = $category ?: config('participants.defaults.personnelCategory', 'civilian');
+        if ($rankLabel === null || $rankLabel === '') {
+            return in_array($explicitTier, ['upper', 'middle'], true)
+                ? $explicitTier
+                : config('participants.defaults.tier', 'middle');
+        }
         if ($category === self::CATEGORY_CONTRACTOR) {
             return in_array($explicitTier, ['upper', 'middle'], true) ? $explicitTier : 'middle';
         }

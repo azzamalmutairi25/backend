@@ -131,6 +131,16 @@ for svc in "$FPM_SERVICE" nginx kafaat-scheduler.timer; do
 done
 qw=$(systemctl list-units 'kafaat-queue@*' --state=running --no-legend 2>/dev/null | wc -l)
 [[ "$qw" -ge 1 ]] && ok "$qw عامل طابور يعمل" || bad "لا عمّال طابور" "الرسائل لن تُرسَل أبداً"
+# عاملُ الاستيراد مستقلّ عن عمّال الرسائل ويُفحص مستقلّاً: غيابه لا يُعطّل
+# رسالةً واحدة، فلا يظهر في أي فحصٍ آخر — وتبقى كل رفعةٍ «في الانتظار» أبداً
+iw=$(systemctl list-units 'kafaat-import@*' --state=running --no-legend 2>/dev/null | wc -l)
+[[ "$iw" -ge 1 ]] && ok "$iw عامل استيراد يعمل" || bad "لا عامل استيراد" "رفعات الاستيراد الكبيرة تبقى في الانتظار"
+
+# الطابور المتزامن يُبطل الوحدتين معاً: الوظيفة تُنفَّذ داخل دورة الطلب
+qc=$(grep -m1 '^QUEUE_CONNECTION=' "$APP/.env" 2>/dev/null | cut -d= -f2)
+[[ "$qc" == "sync" ]] \
+  && bad "QUEUE_CONNECTION=sync" "الاستيراد الكبير ينقطع مع المتصفّح، والرسائل تُبطئ كل حفظ" \
+  || ok "QUEUE_CONNECTION=${qc:-؟}"
 
 sec "أذونات الملفات"
 # -L إلزامية: .env رابط رمزي للمشترك، وstat بلا -L يقيس الرابط نفسه (777 دائماً)

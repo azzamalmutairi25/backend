@@ -92,11 +92,60 @@ class CandidateUpdateRequestTest extends TestCase
         $this->assertSame('الإدارة العامة للعمليات', $cv->data['department']);
     }
 
-    // انقلبت القاعدة: كانت السيرة اختياريةً فيدخل المشارك بلا سيرة ثم يقف عند
-    // الترشيح بلا سبب ظاهر. صارت إلزامية — فالطلب بلا مفتاح `cv` يُردّ ٤٢٢
-    // ولا يُنشأ منه مشارك ولا سيرة. باقي الحقول الإلزامية سليمة عمداً ليقع
-    // الردّ على غياب السيرة وحدها لا على سواها.
-    public function test_add_without_a_cv_is_422(): void
+    // ── الحمولة كما تبنيها الشاشة، بلا مساعدٍ يسدّ نقصها ──
+    // بقية اختبارات الإضافة تمرّ عبر candidateRequired() فتحقن «الجنس» — فبقيت
+    // الاستمارة الخارجية بلا الحقل والاختبارات خضراء، وكلّ ترشيح حقيقي يُردّ
+    // ٤٢٢ «اختر الجنس». هذان يبنيان الحمولة يدوياً كما يبنيها buildPayload().
+    private function screenPayload(array $over = []): array
+    {
+        return array_merge([
+            'nationalId' => $this->validNationalId(),
+            'fullName' => 'مشارك من جهة خارجية',
+            'mobile' => '0501112223',
+            'email' => 'x@example.com',
+            'sectorId' => $this->edId(),
+            'gender' => 'male',
+            'personnelCategory' => 'military',
+            'rankLabel' => 'عميد',
+            'tier' => null,
+            'assessmentType' => 'comprehensive',
+            'cv' => $this->validCv(),
+        ], $over);
+    }
+
+    public function test_the_screens_own_payload_is_accepted(): void
+    {
+        $this->actingAsRole('EXTERNAL_ADD');
+
+        $res = $this->postJson('/api/candidates', $this->screenPayload())
+            ->assertStatus(201);
+
+        $this->assertSame('male', Candidate::find($res->json('candidateId'))->gender);
+    }
+
+    // المتعاقد بلا قائمة رتب تُصنّفه: طبقته تصل مع الحمولة أو يُردّ الطلب
+    public function test_a_contractor_nomination_carries_its_own_tier(): void
+    {
+        $this->actingAsRole('EXTERNAL_ADD');
+
+        $res = $this->postJson('/api/candidates', $this->screenPayload([
+            'personnelCategory' => 'contractor',
+            'rankLabel' => 'مستشار تقنية المعلومات',
+            'tier' => 'upper',
+            'cv' => $this->validCv([
+                'personnelCategory' => 'contractor',
+                'rankLabel' => 'مستشار تقنية المعلومات',
+            ]),
+        ]))->assertStatus(201);
+
+        $this->assertSame('upper', Candidate::find($res->json('candidateId'))->tier);
+    }
+
+    // انقلبت القاعدة مرّتين. كانت السيرة اختياريةً، فصارت إلزامية لأنّ مشاركاً
+    // بلا سيرة كان يقف عند الترشيح بلا سبب ظاهر — والآن رُفع الإلزام عنها ضمن
+    // قرارٍ عامّ (config/participants.php). والفارق عن الحال الأولى أنّ الصفَّ
+    // لا يُنشأ أصلاً: لا سجلَّ سيرةٍ فارغاً يُجيب «نعم» عن سؤال «هل له سيرة؟».
+    public function test_add_without_a_cv_creates_the_participant_with_no_cv_row(): void
     {
         $this->actingAsRole('EXTERNAL_ADD');
 
@@ -104,11 +153,10 @@ class CandidateUpdateRequestTest extends TestCase
             'nationalId' => $this->validNationalId(), 'fullName' => 'بلا سيرة',
             'sectorId' => $this->edId(), 'personnelCategory' => 'military', 'rankLabel' => 'عميد',
             'gender' => 'male', 'technicalAreaIds' => $this->technicalAreaIds(),
-        ])->assertStatus(422)
-            ->assertJsonPath('error', 'السيرة الذاتية إلزامية — أكمل بيانات السيرة قبل الحفظ');
+        ])->assertStatus(201);
 
-        $this->assertSame(0, Candidate::count(), 'لا يُنشأ مشارك بلا سيرة');
-        $this->assertSame(0, CandidateCv::count());
+        $this->assertSame(1, Candidate::count());
+        $this->assertSame(0, CandidateCv::count(), 'لا يُنشأ صفُّ سيرةٍ فارغ');
     }
 
     public function test_cv_carrying_the_candidate_name_is_refused(): void
@@ -278,7 +326,9 @@ class CandidateUpdateRequestTest extends TestCase
         $this->assertSame(0, CandidateUpdateRequest::count());
     }
 
-    public function test_request_without_a_cv_is_422(): void
+    // طلبٌ يُعدِّل الهوية وحدها بلا سيرة يُقبل الآن. والأهمّ: اعتمادُه لا يمسّ
+    // سيرةً قائمة — استبدالُها بوثيقةٍ فارغة كان يمحو ما لم يطلب أحدٌ محوَه.
+    public function test_request_without_a_cv_is_accepted_and_leaves_the_cv_alone(): void
     {
         [$c] = $this->makeCandidate(['sectorCode' => 'DW']);
         $nid = $c->national_id;
@@ -286,7 +336,9 @@ class CandidateUpdateRequestTest extends TestCase
         $this->actingAsRole('EXTERNAL_ADD');
         $this->postJson('/api/candidate-update-requests', [
             'nationalId' => $nid, 'fullName' => 'اسم', 'sectorId' => $this->edId(), 'personnelCategory' => 'military', 'rankLabel' => 'عميد',
-        ])->assertStatus(422);
+        ])->assertStatus(201);
+
+        $this->assertSame(1, CandidateUpdateRequest::count());
     }
 
     // ═══ الحرّاس على القائمة والبتّ ═══
