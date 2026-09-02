@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Jobs\ProcessCandidateImport;
 use App\Models\Candidate;
 use App\Models\ImportBatch;
+use App\Services\CandidateImporter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
@@ -69,7 +70,7 @@ class CandidateImportBatchTest extends TestCase
             'payload' => [$this->row(), $this->row()], 'total_rows' => 2,
         ]);
 
-        (new ProcessCandidateImport($batch->id))->handle(app(\App\Services\CandidateImporter::class));
+        (new ProcessCandidateImport($batch->id))->handle(app(CandidateImporter::class));
 
         $batch->refresh();
         $this->assertSame('completed', $batch->status);
@@ -88,7 +89,9 @@ class CandidateImportBatchTest extends TestCase
         $nid = $this->validNationalId();
 
         $rows = [$this->row($nid)];
-        for ($i = 0; $i < 120; $i++) $rows[] = $this->row();
+        for ($i = 0; $i < 120; $i++) {
+            $rows[] = $this->row();
+        }
         $rows[] = $this->row($nid);   // الصفّ ١٢٢ — دفعةٌ ثانية
 
         $batch = ImportBatch::create([
@@ -96,7 +99,7 @@ class CandidateImportBatchTest extends TestCase
             'payload' => $rows, 'total_rows' => count($rows),
         ]);
 
-        (new ProcessCandidateImport($batch->id))->handle(app(\App\Services\CandidateImporter::class));
+        (new ProcessCandidateImport($batch->id))->handle(app(CandidateImporter::class));
 
         $batch->refresh();
         $this->assertSame(1, $batch->failed_count, 'المكرّر عبر الدفعات لم يُكشف');
@@ -114,7 +117,7 @@ class CandidateImportBatchTest extends TestCase
             'payload' => [$this->row()], 'total_rows' => 1,
         ]);
 
-        (new ProcessCandidateImport($batch->id))->handle(app(\App\Services\CandidateImporter::class));
+        (new ProcessCandidateImport($batch->id))->handle(app(CandidateImporter::class));
 
         $this->assertNull($batch->fresh()->payload);
     }
@@ -128,8 +131,8 @@ class CandidateImportBatchTest extends TestCase
         ]);
         $job = new ProcessCandidateImport($batch->id);
 
-        $job->handle(app(\App\Services\CandidateImporter::class));
-        $job->handle(app(\App\Services\CandidateImporter::class));   // إعادةٌ لا تُنشئ ثانية
+        $job->handle(app(CandidateImporter::class));
+        $job->handle(app(CandidateImporter::class));   // إعادةٌ لا تُنشئ ثانية
 
         $this->assertSame(1, Candidate::count());
     }
@@ -162,7 +165,7 @@ class CandidateImportBatchTest extends TestCase
             'payload' => [$this->row()], 'total_rows' => 1,
         ]);
 
-        (new ProcessCandidateImport($batch->id))->handle(app(\App\Services\CandidateImporter::class));
+        (new ProcessCandidateImport($batch->id))->handle(app(CandidateImporter::class));
 
         $c = Candidate::first();
         $trail = $this->getJson("/api/candidates/{$c->id}")->assertOk()->json('candidate.trail');

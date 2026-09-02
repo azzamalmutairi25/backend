@@ -11,9 +11,10 @@ use Tests\TestCase;
 
 class PublicGateTest extends TestCase
 {
-    use RefreshDatabase;
     // البوّابة مُعطَّلة في التشغيل — تُشغَّل هنا لتبقى شيفرتها مُختبَرة
     use EnablesCandidatePortal;
+
+    use RefreshDatabase;
 
     protected $seed = true;
 
@@ -22,6 +23,7 @@ class PublicGateTest extends TestCase
         [$c, $a] = $this->makeCandidate(['status' => 'scheduled']);
         $token = Str::random(48);
         $a->update(['confirm_token' => $token]);
+
         return [$c, $a, $token];
     }
 

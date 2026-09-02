@@ -33,15 +33,17 @@ class CreateAdmin extends Command
         $roleCode = strtoupper((string) $this->option('role'));
 
         $role = Role::where('code', $roleCode)->first();
-        if (!$role) {
+        if (! $role) {
             $this->error("الدور «{$roleCode}» غير موجود. الأدوار المتاحة: "
-                . Role::pluck('code')->implode('، '));
+                .Role::pluck('code')->implode('، '));
+
             return self::FAILURE;
         }
 
         $existing = User::where('username', $username)->first();
-        if ($existing && !$this->option('reset')) {
+        if ($existing && ! $this->option('reset')) {
             $this->error("المستخدم «{$username}» موجود. استعمل --reset لإعادة ضبط كلمة مروره.");
+
             return self::FAILURE;
         }
 
@@ -50,7 +52,7 @@ class CreateAdmin extends Command
 
         $attrs = [
             'full_name' => (string) ($this->option('name') ?: ($existing->full_name ?? 'مدير النظام')),
-            'email' => (string) ($this->option('email') ?: ($existing->email ?? $username . '@kafaat.local')),
+            'email' => (string) ($this->option('email') ?: ($existing->email ?? $username.'@kafaat.local')),
             'password' => $password,      // cast «hashed» يتولّى التجزئة
             'role_id' => $role->id,
             'is_active' => true,
@@ -64,11 +66,11 @@ class CreateAdmin extends Command
 
         $this->newLine();
         $this->info($existing ? '✓ أُعيد ضبط الحساب' : '✓ أُنشئ الحساب');
-        $this->line('  اسم المستخدم : ' . $user->username);
-        $this->line('  الدور        : ' . $role->name_ar . ' (' . $role->code . ')');
-        if (!$this->option('password')) {
+        $this->line('  اسم المستخدم : '.$user->username);
+        $this->line('  الدور        : '.$role->name_ar.' ('.$role->code.')');
+        if (! $this->option('password')) {
             $this->newLine();
-            $this->line('  <options=bold>كلمة المرور (تُعرض مرّة واحدة):</> ' . $password);
+            $this->line('  <options=bold>كلمة المرور (تُعرض مرّة واحدة):</> '.$password);
         }
         $this->newLine();
         $this->warn('يُطلب تغيير كلمة المرور عند أول دخول.');
@@ -82,9 +84,13 @@ class CreateAdmin extends Command
         // الصرف قد يُخرج كلمةً تُرفض من قواعد التعقيد فيُعاد الأمر بلا سبب ظاهر.
         $sets = ['ABCDEFGHJKLMNPQRSTUVWXYZ', 'abcdefghijkmnopqrstuvwxyz', '23456789', '@#%&*+='];
         $out = '';
-        foreach ($sets as $s) $out .= $s[random_int(0, strlen($s) - 1)];
+        foreach ($sets as $s) {
+            $out .= $s[random_int(0, strlen($s) - 1)];
+        }
         $all = implode('', $sets);
-        for ($i = 0; $i < 12; $i++) $out .= $all[random_int(0, strlen($all) - 1)];
+        for ($i = 0; $i < 12; $i++) {
+            $out .= $all[random_int(0, strlen($all) - 1)];
+        }
 
         // الخلط بـrandom_int لا بـstr_shuffle: الأخيرة تستعمل Mt19937 غير
         // المعمّى، فيصير ترتيب الحروف متوقّعاً وإن كان اختيارها عشوائياً آمناً.

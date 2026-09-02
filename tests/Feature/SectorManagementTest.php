@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Data\MoiSectors;
 use App\Models\Role;
 use App\Models\Sector;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -19,7 +21,7 @@ class SectorManagementTest extends TestCase
     private function admin(): User
     {
         return User::create([
-            'username' => 'adm_' . substr(md5(uniqid('', true)), 0, 6), 'full_name' => 'مدير النظام',
+            'username' => 'adm_'.substr(md5(uniqid('', true)), 0, 6), 'full_name' => 'مدير النظام',
             'password' => 'Kafaat@2026', 'role_id' => Role::where('code', 'ADMIN')->value('id'),
             'user_type' => 'external', 'is_active' => true, 'must_change_password' => false,
         ]);
@@ -90,7 +92,7 @@ class SectorManagementTest extends TestCase
             ->firstWhere('code', 'PS');
 
         $this->assertArrayNotHasKey('isMilitary', $row);
-        $this->assertFalse(\Illuminate\Support\Facades\Schema::hasColumn('sectors', 'is_military'));
+        $this->assertFalse(Schema::hasColumn('sectors', 'is_military'));
     }
 
     // ما يحرّره المدير من الشاشة لا يدهسه بذرٌ لاحق
@@ -103,7 +105,7 @@ class SectorManagementTest extends TestCase
         // إعادة البذر تُستدعى بدالّتها لا بـ$this->seed(): استدعاء db:seed عبر
         // Artisan داخل اختبارٍ يستعمل RefreshDatabase يُصفّر حالة الترحيل، فتُسقط
         // الاختباراتُ التاليةُ الجداولَ وتنهار بقيّة الحزمة بـ«relation does not exist».
-        \App\Data\MoiSectors::sync();
+        MoiSectors::sync();
         $this->assertSame('الأمن العام والمرور', $s->fresh()->name_ar, 'البذر دهس اسماً حرّره المدير');
     }
 
@@ -111,7 +113,7 @@ class SectorManagementTest extends TestCase
     {
         Sanctum::actingAs($this->admin());
 
-        foreach (\App\Data\MoiSectors::rows() as $row) {
+        foreach (MoiSectors::rows() as $row) {
             $this->assertDatabaseHas('sectors', [
                 'code' => $row['code'],
                 'name_ar' => $row['name_ar'],
@@ -121,7 +123,7 @@ class SectorManagementTest extends TestCase
         }
 
         // القطاعات التجريبية الثمانية لم تعد تُبذر
-        foreach (array_keys(\App\Data\MoiSectors::LEGACY_MAP) as $legacy) {
+        foreach (array_keys(MoiSectors::LEGACY_MAP) as $legacy) {
             $this->assertDatabaseMissing('sectors', ['code' => $legacy]);
         }
     }

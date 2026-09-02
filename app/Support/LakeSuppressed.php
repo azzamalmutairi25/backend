@@ -11,6 +11,4 @@ namespace App\Support;
 //  لولا الفصل لَابتلع مسارُ الخطأ الحجبَ المقصود أو العكس.
 // ════════════════════════════════════════════════════════════════════════
 
-class LakeSuppressed extends \RuntimeException
-{
-}
+class LakeSuppressed extends \RuntimeException {}

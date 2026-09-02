@@ -10,6 +10,7 @@ use App\Models\SchedulingPeriod;
 use App\Models\Sector;
 use App\Models\Setting;
 use App\Models\User;
+use App\Models\UserPermissionOverride;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -26,8 +27,8 @@ class DiscussionCircleTest extends TestCase
     private function person(string $roleCode, string $sectorCode = 'DW'): User
     {
         return User::create([
-            'username' => 'u_' . substr(md5(uniqid('', true)), 0, 8),
-            'full_name' => 'مستخدم ' . $roleCode,
+            'username' => 'u_'.substr(md5(uniqid('', true)), 0, 8),
+            'full_name' => 'مستخدم '.$roleCode,
             'password' => 'Kafaat@2026',
             'role_id' => Role::where('code', $roleCode)->value('id'),
             'sector_id' => Sector::where('code', $sectorCode)->value('id'),
@@ -282,7 +283,7 @@ class DiscussionCircleTest extends TestCase
     public function test_a_circle_outside_its_period_range_is_refused(): void
     {
         $period = SchedulingPeriod::create([
-            'name' => 'دورة ' . uniqid(),
+            'name' => 'دورة '.uniqid(),
             'start_date' => now()->addDay()->toDateString(),
             'end_date' => now()->addDays(2)->toDateString(),
             'status' => 'draft',
@@ -301,7 +302,7 @@ class DiscussionCircleTest extends TestCase
     public function test_attached_sessions_inherit_the_period(): void
     {
         $period = SchedulingPeriod::create([
-            'name' => 'دورة ' . uniqid(),
+            'name' => 'دورة '.uniqid(),
             'start_date' => now()->addDay()->toDateString(),
             'end_date' => now()->addDays(2)->toDateString(),
             'status' => 'draft',
@@ -344,7 +345,7 @@ class DiscussionCircleTest extends TestCase
         // لا دورَ محصورٌ بقطاع يملك schedule.view افتراضاً — تُمنح بالاستثناء
         // الفردي، وهي الحالة التي يحرسها الحصر أصلاً.
         $bound = $this->actingAsRole('DISCUSSION_EVAL', 'DW');
-        \App\Models\UserPermissionOverride::create([
+        UserPermissionOverride::create([
             'user_id' => $bound->id, 'permission' => 'schedule.view',
             'granted' => true, 'created_by' => $bound->id,
         ]);

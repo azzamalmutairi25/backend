@@ -7,6 +7,7 @@ use App\Models\DispatchAuthority;
 use App\Models\ScheduleDispatch;
 use App\Models\SchedulingPeriod;
 use App\Models\Sector;
+use App\Models\UserPermissionOverride;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -20,7 +21,7 @@ class DispatchAndDocumentsTest extends TestCase
     private function period(): SchedulingPeriod
     {
         return SchedulingPeriod::create([
-            'name' => 'دورة ' . uniqid(),
+            'name' => 'دورة '.uniqid(),
             'start_date' => now()->addDay()->toDateString(),
             'end_date' => now()->addDays(3)->toDateString(),
             'status' => 'draft',
@@ -138,7 +139,7 @@ class DispatchAndDocumentsTest extends TestCase
 
         $other = Sector::where('code', 'MS')->value('id');
         $bound = $this->actingAsRole('EVALUATOR', 'DW');
-        \App\Models\UserPermissionOverride::create([
+        UserPermissionOverride::create([
             'user_id' => $bound->id, 'permission' => 'schedule.view',
             'granted' => true, 'created_by' => $bound->id,
         ]);

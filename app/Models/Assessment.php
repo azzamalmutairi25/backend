@@ -2,11 +2,11 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -74,10 +74,25 @@ class Assessment extends Model
         }
     }
 
-    public function candidate(): BelongsTo { return $this->belongsTo(Candidate::class); }
-    public function evaluations(): HasMany { return $this->hasMany(Evaluation::class); }
-    public function schedules(): HasMany { return $this->hasMany(Schedule::class); }
-    public function report(): HasOne { return $this->hasOne(FinalReport::class); }
+    public function candidate(): BelongsTo
+    {
+        return $this->belongsTo(Candidate::class);
+    }
+
+    public function evaluations(): HasMany
+    {
+        return $this->hasMany(Evaluation::class);
+    }
+
+    public function schedules(): HasMany
+    {
+        return $this->hasMany(Schedule::class);
+    }
+
+    public function report(): HasOne
+    {
+        return $this->hasOne(FinalReport::class);
+    }
 
     // قراءة منطقية للوثيقة المجمَّدة (السيرة كما كانت لحظة بدء التقييم)
     protected function cvSnapshot(): Attribute
@@ -102,10 +117,14 @@ class Assessment extends Model
     // $onlyIfFilled: عند بدء التقييم لا نُجمّد سيرةً فارغة (نترك المشارك يُكملها).
     public function freezeCvSnapshot(bool $onlyIfFilled = false): void
     {
-        if ($this->cv_snapshot_enc !== null) return; // مجمَّدة مسبقاً — لا تُكتب فوقها أبداً
+        if ($this->cv_snapshot_enc !== null) {
+            return;
+        } // مجمَّدة مسبقاً — لا تُكتب فوقها أبداً
         $cv = $this->candidate->cv;
         $doc = $cv?->data ?? CandidateCv::emptyDoc();
-        if ($onlyIfFilled && CandidateCv::isEmptyDoc($doc)) return; // سيرة فارغة — أجّل التجميد
+        if ($onlyIfFilled && CandidateCv::isEmptyDoc($doc)) {
+            return;
+        } // سيرة فارغة — أجّل التجميد
         $this->cv_snapshot_enc = Crypt::encryptString(json_encode($doc, JSON_UNESCAPED_UNICODE));
         $this->cv_snapshot_version = $cv?->version ?? 0;
         $this->cv_snapshotted_at = now();
@@ -118,6 +137,7 @@ class Assessment extends Model
         do {
             $token = Str::random(48);
         } while (self::where('confirm_token', $token)->exists());
+
         return $token;
     }
 
@@ -146,7 +166,7 @@ class Assessment extends Model
         // والحدّ يمنع حلقةً لا تنتهي إن كان الجدول ممتلئاً بشكل مرضي.
         for ($attempt = 0; $attempt < 100; $attempt++) {
             $code = sprintf('%s-%03d', $prefix, self::nextCodeNumber($prefix));
-            if (!self::participantCodeTaken($code)) {
+            if (! self::participantCodeTaken($code)) {
                 return $code;
             }
         }
@@ -179,11 +199,12 @@ class Assessment extends Model
             $row = DB::table('participant_code_counters')
                 ->where('prefix', $prefix)->lockForUpdate()->first();
 
-            if (!$row) {
+            if (! $row) {
                 DB::table('participant_code_counters')->insert([
                     'prefix' => $prefix, 'last_number' => 1,
                     'created_at' => $now, 'updated_at' => $now,
                 ]);
+
                 return 1;
             }
 

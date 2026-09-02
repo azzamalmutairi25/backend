@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Competency;
 use App\Models\AuditLog;
+use App\Models\Competency;
 use App\Security\Permissions;
 use Illuminate\Http\Request;
 
@@ -29,7 +29,7 @@ class CompetencyController extends Controller
     // GET /competencies/framework — كل الكفاءات بإعداداتها المرجعية
     public function framework(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::COMPETENCY_VIEW)) {
+        if (! $request->user()->hasPermission(Permissions::COMPETENCY_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض الكفاءات'], 403);
         }
 
@@ -51,7 +51,7 @@ class CompetencyController extends Controller
     // POST /competencies — إضافة كفاءة جديدة (سلوكية/قيادية/فنية)
     public function store(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::COMPETENCY_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::COMPETENCY_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الكفاءات'], 403);
         }
 
@@ -88,12 +88,12 @@ class CompetencyController extends Controller
     // PUT /competencies/{id} — تعديل الوزن/المستوى الأقصى/المستويات المطلوبة
     public function update(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::COMPETENCY_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::COMPETENCY_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الكفاءات'], 403);
         }
 
         $competency = Competency::find($id);
-        if (!$competency) {
+        if (! $competency) {
             return response()->json(['error' => 'الكفاءة غير موجودة'], 404);
         }
 

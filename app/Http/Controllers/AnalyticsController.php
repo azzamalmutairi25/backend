@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Attendance;
 use App\Models\Candidate;
+use App\Models\EvaluationScore;
 use App\Models\FinalReport;
 use App\Models\Schedule;
-use App\Models\Attendance;
-use App\Models\EvaluationScore;
 use App\Models\Sector;
 use App\Security\Permissions;
 use App\Services\ExecutiveAnalyticsService;
@@ -18,7 +18,6 @@ use Illuminate\Http\Request;
 
 class AnalyticsController extends Controller
 {
-
     private function gate(Request $request): bool
     {
         return $request->user()->hasPermission(Permissions::ANALYTICS_VIEW);
@@ -27,7 +26,7 @@ class AnalyticsController extends Controller
     // GET /analytics/dashboard — النظرة التنفيذية الموحّدة
     public function dashboard(Request $request)
     {
-        if (!$this->gate($request)) {
+        if (! $this->gate($request)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض التحليلات'], 403);
         }
         $allowed = $this->allowedClassifications($request);
@@ -69,6 +68,7 @@ class AnalyticsController extends Controller
                 ->where('updated_at', '>=', $qStart)->avg($column));
             $prev = $this->round1((clone $reports)->where('status', 'approved')
                 ->whereBetween('updated_at', [$prevQStart, $qStart])->avg($column));
+
             return ($curr !== null && $prev !== null) ? round($curr - $prev, 1) : null;
         };
 
@@ -115,10 +115,11 @@ class AnalyticsController extends Controller
     // يُغلق مسارها لا أن يُخفي رابطها وحده.
     public function executive(Request $request, ExecutiveAnalyticsService $svc)
     {
-        if (!$this->executiveGate($request)) {
+        if (! $this->executiveGate($request)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض القيادة التنفيذية'], 403);
         }
         $months = (int) ($request->input('months') ?: 6);
+
         return response()->json($svc->executive($this->allowedClassifications($request), $months));
     }
 
@@ -128,9 +129,10 @@ class AnalyticsController extends Controller
     // ثلاثة عشر قسماً إلى حمولة المؤشرات يُثقل الفتحة الأولى بما لا يُقرأ فيها.
     public function executiveOverview(Request $request, ExecutiveAnalyticsService $svc)
     {
-        if (!$this->executiveGate($request)) {
+        if (! $this->executiveGate($request)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض القيادة التنفيذية'], 403);
         }
+
         return response()->json($svc->platformOverview($this->allowedClassifications($request)));
     }
 
@@ -141,10 +143,11 @@ class AnalyticsController extends Controller
     // تبقى محروسة بصلاحيتها كما هي.
     public function executiveReports(Request $request, ExecutiveAnalyticsService $svc)
     {
-        if (!$this->executiveGate($request)) {
+        if (! $this->executiveGate($request)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض القيادة التنفيذية'], 403);
         }
         $limit = (int) ($request->input('limit') ?: 25);
+
         return response()->json($svc->reportsBoard($this->allowedClassifications($request), $limit));
     }
 
@@ -156,7 +159,7 @@ class AnalyticsController extends Controller
     // GET /analytics/by-sector — تجميع حسب القطاع (عدد، مكتمل، متوسط توافق)
     public function bySector(Request $request)
     {
-        if (!$this->gate($request)) {
+        if (! $this->gate($request)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض التحليلات'], 403);
         }
         $allowed = $this->allowedClassifications($request);
@@ -167,6 +170,7 @@ class AnalyticsController extends Controller
             $completed = (clone $base)->where('status', 'completed')->count();
             $approved = FinalReport::where('status', 'approved')
                 ->whereHas('candidate', fn ($q) => $q->where('sector_id', $sector->id)->whereIn('classification', $allowed));
+
             return [
                 'sectorId' => $sector->id,
                 'sectorName' => $sector->name_ar,
@@ -184,7 +188,7 @@ class AnalyticsController extends Controller
     // GET /analytics/competency-gaps — متوسط النسبة لكل كفاءة (الأضعف أولاً) للتطوير المؤسسي
     public function competencyGaps(Request $request)
     {
-        if (!$this->gate($request)) {
+        if (! $this->gate($request)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض التحليلات'], 403);
         }
         $allowed = $this->allowedClassifications($request);
@@ -196,9 +200,12 @@ class AnalyticsController extends Controller
 
         $gaps = $scores->groupBy('competency_id')->map(function ($rows) {
             $c = $rows->first()->competency;
-            if (!$c) return null;
+            if (! $c) {
+                return null;
+            }
             $max = (int) ($c->max_level ?: 5);
             $avg = (float) $rows->avg('score');
+
             return [
                 'competency' => $c->name_ar,
                 'type' => $c->type,
@@ -213,7 +220,7 @@ class AnalyticsController extends Controller
     // GET /analytics/trends — التقارير المعتمدة شهرياً (اتجاه الإنجاز)
     public function trends(Request $request)
     {
-        if (!$this->gate($request)) {
+        if (! $this->gate($request)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض التحليلات'], 403);
         }
         $allowed = $this->allowedClassifications($request);
@@ -233,6 +240,7 @@ class AnalyticsController extends Controller
         foreach ($keys as $k) {
             $out[$k] = (int) ($pluck[$k] ?? 0);
         }
+
         return $out;
     }
 

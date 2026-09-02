@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Rank extends Model
 {
     protected $fillable = ['label', 'category', 'tier', 'sort_order', 'is_active'];
+
     protected $casts = ['is_active' => 'boolean', 'sort_order' => 'integer'];
 
     // تصنيف رتبة مشارك عبر القائمة المُدارة: أطول تسمية مطابِقة (احتواءً) تفوز —

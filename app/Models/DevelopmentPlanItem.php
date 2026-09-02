@@ -18,6 +18,13 @@ class DevelopmentPlanItem extends Model
         'completed_at' => 'datetime',
     ];
 
-    public function candidate(): BelongsTo { return $this->belongsTo(Candidate::class); }
-    public function assessment(): BelongsTo { return $this->belongsTo(Assessment::class); }
+    public function candidate(): BelongsTo
+    {
+        return $this->belongsTo(Candidate::class);
+    }
+
+    public function assessment(): BelongsTo
+    {
+        return $this->belongsTo(Assessment::class);
+    }
 }

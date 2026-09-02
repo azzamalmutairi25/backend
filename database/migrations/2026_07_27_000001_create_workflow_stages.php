@@ -42,17 +42,17 @@ return new class extends Migration
         $now = now();
         DB::table('workflow_stages')->insert([
             ['workflow' => 'report', 'position' => 1, 'status_key' => 'pending_evaluator',
-             'role_code' => 'EVALUATOR', 'permission' => 'report.approve_evaluator',
-             'label' => 'اعتماد المقيّم', 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+                'role_code' => 'EVALUATOR', 'permission' => 'report.approve_evaluator',
+                'label' => 'اعتماد المقيّم', 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
             ['workflow' => 'report', 'position' => 2, 'status_key' => 'pending_manager',
-             'role_code' => 'ASSESS_MANAGER', 'permission' => 'report.approve_manager',
-             'label' => 'اعتماد مدير إدارة التقييم', 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+                'role_code' => 'ASSESS_MANAGER', 'permission' => 'report.approve_manager',
+                'label' => 'اعتماد مدير إدارة التقييم', 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
             ['workflow' => 'report', 'position' => 3, 'status_key' => 'pending_dev_approval',
-             'role_code' => 'DEV_MANAGER', 'permission' => 'report.approve',
-             'label' => 'اعتماد إدارة تطوير الكفاءات', 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+                'role_code' => 'DEV_MANAGER', 'permission' => 'report.approve',
+                'label' => 'اعتماد إدارة تطوير الكفاءات', 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
             ['workflow' => 'report', 'position' => 4, 'status_key' => 'pending_center',
-             'role_code' => 'CENTER_MANAGER', 'permission' => 'report.approve_center',
-             'label' => 'الاعتماد النهائي — مدير المركز', 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+                'role_code' => 'CENTER_MANAGER', 'permission' => 'report.approve_center',
+                'label' => 'الاعتماد النهائي — مدير المركز', 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
         ]);
     }
 
@@ -69,7 +69,7 @@ return new class extends Migration
 
     private function setCheck(array $values): void
     {
-        $list = implode(', ', array_map(fn ($v) => "'" . $v . "'", $values));
+        $list = implode(', ', array_map(fn ($v) => "'".$v."'", $values));
         DB::statement('ALTER TABLE final_reports DROP CONSTRAINT IF EXISTS final_reports_status_check');
         DB::statement("ALTER TABLE final_reports ADD CONSTRAINT final_reports_status_check CHECK (status::text = ANY (ARRAY[{$list}]::text[]))");
     }

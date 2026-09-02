@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\PeriodStepProgress;
 use App\Models\Role;
 use App\Models\SchedulingPeriod;
 use App\Models\SchedulingWorkflowStep;
@@ -24,7 +23,7 @@ class SchedulingWorkflowTest extends TestCase
     private function evaluator(string $sectorCode = 'DW'): User
     {
         return User::create([
-            'username' => 'ev_' . substr(md5(uniqid('', true)), 0, 8),
+            'username' => 'ev_'.substr(md5(uniqid('', true)), 0, 8),
             'full_name' => 'مستشار اختبار',
             'password' => 'Kafaat@2026',
             'role_id' => Role::where('code', 'EVALUATOR')->value('id'),
@@ -37,7 +36,7 @@ class SchedulingWorkflowTest extends TestCase
     private function makePeriod(array $over = []): SchedulingPeriod
     {
         return SchedulingPeriod::create(array_merge([
-            'name' => 'دورة ' . uniqid(),
+            'name' => 'دورة '.uniqid(),
             'start_date' => now()->addDay()->toDateString(),
             'end_date' => now()->addDays(2)->toDateString(),
             'status' => 'draft',

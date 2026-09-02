@@ -15,9 +15,10 @@ use Tests\TestCase;
 // والرتبة والإدارة والمنطقة — إلزامية، ومقر الدراسة في كل مؤهل.
 class CvJobFieldsTest extends TestCase
 {
-    use RefreshDatabase;
     // البوّابة مُعطَّلة في التشغيل — تُشغَّل هنا لتبقى شيفرتها مُختبَرة
     use EnablesCandidatePortal;
+
+    use RefreshDatabase;
 
     protected $seed = true;
 
@@ -55,7 +56,7 @@ class CvJobFieldsTest extends TestCase
         foreach (['birthDate', 'appointmentDate', 'rankLabel', 'department', 'region'] as $field) {
             $doc = $this->doc();
             unset($doc[$field]);
-            $clean = (new CvValidator())->clean($doc);
+            $clean = (new CvValidator)->clean($doc);
             $this->assertNull($clean[$field], "الحقل {$field} رُفع عنه الإلزام فيمرّ فارغاً");
         }
     }
@@ -67,7 +68,7 @@ class CvJobFieldsTest extends TestCase
         $doc['birthDate'] = '1985/03/01';   // ليست YYYY-MM-DD
 
         $this->expectException(ValidationException::class);
-        (new CvValidator())->clean($doc);
+        (new CvValidator)->clean($doc);
     }
 
     public function test_study_place_is_optional_per_qualification(): void
@@ -75,7 +76,7 @@ class CvJobFieldsTest extends TestCase
         $doc = $this->doc();
         unset($doc['qualifications'][0]['studyPlace']);
 
-        $clean = (new CvValidator())->clean($doc);
+        $clean = (new CvValidator)->clean($doc);
         $this->assertNull($clean['qualifications'][0]['studyPlace']);
     }
 
@@ -85,7 +86,7 @@ class CvJobFieldsTest extends TestCase
         $doc = $this->doc();
         $doc['qualifications'] = [];
 
-        $clean = (new CvValidator())->clean($doc);
+        $clean = (new CvValidator)->clean($doc);
         $this->assertSame([], $clean['qualifications']);
     }
 
@@ -95,7 +96,7 @@ class CvJobFieldsTest extends TestCase
     {
         foreach (['11-04-1982', '1982/04/11', '2020-01-01', '1930-01-01'] as $bad) {
             try {
-                (new CvValidator())->clean($this->doc(['birthDate' => $bad]));
+                (new CvValidator)->clean($this->doc(['birthDate' => $bad]));
                 $this->fail("تاريخ ميلاد غير مقبول مرّ: {$bad}");
             } catch (ValidationException $e) {
                 $this->assertArrayHasKey('birthDate', $e->errors());
@@ -106,7 +107,7 @@ class CvJobFieldsTest extends TestCase
     public function test_appointment_date_cannot_be_in_the_future(): void
     {
         $this->expectException(ValidationException::class);
-        (new CvValidator())->clean($this->doc([
+        (new CvValidator)->clean($this->doc([
             'appointmentDate' => now()->addYear()->toDateString(),
         ]));
     }
@@ -115,7 +116,7 @@ class CvJobFieldsTest extends TestCase
     public function test_appointment_before_adulthood_is_rejected(): void
     {
         $this->expectException(ValidationException::class);
-        (new CvValidator())->clean($this->doc([
+        (new CvValidator)->clean($this->doc([
             'birthDate' => '1990-01-01', 'appointmentDate' => '1995-01-01',
         ]));
     }
@@ -124,7 +125,7 @@ class CvJobFieldsTest extends TestCase
 
     public function test_age_is_derived_not_stored(): void
     {
-        $clean = (new CvValidator())->clean($this->doc());
+        $clean = (new CvValidator)->clean($this->doc());
         $this->assertArrayNotHasKey('age', $clean);
 
         // عمر معلوم سلفاً: تاريخ ميلاد قبل ٣٠ سنة بيوم — العمر ٣٠ لا ٢٩
@@ -136,7 +137,7 @@ class CvJobFieldsTest extends TestCase
 
     public function test_job_fields_survive_the_whitelist_rebuild(): void
     {
-        $clean = (new CvValidator())->clean($this->doc());
+        $clean = (new CvValidator)->clean($this->doc());
 
         $this->assertSame('1982-04-11', $clean['birthDate']);
         $this->assertSame('2006-09-01', $clean['appointmentDate']);
@@ -226,8 +227,8 @@ class CvJobFieldsTest extends TestCase
             ->getContent();
 
         foreach (['سيرة ذاتية', 'التعليم الأكاديمي', 'الخبرة العملية آخر عشر سنوات',
-                  'الدورات التدريبية', 'الإدارة العامة للعمليات', 'الرياض', '12:30',
-                  $c->participant_code] as $needle) {
+            'الدورات التدريبية', 'الإدارة العامة للعمليات', 'الرياض', '12:30',
+            $c->participant_code] as $needle) {
             $this->assertStringContainsString($needle, $html);
         }
         // I.A و I.A.A تُطبعان فارغتين للتعبئة اليدوية

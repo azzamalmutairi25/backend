@@ -38,11 +38,11 @@ class LakeEmitter
      * يصف ما وقع فعلاً، والكتابةُ المشروطة قد تُرجع صفر صفوفٍ فلا يقع شيء.
      *
      * @param  string|null  $toStatus  الحالة بعد الانتقال، صراحةً.
-     * @return bool  هل كُتب صفّ.
+     * @return bool هل كُتب صفّ.
      */
     public function report(FinalReport $report, string $eventType, ?string $toStatus = null, array $ctx = []): bool
     {
-        if (!$this->enabled()) {
+        if (! $this->enabled()) {
             return false;
         }
 
@@ -101,6 +101,7 @@ class LakeEmitter
             Log::error('lake: تعذّرت كتابة صندوق الصادر', [
                 'report_id' => $report->id, 'event' => $eventType, 'error' => $e->getMessage(),
             ]);
+
             return false;
         }
     }
@@ -108,7 +109,7 @@ class LakeEmitter
     /** حدثٌ غير مرتبطٍ بتقرير: اللقطة اليومية ولقطة التحليلات. */
     public function snapshot(string $eventType, string $key, array $payload): bool
     {
-        if (!$this->enabled()) {
+        if (! $this->enabled()) {
             return false;
         }
 
@@ -129,9 +130,11 @@ class LakeEmitter
                 'payload_bytes' => strlen($json),
                 'created_at' => $occurredAt,
             ]);
+
             return true;
         } catch (\Throwable $e) {
             Log::error('lake: تعذّرت كتابة لقطة', ['event' => $eventType, 'error' => $e->getMessage()]);
+
             return false;
         }
     }

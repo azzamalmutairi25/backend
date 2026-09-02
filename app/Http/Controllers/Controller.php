@@ -1,7 +1,9 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\Candidate;
+use App\Models\Evaluation;
 use App\Security\Permissions;
 use Illuminate\Http\Request;
 
@@ -64,8 +66,9 @@ abstract class Controller
     protected function evaluatorNarrowedOut(Request $request, Candidate $candidate): bool
     {
         $user = $request->user();
+
         return $user->isSectorBound() && $user->hasRole('EVALUATOR', 'DISCUSSION_EVAL')
-            && !\App\Models\Evaluation::where('evaluator_id', $user->id)
+            && ! Evaluation::where('evaluator_id', $user->id)
                 ->where('candidate_id', $candidate->id)->exists();
     }
 
@@ -84,7 +87,7 @@ abstract class Controller
         if ($user->isSectorBound() && $user->hasRole('EVALUATOR', 'DISCUSSION_EVAL')) {
             $query->whereIn(
                 'candidate_id',
-                \App\Models\Evaluation::where('evaluator_id', $user->id)->select('candidate_id')
+                Evaluation::where('evaluator_id', $user->id)->select('candidate_id')
             );
         }
     }
@@ -98,7 +101,9 @@ abstract class Controller
     // ينكسر بصمت لو صار الترقيم افتراضاً. تُحلّ مرّةً هنا.
 
     protected const LIST_HARD_CAP = 5000;
+
     protected const LIST_DEFAULT_PER_PAGE = 50;
+
     protected const LIST_MAX_PER_PAGE = 200;
 
     /** قواعد التحقّق — تُشتقّ من خريطة الفرز فلا يفترق المسموح عن المترجَم */
@@ -106,8 +111,8 @@ abstract class Controller
     {
         return [
             'page' => 'nullable|integer|min:1',
-            'perPage' => 'nullable|integer|min:1|max:' . self::LIST_MAX_PER_PAGE,
-            'sort' => 'nullable|string|in:' . implode(',', array_keys($sortable)),
+            'perPage' => 'nullable|integer|min:1|max:'.self::LIST_MAX_PER_PAGE,
+            'sort' => 'nullable|string|in:'.implode(',', array_keys($sortable)),
             'dir' => 'nullable|string|in:asc,desc',
         ];
     }
@@ -115,12 +120,12 @@ abstract class Controller
     /**
      * يُطبّق الفرز والترقيم على الاستعلام ويرجع `meta`.
      *
-     * @param array  $sortable   مفتاح الواجهة ⇐ عمودٌ نصّاً، أو دالّة($query,$dir) للفرز الخاص
-     * @param string $default    مفتاح الفرز الافتراضي
-     * @param string $tie        عمود الفصل الثابت — يُذيَّل بكل فرزٍ سواه
-     * @param string $defaultDir اتجاه الفرز حين لا يطلبه العميل. لا يُترك «تصاعدياً»
-     *                           دائماً: قائمةٌ كانت تعرض الأحدث أولاً تنقلب إلى
-     *                           الأقدم أولاً بلا أن يطلب أحد — وذلك تغيير سلوك
+     * @param  array  $sortable  مفتاح الواجهة ⇐ عمودٌ نصّاً، أو دالّة($query,$dir) للفرز الخاص
+     * @param  string  $default  مفتاح الفرز الافتراضي
+     * @param  string  $tie  عمود الفصل الثابت — يُذيَّل بكل فرزٍ سواه
+     * @param  string  $defaultDir  اتجاه الفرز حين لا يطلبه العميل. لا يُترك «تصاعدياً»
+     *                              دائماً: قائمةٌ كانت تعرض الأحدث أولاً تنقلب إلى
+     *                              الأقدم أولاً بلا أن يطلب أحد — وذلك تغيير سلوك
      */
     protected function applyListPaging(
         Request $request,

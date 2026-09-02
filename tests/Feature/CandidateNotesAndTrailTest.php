@@ -39,7 +39,8 @@ class CandidateNotesAndTrailTest extends TestCase
     public function test_notes_can_be_cleared(): void
     {
         [$c] = $this->makeCandidate();
-        $c->notes = 'قديمة'; $c->save();
+        $c->notes = 'قديمة';
+        $c->save();
         $this->actingAsRole('SCHEDULER');
 
         $this->patchJson("/api/candidates/{$c->id}/notes", ['notes' => null])->assertOk();

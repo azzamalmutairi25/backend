@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\FinalReport;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class ReportAuthoringTest extends TestCase
@@ -49,7 +50,7 @@ class ReportAuthoringTest extends TestCase
         $this->putJson("/api/reports/{$report->id}", ['recommendation' => 'محاولة'])->assertStatus(403);
 
         // the author can
-        \Laravel\Sanctum\Sanctum::actingAs($author);
+        Sanctum::actingAs($author);
         $this->putJson("/api/reports/{$report->id}", ['recommendation' => 'يوصى به بقوة'])->assertOk();
 
         // an ASSESS_MANAGER (report.edit_any) can edit anyone's

@@ -6,6 +6,7 @@ use App\Models\Evaluation;
 use App\Models\FinalReport;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 // نطاق التقارير: القطاع حدّ أعلى لكل محصور، والمقيّم يضيق داخله لمن قيّمهم هو.
@@ -48,7 +49,7 @@ class ReportScopeTest extends TestCase
         $sameSectorOther = $this->reportFor('DW');          // قطاعه لكن لم يقيّمه
         $otherSector = $this->reportFor('PR', $ev);         // قيّمه لكن خارج قطاعه
 
-        \Laravel\Sanctum\Sanctum::actingAs($ev);
+        Sanctum::actingAs($ev);
         $ids = $this->listIds();
 
         $this->assertContains($mine->id, $ids, 'قطاعه وقيّمه');
@@ -63,7 +64,7 @@ class ReportScopeTest extends TestCase
         $de = $this->actingAsRole('DISCUSSION_EVAL', 'DW');
         $this->reportFor('DW', $de);
 
-        \Laravel\Sanctum\Sanctum::actingAs($de);
+        Sanctum::actingAs($de);
         $this->getJson('/api/reports')->assertStatus(403);
     }
 
@@ -76,7 +77,7 @@ class ReportScopeTest extends TestCase
         $a2 = $this->reportFor('DW');
         $other = $this->reportFor('PR');
 
-        \Laravel\Sanctum\Sanctum::actingAs($as);
+        Sanctum::actingAs($as);
         $ids = $this->listIds();
 
         // يكتب تقارير قطاعه، فلا يُحصر بمن قيّمهم — هو لا يقيّم أصلاً
@@ -106,7 +107,7 @@ class ReportScopeTest extends TestCase
         $this->reportFor('DW');   // قطاعه، لم يقيّمه
         $this->reportFor('PR');   // خارج قطاعه
 
-        \Laravel\Sanctum\Sanctum::actingAs($ev);
+        Sanctum::actingAs($ev);
         $stats = $this->getJson('/api/reports/stats')->assertOk()->json('stats');
 
         // الرقم لا يعدّ ما لا تعرضه القائمة
@@ -121,7 +122,7 @@ class ReportScopeTest extends TestCase
         $ev = $this->actingAsRole('EVALUATOR', 'DW');
         $hidden = $this->reportFor('DW'); // قطاعه لكن لم يقيّمه
 
-        \Laravel\Sanctum\Sanctum::actingAs($ev);
+        Sanctum::actingAs($ev);
         // «غير موجود» لا «ليس لك» — المعرّف لا يكشف الوجود
         $this->getJson("/api/reports/{$hidden->id}")->assertStatus(404);
     }
@@ -131,7 +132,7 @@ class ReportScopeTest extends TestCase
         $ev = $this->actingAsRole('EVALUATOR', 'DW');
         $hidden = $this->reportFor('PR');
 
-        \Laravel\Sanctum\Sanctum::actingAs($ev);
+        Sanctum::actingAs($ev);
         // المستند وثيقة كاملة — لا يكون أوسع من القائمة
         $this->getJson("/api/reports/{$hidden->id}/document")->assertStatus(404);
     }
@@ -141,7 +142,7 @@ class ReportScopeTest extends TestCase
         $ev = $this->actingAsRole('EVALUATOR', 'DW');
         $mine = $this->reportFor('DW', $ev);
 
-        \Laravel\Sanctum\Sanctum::actingAs($ev);
+        Sanctum::actingAs($ev);
         $this->getJson("/api/reports/{$mine->id}")->assertOk()->assertJsonPath('report.id', $mine->id);
     }
 

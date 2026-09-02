@@ -41,24 +41,24 @@ class WaveGuard
      */
     public function refuse(?int $periodId, ?string $date = null, string $grade = self::BUILD): ?string
     {
-        if (!$periodId) {
+        if (! $periodId) {
             return null;   // جلسةٌ بلا موجة تُنشأ كما كانت تُنشأ دائماً
         }
 
         $period = SchedulingPeriod::find($periodId);
-        if (!$period) {
+        if (! $period) {
             return 'موجة الجدولة غير موجودة';
         }
 
         if ($this->frozen($period, $grade)) {
-            return 'موجة «' . $period->name . '» ' . SchedulingPeriod::label($period->status)
-                . ' — ' . $this->verb($grade);
+            return 'موجة «'.$period->name.'» '.SchedulingPeriod::label($period->status)
+                .' — '.$this->verb($grade);
         }
 
-        if ($date !== null && !$this->covers($period, $date)) {
-            return 'التاريخ خارج مدى موجة «' . $period->name . '» ('
-                . $period->start_date->toDateString() . ' — '
-                . $period->end_date->toDateString() . ')';
+        if ($date !== null && ! $this->covers($period, $date)) {
+            return 'التاريخ خارج مدى موجة «'.$period->name.'» ('
+                .$period->start_date->toDateString().' — '
+                .$period->end_date->toDateString().')';
         }
 
         return null;
@@ -69,7 +69,7 @@ class WaveGuard
     {
         return $grade === self::FOLLOW_UP
             ? $period->status === 'closed'
-            : !$period->isEditable();
+            : ! $period->isEditable();
     }
 
     /** هل يقع التاريخ داخل مدى الموجة؟ */
@@ -128,16 +128,11 @@ class WaveGuard
 
     /** اسم الفهرس ← ما يُقال لمن اصطدم به */
     private const CONFLICTS = [
-        'schedules_evaluator_slot_unique' =>
-            'المقيّم مرتبط بمقابلة أخرى في هذا الوقت — غيّر الوقت أو المقيّم',
-        'schedules_assistant_slot_unique' =>
-            'المساعد مرتبط بمقابلة أخرى في هذا الوقت — غيّر الوقت أو المساعد',
-        'schedules_candidate_slot_unique' =>
-            'للمشارك جلسة أخرى في هذا الوقت — غيّر الوقت',
-        'discussion_circles_evaluator_slot_unique' =>
-            'المستشار مرتبط بحلقة أخرى في هذا الوقت — غيّر الوقت أو المستشار',
-        'discussion_circles_assistant_slot_unique' =>
-            'المساعد مرتبط بحلقة أخرى في هذا الوقت — غيّر الوقت أو المساعد',
+        'schedules_evaluator_slot_unique' => 'المقيّم مرتبط بمقابلة أخرى في هذا الوقت — غيّر الوقت أو المقيّم',
+        'schedules_assistant_slot_unique' => 'المساعد مرتبط بمقابلة أخرى في هذا الوقت — غيّر الوقت أو المساعد',
+        'schedules_candidate_slot_unique' => 'للمشارك جلسة أخرى في هذا الوقت — غيّر الوقت',
+        'discussion_circles_evaluator_slot_unique' => 'المستشار مرتبط بحلقة أخرى في هذا الوقت — غيّر الوقت أو المستشار',
+        'discussion_circles_assistant_slot_unique' => 'المساعد مرتبط بحلقة أخرى في هذا الوقت — غيّر الوقت أو المساعد',
     ];
 
     /** الفعل المرفوض — يُذكر في الرسالة كي لا يُعاد الطرق من بابٍ آخر */

@@ -32,8 +32,9 @@ class LakeSnapshot extends Command
 
     public function handle(LakeEmitter $lake, DailyReportService $daily, ExecutiveAnalyticsService $exec): int
     {
-        if (!config('lake.enabled')) {
+        if (! config('lake.enabled')) {
             $this->line('البحيرة معطّلة — لا لقطات.');
+
             return self::SUCCESS;
         }
 

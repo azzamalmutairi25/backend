@@ -29,8 +29,8 @@ class DiscussionAssignmentTest extends TestCase
         $bound = in_array($roleCode, User::SECTOR_BOUND_ROLES, true);
 
         return User::create([
-            'username' => 'u_' . substr(md5(uniqid('', true)), 0, 8),
-            'full_name' => 'مستخدم ' . $roleCode,
+            'username' => 'u_'.substr(md5(uniqid('', true)), 0, 8),
+            'full_name' => 'مستخدم '.$roleCode,
             'password' => 'Kafaat@2026',
             'role_id' => Role::where('code', $roleCode)->value('id'),
             'sector_id' => $bound ? Sector::where('code', $sectorCode)->value('id') : null,

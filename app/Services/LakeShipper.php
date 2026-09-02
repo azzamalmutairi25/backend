@@ -29,6 +29,7 @@ class LakeShipper
 
     /**
      * يشحن دفعةً واحدة.
+     *
      * @return array{claimed:int,landed:int,projected:int,quarantined:int}
      */
     public function shipOnce(): array
@@ -116,6 +117,7 @@ class LakeShipper
         } catch (\Throwable $e) {
             $out['quarantined'] = $this->recordFailure($rows, $e);
             Log::error('lake: فشل شحن دفعة', ['error' => $e->getMessage()]);
+
             return $out;
         }
     }
@@ -146,6 +148,7 @@ class LakeShipper
                 'count' => $quarantined, 'error' => $msg,
             ]);
         }
+
         return $quarantined;
     }
 
@@ -155,13 +158,18 @@ class LakeShipper
         $tot = ['claimed' => 0, 'landed' => 0, 'projected' => 0, 'quarantined' => 0, 'batches' => 0];
         for ($i = 0; $i < $maxBatches; $i++) {
             $r = $this->shipOnce();
-            if ($r['claimed'] === 0) break;
+            if ($r['claimed'] === 0) {
+                break;
+            }
             foreach (['claimed', 'landed', 'projected', 'quarantined'] as $k) {
                 $tot[$k] += $r[$k];
             }
             $tot['batches']++;
-            if ($r['landed'] === 0 && $r['quarantined'] === 0) break;   // لا تقدّم — لا تُعِد بلا نهاية
+            if ($r['landed'] === 0 && $r['quarantined'] === 0) {
+                break;
+            }   // لا تقدّم — لا تُعِد بلا نهاية
         }
+
         return $tot;
     }
 }

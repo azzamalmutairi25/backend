@@ -1,5 +1,6 @@
 <?php
 
+use App\Security\Permissions;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
@@ -16,13 +17,14 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration
 {
     private const PERMISSION = 'analytics.executive';
+
     private const ROLES = ['ASSESS_MANAGER', 'DEV_MANAGER'];
 
     public function up(): void
     {
         foreach (self::ROLES as $code) {
             $roleId = DB::table('roles')->where('code', $code)->value('id');
-            if (!$roleId) {
+            if (! $roleId) {
                 continue;
             }
 
@@ -36,7 +38,7 @@ return new class extends Migration
             }
 
             // مجموعةٌ خُلّي منها عمداً (صفٌّ واحد هو الحارس) — لا تُمسّ
-            if ($rows->count() === 1 && $rows->first() === \App\Security\Permissions::PLACEHOLDER) {
+            if ($rows->count() === 1 && $rows->first() === Permissions::PLACEHOLDER) {
                 continue;
             }
 
@@ -50,21 +52,21 @@ return new class extends Migration
             if (DB::table('role_permissions')->where('role_id', $roleId)->doesntExist()) {
                 DB::table('role_permissions')->insert([
                     'role_id' => $roleId,
-                    'permission' => \App\Security\Permissions::PLACEHOLDER,
+                    'permission' => Permissions::PLACEHOLDER,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
             }
         }
 
-        \App\Security\Permissions::forgetCache();
+        Permissions::forgetCache();
     }
 
     public function down(): void
     {
         foreach (self::ROLES as $code) {
             $roleId = DB::table('roles')->where('code', $code)->value('id');
-            if (!$roleId) {
+            if (! $roleId) {
                 continue;
             }
             $rows = DB::table('role_permissions')->where('role_id', $roleId)->pluck('permission');
@@ -79,6 +81,6 @@ return new class extends Migration
             ]);
         }
 
-        \App\Security\Permissions::forgetCache();
+        Permissions::forgetCache();
     }
 };

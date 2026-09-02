@@ -17,6 +17,7 @@ use Illuminate\Support\Collection;
 class ScoringService
 {
     private const BEHAVIORAL_TYPES = ['behavioral', 'leadership'];
+
     private const TECHNICAL_TYPES = ['technical'];
 
     // يحسب توافق دورة من درجات تقييماتها المُرسلة/المعتمدة
@@ -33,9 +34,12 @@ class ScoringService
         // متوسط درجة كل كفاءة عبر الأنشطة (كفاءة قد تُرصد في أكثر من نشاط) — تفادي ازدواج الاحتساب
         $byComp = $scores->groupBy('competency_id')->map(function ($rows) {
             $c = $rows->first()->competency;
-            if (!$c) return null;
+            if (! $c) {
+                return null;
+            }
             $avg = (float) $rows->avg('score');
             $max = (int) ($c->max_level ?: 5);
+
             return [
                 'competencyId' => $c->id,
                 'name' => $c->name_ar,
@@ -68,9 +72,9 @@ class ScoringService
         // فئة مجهولة كانت تقع صامتة على target_middle ثم تُعاد كما هي في الرد،
         // فينتج ردّ يقول tier=X بأرقام middle. الفئة تأتي من classifyTier (upper|middle)
         // فهذا خطأ برمجي لا مُدخَل مستخدم — يُرفض بدل أن يُخمَّن.
-        if (!in_array($tier, self::TIERS, true)) {
+        if (! in_array($tier, self::TIERS, true)) {
             throw new \InvalidArgumentException(
-                "فئة قيادية غير معروفة: '{$tier}'. المسموح: " . implode(', ', self::TIERS)
+                "فئة قيادية غير معروفة: '{$tier}'. المسموح: ".implode(', ', self::TIERS)
             );
         }
 
@@ -86,6 +90,7 @@ class ScoringService
         $items = $competencies->map(function ($c) use ($achieved, $targetCol) {
             $target = (int) $c->{$targetCol};
             $ach = $achieved->get($c->id); // null إن لم تُرصد بعد
+
             return [
                 'competency' => $c->name_ar,
                 'type' => $c->type,
@@ -112,12 +117,17 @@ class ScoringService
             ? $byComp
             : $byComp->filter(fn ($r) => in_array($r['type'], $types, true));
 
-        if ($rows->isEmpty()) return null;
+        if ($rows->isEmpty()) {
+            return null;
+        }
 
         $weightSum = $rows->sum('weight');
-        if ($weightSum <= 0) return null;
+        if ($weightSum <= 0) {
+            return null;
+        }
 
         $acc = $rows->sum(fn ($r) => $r['pct'] * $r['weight']);
+
         return round($acc / $weightSum, 2);
     }
 }

@@ -7,6 +7,7 @@ use App\Services\ReportSnapshotService;
 use App\Support\LakeEmitter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use PHPUnit\Framework\AssertionFailedError;
 use Tests\TestCase;
 
 // ════════════════════════════════════════════════════════════════════════
@@ -30,8 +31,11 @@ class LakePiiInvariantsTest extends TestCase
     // بياناتٌ مميّزة لا تشبه شيئاً في الظرف: لو ظهر أيٌّ منها في البحيرة
     // فهو تسريبٌ حقيقي لا مصادفةً نصّية.
     private const NAME = 'زياد بن مطلق الفريدي';
+
     private const NID = '1099887766';
+
     private const MOBILE = '0555000111';
+
     private const EMAIL = 'ziyad.unique@example.test';
 
     protected function setUp(): void
@@ -157,12 +161,12 @@ class LakePiiInvariantsTest extends TestCase
         [$c] = $this->subject();
 
         foreach ([self::NAME, self::NID, self::MOBILE, self::EMAIL,
-                  (string) $c->id, $c->national_id_hash, 'full_name_enc'] as $planted) {
+            (string) $c->id, $c->national_id_hash, 'full_name_enc'] as $planted) {
             try {
                 $this->assertCarriesNoIdentity(
-                    '{"x":"' . $planted . '"}', $c, 'نصّ مزروع');
+                    '{"x":"'.$planted.'"}', $c, 'نصّ مزروع');
                 $this->fail("المسح لم يلتقط تسريباً مزروعاً: {$planted}");
-            } catch (\PHPUnit\Framework\AssertionFailedError $e) {
+            } catch (AssertionFailedError $e) {
                 $this->addToAssertionCount(1);
             }
         }
@@ -172,7 +176,7 @@ class LakePiiInvariantsTest extends TestCase
     {
         [$c, $report] = $this->subject();
         $report->update([
-            'overview_text' => 'نظرةٌ عامة تذكر ' . self::NAME,
+            'overview_text' => 'نظرةٌ عامة تذكر '.self::NAME,
             'executive_summary' => 'ملخّصٌ تنفيذي',
             'strengths' => ['قيادة'],
         ]);

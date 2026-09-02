@@ -42,14 +42,14 @@ class TechnicalAreaController extends Controller
         $user = $request->user();
         $canManage = $user->hasPermission(Permissions::SETTINGS_MANAGE);
 
-        if (!$canManage
-            && !$user->hasPermission(Permissions::CANDIDATE_VIEW)
-            && !$user->hasPermission(Permissions::CANDIDATE_CREATE)) {
+        if (! $canManage
+            && ! $user->hasPermission(Permissions::CANDIDATE_VIEW)
+            && ! $user->hasPermission(Permissions::CANDIDATE_CREATE)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض المجالات الفنية'], 403);
         }
 
         $q = TechnicalArea::ordered();
-        if (!$canManage) {
+        if (! $canManage) {
             $q->active();
         }
 
@@ -99,7 +99,7 @@ class TechnicalAreaController extends Controller
         }
 
         $area = TechnicalArea::find($id);
-        if (!$area) {
+        if (! $area) {
             return response()->json(['error' => 'المجال غير موجود'], 404);
         }
 
@@ -135,7 +135,7 @@ class TechnicalAreaController extends Controller
         }
 
         $area = TechnicalArea::find($id);
-        if (!$area) {
+        if (! $area) {
             return response()->json(['error' => 'المجال غير موجود'], 404);
         }
 

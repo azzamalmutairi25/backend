@@ -37,6 +37,7 @@ class PrivilegeEscalationTest extends TestCase
             'granted' => true,
             'created_by' => null,
         ]);
+
         return $actor->fresh();
     }
 
@@ -48,7 +49,7 @@ class PrivilegeEscalationTest extends TestCase
     private function makeUserPayload(array $over = []): array
     {
         return array_merge([
-            'username' => 'esc_' . substr(md5(uniqid('', true)), 0, 8),
+            'username' => 'esc_'.substr(md5(uniqid('', true)), 0, 8),
             'fullName' => 'حساب اختبار',
             'password' => 'Kafaat@2026x',
             'roleId' => $this->roleId('RECEPTIONIST'),

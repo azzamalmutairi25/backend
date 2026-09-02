@@ -41,6 +41,7 @@ class SectorController extends Controller
                 $row['candidateCount'] = (int) ($linked['candidates'][$s->id] ?? 0);
                 $row['userCount'] = (int) ($linked['users'][$s->id] ?? 0);
             }
+
             return $row;
         });
 
@@ -50,7 +51,7 @@ class SectorController extends Controller
     // PUT /sectors/{id}/prefix — رمز مشارك القطاع (الأرقام تبقى تلقائية بعده)
     public function updatePrefix(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
         }
 
@@ -93,7 +94,7 @@ class SectorController extends Controller
     // POST /sectors — إضافة قطاع جديد (رمز + اسم + بادئة مشارك)
     public function store(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
         }
 
@@ -131,12 +132,12 @@ class SectorController extends Controller
     // PUT /sectors/{id} — تعديل الاسم (الرمز ثابت: هويّة القطاع)
     public function update(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
         }
 
         $sector = Sector::find($id);
-        if (!$sector) {
+        if (! $sector) {
             return response()->json(['error' => 'القطاع غير موجود'], 404);
         }
 
@@ -162,12 +163,12 @@ class SectorController extends Controller
     // DELETE /sectors/{id} — حذف قطاع (يُمنع إن ارتبط بمشاركين أو مستخدمين)
     public function destroy(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
         }
 
         $sector = Sector::find($id);
-        if (!$sector) {
+        if (! $sector) {
             return response()->json(['error' => 'القطاع غير موجود'], 404);
         }
 

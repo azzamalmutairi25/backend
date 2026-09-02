@@ -16,9 +16,10 @@ use Tests\TestCase;
 // عرض المقيّم بلا اسم، مسار الإدارة بصلاحية مستقلّة، وحجب تسرّب الاسم.
 class CvPortalTest extends TestCase
 {
-    use RefreshDatabase;
     // البوّابة مُعطَّلة في التشغيل — تُشغَّل هنا لتبقى شيفرتها مُختبَرة
     use EnablesCandidatePortal;
+
+    use RefreshDatabase;
 
     protected $seed = true;
 
@@ -27,6 +28,7 @@ class CvPortalTest extends TestCase
         [$c, $a] = $this->makeCandidate(array_merge(['status' => 'scheduled', 'sectorCode' => 'DW'], $attrs));
         $token = Str::random(48);
         $a->update(['confirm_token' => $token]);
+
         return [$c, $a, $token];
     }
 
@@ -38,7 +40,7 @@ class CvPortalTest extends TestCase
     private function evaluatorUser(string $sectorCode = 'DW'): User
     {
         return User::create([
-            'username' => 'ev_' . substr(md5(uniqid('', true)), 0, 8),
+            'username' => 'ev_'.substr(md5(uniqid('', true)), 0, 8),
             'full_name' => 'مقيّم',
             'password' => 'Kafaat@2026',
             'role_id' => Role::where('code', 'EVALUATOR')->value('id'),
@@ -215,6 +217,7 @@ class CvPortalTest extends TestCase
     {
         [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW', 'fullName' => $name]);
         CandidateCv::create(['candidate_id' => $c->id, 'data' => $this->validCv(['currentPosition' => 'مدير في مكتب الشهري']), 'version' => 1, 'source' => 'portal']);
+
         return [$c, $a];
     }
 

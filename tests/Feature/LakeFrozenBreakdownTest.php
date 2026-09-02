@@ -7,7 +7,9 @@ use App\Models\Evaluation;
 use App\Models\EvaluationScore;
 use App\Models\FinalReport;
 use App\Services\ReportSnapshotService;
+use App\Support\LakeEmitter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 // ════════════════════════════════════════════════════════════════════════
@@ -152,16 +154,16 @@ class LakeFrozenBreakdownTest extends TestCase
     public function test_the_shipped_payload_column_is_text_not_a_live_view(): void
     {
         [$comp, $report] = $this->scenario();
-        app(\App\Support\LakeEmitter::class)->report($report, 'report.approved', 'approved');
+        app(LakeEmitter::class)->report($report, 'report.approved', 'approved');
 
         $payload = json_decode(
-            \Illuminate\Support\Facades\DB::table('report_lake_outbox')->value('payload'), true);
+            DB::table('report_lake_outbox')->value('payload'), true);
         $this->assertSame(5, $this->row($payload, $comp->id)['max_level']);
 
         $comp->update(['max_level' => 4]);
 
         $reread = json_decode(
-            \Illuminate\Support\Facades\DB::table('report_lake_outbox')->value('payload'), true);
+            DB::table('report_lake_outbox')->value('payload'), true);
         $this->assertSame(5, $this->row($reread, $comp->id)['max_level']);
     }
 }

@@ -25,7 +25,7 @@ class NewSurfaceSecurityFixesTest extends TestCase
         // مقيّم في القطاع (وإلا لا يُوزَّع أحد)
         $edSector = Sector::where('code', 'DW')->value('id');
         User::create([
-            'username' => 'ev_' . uniqid(), 'full_name' => 'مقيّم', 'password' => 'x',
+            'username' => 'ev_'.uniqid(), 'full_name' => 'مقيّم', 'password' => 'x',
             'role_id' => Role::where('code', 'EVALUATOR')->value('id'),
             'sector_id' => $edSector, 'is_active' => true, 'must_change_password' => false,
         ]);
@@ -96,7 +96,7 @@ class NewSurfaceSecurityFixesTest extends TestCase
     // ── ٤) حارس السيرة يمسك الاسم العربي المتباعد (تجاوز التقييم الأعمى) ──
     public function test_cvguard_catches_arabic_spaced_name(): void
     {
-        $c = new Candidate();
+        $c = new Candidate;
         $c->full_name = 'محمد العتيبي';
         $c->national_id = '1122334455';
         $c->mobile = '0501234567';
@@ -125,7 +125,7 @@ class NewSurfaceSecurityFixesTest extends TestCase
     private function makeUser(string $roleCode): User
     {
         return User::create([
-            'username' => 'u_' . uniqid(), 'full_name' => "مستخدم {$roleCode}", 'password' => 'x',
+            'username' => 'u_'.uniqid(), 'full_name' => "مستخدم {$roleCode}", 'password' => 'x',
             'role_id' => Role::where('code', $roleCode)->value('id'),
             'is_active' => true, 'must_change_password' => false,
         ]);

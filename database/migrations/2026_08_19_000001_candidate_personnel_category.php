@@ -30,7 +30,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (!Schema::hasColumn('candidates', 'personnel_category')) {
+        if (! Schema::hasColumn('candidates', 'personnel_category')) {
             Schema::table('candidates', function (Blueprint $table) {
                 $table->string('personnel_category', 12)->nullable()->after('rank_label');
             });
@@ -45,7 +45,10 @@ return new class extends Migration
                 foreach ($rows as $c) {
                     $isMil = false;
                     foreach ($military as $label) {
-                        if (mb_strpos((string) $c->rank_label, $label) !== false) { $isMil = true; break; }
+                        if (mb_strpos((string) $c->rank_label, $label) !== false) {
+                            $isMil = true;
+                            break;
+                        }
                     }
                     DB::table('candidates')->where('id', $c->id)
                         ->update(['personnel_category' => $isMil ? 'military' : 'civilian']);
@@ -68,7 +71,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        if (!Schema::hasColumn('sectors', 'is_military')) {
+        if (! Schema::hasColumn('sectors', 'is_military')) {
             Schema::table('sectors', function (Blueprint $table) {
                 $table->boolean('is_military')->default(false);
             });

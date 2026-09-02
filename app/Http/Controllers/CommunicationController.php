@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\Candidate;
 use App\Models\EmailLog;
 use App\Models\SmsLog;
-use App\Models\AuditLog;
 use App\Security\Permissions;
 use App\Services\CommunicationService;
 use Illuminate\Http\Request;
@@ -21,7 +21,7 @@ class CommunicationController extends Controller
     // ── إرسال دعوة للمشارك (بريد و/أو رسالة) ──
     public function invite(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SEND_INVITATION)) {
+        if (! $request->user()->hasPermission(Permissions::SEND_INVITATION)) {
             return response()->json(['error' => 'ليس لديك صلاحية إرسال الدعوات'], 403);
         }
 
@@ -38,7 +38,7 @@ class CommunicationController extends Controller
         $candidate = Candidate::findOrFail($validated['candidateId']);
         // بوابة التصنيف — لا تُرسَل دعوة لمشارك مصنّف لمن لا يملك صلاحيته (مصنّف = «غير موجود»)
         if ($candidate->classification !== 'normal'
-            && !$request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
+            && ! $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
             return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
         $data = [
@@ -89,16 +89,16 @@ class CommunicationController extends Controller
     public function history(Request $request, int $candidateId)
     {
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::CANDIDATE_VIEW)) {
+        if (! $user->hasPermission(Permissions::CANDIDATE_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض سجل المراسلات'], 403);
         }
         $candidate = Candidate::find($candidateId);
-        if (!$candidate) {
+        if (! $candidate) {
             return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
         // بوابة التصنيف الأمني (كما في show/export/journey)
         if ($candidate->classification !== 'normal'
-            && !$user->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
+            && ! $user->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
             return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
 
@@ -141,7 +141,10 @@ class CommunicationController extends Controller
     // حجب رابط التأكيد من نص الرسالة (رمز حيّ يجب ألا يُكشف حتى للموظفين المخوّلين)
     private function redactLink(?string $msg): ?string
     {
-        if (!$msg) return $msg;
+        if (! $msg) {
+            return $msg;
+        }
+
         return preg_replace('#https?://\S+/confirm/\S+#u', '[رابط تأكيد محجوب]', $msg);
     }
 }

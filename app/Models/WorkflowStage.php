@@ -29,7 +29,9 @@ class WorkflowStage extends Model
     ];
 
     public const FINAL_STATUS = 'approved';
+
     public const DRAFT_STATUS = 'draft';
+
     public const RETURNED_STATUS = 'returned';
 
     // المفردات الثابتة: يفرضها قيد final_reports_status_check، فلا تُخترع حالة من الشاشة
@@ -72,6 +74,7 @@ class WorkflowStage extends Model
             $after = $stage
                 ? $chain->first(fn ($s) => $s->position > $stage->position)
                 : null;
+
             return $after?->status_key ?? self::FINAL_STATUS;
         }
 

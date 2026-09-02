@@ -45,9 +45,13 @@ class KioskController extends Controller
     ];
 
     private const ACCESS_TTL = 300;         // عمر جلسة المشارك على الكشك: ٥ دقائق
+
     private const ID_ATTEMPTS = 5;          // محاولات لكل رقم هوية قبل قفله
+
     private const ID_LOCK_SECONDS = 900;    // ١٥ دقيقة
+
     private const KIOSK_ATTEMPTS = 200;     // سقف الكشك في الساعة (طابور يومٍ كامل)
+
     private const KIOSK_WINDOW = 3600;
 
     // ── حلّ الكشك من رمزه ──
@@ -109,9 +113,15 @@ class KioskController extends Controller
         } catch (\Throwable) {
             return null;                        // تلاعب أو رمز من مفتاحٍ آخر
         }
-        if (!is_array($d)) return null;
-        if (($d['kid'] ?? null) !== $k->id) return null;
-        if ((int) ($d['exp'] ?? 0) < now()->timestamp) return null;
+        if (! is_array($d)) {
+            return null;
+        }
+        if (($d['kid'] ?? null) !== $k->id) {
+            return null;
+        }
+        if ((int) ($d['exp'] ?? 0) < now()->timestamp) {
+            return null;
+        }
 
         return Assessment::with(['candidate.sector', 'candidate.cv', 'schedules'])
             ->find($d['aid'] ?? 0);
@@ -123,7 +133,7 @@ class KioskController extends Controller
     public function show(Request $request, string $token)
     {
         $k = $this->kiosk($token);
-        if (!$k) {
+        if (! $k) {
             return $this->gone();
         }
 
@@ -140,7 +150,7 @@ class KioskController extends Controller
     public function identify(Request $request, string $token)
     {
         $k = $this->kiosk($token);
-        if (!$k) {
+        if (! $k) {
             return $this->gone();
         }
 
@@ -153,8 +163,9 @@ class KioskController extends Controller
 
         // حدّ الكشك: يحمي من استعمال الجهاز آلةَ تعداد. واسعٌ عمداً — طابور
         // يومٍ كامل يمرّ من هنا، وحدٌّ ضيّق يوقف الاستقبال قبل أن يوقف مهاجماً.
-        if (RateLimiter::hit('kiosk:' . $k->id, self::KIOSK_WINDOW) > self::KIOSK_ATTEMPTS) {
+        if (RateLimiter::hit('kiosk:'.$k->id, self::KIOSK_WINDOW) > self::KIOSK_ATTEMPTS) {
             $this->audit($request, 'KIOSK_RATE_LIMIT', $k->id);
+
             return response()->json(['error' => 'الكشك متوقّف مؤقتاً — راجع مسؤول الاستقبال'], 429);
         }
 
@@ -162,10 +173,11 @@ class KioskController extends Controller
         // سعةَ تخمينٍ لشخصٍ بعينه، وهو ما لا يمنعه الحدّ الأول أصلاً.
         // الزيادة قبل المقارنة (ذرّية) — تمنع تجاوز الحد بطلباتٍ متزامنة.
         $idHash = hash('sha256', $request->input('nationalId'));
-        $idKey = 'kiosk:' . $k->id . ':id:' . substr($idHash, 0, 32);
+        $idKey = 'kiosk:'.$k->id.':id:'.substr($idHash, 0, 32);
         $hits = RateLimiter::hit($idKey, self::ID_LOCK_SECONDS);
         if ($hits > self::ID_ATTEMPTS) {
             $mins = ceil(RateLimiter::availableIn($idKey) / 60);
+
             return response()->json([
                 'error' => "محاولات كثيرة. راجع مسؤول الاستقبال أو حاول بعد {$mins} دقيقة.",
                 'locked' => true,
@@ -180,10 +192,11 @@ class KioskController extends Controller
             ->orderByDesc('id')
             ->first();
 
-        if (!$assessment) {
+        if (! $assessment) {
             // ردٌّ واحد لغير الموجود ولغير المتوقَّع اليوم: التمييز بينهما
             // يجعل الكشك يجيب «هل فلانٌ مرشَّح؟» لمن يعرف رقم هويته.
             $this->audit($request, 'KIOSK_IDENTIFY_FAIL', $k->id);
+
             return response()->json([
                 'error' => 'لا يوجد موعد مسجّل بهذا الرقم — راجع مسؤول الاستقبال',
                 'attemptsLeft' => max(0, self::ID_ATTEMPTS - $hits),
@@ -208,10 +221,14 @@ class KioskController extends Controller
     public function arrive(Request $request, string $token)
     {
         $k = $this->kiosk($token);
-        if (!$k) return $this->gone();
+        if (! $k) {
+            return $this->gone();
+        }
 
         $a = $this->readAccess($request, $k);
-        if (!$a) return $this->expired();
+        if (! $a) {
+            return $this->expired();
+        }
 
         $today = $k->kiosk_date->toDateString();
 
@@ -254,10 +271,14 @@ class KioskController extends Controller
     public function sign(Request $request, string $token)
     {
         $k = $this->kiosk($token);
-        if (!$k) return $this->gone();
+        if (! $k) {
+            return $this->gone();
+        }
 
         $a = $this->readAccess($request, $k);
-        if (!$a) return $this->expired();
+        if (! $a) {
+            return $this->expired();
+        }
 
         $request->validate([
             // نفس حدّ ReceptionController::sign — توقيعٌ عالي الدقّة يمرّ،
@@ -275,7 +296,7 @@ class KioskController extends Controller
             ->first();
 
         // التوقيع لا يسبق الوصول: الإقرار وثيقةُ حضورٍ في يومٍ بعينه
-        if (!$visit) {
+        if (! $visit) {
             return response()->json(['error' => 'سجّل وصولك أولاً'], 422);
         }
         // إقرارٌ لا يُعاد بعد الاعتماد: استبداله يجعل الموقَّع غير المعتمَد
@@ -304,10 +325,14 @@ class KioskController extends Controller
     public function badge(Request $request, string $token)
     {
         $k = $this->kiosk($token);
-        if (!$k) return $this->gone();
+        if (! $k) {
+            return $this->gone();
+        }
 
         $a = $this->readAccess($request, $k);
-        if (!$a) return $this->expired();
+        if (! $a) {
+            return $this->expired();
+        }
 
         $visit = ReceptionVisit::where('assessment_id', $a->id)
             ->whereDate('visit_date', $k->kiosk_date->toDateString())
@@ -315,13 +340,13 @@ class KioskController extends Controller
 
         // البطاقة ثمرةُ الإقرار: طباعتها قبل التوقيع تُخرج مشاركاً في القاعة
         // لم يقرّ بصحّة بياناته بعد
-        if (!$visit || !$visit->isSigned()) {
+        if (! $visit || ! $visit->isSigned()) {
             return response()->json(['error' => 'وقّع وأقرّ بصحّة بياناتك أولاً'], 422);
         }
 
         // الطلب يُسجَّل مرّة: نقرةٌ ثانية لا تُنتج بطاقتين على الطابعة.
         // إعادة الطباعة بابها جهازُ المسؤول لا الكشك.
-        if (!$visit->badgePending() && $visit->badge_printed_at === null) {
+        if (! $visit->badgePending() && $visit->badge_printed_at === null) {
             $visit->update(['badge_requested_at' => now()]);
             $this->audit($request, 'KIOSK_BADGE_REQUEST', $k->id, ['code' => $a->participant_code]);
         }
@@ -360,7 +385,7 @@ class KioskController extends Controller
             'tier' => $c->tier === 'upper' ? 'قيادة عليا' : 'قيادة وسطى',
             'assessmentType' => Assessment::typeLabel($a->assessment_type),
             // البيانات الوظيفية من السيرة — هي محلّ الإقرار عملياً
-            'cv' => $cv && !CandidateCv::isEmptyDoc($cv) ? [
+            'cv' => $cv && ! CandidateCv::isEmptyDoc($cv) ? [
                 'department' => $cv['department'] ?? null,
                 'region' => $cv['region'] ?? null,
                 'rankLabel' => $cv['rankLabel'] ?? null,
@@ -397,7 +422,7 @@ class KioskController extends Controller
     private function schedules(Assessment $a): array
     {
         return $a->schedules
-            ->sortBy(fn ($s) => substr((string) $s->schedule_date, 0, 10) . ' ' . $s->schedule_time)
+            ->sortBy(fn ($s) => substr((string) $s->schedule_date, 0, 10).' '.$s->schedule_time)
             ->values()
             ->map(fn ($s) => [
                 'date' => substr((string) $s->schedule_date, 0, 10),
@@ -411,8 +436,10 @@ class KioskController extends Controller
     // شاشةٍ في بهوٍ عام يقف خلفها آخرون
     private function maskId(?string $id): ?string
     {
-        if (!$id || strlen($id) < 4) return null;
+        if (! $id || strlen($id) < 4) {
+            return null;
+        }
 
-        return str_repeat('•', strlen($id) - 4) . substr($id, -4);
+        return str_repeat('•', strlen($id) - 4).substr($id, -4);
     }
 }

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Role;
+use App\Models\WorkflowStage;
 use App\Security\Permissions;
 use Tests\TestCase;
 
@@ -27,7 +28,7 @@ class PermissionMatrixInvariantsTest extends TestCase
                 if ($p === '*') {
                     continue;
                 }
-                if (!in_array($p, $declared, true)) {
+                if (! in_array($p, $declared, true)) {
                     $unknown[] = "{$role} ⇒ {$p}";
                 }
             }
@@ -35,7 +36,7 @@ class PermissionMatrixInvariantsTest extends TestCase
 
         $this->assertSame([], $unknown,
             "أسماء صلاحيات في المصفوفة لا تقابل ثابتاً معرَّفاً (خطأ مطبعي يُسقط الصلاحية بصمت):\n"
-            . implode("\n", $unknown));
+            .implode("\n", $unknown));
     }
 
     public function test_only_the_system_administrator_holds_the_wildcard(): void
@@ -74,7 +75,7 @@ class PermissionMatrixInvariantsTest extends TestCase
         $orphans = array_values(array_diff(Permissions::all(), $held));
 
         $this->assertSame([], $orphans,
-            "صلاحيات لا يملكها أي دور غير مدير النظام — فحصٌ لا يمرّه أحد:\n" . implode("\n", $orphans));
+            "صلاحيات لا يملكها أي دور غير مدير النظام — فحصٌ لا يمرّه أحد:\n".implode("\n", $orphans));
     }
 
     public function test_every_permission_appears_in_a_display_group(): void
@@ -88,7 +89,7 @@ class PermissionMatrixInvariantsTest extends TestCase
 
         $this->assertSame([], $missing,
             "صلاحيات خارج مجموعات العرض — لا تظهر في شاشة الصلاحيات فلا تُمنح ولا تُسحب:\n"
-            . implode("\n", $missing));
+            .implode("\n", $missing));
     }
 
     public function test_every_display_group_has_an_arabic_label(): void
@@ -103,7 +104,7 @@ class PermissionMatrixInvariantsTest extends TestCase
         }
 
         $this->assertSame([], $unlabelled,
-            'مجموعات صلاحيات بلا تسمية عربية: ' . implode('، ', $unlabelled));
+            'مجموعات صلاحيات بلا تسمية عربية: '.implode('، ', $unlabelled));
     }
 
     public function test_non_delegable_permissions_are_real_and_administrative(): void
@@ -146,6 +147,7 @@ class PermissionMatrixInvariantsTest extends TestCase
                     $out[] = $role;
                 }
             }
+
             return $out;
         };
 
@@ -184,9 +186,9 @@ class PermissionMatrixInvariantsTest extends TestCase
         $seeded = Role::pluck('code')->all();
 
         $this->assertSame([], array_values(array_diff($matrix, $seeded)),
-            'أدوار في المصفوفة بلا صفّ في القاعدة: ' . implode('، ', array_diff($matrix, $seeded)));
+            'أدوار في المصفوفة بلا صفّ في القاعدة: '.implode('، ', array_diff($matrix, $seeded)));
         $this->assertSame([], array_values(array_diff($seeded, $matrix)),
-            'أدوار في القاعدة بلا صلاحيات في المصفوفة: ' . implode('، ', array_diff($seeded, $matrix)));
+            'أدوار في القاعدة بلا صلاحيات في المصفوفة: '.implode('، ', array_diff($seeded, $matrix)));
     }
 
     // صلاحية كل مرحلة اعتماد تُقرأ من القاعدة لا من ثابت. وبعد أن صار '*'
@@ -197,13 +199,13 @@ class PermissionMatrixInvariantsTest extends TestCase
     {
         $this->seed();
 
-        $bad = \App\Models\WorkflowStage::pluck('permission', 'status_key')
+        $bad = WorkflowStage::pluck('permission', 'status_key')
             ->reject(fn ($p) => in_array($p, Permissions::all(), true))
             ->map(fn ($p, $k) => "{$k} ⇒ {$p}")
             ->values()->all();
 
         $this->assertSame([], $bad,
-            "مراحل اعتماد بصلاحيات غير معرَّفة — لا يعتمدها أحد:\n" . implode("\n", $bad));
+            "مراحل اعتماد بصلاحيات غير معرَّفة — لا يعتمدها أحد:\n".implode("\n", $bad));
     }
 
     // مرآة الواجهة (perms.js) تنجرف بصمت: مفتاح ناقص يجعل hasPermission(undefined)
@@ -211,7 +213,7 @@ class PermissionMatrixInvariantsTest extends TestCase
     public function test_the_frontend_permission_mirror_matches_the_backend(): void
     {
         $path = base_path('../frontend/src/services/perms.js');
-        if (!is_file($path)) {
+        if (! is_file($path)) {
             $this->markTestSkipped('مستودع الواجهة غير موجود بجانب الخلفية');
         }
 
@@ -224,6 +226,6 @@ class PermissionMatrixInvariantsTest extends TestCase
 
         $unknown = array_values(array_diff($mirror, Permissions::all()));
         $this->assertSame([], $unknown,
-            "صلاحيات في مرآة الواجهة لا وجود لها في الخلفية:\n" . implode("\n", $unknown));
+            "صلاحيات في مرآة الواجهة لا وجود لها في الخلفية:\n".implode("\n", $unknown));
     }
 }

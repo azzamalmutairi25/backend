@@ -20,9 +20,7 @@ use Illuminate\Http\Request;
 // مطبوع.
 class GoldenScheduleController extends Controller
 {
-    public function __construct(private GoldenScheduleService $golden)
-    {
-    }
+    public function __construct(private GoldenScheduleService $golden) {}
 
     private function log(Request $request, string $action, int $entityId, array $details = []): void
     {
@@ -41,6 +39,7 @@ class GoldenScheduleController extends Controller
     private function scopeSector(Request $request, ?int $asked): ?int
     {
         $user = $request->user();
+
         return $user->isSectorBound() ? $user->sector_id : $asked;
     }
 
@@ -52,7 +51,7 @@ class GoldenScheduleController extends Controller
     // GET /golden-schedule — شبكة الموجة
     public function index(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SCHEDULE_VIEW)) {
+        if (! $request->user()->hasPermission(Permissions::SCHEDULE_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض الجدولة'], 403);
         }
 
@@ -62,7 +61,7 @@ class GoldenScheduleController extends Controller
         ]);
 
         $period = $this->period($validated['periodId']);
-        if (!$period) {
+        if (! $period) {
             return response()->json(['error' => 'الموجة غير موجودة'], 404);
         }
 
@@ -84,12 +83,12 @@ class GoldenScheduleController extends Controller
     // POST /golden-schedule/{periodId}/sync — ترحيل جلسات الموجة إلى الجدول
     public function sync(Request $request, int $periodId)
     {
-        if (!$request->user()->hasPermission(Permissions::SCHEDULE_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SCHEDULE_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الجدولة'], 403);
         }
 
         $period = $this->period($periodId);
-        if (!$period) {
+        if (! $period) {
             return response()->json(['error' => 'الموجة غير موجودة'], 404);
         }
 
@@ -97,15 +96,15 @@ class GoldenScheduleController extends Controller
         $this->log($request, 'SYNC_GOLDEN_SCHEDULE', $period->id, $res);
 
         return response()->json(array_merge($res, [
-            'message' => 'تمت المزامنة: ' . $res['created'] . ' صفّاً جديداً'
-                . ($res['keptManual'] ? '، وبقيت ' . $res['keptManual'] . ' صفّاً يدوياً كما هي' : ''),
+            'message' => 'تمت المزامنة: '.$res['created'].' صفّاً جديداً'
+                .($res['keptManual'] ? '، وبقيت '.$res['keptManual'].' صفّاً يدوياً كما هي' : ''),
         ]));
     }
 
     // POST /golden-schedule — صفّ يدوي
     public function store(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SCHEDULE_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SCHEDULE_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الجدولة'], 403);
         }
 
@@ -156,14 +155,14 @@ class GoldenScheduleController extends Controller
     // DELETE /golden-schedule/{id}
     public function destroy(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::SCHEDULE_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SCHEDULE_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الجدولة'], 403);
         }
 
         $user = $request->user();
         $entry = GoldenScheduleEntry::when($user->isSectorBound(),
             fn ($q) => $q->where('sector_id', $user->sector_id))->find($id);
-        if (!$entry) {
+        if (! $entry) {
             return response()->json(['error' => 'الصفّ غير موجود'], 404);
         }
 
@@ -177,7 +176,7 @@ class GoldenScheduleController extends Controller
     // GET /golden-schedule/document — المستند المطبوع
     public function document(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SCHEDULE_VIEW)) {
+        if (! $request->user()->hasPermission(Permissions::SCHEDULE_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض الجدولة'], 403);
         }
 
@@ -187,7 +186,7 @@ class GoldenScheduleController extends Controller
         ]);
 
         $period = $this->period($validated['periodId']);
-        if (!$period) {
+        if (! $period) {
             return response()->json(['error' => 'الموجة غير موجودة'], 404);
         }
 

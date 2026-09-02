@@ -9,6 +9,8 @@ use App\Models\SchedulingPeriod;
 use App\Models\User;
 use App\Security\Permissions;
 use App\Services\NotificationService;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -36,9 +38,7 @@ class SchedulingPeriodController extends Controller
         'integration' => 'التمرين التكاملي',
     ];
 
-    public function __construct(private NotificationService $notifications)
-    {
-    }
+    public function __construct(private NotificationService $notifications) {}
 
     private function log(Request $request, string $action, int $entityId, array $details = []): void
     {
@@ -53,21 +53,21 @@ class SchedulingPeriodController extends Controller
         ]);
     }
 
-    private function denyView(Request $request): ?\Illuminate\Http\JsonResponse
+    private function denyView(Request $request): ?JsonResponse
     {
         return $request->user()->hasPermission(Permissions::SCHEDULE_VIEW)
             ? null
             : response()->json(['error' => 'ليس لديك صلاحية عرض الجدولة'], 403);
     }
 
-    private function denyManage(Request $request): ?\Illuminate\Http\JsonResponse
+    private function denyManage(Request $request): ?JsonResponse
     {
         return $request->user()->hasPermission(Permissions::SCHEDULE_MANAGE)
             ? null
             : response()->json(['error' => 'ليس لديك صلاحية إدارة الجدولة'], 403);
     }
 
-    private function denyApprove(Request $request): ?\Illuminate\Http\JsonResponse
+    private function denyApprove(Request $request): ?JsonResponse
     {
         return $request->user()->hasPermission(Permissions::SCHEDULE_APPROVE_CENTER)
             ? null
@@ -106,14 +106,14 @@ class SchedulingPeriodController extends Controller
         }
 
         $validated = $request->validate([
-            'status' => 'nullable|string|in:' . implode(',', SchedulingPeriod::STATUSES),
+            'status' => 'nullable|string|in:'.implode(',', SchedulingPeriod::STATUSES),
             'openOnly' => 'nullable|boolean',
         ]);
 
         $query = SchedulingPeriod::with(['creator', 'approver'])
             ->withCount(['assessors', 'schedules']);
 
-        if (!empty($validated['status'])) {
+        if (! empty($validated['status'])) {
             $query->where('status', $validated['status']);
         }
         if ($request->boolean('openOnly')) {
@@ -136,9 +136,9 @@ class SchedulingPeriodController extends Controller
     private function periodRules(bool $creating): array
     {
         return [
-            'name' => ($creating ? 'required|' : 'sometimes|required|') . 'string|max:100',
-            'startDate' => ($creating ? 'required|' : 'sometimes|required|') . 'date_format:Y-m-d',
-            'endDate' => ($creating ? 'required|' : 'sometimes|required|') . 'date_format:Y-m-d',
+            'name' => ($creating ? 'required|' : 'sometimes|required|').'string|max:100',
+            'startDate' => ($creating ? 'required|' : 'sometimes|required|').'date_format:Y-m-d',
+            'endDate' => ($creating ? 'required|' : 'sometimes|required|').'date_format:Y-m-d',
             // أوقات الجلسات: فارغة ⇒ الإعداد العام. تُرسل نصّاً «H:i,H:i»
             'sessionTimes' => 'nullable|string|max:120',
             'notes' => 'nullable|string|max:1000',
@@ -153,8 +153,9 @@ class SchedulingPeriodController extends Controller
         }
         $days = (strtotime($end) - strtotime($start)) / 86400 + 1;
         if ($days > SchedulingPeriod::MAX_DAYS) {
-            return 'مدّة الموجة تتجاوز ' . SchedulingPeriod::MAX_DAYS . ' يوماً — تحقّق من التاريخ';
+            return 'مدّة الموجة تتجاوز '.SchedulingPeriod::MAX_DAYS.' يوماً — تحقّق من التاريخ';
         }
+
         return null;
     }
 
@@ -168,8 +169,8 @@ class SchedulingPeriodController extends Controller
 
         $parts = array_values(array_filter(array_map('trim', explode(',', $raw))));
         foreach ($parts as $p) {
-            if (!preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $p)) {
-                return ['value' => null, 'error' => 'صيغة الوقت «' . $p . '» غير صحيحة — الشكل HH:MM'];
+            if (! preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $p)) {
+                return ['value' => null, 'error' => 'صيغة الوقت «'.$p.'» غير صحيحة — الشكل HH:MM'];
             }
         }
         $parts = array_values(array_unique($parts));
@@ -211,7 +212,7 @@ class SchedulingPeriodController extends Controller
                 'status' => 'draft',
                 'created_by' => $request->user()->id,
             ]));
-        } catch (\Illuminate\Database\UniqueConstraintViolationException) {
+        } catch (UniqueConstraintViolationException) {
             return response()->json(['error' => 'توجد موجة بهذا الاسم — اختر اسماً آخر'], 409);
         }
 
@@ -235,11 +236,11 @@ class SchedulingPeriodController extends Controller
         }
 
         $period = SchedulingPeriod::find($id);
-        if (!$period) {
+        if (! $period) {
             return response()->json(['error' => 'الموجة غير موجودة'], 404);
         }
-        if (!$period->isEditable()) {
-            return response()->json(['error' => 'لا تُعدَّل موجة ' . SchedulingPeriod::label($period->status)], 422);
+        if (! $period->isEditable()) {
+            return response()->json(['error' => 'لا تُعدَّل موجة '.SchedulingPeriod::label($period->status)], 422);
         }
 
         $validated = $request->validate($this->periodRules(false));
@@ -258,7 +259,7 @@ class SchedulingPeriodController extends Controller
             ->count();
         if ($orphans > 0) {
             return response()->json([
-                'error' => 'المدى الجديد يستثني ' . $orphans . ' جلسة مجدولة — انقلها أو احذفها أولاً',
+                'error' => 'المدى الجديد يستثني '.$orphans.' جلسة مجدولة — انقلها أو احذفها أولاً',
             ], 422);
         }
 
@@ -270,14 +271,18 @@ class SchedulingPeriodController extends Controller
             $period->session_times = $times['value'];
         }
 
-        if (isset($validated['name']))  { $period->name = $validated['name']; }
+        if (isset($validated['name'])) {
+            $period->name = $validated['name'];
+        }
         $period->start_date = $start;
         $period->end_date = $end;
-        if (array_key_exists('notes', $validated)) { $period->notes = $validated['notes']; }
+        if (array_key_exists('notes', $validated)) {
+            $period->notes = $validated['notes'];
+        }
 
         try {
             DB::transaction(fn () => $period->save());
-        } catch (\Illuminate\Database\UniqueConstraintViolationException) {
+        } catch (UniqueConstraintViolationException) {
             return response()->json(['error' => 'توجد موجة بهذا الاسم — اختر اسماً آخر'], 409);
         }
 
@@ -297,15 +302,15 @@ class SchedulingPeriodController extends Controller
         }
 
         $period = SchedulingPeriod::find($id);
-        if (!$period) {
+        if (! $period) {
             return response()->json(['error' => 'الموجة غير موجودة'], 404);
         }
         // ما اعتُمد لا يُحذف. كان الفحص على الجلسات وحدها، والقاعدة تسمح: موجةٌ
         // معتمَدة بلا جلسة (رُفعت جلساتها ثم اعتُمدت) كانت تُحذف بنداءٍ مباشر —
         // والزرّ مخفيٌّ في الشاشة وحدها، وإخفاءُ زرٍّ ليس حارساً.
-        if (!$period->isEditable()) {
+        if (! $period->isEditable()) {
             return response()->json([
-                'error' => 'لا تُحذف موجة ' . SchedulingPeriod::label($period->status),
+                'error' => 'لا تُحذف موجة '.SchedulingPeriod::label($period->status),
             ], 422);
         }
         // الجلسات لا تُحذف مع الموجة (nullOnDelete)، لكنّ فقدانها لانتمائها
@@ -333,7 +338,7 @@ class SchedulingPeriodController extends Controller
         }
 
         $period = SchedulingPeriod::find($id);
-        if (!$period) {
+        if (! $period) {
             return response()->json(['error' => 'الموجة غير موجودة'], 404);
         }
 
@@ -355,8 +360,12 @@ class SchedulingPeriodController extends Controller
             ->get();
 
         $load = [];
-        foreach ($loadEvaluator as $r) { $load['evaluator:' . $r->uid . ':' . $r->activity] = (int) $r->c; }
-        foreach ($loadAssistant as $r) { $load['assistant:' . $r->uid . ':' . $r->activity] = (int) $r->c; }
+        foreach ($loadEvaluator as $r) {
+            $load['evaluator:'.$r->uid.':'.$r->activity] = (int) $r->c;
+        }
+        foreach ($loadAssistant as $r) {
+            $load['assistant:'.$r->uid.':'.$r->activity] = (int) $r->c;
+        }
 
         // ── السقف يُبنى على أيام الموجة التي فيها جلسات، لا على أيام تقويمها ──
         // dayCount يعدّ كل الأيام عمداً (لا تقويم إجازات موثوق في المنصّة)، فكان
@@ -371,8 +380,9 @@ class SchedulingPeriodController extends Controller
         return response()->json([
             'period' => $this->row($period->load(['creator', 'approver'])),
             'assessors' => $rows->map(function (PeriodAssessor $a) use ($load, $dayCount) {
-                $assigned = $load[$a->seat . ':' . $a->user_id . ':' . $a->activity] ?? 0;
+                $assigned = $load[$a->seat.':'.$a->user_id.':'.$a->activity] ?? 0;
                 $capacity = $a->period_quota ?? ($a->dailyQuota() * $dayCount);
+
                 return [
                     'id' => $a->id,
                     'userId' => $a->user_id,
@@ -421,13 +431,13 @@ class SchedulingPeriodController extends Controller
         }
 
         $period = SchedulingPeriod::find($id);
-        if (!$period) {
+        if (! $period) {
             return response()->json(['error' => 'الموجة غير موجودة'], 404);
         }
 
         $validated = $request->validate([
-            'activity' => 'required|string|in:' . implode(',', self::ACTIVITIES),
-            'seat' => 'required|string|in:' . implode(',', PeriodAssessor::SEATS),
+            'activity' => 'required|string|in:'.implode(',', self::ACTIVITIES),
+            'seat' => 'required|string|in:'.implode(',', PeriodAssessor::SEATS),
         ]);
 
         $roles = PeriodAssessor::eligibleRoles($validated['activity'], $validated['seat']);
@@ -470,18 +480,18 @@ class SchedulingPeriodController extends Controller
         }
 
         $period = SchedulingPeriod::find($id);
-        if (!$period) {
+        if (! $period) {
             return response()->json(['error' => 'الموجة غير موجودة'], 404);
         }
-        if (!$period->isEditable()) {
-            return response()->json(['error' => 'لا تُعدَّل لوحة موجة ' . SchedulingPeriod::label($period->status)], 422);
+        if (! $period->isEditable()) {
+            return response()->json(['error' => 'لا تُعدَّل لوحة موجة '.SchedulingPeriod::label($period->status)], 422);
         }
 
         $validated = $request->validate([
             'rows' => 'present|array|max:200',
             'rows.*.userId' => 'required|integer|exists:users,id',
-            'rows.*.activity' => 'required|string|in:' . implode(',', self::ACTIVITIES),
-            'rows.*.seat' => 'required|string|in:' . implode(',', PeriodAssessor::SEATS),
+            'rows.*.activity' => 'required|string|in:'.implode(',', self::ACTIVITIES),
+            'rows.*.seat' => 'required|string|in:'.implode(',', PeriodAssessor::SEATS),
             'rows.*.dailyQuota' => 'nullable|integer|min:0|max:50',
             'rows.*.periodQuota' => 'nullable|integer|min:0|max:2000',
             'rows.*.isAvailable' => 'nullable|boolean',
@@ -500,25 +510,27 @@ class SchedulingPeriodController extends Controller
         $rejected = [];
         $clean = [];
         foreach ($rows as $r) {
-            $key = $r['userId'] . ':' . $r['activity'] . ':' . $r['seat'];
+            $key = $r['userId'].':'.$r['activity'].':'.$r['seat'];
             if (isset($seen[$key])) {
                 continue;   // تكرار في الطلب نفسه — يُطوى بلا ضجيج
             }
             $seen[$key] = true;
 
             $u = $users->get($r['userId']);
-            if (!$u || !$u->is_active) {
+            if (! $u || ! $u->is_active) {
                 $rejected[] = ['userId' => $r['userId'], 'reason' => 'مستخدم غير فعّال'];
+
                 continue;
             }
             $allowedRoles = PeriodAssessor::eligibleRoles($r['activity'], $r['seat']);
-            if (!$u->role || !in_array($u->role->code, $allowedRoles, true)) {
+            if (! $u->role || ! in_array($u->role->code, $allowedRoles, true)) {
                 $rejected[] = [
                     'userId' => $r['userId'],
                     'name' => $u->full_name,
-                    'reason' => 'دوره لا يؤهّله لـ' . (self::ACTIVITY_LABEL[$r['activity']] ?? $r['activity'])
-                        . ' (' . PeriodAssessor::seatLabel($r['seat']) . ')',
+                    'reason' => 'دوره لا يؤهّله لـ'.(self::ACTIVITY_LABEL[$r['activity']] ?? $r['activity'])
+                        .' ('.PeriodAssessor::seatLabel($r['seat']).')',
                 ];
+
                 continue;
             }
             $clean[] = $r;
@@ -557,7 +569,7 @@ class SchedulingPeriodController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'حُفظت لوحة الموجة (' . count($clean) . ')',
+            'message' => 'حُفظت لوحة الموجة ('.count($clean).')',
             'saved' => count($clean),
             'rejected' => $rejected,
         ]);
@@ -575,13 +587,13 @@ class SchedulingPeriodController extends Controller
         }
 
         $period = SchedulingPeriod::find($id);
-        if (!$period) {
+        if (! $period) {
             return response()->json(['error' => 'الموجة غير موجودة'], 404);
         }
         if ($period->status !== 'draft') {
             return response()->json(['error' => 'لا تُرسَل إلا موجة في حالة مسودّة'], 422);
         }
-        if (!$period->schedules()->exists()) {
+        if (! $period->schedules()->exists()) {
             return response()->json(['error' => 'لا توجد جلسات في هذه الموجة — ابنِ الجدول قبل إرساله'], 422);
         }
 
@@ -597,8 +609,8 @@ class SchedulingPeriodController extends Controller
             Permissions::SCHEDULE_APPROVE_CENTER,
             'approval',
             'جدولة بانتظار اعتمادك',
-            'موجة «' . $period->name . '» (' . $period->start_date->toDateString()
-                . ' — ' . $period->end_date->toDateString() . ') بانتظار الاعتماد',
+            'موجة «'.$period->name.'» ('.$period->start_date->toDateString()
+                .' — '.$period->end_date->toDateString().') بانتظار الاعتماد',
             'scheduling_period',
             (string) $period->id,
             $request->user()->id,
@@ -627,7 +639,7 @@ class SchedulingPeriodController extends Controller
         }
 
         $period = SchedulingPeriod::find($id);
-        if (!$period) {
+        if (! $period) {
             return response()->json(['error' => 'الموجة غير موجودة'], 404);
         }
         if ($period->status !== 'pending_center') {
@@ -658,7 +670,7 @@ class SchedulingPeriodController extends Controller
                 $period->submitted_by,
                 'approval',
                 'اعتُمدت الجدولة',
-                'اعتُمدت موجة «' . $period->name . '»',
+                'اعتُمدت موجة «'.$period->name.'»',
                 'scheduling_period',
                 (string) $period->id,
                 $request->user()->id,
@@ -681,7 +693,7 @@ class SchedulingPeriodController extends Controller
         }
 
         $period = SchedulingPeriod::find($id);
-        if (!$period) {
+        if (! $period) {
             return response()->json(['error' => 'الموجة غير موجودة'], 404);
         }
         if ($period->status !== 'pending_center') {
@@ -703,7 +715,7 @@ class SchedulingPeriodController extends Controller
                 $period->submitted_by,
                 'approval',
                 'أُرجعت الجدولة للتعديل',
-                'موجة «' . $period->name . '»: ' . $validated['reason'],
+                'موجة «'.$period->name.'»: '.$validated['reason'],
                 'scheduling_period',
                 (string) $period->id,
                 $request->user()->id,
@@ -729,7 +741,7 @@ class SchedulingPeriodController extends Controller
         }
 
         $period = SchedulingPeriod::find($id);
-        if (!$period) {
+        if (! $period) {
             return response()->json(['error' => 'الموجة غير موجودة'], 404);
         }
         if ($period->status === 'closed') {

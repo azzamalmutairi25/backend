@@ -134,14 +134,15 @@ class PlatformReset extends Command
 
         $unknown = $actual->diff($known)->values();
         if ($unknown->isNotEmpty()) {
-            $this->error('جداول غير مصنَّفة في PlatformReset: ' . $unknown->implode('، '));
+            $this->error('جداول غير مصنَّفة في PlatformReset: '.$unknown->implode('، '));
             $this->line('  صنّفها (KEEP / REFERENCE / OPERATIONAL / EPHEMERAL) ثم أعد المحاولة.');
             $this->line('  التوقّف هنا مقصود: جدولٌ غير مصنَّف ينجو من التفريغ ولا يلاحظه أحد.');
+
             return self::FAILURE;
         }
         $missing = $known->diff($actual)->values();
         if ($missing->isNotEmpty()) {
-            $this->warn('جداول مذكورة في التصنيف وغير موجودة في القاعدة (ستُتخطّى): ' . $missing->implode('، '));
+            $this->warn('جداول مذكورة في التصنيف وغير موجودة في القاعدة (ستُتخطّى): '.$missing->implode('، '));
         }
 
         // ── ٢) ما الذي سيُمسح فعلاً ──
@@ -154,7 +155,9 @@ class PlatformReset extends Command
         $counts = [];
         foreach ($toTruncate as $t) {
             $n = DB::table($t)->count();
-            if ($n > 0) $counts[$t] = $n;
+            if ($n > 0) {
+                $counts[$t] = $n;
+            }
         }
         $usersTotal = DB::table('users')->count();
         $usersKept = $keepUser === '' ? 0 : DB::table('users')->where('username', $keepUser)->count();
@@ -162,16 +165,19 @@ class PlatformReset extends Command
 
         $this->newLine();
         $this->line('<options=bold>سيُمسح:</>');
-        foreach ($counts as $t => $n) $this->line(sprintf('  %-28s %d صفّاً', $t, $n));
+        foreach ($counts as $t => $n) {
+            $this->line(sprintf('  %-28s %d صفّاً', $t, $n));
+        }
         $this->line(sprintf('  %-28s %d من %d', 'users', $usersDropped, $usersTotal));
         $this->newLine();
-        $this->line('<options=bold>سيبقى:</> ' . collect(self::KEEP)->implode('، ')
-            . ($withRef ? '' : '، ' . collect(self::REFERENCE)->implode('، ')));
+        $this->line('<options=bold>سيبقى:</> '.collect(self::KEEP)->implode('، ')
+            .($withRef ? '' : '، '.collect(self::REFERENCE)->implode('، ')));
 
         if ($keepUser !== '') {
             if ($usersKept === 0) {
                 $this->error("المستخدم «{$keepUser}» غير موجود — لن يبقى أحد يستطيع الدخول.");
                 $this->line('  مرّر --keep-user باسم موجود، أو --keep-user= صراحةً إن كنت تقصد ذلك.');
+
                 return self::FAILURE;
             }
             $this->line("<options=bold>حساب الدخول الباقي:</> {$keepUser}");
@@ -181,10 +187,11 @@ class PlatformReset extends Command
         $this->newLine();
 
         // ── ٣) التأكيد قبل النسخة: الإلغاء يجب ألّا يكلّف شيئاً ──
-        if (!$this->option('force')) {
+        if (! $this->option('force')) {
             $env = app()->environment();
-            if (!$this->confirm("تنفيذ التفريغ على بيئة «{$env}»؟", false)) {
+            if (! $this->confirm("تنفيذ التفريغ على بيئة «{$env}»؟", false)) {
                 $this->line('أُلغي — لم تُمسّ القاعدة.');
+
                 return self::SUCCESS;
             }
         }
@@ -192,12 +199,14 @@ class PlatformReset extends Command
         // ── ٤) النسخة الاحتياطية، ولا شيء بينها وبين الحذف ──
         if ($this->option('skip-backup')) {
             $this->warn('⚠ تُخطّيت النسخة الاحتياطية (--skip-backup).');
-            if (!$this->option('force') && !$this->confirm('متأكّد؟ لا رجعة بلا نسخة.', false)) {
+            if (! $this->option('force') && ! $this->confirm('متأكّد؟ لا رجعة بلا نسخة.', false)) {
                 return self::FAILURE;
             }
         } else {
             $path = $this->backup();
-            if ($path === null) return self::FAILURE;
+            if ($path === null) {
+                return self::FAILURE;
+            }
             $this->info("✓ نسخة احتياطية: {$path}");
         }
 
@@ -211,60 +220,65 @@ class PlatformReset extends Command
         $bulk = $toTruncate->diff($refs)->values();
 
         try {
-        DB::transaction(function () use ($bulk, $refs, $withRef, $keepUser, $driver, $actual) {
-            if ($driver === 'pgsql') {
-                if ($bulk->isNotEmpty()) {
-                    // بيانات التشغيل لا يشير إليها شيءٌ نُبقيه، فالتتالي آمن هنا
-                    $list = $bulk->map(fn ($t) => '"' . $t . '"')->implode(', ');
-                    DB::statement("TRUNCATE TABLE {$list} RESTART IDENTITY CASCADE");
+            DB::transaction(function () use ($bulk, $refs, $withRef, $keepUser, $driver, $actual) {
+                if ($driver === 'pgsql') {
+                    if ($bulk->isNotEmpty()) {
+                        // بيانات التشغيل لا يشير إليها شيءٌ نُبقيه، فالتتالي آمن هنا
+                        $list = $bulk->map(fn ($t) => '"'.$t.'"')->implode(', ');
+                        DB::statement("TRUNCATE TABLE {$list} RESTART IDENTITY CASCADE");
+                    }
+                } else {
+                    Schema::disableForeignKeyConstraints();
+                    foreach ($bulk as $t) {
+                        DB::table($t)->truncate();
+                    }
+                    Schema::enableForeignKeyConstraints();
                 }
-            } else {
-                Schema::disableForeignKeyConstraints();
-                foreach ($bulk as $t) DB::table($t)->truncate();
-                Schema::enableForeignKeyConstraints();
-            }
 
-            // المستخدمون قبل المرجعيات: يجب أن تُصفَّر إشاراتهم للقطاعات أولاً
-            if ($keepUser === '') {
-                DB::table('users')->delete();
-            } else {
-                DB::table('users')->where('username', '!=', $keepUser)->delete();
-            }
-
-            if ($withRef && $refs->isNotEmpty()) {
-                // القطاع مرجعٌ اختياري للمستخدم — يُصفَّر لا يُحذف صاحبه
-                if ($actual->contains('users')) {
-                    DB::table('users')->whereNotNull('sector_id')->update(['sector_id' => null]);
+                // المستخدمون قبل المرجعيات: يجب أن تُصفَّر إشاراتهم للقطاعات أولاً
+                if ($keepUser === '') {
+                    DB::table('users')->delete();
+                } else {
+                    DB::table('users')->where('username', '!=', $keepUser)->delete();
                 }
-                // DELETE لا TRUNCATE: يحترم المفاتيح الأجنبية ويُخفق صراحةً إن
-                // بقي ما يشير إليها، بدل أن يُفرِغه صامتاً. والترتيب من التابع
-                // إلى المتبوع: الربط قبل الكفاءات، والكفاءات قبل القطاعات.
-                foreach (['activity_competency', 'competencies', 'ranks', 'sectors'] as $t) {
-                    if ($refs->contains($t)) DB::table($t)->delete();
-                }
-                // ⚠ لا تصفير للتسلسلات هنا. setval في PostgreSQL غير معامِلاتي:
-                // يبقى أثره وإن أُلغيت المعاملة، فيكسر الخاصيّة التي يقوم عليها
-                // هذا الأمر كلّه — «إمّا تمّ كلّه أو لم يُمَسّ شيء». وقيمة المعرّف
-                // الابتدائية تجميلية بحتة: لا تظهر للمستخدم ولا يعتمد عليها شيء،
-                // بخلاف عدّاد رمز المشارك الذي يُصفَّر بـTRUNCATE ضمن المعاملة.
-            }
 
-            // شرطٌ لاحق داخل المعاملة: إن ضاع حساب الدخول رغم طلب إبقائه
-            // تُلغى المعاملة كلها. تفريغٌ ينجح ويترك النظام بلا دخول أسوأ من
-            // تفريغٍ يفشل — وهذا ما وقع فعلاً قبل هذا الحارس.
-            if ($keepUser !== '' && !DB::table('users')->where('username', $keepUser)->exists()) {
-                throw new \RuntimeException(
-                    "ضاع حساب «{$keepUser}» أثناء التفريغ — أُلغيت العملية بالكامل."
-                );
-            }
-        });
+                if ($withRef && $refs->isNotEmpty()) {
+                    // القطاع مرجعٌ اختياري للمستخدم — يُصفَّر لا يُحذف صاحبه
+                    if ($actual->contains('users')) {
+                        DB::table('users')->whereNotNull('sector_id')->update(['sector_id' => null]);
+                    }
+                    // DELETE لا TRUNCATE: يحترم المفاتيح الأجنبية ويُخفق صراحةً إن
+                    // بقي ما يشير إليها، بدل أن يُفرِغه صامتاً. والترتيب من التابع
+                    // إلى المتبوع: الربط قبل الكفاءات، والكفاءات قبل القطاعات.
+                    foreach (['activity_competency', 'competencies', 'ranks', 'sectors'] as $t) {
+                        if ($refs->contains($t)) {
+                            DB::table($t)->delete();
+                        }
+                    }
+                    // ⚠ لا تصفير للتسلسلات هنا. setval في PostgreSQL غير معامِلاتي:
+                    // يبقى أثره وإن أُلغيت المعاملة، فيكسر الخاصيّة التي يقوم عليها
+                    // هذا الأمر كلّه — «إمّا تمّ كلّه أو لم يُمَسّ شيء». وقيمة المعرّف
+                    // الابتدائية تجميلية بحتة: لا تظهر للمستخدم ولا يعتمد عليها شيء،
+                    // بخلاف عدّاد رمز المشارك الذي يُصفَّر بـTRUNCATE ضمن المعاملة.
+                }
+
+                // شرطٌ لاحق داخل المعاملة: إن ضاع حساب الدخول رغم طلب إبقائه
+                // تُلغى المعاملة كلها. تفريغٌ ينجح ويترك النظام بلا دخول أسوأ من
+                // تفريغٍ يفشل — وهذا ما وقع فعلاً قبل هذا الحارس.
+                if ($keepUser !== '' && ! DB::table('users')->where('username', $keepUser)->exists()) {
+                    throw new \RuntimeException(
+                        "ضاع حساب «{$keepUser}» أثناء التفريغ — أُلغيت العملية بالكامل."
+                    );
+                }
+            });
         } catch (\Throwable $e) {
             // المُشغِّل ليس مطوّراً ولا يقرأ أثر استدعاءات: يُقال له ما جرى،
             // وأن القاعدة لم تتغيّر، وكيف يستعيد الدخول إن لزم.
             $this->newLine();
             $this->error('أُوقف التفريغ ولم تتغيّر القاعدة.');
-            $this->line('  السبب: ' . $e->getMessage());
+            $this->line('  السبب: '.$e->getMessage());
             $this->line('  لاستعادة الدخول عند الحاجة: php artisan kafaat:create-admin admin');
+
             return self::FAILURE;
         }
 
@@ -289,21 +303,25 @@ class PlatformReset extends Command
 
         $this->newLine();
         $this->info('✓ فُرِّغت المنصّة. شغّل الآن: php artisan cache:clear && php artisan config:cache');
+
         return self::SUCCESS;
     }
 
     /** نسخة pg_dump مضغوطة إلى storage/app/backups */
     private function backup(): ?string
     {
-        $cfg = config('database.connections.' . config('database.default'));
+        $cfg = config('database.connections.'.config('database.default'));
         if (($cfg['driver'] ?? '') !== 'pgsql') {
             $this->error('النسخ الاحتياطي هنا يدعم PostgreSQL فقط — استعمل --skip-backup بعد نسخٍ يدوي.');
+
             return null;
         }
 
         $dir = storage_path('app/backups');
-        if (!is_dir($dir)) mkdir($dir, 0750, true);
-        $file = $dir . '/pre-reset-' . now()->format('Ymd-His') . '.dump';
+        if (! is_dir($dir)) {
+            mkdir($dir, 0750, true);
+        }
+        $file = $dir.'/pre-reset-'.now()->format('Ymd-His').'.dump';
 
         // -Fc: صيغة مخصّصة تُستعاد بـ pg_restore انتقائياً (جدول واحد إن لزم)
         $cmd = sprintf(
@@ -317,13 +335,17 @@ class PlatformReset extends Command
         );
 
         exec($cmd, $out, $code);
-        if ($code !== 0 || !file_exists($file) || filesize($file) < 1024) {
+        if ($code !== 0 || ! file_exists($file) || filesize($file) < 1024) {
             $this->error('فشلت النسخة الاحتياطية — أُوقف التفريغ.');
-            foreach ($out as $l) $this->line('  ' . $l);
+            foreach ($out as $l) {
+                $this->line('  '.$l);
+            }
+
             return null;
         }
 
         chmod($file, 0640);
-        return $file . ' (' . number_format(filesize($file) / 1024, 0) . ' KB)';
+
+        return $file.' ('.number_format(filesize($file) / 1024, 0).' KB)';
     }
 }

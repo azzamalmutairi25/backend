@@ -18,7 +18,7 @@ class ParticipantCardTest extends TestCase
         // EXTERNAL_ADD يملك الإضافة فقط، لا العرض
         $this->actingAsRole('EXTERNAL_ADD');
 
-        $this->get('/api/candidates/cards?ids=' . $c->id)->assertStatus(403);
+        $this->get('/api/candidates/cards?ids='.$c->id)->assertStatus(403);
     }
 
     public function test_renders_a_card_per_participant(): void
@@ -49,7 +49,7 @@ class ParticipantCardTest extends TestCase
 
         // مسؤول الجدولة يملك candidate.view_names ومع ذلك لا يظهران
         $this->actingAsRole('SCHEDULER');
-        $html = $this->get('/api/candidates/cards?ids=' . $c->id)->assertOk()->getContent();
+        $html = $this->get('/api/candidates/cards?ids='.$c->id)->assertOk()->getContent();
 
         $this->assertStringNotContainsString('مشارك ذو اسم صريح', $html);
         $this->assertStringNotContainsString($nid, $html);
@@ -66,7 +66,7 @@ class ParticipantCardTest extends TestCase
         }
         $this->actingAsRole('SCHEDULER');
 
-        $html = $this->get('/api/candidates/cards?ids=' . implode(',', $ids))->assertOk()->getContent();
+        $html = $this->get('/api/candidates/cards?ids='.implode(',', $ids))->assertOk()->getContent();
 
         $this->assertSame(6, substr_count($html, 'class="card"'));
         $this->assertSame(1, substr_count($html, 'data:image/png;base64'));
@@ -79,7 +79,7 @@ class ParticipantCardTest extends TestCase
         [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW', 'code' => 'DW-777']);
         $this->actingAsRole('SCHEDULER');
 
-        $html = $this->get('/api/candidates/cards?ids=' . $c->id)->assertOk()->getContent();
+        $html = $this->get('/api/candidates/cards?ids='.$c->id)->assertOk()->getContent();
 
         $this->assertStringContainsString('@page { size:91.4mm 52.3mm; margin:0; }', $html);
         $this->assertStringNotContainsString('size:Letter', $html);
@@ -97,7 +97,7 @@ class ParticipantCardTest extends TestCase
         }
         $this->actingAsRole('SCHEDULER');
 
-        $html = $this->get('/api/candidates/cards?ids=' . implode(',', $ids))->assertOk()->getContent();
+        $html = $this->get('/api/candidates/cards?ids='.implode(',', $ids))->assertOk()->getContent();
 
         $this->assertStringContainsString('@page { size:Letter; margin:0; }', $html);
         $this->assertStringContainsString('display:grid', $html);
@@ -150,7 +150,7 @@ class ParticipantCardTest extends TestCase
         ]);
         $this->actingAsRole('SCHEDULER');
 
-        $this->getJson('/api/candidates/cards?ids=' . $classified->id)->assertStatus(422);
+        $this->getJson('/api/candidates/cards?ids='.$classified->id)->assertStatus(422);
     }
 
     public function test_printing_is_audited(): void
@@ -158,7 +158,7 @@ class ParticipantCardTest extends TestCase
         [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
         $this->actingAsRole('SCHEDULER');
 
-        $this->get('/api/candidates/cards?ids=' . $c->id)->assertOk();
+        $this->get('/api/candidates/cards?ids='.$c->id)->assertOk();
 
         $this->assertDatabaseHas('audit_logs', ['action' => 'PRINT_PARTICIPANT_CARDS']);
     }

@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Candidate;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
@@ -49,8 +50,8 @@ return new class extends Migration
     {
         $now = now();
         // ما ضبطه المدير، أو الافتراضي عند غيابه — لا الثابت مباشرةً
-        $upperRanks = \App\Models\Candidate::tierUpperRanks();
-        $upperGrade = \App\Models\Candidate::tierUpperGrade();
+        $upperRanks = Candidate::tierUpperRanks();
+        $upperGrade = Candidate::tierUpperGrade();
 
         foreach (self::MILITARY as $i => $label) {
             DB::table('ranks')->updateOrInsert(
@@ -58,8 +59,7 @@ return new class extends Migration
                 [
                     // الاحتواء لا المساواة: الإعداد قد يحمل «عميد» فتُطابقه
                     // «عميد» وحدها، وقد يحمل صيغةً أطول تحتوي التسمية
-                    'tier' => array_reduce($upperRanks, fn ($c, $r) =>
-                        $c || ($r !== '' && (str_contains($label, $r) || str_contains($r, $label))), false)
+                    'tier' => array_reduce($upperRanks, fn ($c, $r) => $c || ($r !== '' && (str_contains($label, $r) || str_contains($r, $label))), false)
                         ? 'upper' : 'middle',
                     'sort_order' => ($i + 1) * 10,
                     'is_active' => true,

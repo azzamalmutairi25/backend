@@ -22,7 +22,7 @@ class ExecutiveAnalyticsTest extends TestCase
     private function evaluator(): User
     {
         return User::create([
-            'username' => 'ev_' . substr(md5(uniqid('', true)), 0, 6), 'full_name' => 'مقيّم',
+            'username' => 'ev_'.substr(md5(uniqid('', true)), 0, 6), 'full_name' => 'مقيّم',
             'password' => 'Kafaat@2026', 'role_id' => Role::where('code', 'EVALUATOR')->value('id'),
             'sector_id' => Sector::where('code', 'DW')->value('id'), 'is_active' => true, 'must_change_password' => false,
         ]);

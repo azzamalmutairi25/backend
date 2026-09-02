@@ -8,6 +8,7 @@ use App\Models\DistributionProposal;
 use App\Models\Schedule;
 use App\Models\Setting;
 use App\Models\User;
+use App\Security\Permissions;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -56,7 +57,7 @@ class DistributionService
         // لمسؤول جدولة بلا CANDIDATE_VIEW_CLASSIFIED (يملك DISTRIBUTION_MANAGE وحدها)،
         // ولا يُسنده لمقيّم بلا تصريح. غير المصرَّح يُقصَر على 'normal'، ويُجدوَل
         // المصنّفون يدوياً بمقيّم صريح. يطابق Controller::allowedClassifications.
-        $allowedClassifications = $actor->hasPermission(\App\Security\Permissions::CANDIDATE_VIEW_CLASSIFIED)
+        $allowedClassifications = $actor->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)
             ? ['normal', 'secret', 'top_secret']
             : ['normal'];
 
@@ -80,7 +81,7 @@ class DistributionService
                 ->where('status', 'scheduled')
                 ->whereIn('classification', $allowedClassifications)
                 ->whereDoesntHave('assessments.schedules', fn ($q) => $q->where('activity', 'interview'))
-                ->when(!empty($inOpenDraft), fn ($q) => $q->whereNotIn('id', $inOpenDraft))
+                ->when(! empty($inOpenDraft), fn ($q) => $q->whereNotIn('id', $inOpenDraft))
                 ->orderBy('sector_id')->orderBy('id')
                 ->get()
                 ->groupBy('sector_id');
@@ -91,7 +92,7 @@ class DistributionService
                 ->whereIn('schedule_date', $weekDates)
                 ->whereNotNull('evaluator_id')
                 ->get(['evaluator_id', 'schedule_date'])
-                ->groupBy(fn ($s) => $s->evaluator_id . '|' . substr((string) $s->schedule_date, 0, 10))
+                ->groupBy(fn ($s) => $s->evaluator_id.'|'.substr((string) $s->schedule_date, 0, 10))
                 ->map->count();
 
             foreach ($candidates as $sectorId => $sectorCandidates) {
@@ -169,6 +170,7 @@ class DistributionService
                 if ($reason) {
                     $item->update(['drop_reason' => $reason]);
                     $dropped++;
+
                     continue;
                 }
 
@@ -206,7 +208,7 @@ class DistributionService
     private function revalidate(DistributionItem $item): ?string
     {
         $c = $item->candidate;
-        if (!$c) {
+        if (! $c) {
             return 'حُذف المشارك';
         }
         // الحالة: قد يكون أُلغي أو أُعيد تقييمه أو اكتمل
@@ -220,12 +222,12 @@ class DistributionService
         // المقيّم: قد يكون عُطّل أو نُقل قطاعه (exists لا يكفي — is_active مطلوب)
         $ev = User::where('id', $item->evaluator_id)
             ->where('is_active', true)->where('sector_id', $item->sector_id)->first();
-        if (!$ev) {
+        if (! $ev) {
             return 'المقيّم غير متاح';
         }
         // دورة نشطة قائمة
         $hasActive = $c->assessments()->where('status', '!=', 'completed')->exists();
-        if (!$hasActive) {
+        if (! $hasActive) {
             return 'لا دورة نشطة';
         }
         // لا يُجدوَل مرتين: قد تكون جلسة مقابلة أُنشئت يدوياً منذ الاقتراح
@@ -233,6 +235,7 @@ class DistributionService
         if ($already) {
             return 'جُدوِل يدوياً';
         }
+
         return null;
     }
 }

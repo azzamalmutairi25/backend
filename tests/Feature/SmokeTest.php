@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -15,7 +16,7 @@ class SmokeTest extends TestCase
     {
         $this->assertDatabaseCount('roles', 12);   // +OPERATIONS مع مسار استقبال الموظفين
         $this->assertDatabaseCount('sectors', 19); // قطاعات الوزارة المعتمدة
-        $this->assertGreaterThanOrEqual(3, \App\Models\User::count());
+        $this->assertGreaterThanOrEqual(3, User::count());
     }
 
     public function test_admin_can_login_and_gets_permissions(): void

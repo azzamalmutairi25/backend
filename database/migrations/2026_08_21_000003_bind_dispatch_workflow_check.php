@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration
 {
     private const TITLE = 'إرسال الجدولة للوزارة (العسكريين/وكالة الشؤون العسكرية)(المدنيين/الموارد البشرية)';
+
     private const KEY = 'period.dispatched';
 
     public function up(): void

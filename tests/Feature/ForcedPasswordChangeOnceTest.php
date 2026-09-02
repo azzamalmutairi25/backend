@@ -6,6 +6,7 @@ use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 // ════════════════════════════════════════════════════════════
@@ -23,7 +24,9 @@ class ForcedPasswordChangeOnceTest extends TestCase
     protected $seed = true;
 
     private const USER = 'pw_once_user';
+
     private const TEMP = 'Temp@12345';
+
     private const NEW = 'Chosen@98765';
 
     protected function setUp(): void
@@ -49,7 +52,7 @@ class ForcedPasswordChangeOnceTest extends TestCase
         ]);
     }
 
-    private function login(string $password): \Illuminate\Testing\TestResponse
+    private function login(string $password): TestResponse
     {
         return $this->postJson('/api/login', [
             'username' => self::USER,

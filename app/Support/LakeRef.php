@@ -23,12 +23,13 @@ class LakeRef
     private static function pepper(): string
     {
         $p = config('lake.pepper');
-        if (!is_string($p) || strlen($p) < 16) {
+        if (! is_string($p) || strlen($p) < 16) {
             throw new \RuntimeException(
-                'LAKE_PEPPER غير مضبوط (٣٢ محرفاً فأكثر). ' .
+                'LAKE_PEPPER غير مضبوط (٣٢ محرفاً فأكثر). '.
                 'بدونه يصير المعرّف البديل قابلاً لإعادة الحساب، فلا يُسكّ.'
             );
         }
+
         return $p;
     }
 
@@ -36,14 +37,14 @@ class LakeRef
     // مع ما سبق — يُغيَّر بقرارٍ موثّق لا بالخطأ.
     public static function person(int $candidateId): string
     {
-        return hash_hmac('sha256', 'candidate:' . $candidateId, self::pepper());
+        return hash_hmac('sha256', 'candidate:'.$candidateId, self::pepper());
     }
 
     // معرّفُ فاعلٍ للمستخدم الإداري. لا يُنشر في العقد اليوم؛ يُسكّ
     // ليصير تتبّعُ «من فعل» ممكناً دون كشف من هو.
     public static function actor(?int $userId): ?string
     {
-        return $userId === null ? null : hash_hmac('sha256', 'user:' . $userId, self::pepper());
+        return $userId === null ? null : hash_hmac('sha256', 'user:'.$userId, self::pepper());
     }
 
     // UUIDv5 — اشتقاقيّ من فضاء الأسماء ومن هويّة الانتقال نفسه.
@@ -52,14 +53,15 @@ class LakeRef
     public static function eventUuid(string $key): string
     {
         $ns = str_replace('-', '', (string) config('lake.uuid_namespace'));
-        $hash = sha1(hex2bin($ns) . $key, true);
+        $hash = sha1(hex2bin($ns).$key, true);
 
         $bytes = substr($hash, 0, 16);
         // إصدار ٥ ومتغيّر RFC 4122
-        $bytes[6] = chr((ord($bytes[6]) & 0x0f) | 0x50);
-        $bytes[8] = chr((ord($bytes[8]) & 0x3f) | 0x80);
+        $bytes[6] = chr((ord($bytes[6]) & 0x0F) | 0x50);
+        $bytes[8] = chr((ord($bytes[8]) & 0x3F) | 0x80);
 
         $hex = bin2hex($bytes);
+
         return sprintf('%s-%s-%s-%s-%s',
             substr($hex, 0, 8), substr($hex, 8, 4), substr($hex, 12, 4),
             substr($hex, 16, 4), substr($hex, 20, 12));

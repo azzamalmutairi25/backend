@@ -2,8 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Competency;
 use App\Models\AuditLog;
+use App\Models\Competency;
+use App\Models\Evaluation;
 use App\Security\Permissions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +17,7 @@ class ActivityCompetencyController extends Controller
     // كل الكفاءات + الكفاءات المرتبطة حاليًا بكل نشاط
     public function index(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::COMPETENCY_VIEW)) {
+        if (! $request->user()->hasPermission(Permissions::COMPETENCY_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض الكفاءات'], 403);
         }
 
@@ -40,11 +41,11 @@ class ActivityCompetencyController extends Controller
     // استبدال كامل لكفاءات نشاط معيّن
     public function update(Request $request, string $activity)
     {
-        if (!$request->user()->hasPermission(Permissions::COMPETENCY_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::COMPETENCY_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الكفاءات'], 403);
         }
 
-        if (!in_array($activity, self::ACTIVITIES, true)) {
+        if (! in_array($activity, self::ACTIVITIES, true)) {
             return response()->json(['error' => 'نشاط غير معروف'], 422);
         }
 
@@ -59,8 +60,8 @@ class ActivityCompetencyController extends Controller
         // أي إزالة/تبديل/تفريغ يكسر تقييمات جارية (تفشل عند الإرسال أو تُيتّم درجاتها) — يُسمح بالإضافة فقط.
         // (التفريغ حالة خاصة من الإزالة، فهذا يشمل الحارس السابق ويوسّعه ليشمل التبديل والتقليص)
         $removing = array_diff($previous, $ids);
-        if (!empty($removing)) {
-            $hasActive = \App\Models\Evaluation::where('activity', $activity)
+        if (! empty($removing)) {
+            $hasActive = Evaluation::where('activity', $activity)
                 ->whereIn('status', ['draft', 'submitted'])->exists();
             if ($hasActive) {
                 return response()->json([

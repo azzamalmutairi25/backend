@@ -19,6 +19,7 @@ use App\Models\CandidateCv;
 class CvSheetService
 {
     private const EMBLEM = 'brand/moi-emblem-mono.png';
+
     private const FOOTER = 'brand/cv-footer.png';
 
     private const DEGREES = [
@@ -31,7 +32,7 @@ class CvSheetService
     // نفسها. المخزَّن ميلادي وحده؛ الهجري يُشتقّ عند العرض فلا يتباعدان.
     private function hijri(?string $iso): string
     {
-        if (!$iso || !extension_loaded('intl')) {
+        if (! $iso || ! extension_loaded('intl')) {
             return '';
         }
         try {
@@ -44,7 +45,7 @@ class CvSheetService
                 'yyyy/MM/dd'
             );
 
-            return (string) $fmt->format(new \DateTime($iso . ' 12:00:00', new \DateTimeZone('UTC')));
+            return (string) $fmt->format(new \DateTime($iso.' 12:00:00', new \DateTimeZone('UTC')));
         } catch (\Throwable) {
             return '';
         }
@@ -53,12 +54,12 @@ class CvSheetService
     // «2006-09-01 م / 1427/08/08 هـ» — التقويمان معاً كما يُقرآن في المركز
     private function bothCalendars(?string $iso): string
     {
-        if (!$iso) {
+        if (! $iso) {
             return '—';
         }
         $h = $this->hijri($iso);
 
-        return $h === '' ? e($iso) : e($iso) . ' م<br>' . e($h) . ' هـ';
+        return $h === '' ? e($iso) : e($iso).' م<br>'.e($h).' هـ';
     }
 
     private function asset(string $rel): string
@@ -66,7 +67,7 @@ class CvSheetService
         $path = public_path($rel);
 
         return is_file($path)
-            ? 'data:image/png;base64,' . base64_encode((string) file_get_contents($path))
+            ? 'data:image/png;base64,'.base64_encode((string) file_get_contents($path))
             : '';
     }
 
@@ -84,8 +85,8 @@ class CvSheetService
         $date = e($session['date'] ?? null) ?: '—';
         $time = e($session['time'] ?? null) ?: '—';
 
-        $emblemImg = $emblem ? '<img src="' . $emblem . '" alt="" />' : '';
-        $footerImg = $footer ? '<div class="foot"><img src="' . $footer . '" alt="" /></div>' : '';
+        $emblemImg = $emblem ? '<img src="'.$emblem.'" alt="" />' : '';
+        $footerImg = $footer ? '<div class="foot"><img src="'.$footer.'" alt="" /></div>' : '';
 
         $eduRows = $this->eduRows($doc['qualifications'] ?? []);
         $expRows = $this->expRows($doc['experiences'] ?? []);
@@ -218,18 +219,18 @@ HTML;
     // إقراراً بشيء.
     private function attestBlock(?array $attest): string
     {
-        $signed = $attest && !empty($attest['signature']) && !empty($attest['at']);
+        $signed = $attest && ! empty($attest['signature']) && ! empty($attest['at']);
 
         // صورة التوقيع data:image/png فقط — أي مخطّط آخر (وخاصةً data:text/html
         // أو javascript:) يُصيّر الوسمَ ثغرةَ حقنٍ في صفحةٍ تُفتح بنافذة جديدة
         $img = '';
         if ($signed && preg_match('#^data:image/png;base64,[A-Za-z0-9+/=]+$#', $attest['signature'])) {
-            $img = '<img class="sig" src="' . e($attest['signature']) . '" alt="التوقيع" />';
+            $img = '<img class="sig" src="'.e($attest['signature']).'" alt="التوقيع" />';
         }
 
         $when = $signed ? $this->bothCalendars(substr((string) $attest['at'], 0, 10)) : '';
         $stamp = $img
-            ? '<div class="sigbox">' . $img . '</div><div class="sigdate">وُقِّع إلكترونياً في ' . $when . '</div>'
+            ? '<div class="sigbox">'.$img.'</div><div class="sigdate">وُقِّع إلكترونياً في '.$when.'</div>'
             : '<div class="sigbox empty"></div><div class="sigdate">التاريخ: ……/……/…… هـ</div>';
 
         return <<<HTML
@@ -246,7 +247,9 @@ HTML;
     // ── الصفوف ──
     // النموذج ورقيّ: تُطبع صفوف فارغة تكملةً للحدّ الأدنى ليُكتب فيها يدوياً
     private const MIN_EDU = 2;
+
     private const MIN_EXP = 4;
+
     private const MIN_COURSE = 3;
 
     private function eduRows(array $quals): string
@@ -254,14 +257,14 @@ HTML;
         $out = '';
         foreach ($quals as $q) {
             $out .= '<tr>'
-                . '<td>' . e(self::DEGREES[$q['degree'] ?? ''] ?? ($q['degree'] ?? '—')) . '</td>'
-                . '<td>' . (e($q['major'] ?? null) ?: '—') . '</td>'
-                . '<td>' . (e($q['institution'] ?? null) ?: '—') . '</td>'
-                . '<td>' . (e($q['studyPlace'] ?? null) ?: '—') . '</td>'
-                . '</tr>';
+                .'<td>'.e(self::DEGREES[$q['degree'] ?? ''] ?? ($q['degree'] ?? '—')).'</td>'
+                .'<td>'.(e($q['major'] ?? null) ?: '—').'</td>'
+                .'<td>'.(e($q['institution'] ?? null) ?: '—').'</td>'
+                .'<td>'.(e($q['studyPlace'] ?? null) ?: '—').'</td>'
+                .'</tr>';
         }
 
-        return $out . $this->blankRows(4, self::MIN_EDU - count($quals));
+        return $out.$this->blankRows(4, self::MIN_EDU - count($quals));
     }
 
     private function expRows(array $exps): string
@@ -274,26 +277,26 @@ HTML;
             // لكلّ مستورَد لأن العمود يُبنى من السنتين وحدهما — تُقرأ الورقة
             // فارغةً والبيانات محفوظة.
             $from = $x['fromYear'] ?? null;
-            $to = !empty($x['current']) ? 'حتى الآن' : ($x['toYear'] ?? null);
+            $to = ! empty($x['current']) ? 'حتى الآن' : ($x['toYear'] ?? null);
             $span = trim((string) ($x['years'] ?? '')) !== ''
                 ? e($x['years'])
-                : ($from ? e($from) . ' — ' . (e($to) ?: '—') : '—');
+                : ($from ? e($from).' — '.(e($to) ?: '—') : '—');
 
             // «الشعبة» في ترويسة النموذج هي `section` — تُذكر تحت الجهة
             $org = (e($x['organization'] ?? null) ?: '—');
             if (trim((string) ($x['section'] ?? '')) !== '') {
-                $org .= ' <span style="color:#666">— ' . e($x['section']) . '</span>';
+                $org .= ' <span style="color:#666">— '.e($x['section']).'</span>';
             }
 
             $out .= '<tr>'
-                . '<td>' . e($i + 1) . '</td>'
-                . '<td>' . (e($x['position'] ?? null) ?: '—') . '</td>'
-                . '<td>' . $org . '</td>'
-                . '<td>' . $span . '</td>'
-                . '</tr>';
+                .'<td>'.e($i + 1).'</td>'
+                .'<td>'.(e($x['position'] ?? null) ?: '—').'</td>'
+                .'<td>'.$org.'</td>'
+                .'<td>'.$span.'</td>'
+                .'</tr>';
         }
 
-        return $out . $this->blankRows(4, self::MIN_EXP - count($exps));
+        return $out.$this->blankRows(4, self::MIN_EXP - count($exps));
     }
 
     // الدورات في عمودين كما في النموذج — تُوزَّع اثنتين في كل صف
@@ -302,12 +305,12 @@ HTML;
         $names = array_values(array_map(fn ($c) => (string) ($c['name'] ?? ''), $certs));
         $out = '';
         for ($i = 0; $i < count($names); $i += 2) {
-            $out .= '<tr><td>' . e($names[$i]) . '</td>'
-                . '<td>' . (isset($names[$i + 1]) ? e($names[$i + 1]) : '') . '</td></tr>';
+            $out .= '<tr><td>'.e($names[$i]).'</td>'
+                .'<td>'.(isset($names[$i + 1]) ? e($names[$i + 1]) : '').'</td></tr>';
         }
         $rows = (int) ceil(count($names) / 2);
 
-        return $out . $this->blankRows(2, self::MIN_COURSE - $rows);
+        return $out.$this->blankRows(2, self::MIN_COURSE - $rows);
     }
 
     private function blankRows(int $cols, int $count): string
@@ -316,6 +319,6 @@ HTML;
             return '';
         }
 
-        return str_repeat('<tr>' . str_repeat('<td>&nbsp;</td>', $cols) . '</tr>', $count);
+        return str_repeat('<tr>'.str_repeat('<td>&nbsp;</td>', $cols).'</tr>', $count);
     }
 }

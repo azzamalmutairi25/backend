@@ -46,7 +46,7 @@ return new class extends Migration
         $max = [];
 
         foreach (['assessments', 'candidates'] as $table) {
-            if (!Schema::hasTable($table) || !Schema::hasColumn($table, 'participant_code')) {
+            if (! Schema::hasTable($table) || ! Schema::hasColumn($table, 'participant_code')) {
                 continue;
             }
             // على دفعات: جدول إنتاج كبير لا يُحمَّل كاملاً في الذاكرة
@@ -63,7 +63,7 @@ return new class extends Migration
                 });
         }
 
-        if (!$max) {
+        if (! $max) {
             return;
         }
 

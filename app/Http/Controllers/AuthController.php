@@ -2,14 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
 use App\Models\AuditLog;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\ValidationException;
+use App\Models\User;
 use App\Rules\StrongPassword;
 use App\Services\ActiveDirectoryService;
-use App\Security\Permissions;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 // ════════════════════════════════════════════════════════════
 //  وحدة التحكم بالمصادقة
@@ -52,7 +52,7 @@ class AuthController extends Controller
                 $adResult = ActiveDirectoryService::authenticate((string) $user->ad_username, $request->password);
                 if ($adResult === null) {
                     // خلل تهيئة الدليل يُسجَّل خادمياً ولا يُكشف للعميل (تفادي كشف وجود/نوع الحساب)
-                    \Illuminate\Support\Facades\Log::warning('AD authentication unavailable', ['username' => $user->username]);
+                    Log::warning('AD authentication unavailable', ['username' => $user->username]);
                     throw $this->invalidCredentials();
                 }
                 $passwordOk = $adResult === true;
@@ -64,7 +64,7 @@ class AuthController extends Controller
             Hash::check($request->password, self::DUMMY_HASH);
         }
 
-        if (!$user || !$passwordOk) {
+        if (! $user || ! $passwordOk) {
             if ($user) {
                 $user->increment('failed_attempts');
                 // اقرأ العدّاد الحقيقي من القاعدة بعد الزيادة الذرّية (لا القيمة المحلية) — يمنع تجاوز القفل بدفعة متزامنة
@@ -123,6 +123,7 @@ class AuthController extends Controller
     public function me(Request $request)
     {
         $user = $request->user();
+
         return response()->json([
             'id' => $user->id,
             'username' => $user->username,
@@ -137,6 +138,7 @@ class AuthController extends Controller
     public function logout(Request $request)
     {
         $request->user()->currentAccessToken()->delete();
+
         return response()->json(['message' => 'تم تسجيل الخروج']);
     }
 
@@ -145,11 +147,11 @@ class AuthController extends Controller
     {
         $request->validate([
             'currentPassword' => 'required|string',
-            'newPassword' => ['required', 'string', new StrongPassword()],
+            'newPassword' => ['required', 'string', new StrongPassword],
         ]);
 
         $user = $request->user();
-        if (!Hash::check($request->currentPassword, $user->password)) {
+        if (! Hash::check($request->currentPassword, $user->password)) {
             throw ValidationException::withMessages([
                 'currentPassword' => ['كلمة المرور الحالية غير صحيحة'],
             ]);

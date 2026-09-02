@@ -7,10 +7,11 @@ use App\Models\DevelopmentPlanItem;
 use App\Models\Evaluation;
 use App\Models\FinalReport;
 use App\Models\MeasurementResult;
-use App\Models\Role;
 use App\Models\Sector;
 use App\Models\User;
+use App\Security\Permissions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 // يقفل ما كشفه تدقيق الصلاحيات.
@@ -55,7 +56,7 @@ class AuditFixesTest extends TestCase
     public function test_journey_is_scoped_for_any_bound_holder(): void
     {
         foreach (User::SECTOR_BOUND_ROLES as $code) {
-            $this->assertNotContains('candidate.journey', \App\Security\Permissions::forRole($code),
+            $this->assertNotContains('candidate.journey', Permissions::forRole($code),
                 "{$code} محصور بقطاع ويملك رحلة المشارك — تحقّق من حصرها");
         }
 
@@ -273,9 +274,9 @@ class AuditFixesTest extends TestCase
 
         // تُسحب الصلاحية بعد بدء الجلسة — الملكية وحدها كانت تُبقي الباب مفتوحاً
         $ev->permissionOverrides()->create([
-            'permission' => \App\Security\Permissions::EVALUATION_INPUT, 'granted' => false,
+            'permission' => Permissions::EVALUATION_INPUT, 'granted' => false,
         ]);
-        \Laravel\Sanctum\Sanctum::actingAs($ev->fresh());
+        Sanctum::actingAs($ev->fresh());
 
         $this->postJson("/api/evaluations/{$e->id}/scores", ['scores' => []])->assertStatus(403);
         $this->postJson("/api/evaluations/{$e->id}/submit")->assertStatus(403);

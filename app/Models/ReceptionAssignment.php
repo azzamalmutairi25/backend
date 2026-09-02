@@ -17,7 +17,9 @@ class ReceptionAssignment extends Model
     protected $casts = ['decided_at' => 'datetime'];
 
     public const PENDING = 'pending';
+
     public const ACCEPTED = 'accepted';
+
     public const REJECTED = 'rejected';
 
     // نفس مفردات schedules.activity — الاعتماد يُرحّل الإسناد إلى جلسة،
@@ -48,10 +50,25 @@ class ReceptionAssignment extends Model
         return self::ACTIVITY_LABEL[$activity] ?? $activity;
     }
 
-    public function visit(): BelongsTo { return $this->belongsTo(ReceptionVisit::class, 'visit_id'); }
-    public function evaluator(): BelongsTo { return $this->belongsTo(User::class, 'evaluator_id'); }
-    public function assignedBy(): BelongsTo { return $this->belongsTo(User::class, 'assigned_by'); }
-    public function schedule(): BelongsTo { return $this->belongsTo(Schedule::class); }
+    public function visit(): BelongsTo
+    {
+        return $this->belongsTo(ReceptionVisit::class, 'visit_id');
+    }
+
+    public function evaluator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'evaluator_id');
+    }
+
+    public function assignedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_by');
+    }
+
+    public function schedule(): BelongsTo
+    {
+        return $this->belongsTo(Schedule::class);
+    }
 
     public function isOpen(): bool
     {

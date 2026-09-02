@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\Candidate;
 use App\Models\DevelopmentPlanItem;
 use App\Models\FinalReport;
-use App\Models\AuditLog;
 use App\Security\Permissions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +16,6 @@ use Illuminate\Support\Facades\DB;
 
 class DevelopmentPlanController extends Controller
 {
-
     private function log(Request $request, string $action, int $entityId, array $details = []): void
     {
         AuditLog::create([
@@ -65,13 +64,13 @@ class DevelopmentPlanController extends Controller
     {
         // صلاحيتها وحدها: شاشة قائمة بذاتها، وقبولُ REPORT_VIEW بديلاً كان
         // يُبقي المسار مفتوحاً لمن سُحبت عنه الصلاحية من شاشة الأدوار
-        if (!$request->user()->hasPermission(Permissions::DEVELOPMENT_PLAN_VIEW)) {
+        if (! $request->user()->hasPermission(Permissions::DEVELOPMENT_PLAN_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض خطة التطوير'], 403);
         }
         // المقيّم المحصور لا يرى إلا من قيّمهم هو — كما competencyGap/scorePreview.
         // بدونه كان يقرأ بنود خطة (مشتقّة من التقرير) لمشارك قطاعه لم يقيّمه.
         $candidate = $this->resolveCandidate($request, $candidateId);
-        if (!$candidate || $this->evaluatorNarrowedOut($request, $candidate)) {
+        if (! $candidate || $this->evaluatorNarrowedOut($request, $candidate)) {
             return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
         $assessment = $candidate->assessments()->orderByDesc('id')->first();
@@ -86,7 +85,7 @@ class DevelopmentPlanController extends Controller
     // POST /development-plans — إضافة بند
     public function store(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::REPORT_CREATE)) {
+        if (! $request->user()->hasPermission(Permissions::REPORT_CREATE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة خطة التطوير'], 403);
         }
         $validated = $request->validate([
@@ -96,11 +95,11 @@ class DevelopmentPlanController extends Controller
             'targetDate' => 'nullable|date',
         ]);
         $candidate = $this->resolveCandidate($request, $validated['candidateId']);
-        if (!$candidate) {
+        if (! $candidate) {
             return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
         $assessment = $candidate->assessments()->orderByDesc('id')->first();
-        if (!$assessment) {
+        if (! $assessment) {
             return response()->json(['error' => 'لا توجد دورة تقييم لهذا المشارك'], 422);
         }
 
@@ -122,12 +121,12 @@ class DevelopmentPlanController extends Controller
     // PUT /development-plan-items/{id} — تحديث الإجراء/الموعد/الحالة (متابعة)
     public function update(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::REPORT_CREATE)) {
+        if (! $request->user()->hasPermission(Permissions::REPORT_CREATE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة خطة التطوير'], 403);
         }
         // يُحلّ بمعرّف البند لا المشارك، فالنطاق يُطبَّق عبر علاقة candidate
         $item = $this->resolveItemInScope($request, $id);
-        if (!$item) {
+        if (! $item) {
             return response()->json(['error' => 'البند غير موجود'], 404);
         }
         $validated = $request->validate([
@@ -136,9 +135,13 @@ class DevelopmentPlanController extends Controller
             'status' => 'nullable|in:pending,in_progress,done',
         ]);
 
-        if (array_key_exists('action', $validated))     { $item->action = $validated['action']; }
-        if (array_key_exists('targetDate', $validated))  { $item->target_date = $validated['targetDate']; }
-        if (!empty($validated['status'])) {
+        if (array_key_exists('action', $validated)) {
+            $item->action = $validated['action'];
+        }
+        if (array_key_exists('targetDate', $validated)) {
+            $item->target_date = $validated['targetDate'];
+        }
+        if (! empty($validated['status'])) {
             $item->status = $validated['status'];
             $item->completed_at = $validated['status'] === 'done' ? now() : null;
         }
@@ -152,12 +155,12 @@ class DevelopmentPlanController extends Controller
     // DELETE /development-plan-items/{id}
     public function destroy(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::REPORT_CREATE)) {
+        if (! $request->user()->hasPermission(Permissions::REPORT_CREATE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة خطة التطوير'], 403);
         }
         // يُحلّ بمعرّف البند لا المشارك، فالنطاق يُطبَّق عبر علاقة candidate
         $item = $this->resolveItemInScope($request, $id);
-        if (!$item) {
+        if (! $item) {
             return response()->json(['error' => 'البند غير موجود'], 404);
         }
         $item->delete();
@@ -169,12 +172,12 @@ class DevelopmentPlanController extends Controller
     // POST /development-plans/seed — توليد بنود من «مجالات التطوير» في تقرير الدورة
     public function seed(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::REPORT_CREATE)) {
+        if (! $request->user()->hasPermission(Permissions::REPORT_CREATE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة خطة التطوير'], 403);
         }
         $validated = $request->validate(['candidateId' => 'required|integer']);
         $candidate = $this->resolveCandidate($request, $validated['candidateId']);
-        if (!$candidate) {
+        if (! $candidate) {
             return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
         $assessment = $candidate->assessments()->orderByDesc('id')->first();
@@ -193,7 +196,9 @@ class DevelopmentPlanController extends Controller
             $existing = DevelopmentPlanItem::where('candidate_id', $candidate->id)
                 ->where('assessment_id', $assessment->id)->pluck('area')->all();
             foreach (array_unique($areas) as $area) {
-                if (in_array($area, $existing, true)) continue;
+                if (in_array($area, $existing, true)) {
+                    continue;
+                }
                 DevelopmentPlanItem::create([
                     'candidate_id' => $candidate->id,
                     'assessment_id' => $assessment->id,

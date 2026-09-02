@@ -18,11 +18,11 @@ class ActiveDirectoryService
 
     public static function authenticate(string $adUsername, string $password): ?bool
     {
-        if (!self::isEnabled()) {
+        if (! self::isEnabled()) {
             return null;
         }
 
-        if (!function_exists('ldap_connect')) {
+        if (! function_exists('ldap_connect')) {
             return null;
         }
 
@@ -36,8 +36,8 @@ class ActiveDirectoryService
         }
 
         $protocol = $useSsl ? 'ldaps://' : 'ldap://';
-        $conn = @ldap_connect($protocol . $host, $port);
-        if (!$conn) {
+        $conn = @ldap_connect($protocol.$host, $port);
+        if (! $conn) {
             return null; // فشل إعداد اتصال (بنية تحتية) لا رفض اعتماد — لا تُعاقب المستخدم
         }
 
@@ -49,7 +49,7 @@ class ActiveDirectoryService
         ldap_set_option($conn, LDAP_OPT_NETWORK_TIMEOUT, 5);
         ldap_set_option($conn, LDAP_OPT_TIMEOUT, 5);
 
-        $bindUser = $domain . '\\' . $adUsername;
+        $bindUser = $domain.'\\'.$adUsername;
         $bound = @ldap_bind($conn, $bindUser, $password);
         $errno = $bound ? 0 : @ldap_errno($conn);
         @ldap_close($conn);
@@ -61,13 +61,14 @@ class ActiveDirectoryService
         if (in_array($errno, [48, 49, 50], true)) {
             return false;
         }
+
         // خلاف ذلك (خادم متوقّف/شبكة/مهلة) → «غير متاح»: لا تُعاقب مستخدماً أدخل كلمة مرور صحيحة
         return null;
     }
 
     public static function testConnection(string $host, int $port, bool $useSsl = false): array
     {
-        if (!function_exists('ldap_connect')) {
+        if (! function_exists('ldap_connect')) {
             return [
                 'success' => false,
                 'message' => 'إضافة LDAP غير مثبّتة في PHP (php-ldap)',
@@ -75,8 +76,8 @@ class ActiveDirectoryService
         }
 
         $protocol = $useSsl ? 'ldaps://' : 'ldap://';
-        $conn = @ldap_connect($protocol . $host, $port);
-        if (!$conn) {
+        $conn = @ldap_connect($protocol.$host, $port);
+        if (! $conn) {
             return ['success' => false, 'message' => 'تعذّر إنشاء اتصال بالخادم'];
         }
 

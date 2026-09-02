@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
-use Illuminate\Foundation\Auth\User as Authenticatable;
+use App\Security\Permissions;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
@@ -61,7 +63,7 @@ class User extends Authenticatable
         return $this->belongsTo(User::class, 'manager_id');
     }
 
-    public function team(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function team(): HasMany
     {
         return $this->hasMany(User::class, 'manager_id');
     }
@@ -85,13 +87,14 @@ class User extends Authenticatable
     // يُمنع لا يُسمح: بيانات ناقصة لا تُقرأ كإذن مفتوح.
     public function coversSector(?int $sectorId): bool
     {
-        if (!$this->isSectorBound()) {
+        if (! $this->isSectorBound()) {
             return true;
         }
+
         return $this->sector_id !== null && $this->sector_id === $sectorId;
     }
 
-    public function permissionOverrides(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function permissionOverrides(): HasMany
     {
         return $this->hasMany(UserPermissionOverride::class);
     }
@@ -111,14 +114,14 @@ class User extends Authenticatable
             return (bool) $override->granted;
         }
 
-        return \App\Security\Permissions::roleHasPermission($this->role->code, $permission);
+        return Permissions::roleHasPermission($this->role->code, $permission);
     }
 
     // ── الصلاحيات الفعلية: الدور + الاستثناءات ──
     // تُرسل للواجهة عند الدخول لتضبط ما يُعرض.
     public function effectivePermissions(): array
     {
-        $base = \App\Security\Permissions::forRole($this->role->code);
+        $base = Permissions::forRole($this->role->code);
         $overrides = $this->permissionOverrides()->get();
 
         if ($overrides->isEmpty()) {
@@ -127,7 +130,7 @@ class User extends Authenticatable
 
         // '*' يُفرَد قبل تطبيق السحب — وإلا لم يكن للسحب أثر على مدير النظام
         if (in_array('*', $base, true)) {
-            $base = \App\Security\Permissions::all();
+            $base = Permissions::all();
         }
 
         $granted = $overrides->where('granted', true)->pluck('permission')->all();

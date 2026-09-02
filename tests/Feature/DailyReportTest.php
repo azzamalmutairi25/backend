@@ -28,6 +28,7 @@ class DailyReportTest extends TestCase
             'absence_reason' => $reason, 'check_in_time' => $attStatus === 'present' ? now() : null,
             'recorded_by' => null,
         ]);
+
         return $s;
     }
 
@@ -95,7 +96,7 @@ class DailyReportTest extends TestCase
         $today = $this->getJson('/api/daily-report')->assertOk();
         $this->assertSame(0, $today->json('totals.sessions'), 'جلسة أمس ليست في تقرير اليوم');
 
-        $yesterday = $this->getJson('/api/daily-report?date=' . now()->subDay()->toDateString())->assertOk();
+        $yesterday = $this->getJson('/api/daily-report?date='.now()->subDay()->toDateString())->assertOk();
         $this->assertSame(1, $yesterday->json('totals.present'));
     }
 

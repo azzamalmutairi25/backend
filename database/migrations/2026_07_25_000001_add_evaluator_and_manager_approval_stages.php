@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration
 {
     private const OLD = ['draft', 'pending_dev_approval', 'approved', 'returned'];
+
     private const NEW = ['draft', 'pending_evaluator', 'pending_manager', 'pending_dev_approval', 'approved', 'returned'];
 
     public function up(): void
@@ -31,7 +32,7 @@ return new class extends Migration
 
     private function setCheck(array $values): void
     {
-        $list = implode(', ', array_map(fn ($v) => "'" . $v . "'", $values));
+        $list = implode(', ', array_map(fn ($v) => "'".$v."'", $values));
         DB::statement('ALTER TABLE final_reports DROP CONSTRAINT IF EXISTS final_reports_status_check');
         DB::statement("ALTER TABLE final_reports ADD CONSTRAINT final_reports_status_check CHECK (status::text = ANY (ARRAY[{$list}]::text[]))");
     }
