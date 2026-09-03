@@ -10,12 +10,14 @@ use Illuminate\Support\Facades\DB;
 class LakeMaintain extends Command
 {
     protected $signature = 'kafaat:lake:maintain {--purge-days=30 : عمر الصفوف المشحونة قبل تقليمها}';
+
     protected $description = 'صيانة بحيرة التقارير: الأقسام، التقليم، فحص الصحّة';
 
     public function handle(): int
     {
-        if (!config('lake.enabled')) {
+        if (! config('lake.enabled')) {
             $this->line('البحيرة معطّلة — لا صيانة.');
+
             return self::SUCCESS;
         }
 
@@ -47,8 +49,8 @@ class LakeMaintain extends Command
         }
 
         $f = $lake->table('contract_v1.freshness')->first();
-        $this->line('آخر حدثٍ هبط: ' . ($f->last_landed_at ?? '—')
-            . '   تقارير مُتابَعة: ' . ($f->reports_tracked ?? 0));
+        $this->line('آخر حدثٍ هبط: '.($f->last_landed_at ?? '—')
+            .'   تقارير مُتابَعة: '.($f->reports_tracked ?? 0));
 
         return self::SUCCESS;
     }

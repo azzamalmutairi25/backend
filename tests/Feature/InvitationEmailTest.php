@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\EmailLog;
 use App\Services\CommunicationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
@@ -80,7 +81,7 @@ class InvitationEmailTest extends TestCase
         app(CommunicationService::class)
             ->sendEmail('secret@example.com', 'اسم سرّي', 'موضوع', 'نص', 'invitation', $c->id, null);
 
-        $raw = \Illuminate\Support\Facades\DB::table('email_logs')->latest('id')->first();
+        $raw = DB::table('email_logs')->latest('id')->first();
         $this->assertStringNotContainsString('secret@example.com', $raw->to_email);
         $this->assertStringNotContainsString('اسم سرّي', $raw->to_name);
     }

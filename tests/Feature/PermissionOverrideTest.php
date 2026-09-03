@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\User;
 use App\Security\Permissions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 // تخصيص صلاحية لمستخدم فوق دوره — منحاً أو سحباً.
@@ -37,7 +38,7 @@ class PermissionOverrideTest extends TestCase
         $this->get('/api/reports/export')->assertStatus(403);
 
         $this->override($u, Permissions::REPORT_EXPORT, true);
-        \Laravel\Sanctum\Sanctum::actingAs($u->fresh());
+        Sanctum::actingAs($u->fresh());
         $this->get('/api/reports/export')->assertOk();
     }
 
@@ -56,7 +57,7 @@ class PermissionOverrideTest extends TestCase
     {
         $u = $this->actingAsRole('SCHEDULER');
         $this->override($u, Permissions::CANDIDATE_CREATE, false);
-        \Laravel\Sanctum\Sanctum::actingAs($u->fresh());
+        Sanctum::actingAs($u->fresh());
 
         $this->postJson('/api/candidates', ['fullName' => 'x'])->assertStatus(403);
     }

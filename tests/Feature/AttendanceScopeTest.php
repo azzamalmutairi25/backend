@@ -7,6 +7,7 @@ use App\Models\Schedule;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 // «كل مرحلة يدخلها المشارك يسجّل حضوره الذي يستقبله»
@@ -20,6 +21,7 @@ class AttendanceScopeTest extends TestCase
     private function scheduleFor(?User $evaluator = null, string $activity = 'interview', ?User $assistant = null): Schedule
     {
         [$c, $a] = $this->makeCandidate(['status' => 'scheduled']);
+
         return Schedule::create([
             'candidate_id' => $c->id,
             'assessment_id' => $a->id,
@@ -123,7 +125,7 @@ class AttendanceScopeTest extends TestCase
         $mine = $this->scheduleFor($ev);
         $theirs = $this->scheduleFor($this->actingAsRole('EVALUATOR'));
 
-        \Laravel\Sanctum\Sanctum::actingAs($ev);
+        Sanctum::actingAs($ev);
         $rows = collect($this->getJson('/api/attendance/today')->assertOk()->json('attendance'))
             ->keyBy('id');
 

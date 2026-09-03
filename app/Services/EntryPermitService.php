@@ -20,21 +20,25 @@ namespace App\Services;
 class EntryPermitService
 {
     private const GREEN = '#008769';
+
     private const GREEN_DARK = '#024032';
+
     private const GOLD = '#C8A535';
+
     private const EMBLEM_PATH = 'brand/moi-emblem.png';
 
     private function emblemDataUri(): string
     {
         $path = public_path(self::EMBLEM_PATH);
+
         return is_file($path)
-            ? 'data:image/png;base64,' . base64_encode((string) file_get_contents($path))
+            ? 'data:image/png;base64,'.base64_encode((string) file_get_contents($path))
             : '';
     }
 
     /**
-     * @param array $permits صفوفٌ فيها: code, name (أو null), sector, date, window, location
-     * @param string $dateLabel التاريخ المعروض في الترويسة
+     * @param  array  $permits  صفوفٌ فيها: code, name (أو null), sector, date, window, location
+     * @param  string  $dateLabel  التاريخ المعروض في الترويسة
      */
     public function renderHtml(array $permits, string $dateLabel): string
     {
@@ -111,8 +115,8 @@ HTML;
         $location = e($p['location'] ?? '—');
         $serial = e($p['serial'] ?? '—');
 
-        $nameRow = !empty($p['name'])
-            ? '<div class="p-name">' . e($p['name']) . '</div>'
+        $nameRow = ! empty($p['name'])
+            ? '<div class="p-name">'.e($p['name']).'</div>'
             : '';
 
         return <<<HTML

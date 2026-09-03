@@ -1,5 +1,6 @@
 <?php
 
+use App\Security\Permissions;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
@@ -16,12 +17,13 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration
 {
     private const ROLE = 'CENTER_MANAGER';
+
     private const PERMISSION = 'candidate.view_names';
 
     public function up(): void
     {
         $roleId = DB::table('roles')->where('code', self::ROLE)->value('id');
-        if (!$roleId) {
+        if (! $roleId) {
             return;   // منصّة لم تُبذَر بعد — المصفوفة تكفيها
         }
 
@@ -29,7 +31,7 @@ return new class extends Migration
 
         // دورٌ جُرّد من كل صلاحياته عمداً (لا يبقى إلا العلامة البديلة): تجريدٌ
         // اختاره المدير من الشاشة، ومنحُه صلاحيةً هنا نقضٌ لقراره بلا إنذار.
-        if ($rows->count() === 1 && $rows->first() === \App\Security\Permissions::PLACEHOLDER) {
+        if ($rows->count() === 1 && $rows->first() === Permissions::PLACEHOLDER) {
             return;
         }
         // دورٌ بلا صفوف يقع على المصفوفة، وقد أُضيفت فيها — فلا حاجة لصفّ هنا
@@ -48,7 +50,7 @@ return new class extends Migration
     public function down(): void
     {
         $roleId = DB::table('roles')->where('code', self::ROLE)->value('id');
-        if (!$roleId) {
+        if (! $roleId) {
             return;
         }
 

@@ -2,8 +2,8 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * الأساس: فصل الشخص (candidates) عن دورة التقييم (assessments).
@@ -29,7 +29,7 @@ return new class extends Migration
 
         // 2) ربط assessment_id في الجداول التابعة (nullable حتى لا يكسر الصفوف القائمة)
         foreach (['evaluations', 'schedules', 'final_reports'] as $tbl) {
-            if (Schema::hasTable($tbl) && !Schema::hasColumn($tbl, 'assessment_id')) {
+            if (Schema::hasTable($tbl) && ! Schema::hasColumn($tbl, 'assessment_id')) {
                 Schema::table($tbl, function (Blueprint $table) {
                     $table->foreignId('assessment_id')->nullable()->after('candidate_id')
                         ->constrained('assessments')->nullOnDelete();
@@ -41,12 +41,12 @@ return new class extends Migration
         $now = now();
         foreach (DB::table('candidates')->get() as $c) {
             $assessmentId = DB::table('assessments')->insertGetId([
-                'candidate_id'    => $c->id,
-                'participant_code'=> $c->participant_code,
+                'candidate_id' => $c->id,
+                'participant_code' => $c->participant_code,
                 'assessment_type' => $c->assessment_type ?? 'comprehensive',
-                'status'          => $c->status ?? 'draft',
-                'created_at'      => $c->created_at ?? $now,
-                'updated_at'      => $now,
+                'status' => $c->status ?? 'draft',
+                'created_at' => $c->created_at ?? $now,
+                'updated_at' => $now,
             ]);
             DB::table('evaluations')->where('candidate_id', $c->id)->update(['assessment_id' => $assessmentId]);
             DB::table('schedules')->where('candidate_id', $c->id)->update(['assessment_id' => $assessmentId]);

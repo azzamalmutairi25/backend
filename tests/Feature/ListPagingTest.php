@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\Competency;
 use App\Models\Evaluation;
 use App\Models\FinalReport;
 use App\Models\Role;
@@ -163,7 +162,7 @@ class ListPagingTest extends TestCase
         $this->actingAsRole('ADMIN');
         foreach (['ياسر', 'أحمد', 'سعد'] as $i => $name) {
             User::create([
-                'username' => 'u_order_' . $i, 'full_name' => $name, 'password' => 'Kafaat@2026',
+                'username' => 'u_order_'.$i, 'full_name' => $name, 'password' => 'Kafaat@2026',
                 'role_id' => Role::where('code', 'ASSESS_MANAGER')->value('id'),
                 'is_active' => true, 'must_change_password' => false,
             ]);

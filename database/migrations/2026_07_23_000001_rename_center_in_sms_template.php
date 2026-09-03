@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration
 {
     private const OLD = 'مركز الكفاءات: لديك جلسة تقييم بتاريخ {date} الساعة {time} في {location}';
+
     private const NEW = 'مركز تمكين الكفاءات: لديك جلسة تقييم بتاريخ {date} الساعة {time} في {location}';
 
     public function up(): void

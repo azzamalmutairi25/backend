@@ -2,11 +2,9 @@
 
 namespace App\Services;
 
-use App\Models\Attendance;
+use App\Models\EvaluationScore;
 use App\Models\FinalReport;
 use App\Models\Schedule;
-use App\Models\EvaluationScore;
-use Illuminate\Support\Carbon;
 
 // ════════════════════════════════════════════════════════════
 //  تقرير اليوم لمدير المركز: من حضر ومن غاب (بالأسباب)، ودرجات
@@ -37,7 +35,7 @@ class DailyReportService
 
         $present = $sessions->filter(fn ($s) => $s->attendance?->status === 'present');
         $absent = $sessions->filter(fn ($s) => in_array($s->attendance?->status, ['absent_excused', 'absent_unexcused'], true));
-        $pending = $sessions->filter(fn ($s) => !$s->attendance || $s->attendance->status === 'pending');
+        $pending = $sessions->filter(fn ($s) => ! $s->attendance || $s->attendance->status === 'pending');
 
         // درجات التقييم المُدخَلة اليوم — متوسط لكل جلسة قُيّمت
         $scoresToday = EvaluationScore::whereHas('evaluation', fn ($q) => $q->whereDate('updated_at', $date))
@@ -75,6 +73,7 @@ class DailyReportService
             ])->values()->all(),
             'scores' => $scoresToday->map(function ($rows) {
                 $ev = $rows->first()->evaluation;
+
                 return [
                     'code' => $ev->candidate->participant_code,
                     'sector' => $ev->candidate->sector->name_ar,
@@ -101,7 +100,7 @@ class DailyReportService
         $presRows = $this->rows($data['presence'], ['code', 'sector', 'activity', 'time'])
             ?: '<tr><td colspan="4" class="muted">لا حضور مسجّل</td></tr>';
         $scoreRows = $this->rows(array_map(fn ($s) => [
-            $s['code'], $s['sector'], $s['avg'] . ' / 5', $s['count'] . ' كفاءة',
+            $s['code'], $s['sector'], $s['avg'].' / 5', $s['count'].' كفاءة',
         ], $data['scores']), [0, 1, 2, 3])
             ?: '<tr><td colspan="4" class="muted">لا درجات أُدخلت اليوم</td></tr>';
         $repRows = $this->rows($data['reports'], ['code', 'sector', 'status'])
@@ -165,7 +164,8 @@ HTML;
     private function rows(array $items, array $keys): string
     {
         return implode('', array_map(function ($item) use ($keys) {
-            $cells = implode('', array_map(fn ($k) => '<td>' . e($item[$k]) . '</td>', $keys));
+            $cells = implode('', array_map(fn ($k) => '<td>'.e($item[$k]).'</td>', $keys));
+
             return "<tr>{$cells}</tr>";
         }, $items));
     }

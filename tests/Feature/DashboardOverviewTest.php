@@ -25,7 +25,7 @@ class DashboardOverviewTest extends TestCase
     private function evaluatorUser(string $sectorCode = 'DW'): User
     {
         return User::create([
-            'username' => 'ev_' . substr(md5(uniqid('', true)), 0, 6),
+            'username' => 'ev_'.substr(md5(uniqid('', true)), 0, 6),
             'full_name' => 'مقيّم',
             'password' => 'Kafaat@2026',
             'role_id' => Role::where('code', 'EVALUATOR')->value('id'),

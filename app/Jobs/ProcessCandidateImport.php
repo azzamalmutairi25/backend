@@ -35,6 +35,7 @@ class ProcessCandidateImport implements ShouldQueue
     private const CHUNK = 100;
 
     public int $timeout = 3600;
+
     public int $tries = 1;   // إعادةُ المحاولة تُعيد إنشاء ما أُنشئ — لا تُعاد
 
     // ── طابورٌ مستقلّ: `imports` لا `default` ──
@@ -50,7 +51,7 @@ class ProcessCandidateImport implements ShouldQueue
     public function handle(CandidateImporter $importer): void
     {
         $batch = ImportBatch::find($this->batchId);
-        if (!$batch || $batch->status !== 'queued') {
+        if (! $batch || $batch->status !== 'queued') {
             return;   // حُذفت، أو عولجت مرّة — لا تُعالَج ثانية
         }
 
@@ -99,7 +100,7 @@ class ProcessCandidateImport implements ShouldQueue
             $batch->update([
                 'status' => 'failed',
                 'payload' => null,
-                'error' => 'تعذّرت معالجة الرفعة — عولج ' . $offset . ' صفّاً قبل التوقّف',
+                'error' => 'تعذّرت معالجة الرفعة — عولج '.$offset.' صفّاً قبل التوقّف',
                 'finished_at' => now(),
             ]);
         }

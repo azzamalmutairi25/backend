@@ -7,6 +7,7 @@ use App\Models\Candidate;
 use App\Models\DistributionProposal;
 use App\Security\Permissions;
 use App\Services\DistributionService;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 
 // التوزيع الأسبوعي — اقتراح واعتماد. لمسؤول الجدولة (إدارة المشاركين).
@@ -31,7 +32,7 @@ class DistributionController extends Controller
     // GET /distribution — الاقتراح الحالي للأسبوع القادم (إن وُجد) + سياق
     public function index(Request $request)
     {
-        if (!$this->guard($request)) {
+        if (! $this->guard($request)) {
             return response()->json(['error' => 'ليس لديك صلاحية التوزيع'], 403);
         }
 
@@ -50,7 +51,7 @@ class DistributionController extends Controller
     // POST /distribution/propose — يقترح توزيع الأسبوع القادم
     public function propose(Request $request)
     {
-        if (!$this->guard($request)) {
+        if (! $this->guard($request)) {
             return response()->json(['error' => 'ليس لديك صلاحية التوزيع'], 403);
         }
 
@@ -61,7 +62,7 @@ class DistributionController extends Controller
 
         try {
             $proposal = $this->service->propose($request->user());
-        } catch (\Illuminate\Database\QueryException $e) {
+        } catch (QueryException $e) {
             // 23505: سبقنا اقتراحٌ متزامن — القيد الفريد على week_start
             if ($e->getCode() === '23505') {
                 return response()->json(['error' => 'أُنشئ اقتراح لهذا الأسبوع للتو'], 422);
@@ -82,12 +83,12 @@ class DistributionController extends Controller
     // POST /distribution/{id}/approve — يعتمد الاقتراح ويصنع الجلسات
     public function approve(Request $request, int $id)
     {
-        if (!$this->guard($request)) {
+        if (! $this->guard($request)) {
             return response()->json(['error' => 'ليس لديك صلاحية التوزيع'], 403);
         }
 
         $proposal = DistributionProposal::find($id);
-        if (!$proposal) {
+        if (! $proposal) {
             return response()->json(['error' => 'الاقتراح غير موجود'], 404);
         }
         if ($proposal->status !== 'draft') {
@@ -110,11 +111,11 @@ class DistributionController extends Controller
     // DELETE /distribution/{id} — يحذف اقتراحاً مسودّة (لإعادة التوزيع)
     public function destroy(Request $request, int $id)
     {
-        if (!$this->guard($request)) {
+        if (! $this->guard($request)) {
             return response()->json(['error' => 'ليس لديك صلاحية التوزيع'], 403);
         }
         $proposal = DistributionProposal::find($id);
-        if (!$proposal) {
+        if (! $proposal) {
             return response()->json(['error' => 'الاقتراح غير موجود'], 404);
         }
         if ($proposal->status === 'approved') {
@@ -140,6 +141,7 @@ class DistributionController extends Controller
         // مجمّع لكل مقيّم — الأوضح للمراجعة قبل الاعتماد
         $byEvaluator = $p->items->groupBy('evaluator_id')->map(function ($items) {
             $ev = $items->first()->evaluator;
+
             return [
                 'evaluatorName' => $ev?->full_name ?? '—',
                 'sector' => $items->first()->sector?->name_ar,

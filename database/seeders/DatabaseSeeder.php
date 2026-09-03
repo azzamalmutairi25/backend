@@ -2,13 +2,15 @@
 
 namespace Database\Seeders;
 
+use App\Data\MoiSectors;
+use App\Models\Competency;
+use App\Models\Role;
+use App\Models\RolePermission;
+use App\Models\User;
+use App\Security\Permissions;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
-use App\Data\MoiSectors;
-use App\Models\Role;
-use App\Models\Competency;
-use App\Models\User;
+use Illuminate\Support\Facades\Schema;
 
 // ════════════════════════════════════════════════════════════
 //  البيانات الأولية (Seeder)
@@ -36,26 +38,34 @@ class DatabaseSeeder extends Seeder
             ['code' => 'MEASURE_SUPER', 'name_ar' => 'مشرف أدوات القياس'],
             ['code' => 'EXTERNAL_ADD', 'name_ar' => 'مستخدم خارجي (إضافة مشاركين)'],
         ];
-        foreach ($roles as $r) Role::updateOrCreate(['code' => $r['code']], $r);
+        foreach ($roles as $r) {
+            Role::updateOrCreate(['code' => $r['code']], $r);
+        }
 
         // ── صلاحيات الأدوار: تُبذَر من المصفوفة مرّة، ثم يملكها المدير ──
         // البذر لدورٍ **لا صفوف له** فقط. دورٌ حُرِّرت صلاحياته من الشاشة لا
         // يُعاد إلى الافتراضي بإعادة تشغيل البذر — وإلا محا كلُّ بذرٍ ضبطاً
         // اختاره صاحب المنصّة بلا إنذار، وهو نفس عطل حساب admin.
-        if (\Illuminate\Support\Facades\Schema::hasTable('role_permissions')) {
+        if (Schema::hasTable('role_permissions')) {
             $seeded = 0;
-            foreach (\App\Security\Permissions::matrix() as $code => $perms) {
+            foreach (Permissions::matrix() as $code => $perms) {
                 $role = Role::where('code', $code)->first();
-                if (!$role) continue;
-                if (\App\Models\RolePermission::where('role_id', $role->id)->exists()) continue;
+                if (! $role) {
+                    continue;
+                }
+                if (RolePermission::where('role_id', $role->id)->exists()) {
+                    continue;
+                }
 
                 foreach ($perms as $p) {
-                    \App\Models\RolePermission::create(['role_id' => $role->id, 'permission' => $p]);
+                    RolePermission::create(['role_id' => $role->id, 'permission' => $p]);
                 }
                 $seeded++;
             }
-            \App\Security\Permissions::forgetCache();
-            if ($seeded > 0) echo "✓ بُذرت صلاحيات {$seeded} دور\n";
+            Permissions::forgetCache();
+            if ($seeded > 0) {
+                echo "✓ بُذرت صلاحيات {$seeded} دور\n";
+            }
         }
 
         // ── قطاعات الوزارة المعتمدة ──
@@ -73,7 +83,9 @@ class DatabaseSeeder extends Seeder
             ['name_ar' => 'حل المشكلات', 'type' => 'technical', 'max_level' => 5, 'sort_order' => 7],
             ['name_ar' => 'المرونة والتكيّف', 'type' => 'behavioral', 'max_level' => 5, 'sort_order' => 8],
         ];
-        foreach ($competencies as $c) Competency::updateOrCreate(['name_ar' => $c['name_ar']], $c);
+        foreach ($competencies as $c) {
+            Competency::updateOrCreate(['name_ar' => $c['name_ar']], $c);
+        }
 
         // ── حسابات المستخدمين ──
         // في الإنتاج: لا تُنشأ حسابات تجريبية بكلمة مرور منشورة إطلاقاً. يُنشأ مدير

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Testing\PendingCommand;
 use Tests\TestCase;
 
 // أمر استعادة الدخول: يُستعمل على نظامٍ لا سبيل إليه غيره، فخطؤه مُقفِل.
@@ -19,9 +20,9 @@ class CreateAdminTest extends TestCase
     // الكامل. اسمٌ غير مبذور يجعل النيّة صريحة: هذا حسابٌ ينشئه الأمر.
     private const NAME = 'sysadmin';
 
-    private function createAdmin(string $args = ''): \Illuminate\Testing\PendingCommand
+    private function createAdmin(string $args = ''): PendingCommand
     {
-        return $this->artisan(trim('kafaat:create-admin ' . self::NAME . ' ' . $args));
+        return $this->artisan(trim('kafaat:create-admin '.self::NAME.' '.$args));
     }
 
     private function account(): ?User

@@ -23,8 +23,8 @@ class ScheduleConflictTest extends TestCase
     private function person(string $roleCode, string $sectorCode = 'DW'): User
     {
         return User::create([
-            'username' => 'u_' . substr(md5(uniqid('', true)), 0, 8),
-            'full_name' => 'مستخدم ' . $roleCode,
+            'username' => 'u_'.substr(md5(uniqid('', true)), 0, 8),
+            'full_name' => 'مستخدم '.$roleCode,
             'password' => 'Kafaat@2026',
             'role_id' => Role::where('code', $roleCode)->value('id'),
             'sector_id' => Sector::where('code', $sectorCode)->value('id'),
@@ -98,7 +98,7 @@ class ScheduleConflictTest extends TestCase
             ->assertStatus(201)->json('scheduleId');
 
         // النقل كالإنشاء — نفس القيد
-        $this->putJson('/api/schedules/' . $id, ['time' => '10:15'])->assertStatus(409);
+        $this->putJson('/api/schedules/'.$id, ['time' => '10:15'])->assertStatus(409);
     }
 
     // ── ما لا يُمنع ──

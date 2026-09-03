@@ -6,6 +6,7 @@ use App\Models\ReceptionAssignment;
 use App\Models\ReceptionVisit;
 use App\Models\Schedule;
 use App\Models\User;
+use App\Security\Permissions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -27,7 +28,7 @@ class ReceptionFlowTest extends TestCase
 
     // أصغر PNG صالح — الشكل هو المهم لا المحتوى
     private const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAf'
-        . 'FcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+        .'FcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
     private const NAME = 'سلطان بن فيصل الشهراني';
 
@@ -49,6 +50,7 @@ class ReceptionFlowTest extends TestCase
     private function assignTo(int $visitId, User $evaluator, string $activity = 'interview'): int
     {
         $this->actingAsRole('RECEPTIONIST');
+
         return $this->postJson("/api/reception/visits/{$visitId}/assign", [
             'activity' => $activity, 'evaluatorId' => $evaluator->id,
         ])->assertStatus(201)->json('assignmentId');
@@ -187,7 +189,7 @@ class ReceptionFlowTest extends TestCase
 
         // امنح المقيّم رؤية الأسماء استثناءً — يجب ألّا يتغيّر شيء في هذا المسار
         $ev->permissionOverrides()->create([
-            'permission' => \App\Security\Permissions::CANDIDATE_VIEW_NAMES, 'granted' => true,
+            'permission' => Permissions::CANDIDATE_VIEW_NAMES, 'granted' => true,
         ]);
         $this->actingAs($ev->fresh());
 
@@ -285,7 +287,7 @@ class ReceptionFlowTest extends TestCase
         $this->actingAsRole('EVALUATOR', 'DW');
 
         $this->actingAsRole('RECEPTIONIST');
-        $offered = $this->getJson('/api/reception/evaluators?activity=interview&sectorId=' . $c->sector_id)
+        $offered = $this->getJson('/api/reception/evaluators?activity=interview&sectorId='.$c->sector_id)
             ->assertOk()->json('evaluators');
 
         $this->assertNotEmpty($offered, 'لا مقيّم معروض — الاختبار لا يثبت شيئاً');
@@ -321,7 +323,7 @@ class ReceptionFlowTest extends TestCase
             ->where('recipient_id', $ops->id)
             ->where('entity_type', 'reception_visit')->first();
         $this->assertNotNull($notif, 'لم تُشعَر العمليات بالردّ');
-        $this->assertStringNotContainsString(self::NAME, $notif->title . ' ' . $notif->body);
+        $this->assertStringNotContainsString(self::NAME, $notif->title.' '.$notif->body);
     }
 
     public function test_operations_can_reassign_a_rejected_candidate_and_history_survives(): void

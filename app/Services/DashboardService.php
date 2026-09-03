@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Attendance;
 use App\Models\Competency;
 use App\Models\WorkflowStage;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 // ════════════════════════════════════════════════════════════
@@ -50,19 +51,18 @@ class DashboardService
     private const TONES = ['accent', 'info', 'purple', 'warn'];
 
     private const ABSENT_STATUSES = ['absent_excused', 'absent_unexcused'];
+
     private const COUNTED_EVAL_STATUSES = ['submitted', 'approved'];
 
-    public function __construct(private ExecutiveAnalyticsService $executive)
-    {
-    }
+    public function __construct(private ExecutiveAnalyticsService $executive) {}
 
     /**
      * الحمولة الكاملة.
      *
-     * @param array $scope مغلّفات النطاق: candidates/reports/evaluations/schedules
-     *                     (كل واحدة closure ترجع استعلاماً جديداً محصوراً)،
-     *                     + classifications و sectorId و sectorBound.
-     * @param array $can   الصلاحيات المحسوبة مسبقاً: candidate/attendance/evaluation/report/analytics/schedule
+     * @param  array  $scope  مغلّفات النطاق: candidates/reports/evaluations/schedules
+     *                        (كل واحدة closure ترجع استعلاماً جديداً محصوراً)،
+     *                        + classifications و sectorId و sectorBound.
+     * @param  array  $can  الصلاحيات المحسوبة مسبقاً: candidate/attendance/evaluation/report/analytics/schedule
      */
     public function overview(array $scope, array $can): array
     {
@@ -97,7 +97,9 @@ class DashboardService
     private function funnel(array $scope): array
     {
         // لا مغلّف assessments لدى نداءٍ قديم لم يُحدَّث — لا نُسقط اللوحة كلّها
-        if (!isset($scope['assessments'])) return ['stages' => []];
+        if (! isset($scope['assessments'])) {
+            return ['stages' => []];
+        }
 
         // الحالات التي تعني «بلغ هذه الرتبة أو تجاوزها»
         $atLeast = fn (int $rank) => array_keys(array_filter(self::STATUS_RANK, fn ($r) => $r >= $rank));
@@ -256,7 +258,7 @@ class DashboardService
                 // abs() تُعيدها عمراً كما تُقرأ
                 'oldestDays' => ($oldest = $pending()->min('created_at'))
                     ? (int) abs($now->copy()->startOfDay()->diffInDays(
-                        \Illuminate\Support\Carbon::parse($oldest)->startOfDay()
+                        Carbon::parse($oldest)->startOfDay()
                     ))
                     : null,
             ];
@@ -287,6 +289,7 @@ class DashboardService
 
         return array_map(function (int $i) use ($since, $rows) {
             $key = $since->copy()->addWeeks($i)->toDateString();
+
             return (int) ($rows[$key] ?? 0);
         }, range(0, 7));
     }
@@ -390,7 +393,7 @@ class DashboardService
 
         $out = [];
         foreach ($comps as $comp) {
-            if (!isset($cells[$comp->id])) {
+            if (! isset($cells[$comp->id])) {
                 continue;   // كفاءة بلا عيّنة لا صفّ لها
             }
             $max = (int) ($comp->max_level ?: 5);
@@ -456,7 +459,7 @@ class DashboardService
     // فالفراغ هنا «لا رؤى لك» لا «ممنوع».
     private function insights(array $scope): array
     {
-        if (!empty($scope['sectorBound'])) {
+        if (! empty($scope['sectorBound'])) {
             return [];
         }
 
@@ -477,7 +480,7 @@ class DashboardService
         $agg = Attendance::whereIn('schedule_id', (clone $scheduleQuery)->select('id'))
             ->selectRaw("
                 count(*) filter (where status = 'present') as present,
-                count(*) filter (where status in ('" . implode("','", $absent) . "')) as absent
+                count(*) filter (where status in ('".implode("','", $absent)."')) as absent
             ")->first();
 
         return [

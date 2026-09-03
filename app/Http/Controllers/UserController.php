@@ -2,21 +2,21 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
-use App\Models\Role;
 use App\Models\AuditLog;
+use App\Models\Role;
+use App\Models\User;
+use App\Rules\StrongPassword;
 use App\Security\Permissions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
-use App\Rules\StrongPassword;
 
 class UserController extends Controller
 {
     public function index(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::USER_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::USER_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة المستخدمين'], 403);
         }
 
@@ -67,7 +67,7 @@ class UserController extends Controller
             'lastLogin' => 'last_login_at',
             'created' => 'created_at',
             'role' => fn ($q, $dir) => $q->orderBy(
-                \App\Models\Role::select('name_ar')->whereColumn('roles.id', 'users.role_id'),
+                Role::select('name_ar')->whereColumn('roles.id', 'users.role_id'),
                 $dir
             ),
         ];
@@ -76,7 +76,7 @@ class UserController extends Controller
     // GET /users/{id}/permissions — الصلاحيات الفعلية + مصدر كل واحدة
     public function permissions(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::USER_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::USER_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية'], 403);
         }
 
@@ -113,7 +113,7 @@ class UserController extends Controller
     // PUT /users/{id}/permissions — ضبط استثناءات المستخدم
     public function savePermissions(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::USER_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::USER_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية'], 403);
         }
 
@@ -140,12 +140,13 @@ class UserController extends Controller
         $hasStar = in_array('*', $fromRole, true);
         $redundant = $incoming->filter(function ($o) use ($fromRole, $hasStar) {
             $byRole = $hasStar || in_array($o['permission'], $fromRole, true);
+
             return $o['granted'] === $byRole;
         });
         if ($redundant->isNotEmpty()) {
             return response()->json([
                 'errors' => ['overrides' => [
-                    'استثناء يطابق الدور بلا فائدة: ' . $redundant->pluck('permission')->implode('، '),
+                    'استثناء يطابق الدور بلا فائدة: '.$redundant->pluck('permission')->implode('، '),
                 ]],
             ], 422);
         }
@@ -159,20 +160,20 @@ class UserController extends Controller
         $nonDelegable = $incoming->pluck('permission')->intersect(Permissions::NON_DELEGABLE);
         if ($nonDelegable->isNotEmpty()) {
             return response()->json(['errors' => ['overrides' => [
-                'هذه الصلاحيات تُدار بالدور لا بالاستثناء الفردي: ' . $nonDelegable->implode('، '),
+                'هذه الصلاحيات تُدار بالدور لا بالاستثناء الفردي: '.$nonDelegable->implode('، '),
             ]]], 422);
         }
 
         // (٢) لا يُمنح ما لا يملكه المانح نفسه — لا يُفوَّض ما لا تملكه
-        $cannotGrant = $incoming->filter(fn ($o) => $o['granted'] && !$actor->hasPermission($o['permission']));
+        $cannotGrant = $incoming->filter(fn ($o) => $o['granted'] && ! $actor->hasPermission($o['permission']));
         if ($cannotGrant->isNotEmpty()) {
             return response()->json(['errors' => ['overrides' => [
-                'لا يمكنك منح صلاحية لا تملكها: ' . $cannotGrant->pluck('permission')->implode('، '),
+                'لا يمكنك منح صلاحية لا تملكها: '.$cannotGrant->pluck('permission')->implode('، '),
             ]]], 403);
         }
 
         // (٣) لا يُعدّل صلاحيات حامل '*' (مدير النظام) إلا حاملٌ لـ'*' مثله — منع قفل المدراء
-        if (in_array('*', Permissions::forRole($user->role->code), true) && !$actorHasStar) {
+        if (in_array('*', Permissions::forRole($user->role->code), true) && ! $actorHasStar) {
             return response()->json(['error' => 'لا يمكنك تعديل صلاحيات مدير النظام'], 403);
         }
 
@@ -207,7 +208,7 @@ class UserController extends Controller
     // «هذه الصلاحية غير موجودة» وهي موجودة ولها مالك.
     public function permissionCatalog(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::USER_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::USER_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية'], 403);
         }
 
@@ -223,8 +224,8 @@ class UserController extends Controller
                     'label' => Permissions::label($p),
                     // السحب مسموح لمن لا يملكها؛ المنع على المنح وحده —
                     // «لا تُعطِ ما ليس لك» لا «لا تسحب ما ليس لك»
-                    'canGrant' => !$nonDelegable && $owned,
-                    'canRevoke' => !$nonDelegable,
+                    'canGrant' => ! $nonDelegable && $owned,
+                    'canRevoke' => ! $nonDelegable,
                     'lockedReason' => $nonDelegable
                         ? 'تُدار بالدور لا بالاستثناء الفردي'
                         : ($owned ? null : 'لا تملكها فلا تمنحها'),
@@ -253,7 +254,7 @@ class UserController extends Controller
     // بعضهم وتحصيلَ حاصلٍ عند غيرهم، فرفضُ الدفعة كلها لأجل ذلك يُعطّل الشاشة.
     public function bulkPermissions(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::USER_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::USER_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة المستخدمين'], 403);
         }
 
@@ -272,7 +273,7 @@ class UserController extends Controller
         $duplicated = $changes->groupBy('permission')->filter(fn ($g) => $g->pluck('action')->unique()->count() > 1);
         if ($duplicated->isNotEmpty()) {
             return response()->json(['errors' => ['changes' => [
-                'صلاحية بفعلين متناقضين في الطلب نفسه: ' . $duplicated->keys()->implode('، '),
+                'صلاحية بفعلين متناقضين في الطلب نفسه: '.$duplicated->keys()->implode('، '),
             ]]], 422);
         }
         $changes = $changes->unique('permission')->values();
@@ -284,15 +285,15 @@ class UserController extends Controller
         $nonDelegable = $changes->pluck('permission')->intersect(Permissions::NON_DELEGABLE);
         if ($nonDelegable->isNotEmpty()) {
             return response()->json(['errors' => ['changes' => [
-                'هذه الصلاحيات تُدار بالدور لا بالاستثناء الفردي: ' . $nonDelegable->implode('، '),
+                'هذه الصلاحيات تُدار بالدور لا بالاستثناء الفردي: '.$nonDelegable->implode('، '),
             ]]], 422);
         }
 
         // (٢) لا يُفوَّض ما لا يملكه المفوِّض
-        $cannotGrant = $changes->filter(fn ($c) => $c['action'] === 'grant' && !$actor->hasPermission($c['permission']));
+        $cannotGrant = $changes->filter(fn ($c) => $c['action'] === 'grant' && ! $actor->hasPermission($c['permission']));
         if ($cannotGrant->isNotEmpty()) {
             return response()->json(['errors' => ['changes' => [
-                'لا يمكنك منح صلاحية لا تملكها: ' . $cannotGrant->pluck('permission')->implode('، '),
+                'لا يمكنك منح صلاحية لا تملكها: '.$cannotGrant->pluck('permission')->implode('، '),
             ]]], 403);
         }
 
@@ -306,11 +307,13 @@ class UserController extends Controller
                 //     الكل» لا يجوز أن يصير طريقاً لمنح النفس ما لا تملك
                 if ($user->id === $actor->id) {
                     $skipped[] = ['id' => $user->id, 'fullName' => $user->full_name, 'reason' => 'لا يمكنك تعديل صلاحيات حسابك'];
+
                     continue;
                 }
                 // (٤) حامل '*' لا يمسّه إلا حاملٌ لـ'*' مثله — منع قفل المدراء
-                if (in_array('*', Permissions::forRole($user->role->code), true) && !$actorHasStar) {
+                if (in_array('*', Permissions::forRole($user->role->code), true) && ! $actorHasStar) {
                     $skipped[] = ['id' => $user->id, 'fullName' => $user->full_name, 'reason' => 'حساب مدير نظام'];
+
                     continue;
                 }
 
@@ -333,6 +336,7 @@ class UserController extends Controller
                             $existing->delete();
                             $reset[] = $perm;
                         }
+
                         continue;
                     }
 
@@ -351,7 +355,7 @@ class UserController extends Controller
                     }
                 }
 
-                if (!$granted && !$revoked && !$reset) {
+                if (! $granted && ! $revoked && ! $reset) {
                     continue;   // لم يتغيّر شيء عنده — لا تُطرد جلسته بلا سبب
                 }
 
@@ -370,6 +374,7 @@ class UserController extends Controller
         });
 
         $n = count($applied);
+
         return response()->json([
             'message' => $n === 0
                 ? 'لم يتغيّر شيء — الصلاحيات المطلوبة قائمة أصلاً لدى المحدَّدين'
@@ -381,7 +386,7 @@ class UserController extends Controller
 
     public function roles(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::USER_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::USER_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية'], 403);
         }
 
@@ -400,7 +405,7 @@ class UserController extends Controller
 
     public function rolePermissions(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::USER_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::USER_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية'], 403);
         }
 
@@ -439,7 +444,7 @@ class UserController extends Controller
             'analytics.view' => 'عرض التحليلات',
         ];
 
-        $matrix = \App\Security\Permissions::matrix();
+        $matrix = Permissions::matrix();
         $result = [];
         foreach ($matrix as $roleCode => $perms) {
             if (in_array('*', $perms)) {
@@ -447,7 +452,7 @@ class UserController extends Controller
             } else {
                 $result[$roleCode] = [
                     'isAdmin' => false,
-                    'permissions' => array_map(fn($p) => $labels[$p] ?? $p, $perms),
+                    'permissions' => array_map(fn ($p) => $labels[$p] ?? $p, $perms),
                 ];
             }
         }
@@ -462,12 +467,13 @@ class UserController extends Controller
         $code = Role::whereKey($roleId)->value('code');
         $bound = in_array($code, User::SECTOR_BOUND_ROLES, true);
 
-        if ($bound && !$sectorId) {
+        if ($bound && ! $sectorId) {
             return ['errors' => ['sectorId' => ['القطاع مطلوب لهذا الدور — كل مقيّم ومساعد مخصَّص لقطاع']]];
         }
-        if (!$bound && $sectorId) {
+        if (! $bound && $sectorId) {
             return ['errors' => ['sectorId' => ['هذا الدور غير محصور بقطاع']]];
         }
+
         return null;
     }
 
@@ -480,18 +486,19 @@ class UserController extends Controller
         $code = Role::whereKey($roleId)->value('code');
         $managed = in_array($code, User::MANAGED_ROLES, true);
 
-        if ($managed && !$managerId) {
+        if ($managed && ! $managerId) {
             return ['errors' => ['managerId' => ['المدير مطلوب لهذا الدور — تقاريره يعتمدها مديره']]];
         }
-        if (!$managed && $managerId) {
+        if (! $managed && $managerId) {
             return ['errors' => ['managerId' => ['هذا الدور لا يُسنَد لمدير']]];
         }
         if ($managerId) {
             $manager = User::with('role')->find($managerId);
-            if (!$manager || !$manager->hasPermission(Permissions::REPORT_APPROVE_MANAGER)) {
+            if (! $manager || ! $manager->hasPermission(Permissions::REPORT_APPROVE_MANAGER)) {
                 return ['errors' => ['managerId' => ['المدير المختار لا يملك اعتماد تقارير فريقه']]];
             }
         }
+
         return null;
     }
 
@@ -515,10 +522,11 @@ class UserController extends Controller
             return 'لا يمكنك إسناد دور مدير النظام';
         }
         foreach ($rolePerms as $p) {
-            if (!$actor->hasPermission($p)) {
+            if (! $actor->hasPermission($p)) {
                 return 'لا يمكنك إسناد دور بصلاحيات تفوق صلاحياتك';
             }
         }
+
         return null;
     }
 
@@ -533,16 +541,17 @@ class UserController extends Controller
             return true; // المستهدف مدير نظام
         }
         foreach (Permissions::all() as $p) {
-            if ($target->hasPermission($p) && !$actor->hasPermission($p)) {
+            if ($target->hasPermission($p) && ! $actor->hasPermission($p)) {
                 return true;
             }
         }
+
         return false;
     }
 
     public function store(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::USER_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::USER_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إضافة مستخدم'], 403);
         }
 
@@ -559,7 +568,7 @@ class UserController extends Controller
             // مستخدم داخلي: يُصادَق عبر AD — لا كلمة مرور محلية، بل معرّف AD
             $rules['adUsername'] = 'required|string|max:120';
         } else {
-            $rules['password'] = ['required', 'string', new StrongPassword()];
+            $rules['password'] = ['required', 'string', new StrongPassword];
         }
         $validated = $request->validate($rules, [
             'username.unique' => 'اسم المستخدم مسجّل مسبقاً',
@@ -578,7 +587,7 @@ class UserController extends Controller
             return response()->json(['error' => $err], 403);
         }
 
-        $user = new User();
+        $user = new User;
         $user->username = $validated['username'];
         $user->full_name = $validated['fullName'];
         $user->email = $validated['email'] ?? null;
@@ -589,7 +598,7 @@ class UserController extends Controller
         $user->is_active = true;
         if ($userType === 'internal') {
             $user->ad_username = $validated['adUsername'];
-            $user->password = \Illuminate\Support\Str::random(40); // غير مستخدمة — الدخول عبر AD
+            $user->password = Str::random(40); // غير مستخدمة — الدخول عبر AD
             $user->must_change_password = false;
         } else {
             $user->ad_username = null;
@@ -605,7 +614,7 @@ class UserController extends Controller
 
     public function update(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::USER_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::USER_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية التعديل'], 403);
         }
 
@@ -675,7 +684,7 @@ class UserController extends Controller
 
     public function toggleActive(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::USER_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::USER_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية'], 403);
         }
 
@@ -689,11 +698,11 @@ class UserController extends Controller
             return response()->json(['error' => 'لا يمكنك تعطيل حساب أعلى صلاحيةً منك'], 403);
         }
 
-        $user->is_active = !$user->is_active;
+        $user->is_active = ! $user->is_active;
         $user->save();
 
         // تعطيل الحساب يُنهي جلساته فورًا (لا يبقى token فعّالًا لموظف مُوقَف)
-        if (!$user->is_active) {
+        if (! $user->is_active) {
             $user->tokens()->delete();
         }
 
@@ -708,12 +717,12 @@ class UserController extends Controller
 
     public function resetPassword(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::USER_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::USER_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية'], 403);
         }
 
         $validated = $request->validate([
-            'password' => ['required', 'string', new StrongPassword()],
+            'password' => ['required', 'string', new StrongPassword],
         ], [
             'password.min' => 'كلمة المرور يجب أن تكون ٨ أحرف على الأقل',
         ]);

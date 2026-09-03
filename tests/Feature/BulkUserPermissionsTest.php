@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\UserPermissionOverride;
 use App\Security\Permissions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 // ════════════════════════════════════════════════════════════
@@ -27,7 +28,7 @@ class BulkUserPermissionsTest extends TestCase
     private function userWithRole(string $roleCode, string $name = 'موظف'): User
     {
         return User::create([
-            'username' => 'u_' . substr(md5(uniqid('', true)), 0, 8),
+            'username' => 'u_'.substr(md5(uniqid('', true)), 0, 8),
             'full_name' => $name,
             'password' => 'Kafaat@2026',
             'role_id' => Role::where('code', $roleCode)->value('id'),
@@ -147,7 +148,7 @@ class BulkUserPermissionsTest extends TestCase
         ]);
         $this->assertFalse($limited->fresh()->hasPermission('report.approve_center'));
 
-        \Laravel\Sanctum\Sanctum::actingAs($limited->fresh());
+        Sanctum::actingAs($limited->fresh());
         $target = $this->userWithRole('EVALUATOR');
 
         $this->bulk([$target->id], [['permission' => 'report.approve_center', 'action' => 'grant']])

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Candidate;
 use App\Models\CandidateCv;
 use App\Models\ExpertiseArea;
 use App\Models\Role;
@@ -23,7 +24,7 @@ class ExpertiseMatchTest extends TestCase
     private function evaluator(string $name, array $areaIds = []): User
     {
         $u = User::create([
-            'username' => 'ev_' . substr(md5(uniqid('', true)), 0, 8),
+            'username' => 'ev_'.substr(md5(uniqid('', true)), 0, 8),
             'full_name' => $name,
             'password' => 'Kafaat@2026',
             'role_id' => Role::where('code', 'EVALUATOR')->value('id'),
@@ -34,6 +35,7 @@ class ExpertiseMatchTest extends TestCase
         if ($areaIds) {
             $u->expertiseAreas()->sync($areaIds);
         }
+
         return $u;
     }
 
@@ -42,7 +44,7 @@ class ExpertiseMatchTest extends TestCase
         return ExpertiseArea::create(['label_ar' => $label, 'is_active' => true]);
     }
 
-    private function candidateWithCv(array $doc): \App\Models\Candidate
+    private function candidateWithCv(array $doc): Candidate
     {
         [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
         CandidateCv::create([
@@ -51,6 +53,7 @@ class ExpertiseMatchTest extends TestCase
             'version' => 1,
             'source' => 'portal',
         ]);
+
         return $c;
     }
 

@@ -96,7 +96,7 @@ class LakeIdempotencyTest extends TestCase
         // ctx['key'] هو ما يجعل الحدث «منطقياً»: بدونه يدخل الوقتُ في
         // المفتاح فتصير كلُّ محاولةٍ حدثاً جديداً بالتعريف — وهو الصواب
         // للانتقال الحيّ، والخطأ لإعادة التعبئة التاريخية.
-        $ctx = ['key' => 'backfill:report:' . $report->id];
+        $ctx = ['key' => 'backfill:report:'.$report->id];
 
         $this->assertTrue($emitter->report($report, 'report.approved', 'approved', $ctx));
         $this->assertTrue($emitter->report($report, 'report.approved', 'approved', $ctx));
@@ -108,7 +108,7 @@ class LakeIdempotencyTest extends TestCase
     {
         $report = $this->report();
         $emitter = app(LakeEmitter::class);
-        $ctx = ['key' => 'backfill:report:' . $report->id];
+        $ctx = ['key' => 'backfill:report:'.$report->id];
 
         $this->travelTo('2026-08-20 10:00:00');
         $emitter->report($report, 'report.approved', 'approved', $ctx);
@@ -133,7 +133,7 @@ class LakeIdempotencyTest extends TestCase
     {
         $report = $this->report();
         $emitter = app(LakeEmitter::class);
-        $ctx = ['key' => 'backfill:report:' . $report->id];
+        $ctx = ['key' => 'backfill:report:'.$report->id];
 
         $emitter->report($report, 'report.approved', 'approved', $ctx);
         $before = DB::table('report_lake_outbox')->value('payload_sha256');

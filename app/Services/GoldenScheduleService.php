@@ -2,10 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\Assessment;
 use App\Models\GoldenScheduleEntry;
 use App\Models\Schedule;
 use App\Models\SchedulingPeriod;
-use App\Models\Sector;
 use Illuminate\Support\Facades\DB;
 
 // ════════════════════════════════════════════════════════════
@@ -18,8 +18,11 @@ use Illuminate\Support\Facades\DB;
 class GoldenScheduleService
 {
     private const GREEN = '#008769';
+
     private const GREEN_DARK = '#024032';
+
     private const GOLD = '#C8A535';
+
     private const EMBLEM_PATH = 'brand/moi-emblem.png';
 
     /**
@@ -54,7 +57,7 @@ class GoldenScheduleService
         DB::transaction(function () use ($sessions, $period, $userId, &$created, &$updated) {
             foreach ($sessions as $s) {
                 $code = self::codeFor($s);
-                if (!$code || !$s->candidate) {
+                if (! $code || ! $s->candidate) {
                     continue;
                 }
                 $date = substr((string) $s->schedule_date, 0, 10);
@@ -74,6 +77,7 @@ class GoldenScheduleService
                         'sector_id' => $s->candidate->sector_id,
                     ]);
                     $updated++;
+
                     continue;
                 }
 
@@ -99,8 +103,8 @@ class GoldenScheduleService
     /**
      * شبكة (قطاع → تاريخ → رموز) لموجة، محصورةً بنطاق القارئ.
      *
-     * @param array|null $allowedClassifications تصنيفات القارئ — null = بلا حصر
-     * @param int|null   $sectorId قطاعٌ بعينه — null = الكل
+     * @param  array|null  $allowedClassifications  تصنيفات القارئ — null = بلا حصر
+     * @param  int|null  $sectorId  قطاعٌ بعينه — null = الكل
      */
     public function gather(SchedulingPeriod $period, ?array $allowedClassifications = null, ?int $sectorId = null): array
     {
@@ -115,7 +119,7 @@ class GoldenScheduleService
         // نصٌّ حرّ لا يقود إلى مشارك. من لا دورةَ له يُعرض — لأنه ما كتبه
         // الموظّف بيده لا ما استخرجه النظام من سجلٍّ مصنّف.
         if ($allowedClassifications !== null) {
-            $blocked = \App\Models\Assessment::whereIn('id', $rows->pluck('assessment_id')->filter()->unique())
+            $blocked = Assessment::whereIn('id', $rows->pluck('assessment_id')->filter()->unique())
                 ->whereHas('candidate', fn ($q) => $q->whereNotIn('classification', $allowedClassifications))
                 ->pluck('id')->all();
             $rows = $rows->reject(fn ($r) => $r->assessment_id && in_array($r->assessment_id, $blocked, true));
@@ -153,8 +157,9 @@ class GoldenScheduleService
     private function emblemDataUri(): string
     {
         $path = public_path(self::EMBLEM_PATH);
+
         return is_file($path)
-            ? 'data:image/png;base64,' . base64_encode((string) file_get_contents($path))
+            ? 'data:image/png;base64,'.base64_encode((string) file_get_contents($path))
             : '';
     }
 
@@ -170,11 +175,11 @@ class GoldenScheduleService
             : '';
 
         $name = e($data['period']['name']);
-        $range = e($data['period']['startDate']) . ' — ' . e($data['period']['endDate']);
+        $range = e($data['period']['startDate']).' — '.e($data['period']['endDate']);
         $days = $data['days'];
 
-        $head = '<th class="sec">القطاع</th>' . implode('', array_map(
-            fn ($d) => '<th>' . e($d) . '</th>', $days
+        $head = '<th class="sec">القطاع</th>'.implode('', array_map(
+            fn ($d) => '<th>'.e($d).'</th>', $days
         ));
 
         $body = '';
@@ -184,16 +189,16 @@ class GoldenScheduleService
                 $codes = $sector['days'][$d] ?? [];
                 $inner = $codes
                     ? implode('', array_map(
-                        fn ($c) => '<span class="code' . ($c['source'] === 'manual' ? ' manual' : '') . '">'
-                            . e($c['code']) . '</span>',
+                        fn ($c) => '<span class="code'.($c['source'] === 'manual' ? ' manual' : '').'">'
+                            .e($c['code']).'</span>',
                         $codes))
                     : '<span class="empty">—</span>';
-                $cells .= '<td>' . $inner . '</td>';
+                $cells .= '<td>'.$inner.'</td>';
             }
-            $body .= '<tr><th class="sec">' . e($sectorName) . '</th>' . $cells . '</tr>';
+            $body .= '<tr><th class="sec">'.e($sectorName).'</th>'.$cells.'</tr>';
         }
         if ($body === '') {
-            $body = '<tr><td class="none" colspan="' . (count($days) + 1) . '">لا صفوف في هذا الجدول بعد</td></tr>';
+            $body = '<tr><td class="none" colspan="'.(count($days) + 1).'">لا صفوف في هذا الجدول بعد</td></tr>';
         }
 
         $total = $data['total'];

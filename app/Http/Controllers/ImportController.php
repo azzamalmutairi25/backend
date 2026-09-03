@@ -26,19 +26,20 @@ class ImportController extends Controller
     // حمولة JSON واحدة، وهو ما يرفضه الخادم قبل أن يبلغ الشيفرة — فالواجهة
     // تُقطّع والملفّ يُجمَّع هنا صفوفاً تُضاف إلى الدفعة.
     private const MAX_BATCH_ROWS = 10000;
+
     private const MAX_CHUNK_ROWS = 1000;
 
     public function import(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::CANDIDATE_CREATE)) {
+        if (! $request->user()->hasPermission(Permissions::CANDIDATE_CREATE)) {
             return response()->json(['error' => 'ليس لديك صلاحية الاستيراد'], 403);
         }
 
         // سقفٌ صريح: `min:1` بلا `max` يقبل مصفوفةً بمئة ألف عنصر، فتُفتح دورة
         // معاملات بعددها في طلبٍ واحد — إنهاكٌ للخدمة بطلبٍ مصرَّحٍ به.
         $request->validate(
-            ['rows' => 'required|array|min:1|max:' . self::MAX_ROWS],
-            ['rows.max' => 'الحدّ الأقصى ' . self::MAX_ROWS . ' صفّاً في المرّة الواحدة'],
+            ['rows' => 'required|array|min:1|max:'.self::MAX_ROWS],
+            ['rows.max' => 'الحدّ الأقصى '.self::MAX_ROWS.' صفّاً في المرّة الواحدة'],
         );
 
         $seen = [];
@@ -74,17 +75,17 @@ class ImportController extends Controller
     // وصول الأخيرة تُنشئ صفّاً سيتبيّن أنه مكرّر.
     public function startBatch(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::CANDIDATE_CREATE)) {
+        if (! $request->user()->hasPermission(Permissions::CANDIDATE_CREATE)) {
             return response()->json(['error' => 'ليس لديك صلاحية الاستيراد'], 403);
         }
 
         $validated = $request->validate([
-            'rows' => 'required|array|min:1|max:' . self::MAX_CHUNK_ROWS,
+            'rows' => 'required|array|min:1|max:'.self::MAX_CHUNK_ROWS,
             'batchId' => 'nullable|integer',
             'filename' => 'nullable|string|max:255',
             'final' => 'boolean',
         ], [
-            'rows.max' => 'الحدّ الأقصى ' . self::MAX_CHUNK_ROWS . ' صفّاً في الدفعة الواحدة',
+            'rows.max' => 'الحدّ الأقصى '.self::MAX_CHUNK_ROWS.' صفّاً في الدفعة الواحدة',
         ]);
 
         $batch = $validated['batchId'] ?? null
@@ -94,12 +95,12 @@ class ImportController extends Controller
                 ->first()
             : null;
 
-        if (($validated['batchId'] ?? null) && !$batch) {
+        if (($validated['batchId'] ?? null) && ! $batch) {
             // رفعةٌ لغيره، أو بدأت معالجتها، أو لا وجود لها — لا يُفرَّق بينها
             return response()->json(['error' => 'الرفعة غير متاحة — ابدأ من جديد'], 404);
         }
 
-        if (!$batch) {
+        if (! $batch) {
             $batch = ImportBatch::create([
                 'user_id' => $request->user()->id,
                 'filename' => $validated['filename'] ?? null,
@@ -111,8 +112,9 @@ class ImportController extends Controller
         $rows = array_merge($batch->payload ?? [], $validated['rows']);
         if (count($rows) > self::MAX_BATCH_ROWS) {
             $batch->delete();
+
             return response()->json([
-                'error' => 'الحدّ الأقصى ' . self::MAX_BATCH_ROWS . ' صفّاً في الملفّ الواحد',
+                'error' => 'الحدّ الأقصى '.self::MAX_BATCH_ROWS.' صفّاً في الملفّ الواحد',
             ], 422);
         }
 
@@ -140,7 +142,7 @@ class ImportController extends Controller
             ->where('user_id', $request->user()->id)
             ->first();
 
-        if (!$batch) {
+        if (! $batch) {
             return response()->json(['error' => 'الرفعة غير موجودة'], 404);
         }
 

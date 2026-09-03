@@ -21,6 +21,7 @@ class ReportExportTest extends TestCase
             'behavioral_fit' => 82.5, 'technical_fit' => 74, 'status' => 'approved',
             'strengths' => ['قيادة', 'تواصل'], 'development_areas' => ['التفويض'], 'created_by' => null,
         ], $attrs));
+
         return [$c, $a, $report];
     }
 

@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\Assessment;
 use App\Models\GoldenScheduleEntry;
 use App\Models\Role;
 use App\Models\Schedule;
@@ -25,7 +24,7 @@ class GoldenScheduleTest extends TestCase
     private function period(): SchedulingPeriod
     {
         return SchedulingPeriod::create([
-            'name' => 'دورة ' . uniqid(),
+            'name' => 'دورة '.uniqid(),
             'start_date' => now()->addDay()->toDateString(),
             'end_date' => now()->addDays(3)->toDateString(),
             'status' => 'draft',
@@ -35,7 +34,7 @@ class GoldenScheduleTest extends TestCase
     private function evaluator(string $sectorCode = 'DW'): User
     {
         return User::create([
-            'username' => 'ev_' . substr(md5(uniqid('', true)), 0, 8),
+            'username' => 'ev_'.substr(md5(uniqid('', true)), 0, 8),
             'full_name' => 'مقيّم',
             'password' => 'Kafaat@2026',
             'role_id' => Role::where('code', 'EVALUATOR')->value('id'),
@@ -56,6 +55,7 @@ class GoldenScheduleTest extends TestCase
             'time' => '10:15',
             'periodId' => $p->id,
         ])->assertStatus(201);
+
         return [$c, $a];
     }
 

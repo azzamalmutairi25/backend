@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Candidate;
 use App\Models\CandidateCv;
 use App\Models\ImportBatch;
+use App\Models\Sector;
 use App\Services\CvGuard;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -33,7 +34,7 @@ class OptionalFieldsAndIdentifiersTest extends TestCase
         return array_replace([
             'nationalId' => $this->validNationalId(),
             'fullName' => 'مشارك اختبار',
-            'sectorId' => \App\Models\Sector::first()->id,
+            'sectorId' => Sector::first()->id,
             'rankLabel' => 'الرابعة عشرة',
             'personnelCategory' => 'civilian',
         ] + $this->candidateRequired(), $over);
@@ -159,7 +160,7 @@ class OptionalFieldsAndIdentifiersTest extends TestCase
         $res = $this->postJson('/api/candidates', [
             'nationalId' => $this->validNationalId(),
             'fullName' => 'الحدّ الأدنى',
-            'sectorId' => \App\Models\Sector::first()->id,
+            'sectorId' => Sector::first()->id,
             'rankLabel' => 'الرابعة عشرة',
         ])->assertStatus(201);
 
@@ -172,7 +173,7 @@ class OptionalFieldsAndIdentifiersTest extends TestCase
         foreach (['nationalId', 'fullName', 'sectorId', 'rankLabel'] as $field) {
             $payload = [
                 'nationalId' => $this->validNationalId(), 'fullName' => 'س',
-                'sectorId' => \App\Models\Sector::first()->id, 'rankLabel' => 'الرابعة عشرة',
+                'sectorId' => Sector::first()->id, 'rankLabel' => 'الرابعة عشرة',
             ];
             unset($payload[$field]);
             $this->postJson('/api/candidates', $payload)

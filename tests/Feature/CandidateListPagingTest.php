@@ -27,7 +27,7 @@ class CandidateListPagingTest extends TestCase
         $da = Sector::where('code', 'CD')->value('id');
 
         for ($i = 1; $i <= $n; $i++) {
-            $c = new Candidate();
+            $c = new Candidate;
             $c->national_id = $this->validNationalId();
             $c->full_name = "مشارك {$i}";
             $c->mobile = '0501112223';

@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Candidate;
 use App\Models\FinalReport;
 use App\Services\ReportSnapshotService;
 use App\Support\LakeEmitter;
@@ -28,12 +27,14 @@ use Illuminate\Support\Facades\DB;
 class LakeReconcile extends Command
 {
     protected $signature = 'kafaat:lake:reconcile {--repair : إعادة إرسال الناقص}';
+
     protected $description = 'مطابقة تقارير المنصّة مع بحيرة التقارير';
 
     public function handle(ReportSnapshotService $snapshots, LakeEmitter $emitter): int
     {
-        if (!config('lake.enabled')) {
+        if (! config('lake.enabled')) {
             $this->line('البحيرة معطّلة — لا مطابقة.');
+
             return self::SUCCESS;
         }
 
@@ -79,7 +80,7 @@ class LakeReconcile extends Command
         $repaired = 0;
         if ($this->option('repair') && $missing->isNotEmpty()) {
             foreach (FinalReport::whereIn('assessment_id', $missing)->with('candidate.sector', 'assessment')->get() as $r) {
-                if ($emitter->report($r, 'report.backfilled', $r->status, ['key' => 'reconcile:' . $r->id])) {
+                if ($emitter->report($r, 'report.backfilled', $r->status, ['key' => 'reconcile:'.$r->id])) {
                     $repaired++;
                 }
             }

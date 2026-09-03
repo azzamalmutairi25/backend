@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Services\LakeShipper;
+use App\Support\LakeEmitter;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -10,12 +11,14 @@ use Illuminate\Support\Facades\Log;
 class LakeShip extends Command
 {
     protected $signature = 'kafaat:lake:ship {--batches=20 : أقصى عدد دفعاتٍ في التشغيلة}';
+
     protected $description = 'شحن أحداث التقارير المُعلَّقة إلى بحيرة التقارير';
 
     public function handle(LakeShipper $shipper): int
     {
-        if (!config('lake.enabled')) {
+        if (! config('lake.enabled')) {
             $this->line('البحيرة معطّلة (LAKE_ENABLED=false) — لا شيء يُشحن.');
+
             return self::SUCCESS;
         }
 
@@ -27,7 +30,7 @@ class LakeShip extends Command
 
         // التراكم فوق الحدّ يعني أن البحيرة متوقّفة — تنبيهٌ واحدٌ للتشغيلة
         // كلِّها لا واحدٌ لكل صفّ، وإلّا أغرق التنبيهُ السجلَّ الذي يُقرأ.
-        $backlog = app(\App\Support\LakeEmitter::class)->backlog();
+        $backlog = app(LakeEmitter::class)->backlog();
         $alarm = (int) config('lake.backlog_alarm', 5000);
         if ($backlog > $alarm) {
             Log::error('lake: تراكمٌ فوق الحدّ في صندوق الصادر', [

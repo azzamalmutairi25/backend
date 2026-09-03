@@ -35,7 +35,7 @@ class CvValidator
     {
         // ١) حارس بنيوي قبل مُحقّق Laravel — يمنع فَرْد قيدٍ عبر آلاف العناصر (نفخ مصفوفة)
         foreach (self::CAP as $key => $max) {
-            if (isset($in[$key]) && (!is_array($in[$key]) || count($in[$key]) > $max)) {
+            if (isset($in[$key]) && (! is_array($in[$key]) || count($in[$key]) > $max)) {
                 throw new CvTooLargeException($key);
             }
         }
@@ -75,7 +75,7 @@ class CvValidator
             // شيئاً يُحفَظ. والدرجة العلمية متى كُتبت تبقى من القائمة المغلقة —
             // «بكالوريس» غيرُ معروفةٍ يُقال عنها، ولا تُخمَّن ولا تُقبل نصّاً حرّاً.
             'qualifications' => 'nullable|array|max:15',
-            'qualifications.*.degree' => 'nullable|in:' . implode(',', self::DEGREES),
+            'qualifications.*.degree' => 'nullable|in:'.implode(',', self::DEGREES),
             'qualifications.*.major' => 'nullable|string|max:120',
             'qualifications.*.institution' => 'nullable|string|max:150',
             // كان إلزامياً بقرارٍ سابق يثبته اختبار. رُفع الآن ضمن قرارٍ أعمّ:
@@ -84,7 +84,7 @@ class CvValidator
             'qualifications.*.studyPlace' => 'nullable|string|max:120',
             // سنة التخرّج لا عمود لها في نموذج المركز. اشتراطُها يردّ كل ملفّ
             // وارد، فصارت اختياريةً هنا ومطلوبةً في نموذج الإضافة اليدوي وحده.
-            'qualifications.*.gradYear' => "nullable|integer|min:$yMin|max:" . ($yMax + 1),
+            'qualifications.*.gradYear' => "nullable|integer|min:$yMin|max:".($yMax + 1),
 
             'experiences' => 'nullable|array|max:20',
             'experiences.*.position' => 'nullable|string|max:120',
@@ -116,8 +116,8 @@ class CvValidator
         ])->validate();
 
         // التعيين بعد الميلاد بثمانية عشر عاماً على الأقل — يكشف خلط الحقلين
-        if (!empty($v['birthDate']) && !empty($v['appointmentDate'])
-            && $v['appointmentDate'] < date('Y-m-d', strtotime($v['birthDate'] . ' +18 years'))) {
+        if (! empty($v['birthDate']) && ! empty($v['appointmentDate'])
+            && $v['appointmentDate'] < date('Y-m-d', strtotime($v['birthDate'].' +18 years'))) {
             $this->fail('appointmentDate', 'تاريخ التعيين قبل بلوغ الثامنة عشرة — راجِع التاريخين');
         }
 
@@ -143,12 +143,12 @@ class CvValidator
                 continue;
             }
             $cur = (bool) ($e['current'] ?? false);
-            if ($cur && !empty($e['toYear'])) {
+            if ($cur && ! empty($e['toYear'])) {
                 $this->fail("experiences.$i.toYear", 'خبرة حالية لا تحمل سنة انتهاء');
             }
             // «سنة بداية بلا نهاية ولا علامة» كانت تُردّ. رُفع الإلزام: خبرةٌ
             // مفتوحة تُحفَظ كما كُتبت، والتناقض وحده يُردّ — لا النقص.
-            if (!$cur && !empty($e['toYear']) && (int) $e['toYear'] < (int) $e['fromYear']) {
+            if (! $cur && ! empty($e['toYear']) && (int) $e['toYear'] < (int) $e['fromYear']) {
                 $this->fail("experiences.$i.toYear", 'سنة الانتهاء قبل سنة البداية');
             }
         }
@@ -211,7 +211,7 @@ class CvValidator
                 'section' => CvGuard::sanitize($e['section'] ?? null),
                 'years' => CvGuard::sanitize($e['years'] ?? null),
                 'fromYear' => isset($e['fromYear']) ? (int) $e['fromYear'] : null,
-                'toYear' => !empty($e['toYear']) ? (int) $e['toYear'] : null,
+                'toYear' => ! empty($e['toYear']) ? (int) $e['toYear'] : null,
                 'current' => (bool) ($e['current'] ?? false),
                 'summary' => CvGuard::sanitize($e['summary'] ?? null),
             ], $v['experiences'] ?? [])),

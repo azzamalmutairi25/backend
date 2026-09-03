@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Competency;
+use App\Models\Evaluation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
@@ -22,6 +23,7 @@ class EvaluationTest extends TestCase
                 'activity' => $activity, 'competency_id' => $cid, 'created_at' => now(), 'updated_at' => now(),
             ]);
         }
+
         return $ids;
     }
 
@@ -41,7 +43,7 @@ class EvaluationTest extends TestCase
         $author = $this->actingAsRole('EVALUATOR');
         $this->postJson('/api/evaluations/start', ['candidateId' => $c->id, 'activity' => 'interview'])
             ->assertCreated();
-        $evalId = \App\Models\Evaluation::latest('id')->value('id');
+        $evalId = Evaluation::latest('id')->value('id');
 
         // مقيّم آخر لا يكتب في جلسة غيره — 404 موحّد (لا عرّاف وجود بالمعرّف) لا 403
         $this->actingAsRole('EVALUATOR');
@@ -56,7 +58,7 @@ class EvaluationTest extends TestCase
         $ids = $this->linkCompetencies('interview');
         $this->actingAsRole('EVALUATOR');
         $evalId = $this->postJson('/api/evaluations/start', ['candidateId' => $c->id, 'activity' => 'interview'])
-            ->json('id') ?? \App\Models\Evaluation::latest('id')->value('id');
+            ->json('id') ?? Evaluation::latest('id')->value('id');
 
         $this->postJson("/api/evaluations/{$evalId}/scores", [
             'scores' => [
@@ -72,7 +74,7 @@ class EvaluationTest extends TestCase
         $this->linkCompetencies('interview');
         $author = $this->actingAsRole('EVALUATOR');
         $evalId = $this->postJson('/api/evaluations/start', ['candidateId' => $c->id, 'activity' => 'interview'])
-            ->json('id') ?? \App\Models\Evaluation::latest('id')->value('id');
+            ->json('id') ?? Evaluation::latest('id')->value('id');
 
         // another evaluator: not owner -> 404
         $this->actingAsRole('EVALUATOR');
@@ -93,7 +95,7 @@ class EvaluationTest extends TestCase
         $ids = $this->linkCompetencies('interview', 2);
         $this->actingAsRole('EVALUATOR');
         $evalId = $this->postJson('/api/evaluations/start', ['candidateId' => $c->id, 'activity' => 'interview'])
-            ->json('id') ?? \App\Models\Evaluation::latest('id')->value('id');
+            ->json('id') ?? Evaluation::latest('id')->value('id');
 
         // score only 1 of 2 -> incomplete
         $this->postJson("/api/evaluations/{$evalId}/scores", [

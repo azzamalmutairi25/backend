@@ -21,13 +21,14 @@ class SecurityCoreFixesTest extends TestCase
     {
         $u = $this->actingAsRole('SCHEDULER');
         $u->permissionOverrides()->create(['permission' => 'user.manage', 'granted' => true]);
+
         return $u;
     }
 
     private function adminUser(): User
     {
         return User::create([
-            'username' => 'root_' . substr(md5(uniqid('', true)), 0, 6), 'full_name' => 'مدير النظام',
+            'username' => 'root_'.substr(md5(uniqid('', true)), 0, 6), 'full_name' => 'مدير النظام',
             'password' => 'Kafaat@2026', 'role_id' => Role::where('code', 'ADMIN')->value('id'),
             'user_type' => 'external', 'is_active' => true, 'must_change_password' => false,
         ]);

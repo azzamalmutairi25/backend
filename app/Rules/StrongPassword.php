@@ -13,18 +13,22 @@ class StrongPassword implements ValidationRule
 
         if (strlen($pw) < 8) {
             $fail('كلمة المرور يجب أن تكون ٨ أحرف على الأقل');
+
             return;
         }
-        if (!preg_match('/[A-Z]/', $pw)) {
+        if (! preg_match('/[A-Z]/', $pw)) {
             $fail('كلمة المرور يجب أن تحتوي على حرف كبير (A-Z)');
+
             return;
         }
-        if (!preg_match('/[a-z]/', $pw)) {
+        if (! preg_match('/[a-z]/', $pw)) {
             $fail('كلمة المرور يجب أن تحتوي على حرف صغير (a-z)');
+
             return;
         }
-        if (!preg_match('/[0-9]/', $pw)) {
+        if (! preg_match('/[0-9]/', $pw)) {
             $fail('كلمة المرور يجب أن تحتوي على رقم');
+
             return;
         }
     }

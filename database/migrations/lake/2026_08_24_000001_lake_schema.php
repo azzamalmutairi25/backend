@@ -37,9 +37,9 @@ return new class extends Migration
         $conn = DB::connection($this->getConnection() ?: config('lake.ddl_connection'));
 
         foreach (self::FILES as $file) {
-            $path = base_path('deploy/lake/' . $file);
-            if (!is_file($path)) {
-                throw new \RuntimeException("ملفّ مخطّط البحيرة مفقود: {$path}");
+            $path = base_path('deploy/lake/'.$file);
+            if (! is_file($path)) {
+                throw new RuntimeException("ملفّ مخطّط البحيرة مفقود: {$path}");
             }
             $conn->unprepared($this->stripPsqlMeta(file_get_contents($path)));
         }
@@ -49,7 +49,7 @@ return new class extends Migration
         // ملفٌّ (curated)، فلا يجد Laravel جدولَ migrations غير المؤهَّل
         // ويسقط التسجيلُ بعد أن يكون المخطّط قد طُبِّق فعلاً — أي هجرةٌ
         // نجحت ولم تُسجَّل، فتُعاد في كل نشرٍ تالٍ.
-        $conn->unprepared('SET search_path = ' . $conn->getConfig('search_path'));
+        $conn->unprepared('SET search_path = '.$conn->getConfig('search_path'));
     }
 
     /**
@@ -66,6 +66,7 @@ return new class extends Migration
             }
             $out[] = $line;
         }
+
         return implode("\n", $out);
     }
 

@@ -180,7 +180,7 @@ class PlatformResetTest extends TestCase
         // النسخة الاحتياطية شرط لا خطوة: توجيه pg_dump إلى منفذ لا يستمع عليه
         // أحد يجب أن يُوقف الأمر قبل أن يُمسح صفٌّ واحد. المنفذ محلي ليُرفض
         // الاتصال فوراً — عنوانٌ غير قابل للتوجيه يُعلّق الاختبار حتى المهلة.
-        config(['database.connections.' . config('database.default') . '.port' => 1]);
+        config(['database.connections.'.config('database.default').'.port' => 1]);
 
         $this->artisan('platform:reset --force')->assertFailed();
 

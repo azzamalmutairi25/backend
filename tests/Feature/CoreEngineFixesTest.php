@@ -9,6 +9,7 @@ use App\Models\FinalReport;
 use App\Models\Role;
 use App\Models\Schedule;
 use App\Models\Sector;
+use App\Models\Setting;
 use App\Models\User;
 use App\Services\DistributionService;
 use App\Services\ScoringService;
@@ -25,7 +26,7 @@ class CoreEngineFixesTest extends TestCase
 
     private function evaluator(string $sector = 'DW'): User
     {
-        return User::create(['username' => 'ev_' . substr(md5(uniqid('', true)), 0, 8), 'full_name' => 'مقيّم',
+        return User::create(['username' => 'ev_'.substr(md5(uniqid('', true)), 0, 8), 'full_name' => 'مقيّم',
             'password' => 'Kafaat@2026', 'role_id' => Role::where('code', 'EVALUATOR')->value('id'),
             'sector_id' => Sector::where('code', $sector)->value('id'), 'is_active' => true, 'must_change_password' => false]);
     }
@@ -102,9 +103,11 @@ class CoreEngineFixesTest extends TestCase
         [$existingCand, $ea] = $this->makeCandidate(['status' => 'assessed', 'sectorCode' => 'DW']);
         Schedule::create(['candidate_id' => $existingCand->id, 'assessment_id' => $ea->id, 'schedule_date' => $day->toDateString(), 'activity' => 'interview', 'evaluator_id' => $ev->id]);
 
-        \App\Models\Setting::updateOrCreate(['key' => 'distribution.daily_cap_per_evaluator'], ['value' => '2']);
+        Setting::updateOrCreate(['key' => 'distribution.daily_cap_per_evaluator'], ['value' => '2']);
         // مشاركان جاهزان في ED
-        for ($i = 0; $i < 2; $i++) $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW', 'code' => 'DC' . $i . random_int(100, 999)]);
+        for ($i = 0; $i < 2; $i++) {
+            $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW', 'code' => 'DC'.$i.random_int(100, 999)]);
+        }
 
         $proposal = $svc->propose($this->evaluator('MS'));
         $onDay = $proposal->items->where('evaluator_id', $ev->id)

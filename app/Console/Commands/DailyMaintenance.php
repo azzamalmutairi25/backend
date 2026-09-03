@@ -5,6 +5,9 @@ namespace App\Console\Commands;
 use App\Models\Attendance;
 use App\Models\FinalReport;
 use App\Models\Schedule;
+use App\Models\User;
+use App\Services\CommunicationService;
+use App\Services\DailyReportService;
 use App\Services\NotificationService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +16,7 @@ use Illuminate\Support\Facades\DB;
 class DailyMaintenance extends Command
 {
     protected $signature = 'kafaat:daily {--days=3 : أيام تجاوز مهلة اعتماد التقرير قبل التصعيد} {--noshow-days=7 : نافذة الأيام رجوعاً لكشف الغياب التلقائي}';
+
     protected $description = 'صيانة يومية: كشف الغياب التلقائي، تذكير جلسات الغد، وتصعيد التقارير المتأخرة';
 
     public function handle(NotificationService $notify): int
@@ -41,7 +45,7 @@ class DailyMaintenance extends Command
         $tomorrow = now()->addDay()->toDateString();
         $reminders = 0;
         foreach (Schedule::whereDate('schedule_date', $tomorrow)->whereNotNull('evaluator_id')
-                     ->with('candidate')->get() as $s) {
+            ->with('candidate')->get() as $s) {
             $notify->notify($s->evaluator_id, 'info', 'تذكير: جلسة غداً',
                 "لديك جلسة {$s->activity} غداً — المشارك {$s->candidate->participant_code}",
                 'schedule', (string) $s->id, null);
@@ -59,8 +63,8 @@ class DailyMaintenance extends Command
         ];
         // مرّة واحدة لكل حالة تأخّر (whereNull escalated_at) — يمنع إعادة الإشعار يومياً بلا حدّ
         foreach (FinalReport::whereIn('status', array_keys($owners))
-                     ->where('updated_at', '<', $cutoff)->whereNull('escalated_at')
-                     ->with('candidate')->get() as $r) {
+            ->where('updated_at', '<', $cutoff)->whereNull('escalated_at')
+            ->with('candidate')->get() as $r) {
             $notify->notifyRole($owners[$r->status], 'approval', 'تقرير متأخر بانتظار الاعتماد',
                 "تجاوز تقرير المشارك {$r->candidate->participant_code} مهلة الاعتماد — يرجى المراجعة",
                 'report', (string) $r->id, null);
@@ -81,7 +85,7 @@ class DailyMaintenance extends Command
     // يُبنى من نفس الخدمة التي تعرضه في الصفحة، فلا يتباعد المُرسَل عن المعروض.
     private function mailDailyReport(string $today): int
     {
-        $recipients = \App\Models\User::whereHas('role', fn ($q) => $q->where('code', 'CENTER_MANAGER'))
+        $recipients = User::whereHas('role', fn ($q) => $q->where('code', 'CENTER_MANAGER'))
             ->where('is_active', true)
             ->whereNotNull('email')
             ->get();
@@ -90,8 +94,8 @@ class DailyMaintenance extends Command
             return 0;
         }
 
-        $service = app(\App\Services\DailyReportService::class);
-        $comm = app(\App\Services\CommunicationService::class);
+        $service = app(DailyReportService::class);
+        $comm = app(CommunicationService::class);
         $html = $service->renderHtml($service->gather($today));
 
         $sent = 0;

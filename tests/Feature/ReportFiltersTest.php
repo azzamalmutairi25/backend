@@ -17,6 +17,7 @@ class ReportFiltersTest extends TestCase
     private function reportFor(string $sectorCode, string $tier, string $rec, string $status = 'approved', $behavioral = 80): FinalReport
     {
         [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed', 'sectorCode' => $sectorCode, 'tier' => $tier]);
+
         return FinalReport::create([
             'candidate_id' => $c->id, 'assessment_id' => $a->id, 'status' => $status,
             'recommendation' => $rec, 'behavioral_fit' => $behavioral, 'technical_fit' => 70, 'created_by' => null,
@@ -38,7 +39,7 @@ class ReportFiltersTest extends TestCase
         $byTier = $this->getJson('/api/reports?tier=upper')->assertOk()->json('reports');
         $this->assertCount(1, $byTier);
 
-        $byRec = $this->getJson('/api/reports?' . http_build_query(['recommendation' => 'يوصى به']))->assertOk()->json('reports');
+        $byRec = $this->getJson('/api/reports?'.http_build_query(['recommendation' => 'يوصى به']))->assertOk()->json('reports');
         $this->assertCount(2, $byRec);
     }
 
@@ -50,7 +51,7 @@ class ReportFiltersTest extends TestCase
         $this->reportFor('DW', 'upper', 'يوصى به'); // اليوم
 
         $this->actingAsRole('ASSESS_MANAGER');
-        $recent = $this->getJson('/api/reports?dateFrom=' . now()->subDays(2)->toDateString())->json('reports');
+        $recent = $this->getJson('/api/reports?dateFrom='.now()->subDays(2)->toDateString())->json('reports');
         $this->assertCount(1, $recent);
     }
 

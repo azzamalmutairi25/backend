@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Support\Facades\Crypt;
 
 // ════════════════════════════════════════════════════════════
@@ -17,7 +17,9 @@ use Illuminate\Support\Facades\Crypt;
 class CandidateUpdateRequest extends Model
 {
     public const PENDING = 'pending';
+
     public const APPROVED = 'approved';
+
     public const REJECTED = 'rejected';
 
     protected $fillable = [
@@ -53,7 +55,7 @@ class CandidateUpdateRequest extends Model
     // يُسقط الشاشة كلها — الطلب حينها يظهر ولا يُعتمد، وهو المسلك الصحيح.
     private static function decode(?string $enc): array
     {
-        if (!$enc) {
+        if (! $enc) {
             return [];
         }
         try {

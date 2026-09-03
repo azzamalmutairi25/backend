@@ -50,7 +50,10 @@ class ImportBatch extends Model
         );
     }
 
-    public function user(): BelongsTo { return $this->belongsTo(User::class); }
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
 
     // ما تقرؤه شاشة التقدّم — بلا `payload`: عشرة آلاف صفٍّ تُعاد مع كل
     // استفتاء تُغرق الشبكة بما لا يُعرض. والإخفاقات محدودةٌ بمئتين للسبب نفسه:

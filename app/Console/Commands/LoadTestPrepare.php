@@ -8,6 +8,7 @@ use App\Models\Role;
 use App\Models\Sector;
 use App\Models\User;
 use Illuminate\Console\Command;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
 // ════════════════════════════════════════════════════════════
@@ -37,13 +38,15 @@ class LoadTestPrepare extends Command
 
     // قطاع معزول لكل ما يخصّ اختبار الحمل
     private const SECTOR_CODE = 'LT';
+
     private const USER_PREFIX = 'lt_';
 
     public function handle(): int
     {
         // حارس البيئة: بذر مستخدمين برموز وصول في إنتاج ليس خطأً يُصحَّح لاحقاً
-        if (app()->environment('production') && !$this->option('force')) {
+        if (app()->environment('production') && ! $this->option('force')) {
             $this->error('مرفوض في بيئة الإنتاج. استعمل --force إن كنت تقصد ذلك فعلاً.');
+
             return self::FAILURE;
         }
 
@@ -86,8 +89,8 @@ class LoadTestPrepare extends Command
         $this->info("✅ جاهز: {$readers['count']} قارئ، {$writers['count']} كاتب، {$seeded} مشاركاً في قطاع «{$sector->name_ar}».");
         $this->line("   الرموز: {$path} (0600)");
         $this->newLine();
-        $this->comment('حدّ المعدّل الحالي: ' . $payload['apiRateLimitPerMinute'] . ' طلب/دقيقة لكل مستخدم'
-            . ' — أي سقف نظري ' . round($payload['apiRateLimitPerMinute'] * ($readers['count'] + $writers['count']) / 60) . ' طلب/ثانية.');
+        $this->comment('حدّ المعدّل الحالي: '.$payload['apiRateLimitPerMinute'].' طلب/دقيقة لكل مستخدم'
+            .' — أي سقف نظري '.round($payload['apiRateLimitPerMinute'] * ($readers['count'] + $writers['count']) / 60).' طلب/ثانية.');
         $this->comment('لقياس السعة الخام ارفع API_RATE_LIMIT مؤقتاً في .env ثم: php artisan config:clear');
 
         return self::SUCCESS;
@@ -97,20 +100,21 @@ class LoadTestPrepare extends Command
     private function makeUsers(string $roleCode, int $count, string $tag): array
     {
         $role = Role::where('code', $roleCode)->first();
-        if (!$role) {
+        if (! $role) {
             $this->warn("الدور {$roleCode} غير موجود — تخطّي");
+
             return ['role' => $roleCode, 'count' => 0, 'tokens' => []];
         }
 
         $tokens = [];
         for ($i = 1; $i <= $count; $i++) {
-            $username = self::USER_PREFIX . $tag . $i;
+            $username = self::USER_PREFIX.$tag.$i;
             $user = User::updateOrCreate(
                 ['username' => $username],
                 [
                     'full_name' => "حمل — {$roleCode} {$i}",
                     'email' => "{$username}@loadtest.local",
-                    'password' => 'LoadTest@' . bin2hex(random_bytes(8)), // لا يُستعمل: الدخول عبر الرمز
+                    'password' => 'LoadTest@'.bin2hex(random_bytes(8)), // لا يُستعمل: الدخول عبر الرمز
                     'role_id' => $role->id,
                     'sector_id' => null, // هذان الدوران غير محصورَين بقطاع
                     'user_type' => 'external',
@@ -143,10 +147,10 @@ class LoadTestPrepare extends Command
         // إدراج مباشر بلا دورات تقييم: الهدف حجمُ بيانات واقعي للقراءة،
         // لا محاكاة دورة كاملة (تلك يصنعها سيناريو الكتابة أثناء الاختبار).
         for ($i = $existing + 1; $i <= $target; $i++) {
-            $c = new Candidate();
+            $c = new Candidate;
             $c->national_id = $this->syntheticNationalId($i);
             $c->full_name = "مشارك حمل {$i}";
-            $c->mobile = '05' . str_pad((string) ($i % 100000000), 8, '0', STR_PAD_LEFT);
+            $c->mobile = '05'.str_pad((string) ($i % 100000000), 8, '0', STR_PAD_LEFT);
             $c->sector_id = $sector->id;
             $c->rank_label = $i % 3 === 0 ? 'مدير عام' : 'عميد';
             $c->tier = $i % 3 === 0 ? 'middle' : 'upper';
@@ -166,14 +170,19 @@ class LoadTestPrepare extends Command
     // هوية اصطناعية صالحة (لُون، تبدأ بـ2 لتبتعد عن نطاق بيانات حقيقية)
     private function syntheticNationalId(int $seed): string
     {
-        $body = '2' . str_pad((string) ($seed % 100000000), 8, '0', STR_PAD_LEFT);
+        $body = '2'.str_pad((string) ($seed % 100000000), 8, '0', STR_PAD_LEFT);
         $sum = 0;
         for ($i = 0; $i < 9; $i++) {
             $d = (int) $body[$i];
-            if ($i % 2 === 0) { $x = $d * 2; $sum += $x > 9 ? $x - 9 : $x; }
-            else { $sum += $d; }
+            if ($i % 2 === 0) {
+                $x = $d * 2;
+                $sum += $x > 9 ? $x - 9 : $x;
+            } else {
+                $sum += $d;
+            }
         }
-        return $body . ((10 - ($sum % 10)) % 10);
+
+        return $body.((10 - ($sum % 10)) % 10);
     }
 
     private function cleanup(): int
@@ -194,7 +203,7 @@ class LoadTestPrepare extends Command
             });
         }
 
-        $users = User::where('username', 'like', self::USER_PREFIX . '%')->get();
+        $users = User::where('username', 'like', self::USER_PREFIX.'%')->get();
         $userIds = $users->pluck('id')->all();
         $userCount = $users->count();
 
@@ -207,7 +216,7 @@ class LoadTestPrepare extends Command
         $residue = 0;
         if ($userIds) {
             foreach (['audit_logs' => 'user_id', 'sms_logs' => 'created_by',
-                      'email_logs' => 'created_by', 'notifications' => 'created_by'] as $table => $col) {
+                'email_logs' => 'created_by', 'notifications' => 'created_by'] as $table => $col) {
                 $residue += DB::table($table)->whereIn($col, $userIds)->delete();
             }
         }
@@ -218,11 +227,11 @@ class LoadTestPrepare extends Command
         $deleted = true;
         try {
             User::whereIn('id', $userIds)->delete();
-        } catch (\Illuminate\Database\QueryException $e) {
+        } catch (QueryException $e) {
             $deleted = false;
             User::whereIn('id', $userIds)->update(['is_active' => false]);
             $this->warn('تعذّر حذف مستخدمي الاختبار (مراجع قائمة) — عُطِّلوا وأُبطلت رموزهم.');
-            $this->line('  السبب: ' . str($e->getMessage())->limit(160));
+            $this->line('  السبب: '.str($e->getMessage())->limit(160));
         }
 
         // القطاع يُحذف أخيراً — بعد أن خلا من مشاركيه. يبقى إن بقي مستخدموه.

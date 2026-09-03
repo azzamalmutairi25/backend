@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Assessment;
 use App\Models\AuditLog;
 use App\Models\Candidate;
 use App\Models\DiscussionCircle;
@@ -10,6 +11,8 @@ use App\Models\Schedule;
 use App\Models\User;
 use App\Security\Permissions;
 use App\Services\WaveGuard;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -23,9 +26,7 @@ use Illuminate\Support\Facades\DB;
 // بديلٌ عنها.
 class DiscussionCircleController extends Controller
 {
-    public function __construct(private WaveGuard $waves)
-    {
-    }
+    public function __construct(private WaveGuard $waves) {}
 
     private function log(Request $request, string $action, int $entityId, array $details = []): void
     {
@@ -40,14 +41,14 @@ class DiscussionCircleController extends Controller
         ]);
     }
 
-    private function denyView(Request $request): ?\Illuminate\Http\JsonResponse
+    private function denyView(Request $request): ?JsonResponse
     {
         return $request->user()->hasPermission(Permissions::SCHEDULE_VIEW)
             ? null
             : response()->json(['error' => 'ليس لديك صلاحية عرض الجدولة'], 403);
     }
 
-    private function denyManage(Request $request): ?\Illuminate\Http\JsonResponse
+    private function denyManage(Request $request): ?JsonResponse
     {
         return $request->user()->hasPermission(Permissions::SCHEDULE_MANAGE)
             ? null
@@ -58,6 +59,7 @@ class DiscussionCircleController extends Controller
     private function circleInScope(Request $request, int $id): ?DiscussionCircle
     {
         $user = $request->user();
+
         return DiscussionCircle::with(['sector', 'evaluator', 'assistant'])
             ->when($user->isSectorBound(), fn ($q) => $q->where('sector_id', $user->sector_id))
             ->find($id);
@@ -66,6 +68,7 @@ class DiscussionCircleController extends Controller
     private function row(DiscussionCircle $c, bool $canSeeNames): array
     {
         $taken = $c->seatsTaken();
+
         return [
             'id' => $c->id,
             'periodId' => $c->period_id,
@@ -111,10 +114,18 @@ class DiscussionCircleController extends Controller
             'schedules.candidate', 'schedules.attendance',
         ]);
 
-        if (!empty($validated['date']))     { $query->whereDate('circle_date', $validated['date']); }
-        if (!empty($validated['periodId'])) { $query->where('period_id', $validated['periodId']); }
-        if (!empty($validated['sectorId'])) { $query->where('sector_id', $validated['sectorId']); }
-        if ($user->isSectorBound())         { $query->where('sector_id', $user->sector_id); }
+        if (! empty($validated['date'])) {
+            $query->whereDate('circle_date', $validated['date']);
+        }
+        if (! empty($validated['periodId'])) {
+            $query->where('period_id', $validated['periodId']);
+        }
+        if (! empty($validated['sectorId'])) {
+            $query->where('sector_id', $validated['sectorId']);
+        }
+        if ($user->isSectorBound()) {
+            $query->where('sector_id', $user->sector_id);
+        }
 
         // بلا مُرشِّح حاصر: نافذة متدحرجة كنظيرتها في الجدولة، لا كل تاريخ المركز
         if (empty($validated['date']) && empty($validated['periodId'])) {
@@ -134,9 +145,9 @@ class DiscussionCircleController extends Controller
     private function rules(bool $creating): array
     {
         return [
-            'sectorId' => ($creating ? 'required|' : 'sometimes|required|') . 'integer|exists:sectors,id',
-            'date' => ($creating ? 'required|' : 'sometimes|required|') . 'date_format:Y-m-d|after_or_equal:today',
-            'time' => ($creating ? 'required|' : 'sometimes|required|') . 'date_format:H:i',
+            'sectorId' => ($creating ? 'required|' : 'sometimes|required|').'integer|exists:sectors,id',
+            'date' => ($creating ? 'required|' : 'sometimes|required|').'date_format:Y-m-d|after_or_equal:today',
+            'time' => ($creating ? 'required|' : 'sometimes|required|').'date_format:H:i',
             'location' => 'nullable|string|max:200',
             'evaluatorId' => 'nullable|integer|exists:users,id',
             'assistantId' => 'nullable|integer|exists:users,id',
@@ -149,21 +160,22 @@ class DiscussionCircleController extends Controller
     /** المستشار مؤهّل لحلقة النقاش وفي قطاعها؟ يرجع رسالة الخطأ أو null */
     private function seatError(?int $userId, string $seat, int $sectorId): ?string
     {
-        if (!$userId) {
+        if (! $userId) {
             return null;
         }
         $u = User::with('role')->find($userId);
-        if (!$u || !$u->is_active) {
+        if (! $u || ! $u->is_active) {
             return 'المستخدم غير فعّال';
         }
         $roles = PeriodAssessor::eligibleRoles('discussion', $seat);
-        if (!$u->role || !in_array($u->role->code, $roles, true)) {
-            return '«' . $u->full_name . '» لا يؤهّله دوره ل' . ($seat === 'assistant' ? 'مساعدة' : 'إدارة') . ' حلقة النقاش';
+        if (! $u->role || ! in_array($u->role->code, $roles, true)) {
+            return '«'.$u->full_name.'» لا يؤهّله دوره ل'.($seat === 'assistant' ? 'مساعدة' : 'إدارة').' حلقة النقاش';
         }
         // حدّ القطاع — نفس قاعدة الجدولة، بلا استثناء صامت
-        if (!$u->coversSector($sectorId)) {
-            return '«' . $u->full_name . '» من قطاع آخر — حلقة النقاش لقطاعها';
+        if (! $u->coversSector($sectorId)) {
+            return '«'.$u->full_name.'» من قطاع آخر — حلقة النقاش لقطاعها';
         }
+
         return null;
     }
 
@@ -212,7 +224,7 @@ class DiscussionCircleController extends Controller
                 'group_letter' => $validated['groupLetter'] ?? null,
                 'created_by' => $user->id,
             ]));
-        } catch (\Illuminate\Database\UniqueConstraintViolationException) {
+        } catch (UniqueConstraintViolationException) {
             // القيد الجزئي: المستشار نفسه في اللحظة نفسها
             return response()->json(['error' => 'المستشار مرتبط بحلقة أخرى في هذا الوقت'], 409);
         }
@@ -239,7 +251,7 @@ class DiscussionCircleController extends Controller
         }
 
         $circle = $this->circleInScope($request, $id);
-        if (!$circle) {
+        if (! $circle) {
             return response()->json(['error' => 'الحلقة غير موجودة'], 404);
         }
 
@@ -253,7 +265,7 @@ class DiscussionCircleController extends Controller
         if (array_key_exists('capacity', $validated) && $validated['capacity'] !== null
             && $validated['capacity'] < $taken) {
             return response()->json([
-                'error' => 'السعة الجديدة أقل من عدد المُسنَدين (' . $taken . ') — اسحب مشاركاً أولاً',
+                'error' => 'السعة الجديدة أقل من عدد المُسنَدين ('.$taken.') — اسحب مشاركاً أولاً',
             ], 422);
         }
 
@@ -295,10 +307,10 @@ class DiscussionCircleController extends Controller
                     'period_id' => $circle->period_id,
                 ]);
                 foreach (Schedule::where('circle_id', $circle->id)->pluck('assessment_id')->unique() as $aid) {
-                    \App\Models\Assessment::refreshDatesFor($aid);
+                    Assessment::refreshDatesFor($aid);
                 }
             });
-        } catch (\Illuminate\Database\UniqueConstraintViolationException) {
+        } catch (UniqueConstraintViolationException) {
             return response()->json(['error' => 'المستشار مرتبط بحلقة أخرى في هذا الوقت'], 409);
         }
 
@@ -306,7 +318,7 @@ class DiscussionCircleController extends Controller
 
         return response()->json([
             'message' => $moved && $taken > 0
-                ? 'حُدّثت الحلقة، ونُقلت ' . $taken . ' جلسة معها'
+                ? 'حُدّثت الحلقة، ونُقلت '.$taken.' جلسة معها'
                 : 'حُدّثت الحلقة',
             'circle' => $this->row(
                 $circle->fresh(['sector', 'evaluator', 'assistant', 'schedules.candidate', 'schedules.attendance']),
@@ -323,7 +335,7 @@ class DiscussionCircleController extends Controller
         }
 
         $circle = $this->circleInScope($request, $id);
-        if (!$circle) {
+        if (! $circle) {
             return response()->json(['error' => 'الحلقة غير موجودة'], 404);
         }
         if ($circle->seatsTaken() > 0) {
@@ -350,10 +362,10 @@ class DiscussionCircleController extends Controller
         }
 
         $circle = $this->circleInScope($request, $id);
-        if (!$circle) {
+        if (! $circle) {
             return response()->json(['error' => 'الحلقة غير موجودة'], 404);
         }
-        if (!$circle->evaluator_id) {
+        if (! $circle->evaluator_id) {
             return response()->json(['error' => 'عيّن مستشار الحلقة قبل إسناد المشاركين'], 422);
         }
         if ($err = $this->periodError($circle->period_id, $circle->circle_date->toDateString())) {
@@ -385,21 +397,25 @@ class DiscussionCircleController extends Controller
             $left = $locked->capacity - Schedule::where('circle_id', $locked->id)->count();
 
             foreach ($candidates as $c) {
-                if (!in_array($c->status, ['scheduled', 'assessed'], true)) {
+                if (! in_array($c->status, ['scheduled', 'assessed'], true)) {
                     $skipped[] = ['code' => $c->participant_code, 'reason' => 'غير معتمد للتقييم'];
+
                     continue;
                 }
                 $assessment = $c->assessments->first();
-                if (!$assessment) {
+                if (! $assessment) {
                     $skipped[] = ['code' => $c->participant_code, 'reason' => 'لا دورة تقييم نشطة'];
+
                     continue;
                 }
                 if (Schedule::where('circle_id', $locked->id)->where('candidate_id', $c->id)->exists()) {
                     $skipped[] = ['code' => $c->participant_code, 'reason' => 'مُسنَد لهذه الحلقة أصلاً'];
+
                     continue;
                 }
                 if ($left <= 0) {
                     $skipped[] = ['code' => $c->participant_code, 'reason' => 'تجاوز سعة الحلقة'];
+
                     continue;
                 }
 
@@ -419,6 +435,7 @@ class DiscussionCircleController extends Controller
                 $created++;
                 $left--;
             }
+
             return $created;
         });
 
@@ -427,7 +444,7 @@ class DiscussionCircleController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'أُسنِد ' . $result . ' مشاركاً للحلقة',
+            'message' => 'أُسنِد '.$result.' مشاركاً للحلقة',
             'attached' => $result,
             'skipped' => $skipped,
             'circle' => $this->row(
@@ -445,7 +462,7 @@ class DiscussionCircleController extends Controller
         }
 
         $circle = $this->circleInScope($request, $id);
-        if (!$circle) {
+        if (! $circle) {
             return response()->json(['error' => 'الحلقة غير موجودة'], 404);
         }
 
@@ -455,7 +472,7 @@ class DiscussionCircleController extends Controller
             ->where('circle_id', $circle->id)
             ->where('candidate_id', $validated['candidateId'])
             ->first();
-        if (!$schedule) {
+        if (! $schedule) {
             return response()->json(['error' => 'المشارك ليس في هذه الحلقة'], 404);
         }
         // نفس قاعدة حذف الجلسة: ما سُجّل حضوره لا يُمحى
@@ -471,7 +488,7 @@ class DiscussionCircleController extends Controller
         $code = optional($schedule->candidate)->participant_code;
         $assessmentId = $schedule->assessment_id;
         $schedule->delete();
-        \App\Models\Assessment::refreshDatesFor($assessmentId);
+        Assessment::refreshDatesFor($assessmentId);
         $this->log($request, 'DETACH_CIRCLE', $circle->id, ['candidate' => $code]);
 
         return response()->json(['message' => 'سُحب المشارك من الحلقة']);

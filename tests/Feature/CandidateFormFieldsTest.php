@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Candidate;
+use App\Models\Sector;
 use App\Models\TechnicalArea;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -28,7 +29,7 @@ class CandidateFormFieldsTest extends TestCase
         return array_replace([
             'nationalId' => $this->validNationalId(),
             'fullName' => 'مشارك اختبار',
-            'sectorId' => \App\Models\Sector::first()->id,
+            'sectorId' => Sector::first()->id,
             'gender' => 'male',
             'personnelCategory' => 'civilian',
             'rankLabel' => 'الرابعة عشرة',

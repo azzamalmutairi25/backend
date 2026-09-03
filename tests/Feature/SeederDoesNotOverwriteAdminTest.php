@@ -52,7 +52,7 @@ class SeederDoesNotOverwriteAdminTest extends TestCase
             ]
         );
 
-        (new DatabaseSeeder())->setContainer($this->app)->run();
+        (new DatabaseSeeder)->setContainer($this->app)->run();
 
         $admin = User::where('username', 'admin')->first();
         $this->assertTrue(Hash::check($chosen, $admin->password),

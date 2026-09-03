@@ -36,8 +36,11 @@ class AuditRedactionTest extends TestCase
     private function entryFor(array $entries, int $candidateId): ?array
     {
         foreach ($entries as $e) {
-            if ($e['entityType'] === 'candidate' && (string) $e['entityId'] === (string) $candidateId) return $e;
+            if ($e['entityType'] === 'candidate' && (string) $e['entityId'] === (string) $candidateId) {
+                return $e;
+            }
         }
+
         return null;
     }
 

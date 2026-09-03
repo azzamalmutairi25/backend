@@ -40,11 +40,13 @@ class DashboardController extends Controller
             'candidates' => function () use ($request) {
                 $q = Candidate::query();
                 $this->scopeCandidateQuery($request, $q);
+
                 return $q;
             },
             'reports' => function () use ($request) {
                 $q = FinalReport::query();
                 $this->scopeReports($request, $q);   // القطاع + التصنيف + تضييق المقيّم
+
                 return $q;
             },
             'evaluations' => function () use ($request, $user) {
@@ -55,17 +57,20 @@ class DashboardController extends Controller
                 if ($user->isSectorBound() && $user->hasRole('EVALUATOR', 'DISCUSSION_EVAL')) {
                     $q->where('evaluator_id', $user->id);
                 }
+
                 return $q;
             },
             'schedules' => function () use ($request) {
                 $q = Schedule::query();
                 $this->scopeViaCandidate($request, $q);
+
                 return $q;
             },
             // مسار المشارك: نفس حصر الجداول — التقييم يحمل candidate_id أيضاً
             'assessments' => function () use ($request) {
                 $q = Assessment::query();
                 $this->scopeViaCandidate($request, $q);
+
                 return $q;
             },
         ];

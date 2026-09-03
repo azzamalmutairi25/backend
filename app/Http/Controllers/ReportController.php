@@ -2,18 +2,20 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\FinalReport;
-use App\Models\Candidate;
-use App\Models\MeasurementResult;
-use App\Models\ChatThread;
-use App\Models\ChatMessage;
 use App\Models\AuditLog;
+use App\Models\Candidate;
+use App\Models\ChatMessage;
+use App\Models\ChatThread;
+use App\Models\DevelopmentPlanItem;
+use App\Models\FinalReport;
+use App\Models\MeasurementResult;
 use App\Models\User;
 use App\Models\WorkflowStage;
 use App\Security\Permissions;
 use App\Services\NotificationService;
 use App\Services\ScoringService;
 use App\Support\LakeEmitter;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 
 class ReportController extends Controller
@@ -71,7 +73,7 @@ class ReportController extends Controller
 
         if ($stage->requires_team_authorship) {
             $author = $report->created_by ? User::with('role')->find($report->created_by) : null;
-            if (!$author) {
+            if (! $author) {
                 // تقرير بلا كاتب معروف لا يُنسب لفريق — لا يُعتمد بقاعدة الفريق
                 return 'تعذّر تحديد كاتب التقرير — لا يمكن اعتماده بقاعدة الفريق';
             }
@@ -95,44 +97,44 @@ class ReportController extends Controller
     // GET /reports/score-preview?candidateId= — توافق مُحتسَب آلياً + تفصيل الكفاءات (لتعبئة التقرير)
     public function scorePreview(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::REPORT_CREATE)) {
+        if (! $request->user()->hasPermission(Permissions::REPORT_CREATE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إنشاء تقرير'], 403);
         }
         $validated = $request->validate(['candidateId' => 'required|integer']);
         // النطاق كاملاً — لا يُكتب/يُقرأ تقرير لمشارك خارج قطاع المستخدم.
         // eligibleCandidates محصور، فكان يُخفي المشارك ثم يقبله بمعرّفه.
         $candidate = $this->resolveCandidateInScope($request, $validated['candidateId']);
-        if (!$candidate || $this->evaluatorNarrowedOut($request, $candidate)) {
+        if (! $candidate || $this->evaluatorNarrowedOut($request, $candidate)) {
             return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
         $assessment = $candidate->assessments()->orderByDesc('id')->first();
-        if (!$assessment) {
+        if (! $assessment) {
             return response()->json(['error' => 'لا توجد دورة تقييم لهذا المشارك'], 422);
         }
+
         return response()->json($this->scoring->computeFit($assessment));
     }
 
     // GET /reports/competency-gap?candidateId= — الفجوة مقابل المستوى المطلوب لفئة المشارك
     public function competencyGap(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::REPORT_VIEW)) {
+        if (! $request->user()->hasPermission(Permissions::REPORT_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض التقارير'], 403);
         }
         $validated = $request->validate(['candidateId' => 'required|integer']);
         // النطاق كاملاً — لا يُكتب/يُقرأ تقرير لمشارك خارج قطاع المستخدم.
         // eligibleCandidates محصور، فكان يُخفي المشارك ثم يقبله بمعرّفه.
         $candidate = $this->resolveCandidateInScope($request, $validated['candidateId']);
-        if (!$candidate || $this->evaluatorNarrowedOut($request, $candidate)) {
+        if (! $candidate || $this->evaluatorNarrowedOut($request, $candidate)) {
             return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
         $assessment = $candidate->assessments()->orderByDesc('id')->first();
-        if (!$assessment) {
+        if (! $assessment) {
             return response()->json(['error' => 'لا توجد دورة تقييم لهذا المشارك'], 422);
         }
+
         return response()->json($this->scoring->computeGap($assessment, $candidate->tier ?? 'middle'));
     }
-
-
 
     // ── حلّ تقرير ضمن نطاق المستخدم ──
     // مسارات الكتابة (approve/return/resubmit) كانت تستعمل findOrFail ثم تفحص
@@ -161,7 +163,7 @@ class ReportController extends Controller
 
     public function index(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::REPORT_VIEW)) {
+        if (! $request->user()->hasPermission(Permissions::REPORT_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض التقارير'], 403);
         }
 
@@ -225,7 +227,7 @@ class ReportController extends Controller
             'returns' => 'return_count',
             // رمز المشارك وقطاعه في جدول المشاركين — استعلامٌ مرتبط لا انضمام
             'code' => fn ($q, $dir) => $q->orderBy(
-                \App\Models\Candidate::select('participant_code')
+                Candidate::select('participant_code')
                     ->whereColumn('candidates.id', 'final_reports.candidate_id'),
                 $dir
             ),
@@ -234,7 +236,7 @@ class ReportController extends Controller
 
     public function stats(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::REPORT_VIEW)) {
+        if (! $request->user()->hasPermission(Permissions::REPORT_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض التقارير'], 403);
         }
 
@@ -289,7 +291,7 @@ class ReportController extends Controller
     // GET /reports/analytics — تجميعات مشهد التقارير للرسوم البيانية (بنفس النطاق والفلاتر)
     public function analytics(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::REPORT_VIEW)) {
+        if (! $request->user()->hasPermission(Permissions::REPORT_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض التقارير'], 403);
         }
 
@@ -336,7 +338,7 @@ class ReportController extends Controller
     // مشاركون جاهزون لكتابة تقرير: انتهى تقييمهم ولا تقرير لدورتهم الحالية
     public function eligibleCandidates(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::REPORT_CREATE)) {
+        if (! $request->user()->hasPermission(Permissions::REPORT_CREATE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إنشاء تقرير'], 403);
         }
         $allowed = $this->allowedClassifications($request);
@@ -350,7 +352,8 @@ class ReportController extends Controller
             ->get()
             ->filter(function ($c) {
                 $a = $c->assessments->first(); // الأحدث (مرتّبة تنازلياً)
-                return $a && !$a->report;
+
+                return $a && ! $a->report;
             })
             ->map(fn ($c) => [
                 'id' => $c->id,
@@ -365,7 +368,7 @@ class ReportController extends Controller
     // بيانات تقرير كاملة للتحرير
     public function show(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::REPORT_VIEW)) {
+        if (! $request->user()->hasPermission(Permissions::REPORT_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض التقرير'], 403);
         }
         // النطاق داخل الاستعلام لا بعده: تقرير خارج نطاق المستخدم لا يُحلّ أصلاً،
@@ -374,9 +377,10 @@ class ReportController extends Controller
         $this->scopeReports($request, $q);
 
         $r = $q->find($id);
-        if (!$r) {
+        if (! $r) {
             return response()->json(['error' => 'التقرير غير موجود'], 404);
         }
+
         return response()->json(['report' => [
             'id' => $r->id,
             'participantCode' => $r->candidate->participant_code,
@@ -398,11 +402,11 @@ class ReportController extends Controller
     // POST /reports/{id}/executive-summary — الملخّص التنفيذي (مدير المركز، قابل للتفويض)
     public function saveExecutiveSummary(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::REPORT_EXEC_SUMMARY)) {
+        if (! $request->user()->hasPermission(Permissions::REPORT_EXEC_SUMMARY)) {
             return response()->json(['error' => 'الملخّص التنفيذي بصلاحية مدير المركز فقط'], 403);
         }
         $r = $this->resolveReportInScope($request, $id);
-        if (!$r) {
+        if (! $r) {
             return response()->json(['error' => 'التقرير غير موجود'], 404);
         }
 
@@ -423,13 +427,13 @@ class ReportController extends Controller
     // GET /reports/{id}/brief — المستند المختصر (الملخّص التنفيذي + النتيجة)، للطباعة
     public function briefDocument(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::REPORT_VIEW)) {
+        if (! $request->user()->hasPermission(Permissions::REPORT_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض التقرير'], 403);
         }
         $q = FinalReport::with(['candidate.sector', 'assessment']);
         $this->scopeReports($request, $q);
         $r = $q->find($id);
-        if (!$r) {
+        if (! $r) {
             return response()->json(['error' => 'التقرير غير موجود'], 404);
         }
         $canSeeNames = $request->user()->hasPermission(Permissions::REPORT_VIEW_NAMES);
@@ -457,8 +461,13 @@ class ReportController extends Controller
 
     private function toList($v): array
     {
-        if (is_array($v)) return array_values(array_filter($v, fn ($x) => trim((string) $x) !== ''));
-        if (is_string($v) && $v !== '') return [$v];
+        if (is_array($v)) {
+            return array_values(array_filter($v, fn ($x) => trim((string) $x) !== ''));
+        }
+        if (is_string($v) && $v !== '') {
+            return [$v];
+        }
+
         return [];
     }
 
@@ -472,7 +481,7 @@ class ReportController extends Controller
     // إنشاء تقرير لدورة المشارك الحالية
     public function store(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::REPORT_CREATE)) {
+        if (! $request->user()->hasPermission(Permissions::REPORT_CREATE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إنشاء تقرير'], 403);
         }
         $validated = $request->validate($this->reportRules() + [
@@ -483,11 +492,11 @@ class ReportController extends Controller
         // النطاق كاملاً — لا يُكتب/يُقرأ تقرير لمشارك خارج قطاع المستخدم.
         // eligibleCandidates محصور، فكان يُخفي المشارك ثم يقبله بمعرّفه.
         $candidate = $this->resolveCandidateInScope($request, $validated['candidateId']);
-        if (!$candidate) {
+        if (! $candidate) {
             return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
         $assessment = $candidate->assessments()->orderByDesc('id')->first();
-        if (!$assessment) {
+        if (! $assessment) {
             return response()->json(['error' => 'لا توجد دورة تقييم لهذا المشارك'], 422);
         }
         // لا يُكتب تقرير قبل انتهاء التقييم فعلاً — منع تجاوز مسار التقييم بأكمله
@@ -516,7 +525,7 @@ class ReportController extends Controller
                 'status' => $submit ? $this->firstStage()?->status_key : 'draft',
                 'created_by' => $request->user()->id,
             ]);
-        } catch (\Illuminate\Database\QueryException $e) {
+        } catch (QueryException $e) {
             // الفهرس الفريد حسم سباقاً متزامناً: أُنشئ تقرير للتوّ لهذه الدورة
             return response()->json(['error' => 'يوجد تقرير لهذه الدورة بالفعل'], 422);
         }
@@ -546,20 +555,21 @@ class ReportController extends Controller
     // تعديل تقرير (مسودة أو مُعاد) — مع إمكانية الإرسال للاعتماد
     public function update(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::REPORT_CREATE)) {
+        if (! $request->user()->hasPermission(Permissions::REPORT_CREATE)) {
             return response()->json(['error' => 'ليس لديك صلاحية تعديل التقرير'], 403);
         }
         // النطاق كاملاً كبقية مسارات الكتابة (التصنيف + القطاع + ملكية المقيّم) — 404 لا 403.
         // كان findOrFail + فحص تصنيف فقط، فيصل الكاتب لتقرير خارج قطاعه/ملكيّته
         $report = $this->resolveReportInScope($request, $id, ['candidate', 'assessment']);
-        if (!$report) {
+        if (! $report) {
             $this->log($request, 'DENIED_REPORT_OUT_OF_SCOPE', $id);
+
             return response()->json(['error' => 'التقرير غير موجود'], 404);
         }
-        if (!$this->canEditReport($request, $report)) {
+        if (! $this->canEditReport($request, $report)) {
             return response()->json(['error' => 'لا تملك صلاحية تعديل تقرير أنشأه غيرك'], 403);
         }
-        if (!in_array($report->status, ['draft', 'returned'])) {
+        if (! in_array($report->status, ['draft', 'returned'])) {
             return response()->json(['error' => 'لا يمكن تعديل تقرير في هذه الحالة'], 422);
         }
         $validated = $request->validate($this->reportRules());
@@ -581,7 +591,7 @@ class ReportController extends Controller
             if ($first) {
                 $this->notify->notifyRole($first->role_code, 'approval',
                     'تقرير معدّل بانتظار اعتمادك',
-                    "تقرير المشارك " . optional($report->assessment)->participant_code . " وصل مرحلة اعتمادك",
+                    'تقرير المشارك '.optional($report->assessment)->participant_code.' وصل مرحلة اعتمادك',
                     'report', (string) $report->id, $request->user()->id);
             }
         }
@@ -599,20 +609,21 @@ class ReportController extends Controller
         // فكان مَن لا يملك من التقارير شيئاً يمرّ إلى ما بعد حلّ التقرير ويميّز
         // بالردّ بين «غير موجود» (404) و«موجود بحالة لا تُعتمد» (422) — تعدادٌ
         // لأرقام التقارير وحالاتها. كل من يعتمد مرحلةً يملك REPORT_VIEW أصلاً.
-        if (!$request->user()->hasPermission(Permissions::REPORT_VIEW)) {
+        if (! $request->user()->hasPermission(Permissions::REPORT_VIEW)) {
             return response()->json(['error' => 'التقرير غير موجود'], 404);
         }
 
         // النطاق كاملاً قبل أي إفصاح: التصنيف والقطاع والملكية معاً.
         // 404 لا 403 — لا يفرّق الردّ بين «غير موجود» و«ليس لك».
         $report = $this->resolveReportInScope($request, $id);
-        if (!$report) {
+        if (! $report) {
             $this->log($request, 'DENIED_REPORT_OUT_OF_SCOPE', $id);
+
             return response()->json(['error' => 'التقرير غير موجود'], 404);
         }
 
         $stage = WorkflowStage::forStatus($report->status);
-        if (!$stage) {
+        if (! $stage) {
             return response()->json(['error' => 'لا يمكن اعتماد تقرير في هذه الحالة'], 422);
         }
 
@@ -625,6 +636,7 @@ class ReportController extends Controller
             // لمن يملك المرحلة، ولا تُفصح بشيء لمن لا يملكها أصلاً
             if ($err = $this->stageRuleError($stage, $report, $user)) {
                 $this->log($request, 'DENIED_APPROVE_STAGE_RULE', $id, ['stage' => $stage->status_key]);
+
                 return response()->json(['error' => $err], 403);
             }
             $next = WorkflowStage::nextAfter($from);
@@ -636,6 +648,7 @@ class ReportController extends Controller
             foreach ([$stage, $skipTo] as $checkStage) {
                 if ($err = $this->stageRuleError($checkStage, $report, $user)) {
                     $this->log($request, 'DENIED_APPROVE_STAGE_RULE', $id, ['stage' => $checkStage->status_key]);
+
                     return response()->json(['error' => $err], 403);
                 }
             }
@@ -693,6 +706,7 @@ class ReportController extends Controller
                     "اكتمل اعتماد تقرير المشارك {$code}",
                     'report', (string) $report->id, $actorId);
             }
+
             return;
         }
 
@@ -706,7 +720,7 @@ class ReportController extends Controller
 
     public function returnReport(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::REPORT_RETURN)) {
+        if (! $request->user()->hasPermission(Permissions::REPORT_RETURN)) {
             return response()->json(['error' => 'ليس لديك صلاحية الإرجاع'], 403);
         }
 
@@ -721,13 +735,14 @@ class ReportController extends Controller
 
         // نفس نطاق approve — من لا يرى التقرير لا يُرجعه
         $report = $this->resolveReportInScope($request, $id);
-        if (!$report) {
+        if (! $report) {
             $this->log($request, 'DENIED_REPORT_OUT_OF_SCOPE', $id);
+
             return response()->json(['error' => 'التقرير غير موجود'], 404);
         }
 
         // لا يُرجَع إلا تقرير في إحدى مراحل الاعتماد (منع إرجاع معتمد/مسودة → إفساد حالة المشارك)
-        if (!in_array($report->status, self::pendingStatuses(), true)) {
+        if (! in_array($report->status, self::pendingStatuses(), true)) {
             return response()->json(['error' => 'لا يمكن إرجاع تقرير غير مُرسل للاعتماد'], 422);
         }
 
@@ -759,7 +774,7 @@ class ReportController extends Controller
         if ($report->created_by) {
             $this->notify->notify($report->created_by, 'return',
                 'أُعيد تقرير للتعديل',
-                'سبب الإرجاع: ' . $validated['reason'],
+                'سبب الإرجاع: '.$validated['reason'],
                 'report', (string) $id, $request->user()->id);
         }
 
@@ -770,7 +785,7 @@ class ReportController extends Controller
         ChatMessage::create([
             'thread_id' => $thread->id,
             'sender_id' => $request->user()->id,
-            'message' => 'أُعيد التقرير للتعديل. السبب: ' . $validated['reason'],
+            'message' => 'أُعيد التقرير للتعديل. السبب: '.$validated['reason'],
             'message_type' => 'action',
             'action_type' => 'return',
         ]);
@@ -794,7 +809,7 @@ class ReportController extends Controller
     // POST /reports/{id}/cancel — إيقاف التقرير نهائياً (مدير المركز وحده)
     public function cancel(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::REPORT_CANCEL)) {
+        if (! $request->user()->hasPermission(Permissions::REPORT_CANCEL)) {
             return response()->json(['error' => 'ليس لديك صلاحية إلغاء التقرير'], 403);
         }
 
@@ -806,7 +821,7 @@ class ReportController extends Controller
         ]);
 
         $report = $this->resolveReportInScope($request, $id);
-        if (!$report) {
+        if (! $report) {
             return response()->json(['error' => 'التقرير غير موجود'], 404);
         }
 
@@ -834,7 +849,7 @@ class ReportController extends Controller
         if ($report->created_by) {
             $this->notify->notify($report->created_by, 'return',
                 'أُلغي التقرير',
-                'سبب الإلغاء: ' . $validated['reason'],
+                'سبب الإلغاء: '.$validated['reason'],
                 'report', (string) $id, $request->user()->id);
         }
 
@@ -845,7 +860,7 @@ class ReportController extends Controller
         ChatMessage::create([
             'thread_id' => $thread->id,
             'sender_id' => $request->user()->id,
-            'message' => 'أُلغي التقرير. السبب: ' . $validated['reason'],
+            'message' => 'أُلغي التقرير. السبب: '.$validated['reason'],
             'message_type' => 'action',
             'action_type' => 'return',
         ]);
@@ -860,16 +875,16 @@ class ReportController extends Controller
 
     public function resubmit(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::REPORT_CREATE)) {
+        if (! $request->user()->hasPermission(Permissions::REPORT_CREATE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إعادة الإرسال'], 403);
         }
 
         // نفس النطاق — التصنيف والقطاع والملكية معاً
         $report = $this->resolveReportInScope($request, $id);
-        if (!$report) {
+        if (! $report) {
             return response()->json(['error' => 'التقرير غير موجود'], 404);
         }
-        if (!$this->canEditReport($request, $report)) {
+        if (! $this->canEditReport($request, $report)) {
             return response()->json(['error' => 'لا تملك صلاحية إرسال تقرير أنشأه غيرك'], 403);
         }
         if ($report->status !== 'returned') {
@@ -881,7 +896,7 @@ class ReportController extends Controller
         // من جديد، وإلا مرّ تغييرٌ جوهري باعتماد مرحلة واحدة.
         // تصفير التصعيد: حالة تأخّر جديدة قد تتطلّب تصعيداً لاحقاً
         $first = $this->firstStage();
-        if (!$first) {
+        if (! $first) {
             return response()->json(['error' => 'لا توجد مراحل اعتماد مفعّلة — راجع إعدادات سير العمل'], 422);
         }
         // مشروطة بـ«returned» — لا تتصادم مع إلغاء/تعديل متزامن
@@ -905,7 +920,7 @@ class ReportController extends Controller
     // GET /reports/{id}/document — مستند رسمي جاهز للطباعة (المتصفّح → PDF)
     public function document(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::REPORT_VIEW)) {
+        if (! $request->user()->hasPermission(Permissions::REPORT_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض التقرير'], 403);
         }
         // نفس نطاق show — المستند وثيقة كاملة، فحدّه لا يكون أوسع من القائمة
@@ -913,7 +928,7 @@ class ReportController extends Controller
         $this->scopeReports($request, $q);
 
         $r = $q->find($id);
-        if (!$r) {
+        if (! $r) {
             return response()->json(['error' => 'التقرير غير موجود'], 404);
         }
         // المستند المطبوع يحمل الاسم لحاملي REPORT_VIEW_NAMES وحدهم (مدير النظام
@@ -922,7 +937,7 @@ class ReportController extends Controller
         $canSeeNames = $request->user()->hasPermission(Permissions::REPORT_VIEW_NAMES);
         $fit = $this->scoring->computeFit($r->assessment);
         $measurement = MeasurementResult::where('assessment_id', $r->assessment_id)->first();
-        $devPlan = \App\Models\DevelopmentPlanItem::where('assessment_id', $r->assessment_id)
+        $devPlan = DevelopmentPlanItem::where('assessment_id', $r->assessment_id)
             ->orderBy('id')->get();
         $this->log($request, 'EXPORT_REPORT', $id, [
             'code' => $r->candidate->participant_code,
@@ -936,7 +951,7 @@ class ReportController extends Controller
     // GET /reports/export — تصدير CSV (يفتحه Excel عربياً عبر BOM)
     public function exportCsv(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::REPORT_EXPORT)) {
+        if (! $request->user()->hasPermission(Permissions::REPORT_EXPORT)) {
             return response()->json(['error' => 'ليس لديك صلاحية تصدير التقارير'], 403);
         }
         $query = FinalReport::with('candidate.sector')
@@ -959,7 +974,7 @@ class ReportController extends Controller
                 $r->behavioral_fit ?? '',
                 $r->technical_fit ?? '',
                 $this->csv($r->recommendation),
-            ]) . "\n";
+            ])."\n";
         }
 
         return response($out, 200)
@@ -972,11 +987,12 @@ class ReportController extends Controller
         $v = (string) $v;
         // تحييد حقن صيغ الجداول (CSV formula injection): قيمة تبدأ بمُشغّل صيغة تُسبَق بفاصلة عليا
         if ($v !== '' && in_array($v[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
-            $v = "'" . $v;
+            $v = "'".$v;
         }
         if (str_contains($v, ',') || str_contains($v, '"') || str_contains($v, "\n")) {
-            $v = '"' . str_replace('"', '""', $v) . '"';
+            $v = '"'.str_replace('"', '""', $v).'"';
         }
+
         return $v;
     }
 
@@ -1013,30 +1029,32 @@ class ReportController extends Controller
         foreach ($groups as $gName => $rows) {
             $body = '';
             foreach ($rows as $b) {
-                $body .= '<tr><td>' . e($b['name']) . '</td><td class="num">' . $b['avgScore'] . ' / ' . $b['maxLevel']
-                    . '</td><td class="num">' . $b['pct'] . '%</td></tr>';
+                $body .= '<tr><td>'.e($b['name']).'</td><td class="num">'.$b['avgScore'].' / '.$b['maxLevel']
+                    .'</td><td class="num">'.$b['pct'].'%</td></tr>';
             }
-            $html .= '<h3>' . e($gName) . '</h3>'
-                . '<table><thead><tr><th>الكفاءة</th><th>المتوسط</th><th>النسبة</th></tr></thead><tbody>'
-                . $body . '</tbody></table>';
+            $html .= '<h3>'.e($gName).'</h3>'
+                .'<table><thead><tr><th>الكفاءة</th><th>المتوسط</th><th>النسبة</th></tr></thead><tbody>'
+                .$body.'</tbody></table>';
         }
+
         return $html;
     }
 
     private function renderDevPlan($items): string
     {
-        if (!$items || $items->isEmpty()) {
+        if (! $items || $items->isEmpty()) {
             return '<p class="muted">لا توجد خطة تطوير مسجّلة</p>';
         }
         $st = ['pending' => 'قيد الانتظار', 'in_progress' => 'قيد التنفيذ', 'done' => 'منجز'];
         $body = '';
         foreach ($items as $it) {
-            $body .= '<tr><td>' . e($it->area) . '</td><td>' . e($it->action ?? '—') . '</td>'
-                . '<td class="num">' . e($it->target_date ? (string) $it->target_date : '—') . '</td>'
-                . '<td>' . ($st[$it->status] ?? e($it->status)) . '</td></tr>';
+            $body .= '<tr><td>'.e($it->area).'</td><td>'.e($it->action ?? '—').'</td>'
+                .'<td class="num">'.e($it->target_date ? (string) $it->target_date : '—').'</td>'
+                .'<td>'.($st[$it->status] ?? e($it->status)).'</td></tr>';
         }
+
         return '<table><thead><tr><th>مجال التطوير</th><th>الإجراء</th><th>المستهدف</th><th>الحالة</th></tr></thead><tbody>'
-            . $body . '</tbody></table>';
+            .$body.'</tbody></table>';
     }
 
     // المستند المختصر — الملخّص التنفيذي + النتيجة النهائية فقط
@@ -1047,8 +1065,8 @@ class ReportController extends Controller
         $sector = e(optional($r->candidate->sector)->name_ar ?? '—');
         $tier = $r->candidate->tier === 'upper' ? 'قيادة عليا' : 'قيادة وسطى';
         $rec = e($r->recommendation ?? '—');
-        $beh = $r->behavioral_fit !== null ? (float) $r->behavioral_fit . '%' : '—';
-        $tech = $r->technical_fit !== null ? (float) $r->technical_fit . '%' : '—';
+        $beh = $r->behavioral_fit !== null ? (float) $r->behavioral_fit.'%' : '—';
+        $tech = $r->technical_fit !== null ? (float) $r->technical_fit.'%' : '—';
         $summary = trim((string) $r->executive_summary) !== ''
             ? nl2br(e($r->executive_summary))
             : '<span class="muted">لم يُكتب الملخّص التنفيذي بعد (بصلاحية مدير المركز).</span>';
@@ -1130,33 +1148,34 @@ HTML;
         $devPlanHtml = $this->renderDevPlan($devPlan);
 
         $li = fn ($items) => count($items)
-            ? '<ul>' . implode('', array_map(fn ($x) => '<li>' . e($x) . '</li>', $items)) . '</ul>'
+            ? '<ul>'.implode('', array_map(fn ($x) => '<li>'.e($x).'</li>', $items)).'</ul>'
             : '<p class="muted">—</p>';
         $strengths = $li($r->strengths ?? []);
         $devAreas = $li($r->development_areas ?? []);
 
         $engRow = $measurement && $measurement->english_score !== null
-            ? '<div class="rec">درجة اللغة الإنجليزية: <b>' . $measurement->english_score . ' / 100</b></div>'
+            ? '<div class="rec">درجة اللغة الإنجليزية: <b>'.$measurement->english_score.' / 100</b></div>'
             : '<p class="muted">لم تُسجَّل درجة اللغة الإنجليزية</p>';
 
         $measHtml = '';
         if ($measurement && ($measurement->personality_score !== null
             || $measurement->analytical_score !== null || $measurement->english_score !== null)) {
-            $mrow = fn ($label, $v) => '<tr><td>' . $label . '</td><td class="num">' . ($v === null ? '—' : $v) . '</td></tr>';
+            $mrow = fn ($label, $v) => '<tr><td>'.$label.'</td><td class="num">'.($v === null ? '—' : $v).'</td></tr>';
             $measHtml = '<table><tbody>'
-                . $mrow('المقياس الشخصي', $measurement->personality_score)
-                . $mrow('القدرات التحليلية', $measurement->analytical_score)
-                . $mrow('اللغة الإنجليزية', $measurement->english_score)
-                . '</tbody></table>';
+                .$mrow('المقياس الشخصي', $measurement->personality_score)
+                .$mrow('القدرات التحليلية', $measurement->analytical_score)
+                .$mrow('اللغة الإنجليزية', $measurement->english_score)
+                .'</tbody></table>';
         } else {
             $measHtml = '<p class="muted">لم تُسجَّل أدوات القياس</p>';
         }
 
         $fitBox = function ($label, $val) {
-            $v = $val === null ? '—' : $val . '%';
+            $v = $val === null ? '—' : $val.'%';
             $w = $val === null ? 0 : max(0, min(100, $val));
-            return '<div class="fit"><div class="fit-h"><span>' . $label . '</span><b>' . $v . '</b></div>'
-                . '<div class="bar"><div class="bar-f" style="width:' . $w . '%"></div></div></div>';
+
+            return '<div class="fit"><div class="fit-h"><span>'.$label.'</span><b>'.$v.'</b></div>'
+                .'<div class="bar"><div class="bar-f" style="width:'.$w.'%"></div></div></div>';
         };
         $behBox = $fitBox('التوافق السلوكي/القيادي', $beh);
         $techBox = $fitBox('التوافق الفني', $tech);

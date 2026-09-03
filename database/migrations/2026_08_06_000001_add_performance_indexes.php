@@ -33,7 +33,7 @@ return new class extends Migration
     public function up(): void
     {
         foreach ($this->indexes as $table => $defs) {
-            if (!Schema::hasTable($table)) {
+            if (! Schema::hasTable($table)) {
                 continue;
             }
             Schema::table($table, function (Blueprint $t) use ($defs) {
@@ -47,7 +47,7 @@ return new class extends Migration
     public function down(): void
     {
         foreach ($this->indexes as $table => $defs) {
-            if (!Schema::hasTable($table)) {
+            if (! Schema::hasTable($table)) {
                 continue;
             }
             Schema::table($table, function (Blueprint $t) use ($defs) {

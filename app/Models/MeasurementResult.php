@@ -19,6 +19,13 @@ class MeasurementResult extends Model
         'english_score' => 'float',
     ];
 
-    public function candidate(): BelongsTo { return $this->belongsTo(Candidate::class); }
-    public function assessment(): BelongsTo { return $this->belongsTo(Assessment::class); }
+    public function candidate(): BelongsTo
+    {
+        return $this->belongsTo(Candidate::class);
+    }
+
+    public function assessment(): BelongsTo
+    {
+        return $this->belongsTo(Assessment::class);
+    }
 }

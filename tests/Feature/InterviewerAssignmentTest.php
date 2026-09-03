@@ -19,7 +19,7 @@ class InterviewerAssignmentTest extends TestCase
     private function evaluator(string $sectorCode, bool $active = true): User
     {
         return User::create([
-            'username' => 'ev_' . substr(md5(uniqid('', true)), 0, 8), 'full_name' => 'مستشار ' . $sectorCode,
+            'username' => 'ev_'.substr(md5(uniqid('', true)), 0, 8), 'full_name' => 'مستشار '.$sectorCode,
             'password' => 'Kafaat@2026', 'role_id' => Role::where('code', 'EVALUATOR')->value('id'),
             'sector_id' => Sector::where('code', $sectorCode)->value('id'), 'is_active' => $active, 'must_change_password' => false,
         ]);

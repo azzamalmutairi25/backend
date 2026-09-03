@@ -26,6 +26,7 @@ class RescheduleTest extends TestCase
             Attendance::create(['schedule_id' => $s->id, 'status' => $attStatus,
                 'absence_reason' => 'ظرف طارئ', 'recorded_by' => null]);
         }
+
         return $s;
     }
 

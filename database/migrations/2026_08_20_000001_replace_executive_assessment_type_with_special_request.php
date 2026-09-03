@@ -27,7 +27,7 @@ return new class extends Migration
     public function up(): void
     {
         foreach (self::TABLES as $table) {
-            if (!Schema::hasTable($table) || !Schema::hasColumn($table, 'assessment_type')) {
+            if (! Schema::hasTable($table) || ! Schema::hasColumn($table, 'assessment_type')) {
                 continue;
             }
 
@@ -46,7 +46,7 @@ return new class extends Migration
     public function down(): void
     {
         foreach (self::TABLES as $table) {
-            if (!Schema::hasTable($table) || !Schema::hasColumn($table, 'assessment_type')) {
+            if (! Schema::hasTable($table) || ! Schema::hasColumn($table, 'assessment_type')) {
                 continue;
             }
 
@@ -68,7 +68,7 @@ return new class extends Migration
 
     private function setCheck(string $table, array $values): void
     {
-        $list = implode(', ', array_map(fn ($v) => "'" . $v . "'", $values));
+        $list = implode(', ', array_map(fn ($v) => "'".$v."'", $values));
 
         DB::statement("ALTER TABLE {$table} ADD CONSTRAINT {$table}_assessment_type_check CHECK (assessment_type::text = ANY (ARRAY[{$list}]::text[]))");
     }

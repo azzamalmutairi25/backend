@@ -26,6 +26,7 @@ class ExpertiseMatcher
         $s = str_replace(['ة'], 'ه', $s);
         $s = str_replace(['ى'], 'ي', $s);
         $s = preg_replace('/\s+/u', ' ', $s);
+
         return trim($s);
     }
 
@@ -38,7 +39,7 @@ class ExpertiseMatcher
     public function candidateText(Candidate $candidate): string
     {
         $cv = $candidate->cv()->first();
-        if (!$cv) {
+        if (! $cv) {
             return '';
         }
         $doc = is_array($cv->data) ? $cv->data : (array) $cv->data;
@@ -54,13 +55,13 @@ class ExpertiseMatcher
         ];
         foreach (($doc['experiences'] ?? []) as $x) {
             // و«القسم» كذلك («قسم مكافحة المخدرات») — نصٌّ دالٌّ كان يُهمَل
-            $parts[] = ($x['position'] ?? '') . ' ' . ($x['organization'] ?? '') . ' ' . ($x['section'] ?? '');
+            $parts[] = ($x['position'] ?? '').' '.($x['organization'] ?? '').' '.($x['section'] ?? '');
         }
         foreach (($doc['certifications'] ?? []) as $x) {
             $parts[] = is_array($x) ? ($x['name'] ?? '') : (string) $x;
         }
         foreach (($doc['qualifications'] ?? []) as $x) {
-            $parts[] = ($x['major'] ?? '') . ' ' . ($x['institution'] ?? '');
+            $parts[] = ($x['major'] ?? '').' '.($x['institution'] ?? '');
         }
 
         return self::normalise(implode(' ', array_filter($parts)));
@@ -84,6 +85,7 @@ class ExpertiseMatcher
                 $hits[$area->id] = $area->label_ar;
             }
         }
+
         return $hits;
     }
 }

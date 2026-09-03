@@ -16,13 +16,13 @@ return new class extends Migration
         });
 
         // تعبئة الصفوف القائمة بأحدث دورة للمشارك (لا شيء يُكتب إن كان الجدول فارغاً)
-        DB::statement("
+        DB::statement('
             UPDATE measurement_results mr
             SET assessment_id = (
                 SELECT id FROM assessments a WHERE a.candidate_id = mr.candidate_id ORDER BY id DESC LIMIT 1
             )
             WHERE assessment_id IS NULL
-        ");
+        ');
 
         Schema::table('measurement_results', function (Blueprint $table) {
             $table->unique('assessment_id', 'measurement_assessment_unique');

@@ -2,6 +2,8 @@
 
 namespace App\Data;
 
+use App\Models\Sector;
+
 // ════════════════════════════════════════════════════════════
 //  قطاعات وزارة الداخلية المعتمدة — المصدر الوحيد للقائمة.
 //
@@ -66,10 +68,10 @@ final class MoiSectors
     public static function sync(): void
     {
         foreach (self::rows() as $row) {
-            $sector = \App\Models\Sector::where('code', $row['code'])->first();
+            $sector = Sector::where('code', $row['code'])->first();
             $sector
                 ? $sector->update(['full_name_ar' => $row['full_name_ar']])
-                : \App\Models\Sector::create($row);
+                : Sector::create($row);
         }
     }
 

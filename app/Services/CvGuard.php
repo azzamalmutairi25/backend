@@ -27,6 +27,7 @@ use Normalizer;
 class CvGuard
 {
     private const REDACT = '«•••»';
+
     private const MESSAGE = 'لا تُدرج اسمك أو رقم هويتك أو جوالك أو بريدك في السيرة — التقييم يتم دون معرفة اسمك.';
 
     // نقحرة عربي → لاتيني تقريبية لبناء هيكل مطابقة
@@ -44,7 +45,9 @@ class CvGuard
     {
         $out = [];
         $add = function (string $path, $val) use (&$out) {
-            if (is_string($val) && $val !== '') $out[$path] = $val;
+            if (is_string($val) && $val !== '') {
+                $out[$path] = $val;
+            }
         };
         $add('currentPosition', $doc['currentPosition'] ?? null);
         $add('briefBio', $doc['briefBio'] ?? null);
@@ -61,6 +64,7 @@ class CvGuard
             $add("certifications.$i.name", $c['name'] ?? null);
             $add("certifications.$i.issuer", $c['issuer'] ?? null);
         }
+
         return $out;
     }
 
@@ -69,7 +73,9 @@ class CvGuard
     // مقطعه (العلامة ليست حرفاً) فأفلت من الحجب والطمس معاً. حذفها يبقي النصّ نظيفاً.
     public static function sanitize(?string $s): ?string
     {
-        if ($s === null) return null;
+        if ($s === null) {
+            return null;
+        }
         $s = strip_tags($s);
         $s = preg_replace('/[\x{0000}-\x{0008}\x{000B}\x{000C}\x{000E}-\x{001F}\x{007F}-\x{009F}]/u', '', $s);
         $s = preg_replace('/[\x{200B}-\x{200F}\x{202A}-\x{202E}\x{2060}-\x{2064}\x{2066}-\x{2069}\x{FEFF}]/u', '', $s);
@@ -78,6 +84,7 @@ class CvGuard
         }
         $s = preg_replace('/[\p{M}\x{0640}]+/u', '', $s); // علامات مركّبة + تطويل — تُفسِد المطابقة
         $s = preg_replace('/\s+/u', ' ', $s);
+
         return trim($s) === '' ? null : trim($s);
     }
 
@@ -93,6 +100,7 @@ class CvGuard
             '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
         ]);
         $s = preg_replace('/[^\p{L}\p{N}]+/u', ' ', $s);
+
         return trim(preg_replace('/\s+/u', ' ', $s));
     }
 
@@ -103,6 +111,7 @@ class CvGuard
         $latin = mb_strtolower($latin, 'UTF-8');
         $latin = preg_replace('/[^a-z]/', '', $latin);
         $latin = preg_replace('/[aeiouwy]/', '', $latin);
+
         return preg_replace('/(.)\1+/', '$1', $latin); // طيّ الأحرف المكرّرة
     }
 
@@ -114,12 +123,14 @@ class CvGuard
         $name = (string) ($c->full_name ?? '');
         $raw = $name === '' ? [] : explode(' ', self::normalizeAr($name));
         // مقاطع دالّة طولها ≥3 (تُسقَط الوصلات والمقاطع القصيرة المبهمة)
-        $tokens = array_values(array_unique(array_filter($raw, fn ($t) => mb_strlen($t) >= 3 && !in_array($t, $connectors, true))));
+        $tokens = array_values(array_unique(array_filter($raw, fn ($t) => mb_strlen($t) >= 3 && ! in_array($t, $connectors, true))));
 
         $skeletons = [];
         foreach ($tokens as $t) {
             $sk = self::latinSkeleton(strtr($t, self::TRANSLIT));
-            if (mb_strlen($sk) >= 3) $skeletons[] = $sk;
+            if (mb_strlen($sk) >= 3) {
+                $skeletons[] = $sk;
+            }
         }
 
         return [
@@ -165,6 +176,7 @@ class CvGuard
                 return $path;
             }
         }
+
         return null;
     }
 
@@ -175,37 +187,57 @@ class CvGuard
             '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4',
             '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
         ]));
-        if ($ctx['id'] !== '' && str_contains($digits, $ctx['id'])) return true;
-        if ($ctx['mobile'] !== '' && mb_strlen($ctx['mobile']) >= 9 && str_contains($digits, $ctx['mobile'])) return true;
+        if ($ctx['id'] !== '' && str_contains($digits, $ctx['id'])) {
+            return true;
+        }
+        if ($ctx['mobile'] !== '' && mb_strlen($ctx['mobile']) >= 9 && str_contains($digits, $ctx['mobile'])) {
+            return true;
+        }
         // حدٌّ أدنى أربعة أرقام: أقصرُ منه يطابق سنةً أو عدداً فيُطمَس ما ليس معرّفاً
         if (($ctx['militaryNumber'] ?? '') !== '' && mb_strlen($ctx['militaryNumber']) >= 5
-            && str_contains($digits, $ctx['militaryNumber'])) return true;
-        if (preg_match('/[0-9\x{0660}-\x{0669}]{9,}/u', $val)) return true;
-        if (preg_match('/[\w.%+\-]+@[\w.\-]+\.[a-z]{2,}/iu', $val)) return true;
-        if (preg_match('#https?://|www\.#iu', $val)) return true;
+            && str_contains($digits, $ctx['militaryNumber'])) {
+            return true;
+        }
+        if (preg_match('/[0-9\x{0660}-\x{0669}]{9,}/u', $val)) {
+            return true;
+        }
+        if (preg_match('/[\w.%+\-]+@[\w.\-]+\.[a-z]{2,}/iu', $val)) {
+            return true;
+        }
+        if (preg_match('#https?://|www\.#iu', $val)) {
+            return true;
+        }
+
         return false;
     }
 
     // هل يظهر أحد مقاطع اسم المشارك (عربي أو نقحرة لاتينية بمطابقة هيكل تامّة)؟
     private static function hasName(string $val, array $ctx): bool
     {
-        $norm = ' ' . self::normalizeAr($val) . ' ';
+        $norm = ' '.self::normalizeAr($val).' ';
         foreach ($ctx['tokens'] as $tok) {
-            if (str_contains($norm, ' ' . $tok . ' ')) return true;
+            if (str_contains($norm, ' '.$tok.' ')) {
+                return true;
+            }
         }
         if ($ctx['skeletons']) {
             // أحرف مفردة متباعدة (m o h a m m e d) تُجمَع أولاً ثم تُطابَق
             foreach (self::latinWords($val) as $word) {
                 $sk = self::latinSkeleton($word);
-                if (mb_strlen($sk) >= 3 && in_array($sk, $ctx['skeletons'], true)) return true;
+                if (mb_strlen($sk) >= 3 && in_array($sk, $ctx['skeletons'], true)) {
+                    return true;
+                }
             }
         }
         // نظير عربي: أحرف عربية مفردة متباعدة (م ح م د أو م.ح.م.د) تُجمَع وتُطابَق
         foreach (self::arabicSpacedRuns($val) as $joined) {
             foreach ($ctx['tokens'] as $tok) {
-                if (str_contains($joined, $tok)) return true;
+                if (str_contains($joined, $tok)) {
+                    return true;
+                }
             }
         }
+
         return false;
     }
 
@@ -220,6 +252,7 @@ class CvGuard
                 $out[] = self::normalizeAr(preg_replace('/[^\x{0621}-\x{064A}]/u', '', $run));
             }
         }
+
         return $out;
     }
 
@@ -237,6 +270,7 @@ class CvGuard
                 $words[] = preg_replace('/\s+/', '', $run);
             }
         }
+
         return $words;
     }
 
@@ -266,6 +300,7 @@ class CvGuard
             $doc['certifications'][$i]['name'] = $f($ct['name'] ?? null);
             $doc['certifications'][$i]['issuer'] = $f($ct['issuer'] ?? null);
         }
+
         return $doc;
     }
 
@@ -282,7 +317,7 @@ class CvGuard
         if ($mil !== '' && mb_strlen($mil) >= 5) {   // نفس حدّ hasPii — لا يُفترقان
             // حدود غير رقمية على الطرفين: «12345» لا تُطمَس داخل «7123456»
             $val = preg_replace(
-                '/(?<![0-9\x{0660}-\x{0669}])' . preg_quote($mil, '/') . '(?![0-9\x{0660}-\x{0669}])/u',
+                '/(?<![0-9\x{0660}-\x{0669}])'.preg_quote($mil, '/').'(?![0-9\x{0660}-\x{0669}])/u',
                 self::REDACT,
                 $val
             ) ?? $val;
@@ -300,6 +335,7 @@ class CvGuard
                 || (($ctx['militaryNumber'] ?? '') !== '' && mb_strlen($ctx['militaryNumber']) >= 5
                     && str_contains($digits, $ctx['militaryNumber']))
                 || mb_strlen($digits) >= 9;
+
             return $hit ? self::REDACT : $m[0];
         }, $val);
 
@@ -307,6 +343,7 @@ class CvGuard
         if ($ctx['skeletons']) {
             $val = preg_replace_callback('/(?<![A-Za-z])(?:[A-Za-z]\s+){2,}[A-Za-z](?![A-Za-z])/u', function ($m) use ($ctx) {
                 $sk = self::latinSkeleton(preg_replace('/\s+/', '', $m[0]));
+
                 return (mb_strlen($sk) >= 3 && in_array($sk, $ctx['skeletons'], true)) ? self::REDACT : $m[0];
             }, $val);
         }
@@ -315,17 +352,25 @@ class CvGuard
         $val = preg_replace_callback('/(?<![\x{0621}-\x{064A}])(?:[\x{0621}-\x{064A}][^\p{L}\p{N}]+){2,}[\x{0621}-\x{064A}](?![\x{0621}-\x{064A}])/u', function ($m) use ($ctx) {
             $joined = self::normalizeAr(preg_replace('/[^\x{0621}-\x{064A}]/u', '', $m[0]));
             foreach ($ctx['tokens'] as $tok) {
-                if (str_contains($joined, $tok)) return self::REDACT;
+                if (str_contains($joined, $tok)) {
+                    return self::REDACT;
+                }
             }
+
             return $m[0];
         }, $val);
 
         // طمس الكلمات التي تطابق مقاطع الاسم (عربي أو لاتيني)، مع إبقاء الفواصل
         $parts = preg_split('/(\s+)/u', $val, -1, PREG_SPLIT_DELIM_CAPTURE);
         foreach ($parts as $k => $tok) {
-            if (trim($tok) === '') continue;
-            if (self::wordIsName($tok, $ctx)) $parts[$k] = self::REDACT;
+            if (trim($tok) === '') {
+                continue;
+            }
+            if (self::wordIsName($tok, $ctx)) {
+                $parts[$k] = self::REDACT;
+            }
         }
+
         return implode('', $parts);
     }
 
@@ -333,11 +378,16 @@ class CvGuard
     private static function wordIsName(string $word, array $ctx): bool
     {
         $ar = self::normalizeAr($word);
-        if ($ar !== '' && in_array($ar, $ctx['tokens'], true)) return true;
+        if ($ar !== '' && in_array($ar, $ctx['tokens'], true)) {
+            return true;
+        }
         if ($ctx['skeletons'] && preg_match('/[A-Za-z]/', $word)) {
             $sk = self::latinSkeleton($word);
-            if (mb_strlen($sk) >= 3 && in_array($sk, $ctx['skeletons'], true)) return true;
+            if (mb_strlen($sk) >= 3 && in_array($sk, $ctx['skeletons'], true)) {
+                return true;
+            }
         }
+
         return false;
     }
 }

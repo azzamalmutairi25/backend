@@ -38,9 +38,7 @@ class ReceptionController extends Controller
     // سقف قائمة المنتظَرين المعروضة دفعةً واحدة — البحث بالرمز هو طريق من بعده
     private const EXPECTED_LIMIT = 40;
 
-    public function __construct(private NotificationService $notify)
-    {
-    }
+    public function __construct(private NotificationService $notify) {}
 
     private function log(Request $request, string $action, $entityId, array $details = []): void
     {
@@ -82,7 +80,7 @@ class ReceptionController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::RECEPTION_VIEW)) {
+        if (! $user->hasPermission(Permissions::RECEPTION_VIEW)) {
             return $this->deny('ليس لديك صلاحية عرض شاشة استقبال الموظفين');
         }
 
@@ -117,7 +115,9 @@ class ReceptionController extends Controller
                 ->whereDate('visit_date', $date)
                 ->whereHas('candidate', function ($c) use ($request, $user) {
                     $c->whereIn('classification', $this->allowedClassifications($request));
-                    if ($user->isSectorBound()) $c->where('sector_id', $user->sector_id);
+                    if ($user->isSectorBound()) {
+                        $c->where('sector_id', $user->sector_id);
+                    }
                 })
                 ->orderBy('arrived_at')
                 ->get();
@@ -179,7 +179,7 @@ class ReceptionController extends Controller
             'viaKiosk' => $v->kiosk_id !== null,
             'badgePrinted' => $v->badge_printed_at !== null,
             'badgePending' => $v->badgePending(),
-            'hasCv' => $doc !== null && !CandidateCv::isEmptyDoc($doc),
+            'hasCv' => $doc !== null && ! CandidateCv::isEmptyDoc($doc),
             'assignments' => $v->assignments->map(fn (ReceptionAssignment $a) => [
                 'id' => $a->id,
                 'activity' => $a->activity,
@@ -206,12 +206,14 @@ class ReceptionController extends Controller
             ->whereNotIn('status', ['completed'])
             ->whereHas('candidate', function ($c) use ($request, $user) {
                 $c->whereIn('classification', $this->allowedClassifications($request));
-                if ($user->isSectorBound()) $c->where('sector_id', $user->sector_id);
+                if ($user->isSectorBound()) {
+                    $c->where('sector_id', $user->sector_id);
+                }
             });
 
         // البحث بالرمز على الخادم (الاسم مشفَّر فلا يُبحث فيه بـSQL)
         if ($q !== '') {
-            $query->where('participant_code', 'ilike', '%' . $q . '%');
+            $query->where('participant_code', 'ilike', '%'.$q.'%');
         }
 
         // حدٌّ صريح: الكشف أداة استقبالٍ لا تصفّحٌ لقاعدة المشاركين كاملة.
@@ -256,12 +258,12 @@ class ReceptionController extends Controller
     public function evaluators(Request $request)
     {
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::RECEPTION_ASSIGN)) {
+        if (! $user->hasPermission(Permissions::RECEPTION_ASSIGN)) {
             return $this->deny('ليس لديك صلاحية توزيع المشاركين');
         }
 
         $validated = $request->validate([
-            'activity' => 'required|in:' . implode(',', ReceptionAssignment::ACTIVITIES),
+            'activity' => 'required|in:'.implode(',', ReceptionAssignment::ACTIVITIES),
             'sectorId' => 'nullable|integer',
         ]);
 
@@ -278,7 +280,7 @@ class ReceptionController extends Controller
             ->filter(fn (User $u) => $u->hasPermission(Permissions::RECEPTION_DECIDE))
             // المحصور بقطاع لا يُقترَح لمشارك خارج قطاعه — الإسناد سيُرفض على
             // أي حال في assign()، وعرضه في القائمة يجعل الرفض مفاجأة
-            ->filter(fn (User $u) => !isset($validated['sectorId'])
+            ->filter(fn (User $u) => ! isset($validated['sectorId'])
                 || $u->coversSector((int) $validated['sectorId']))
             ->map(fn (User $u) => [
                 'id' => $u->id,
@@ -296,7 +298,7 @@ class ReceptionController extends Controller
     public function arrive(Request $request)
     {
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::RECEPTION_RECORD)) {
+        if (! $user->hasPermission(Permissions::RECEPTION_RECORD)) {
             return $this->deny('ليس لديك صلاحية تسجيل وصول المشاركين');
         }
 
@@ -307,7 +309,7 @@ class ReceptionController extends Controller
         $date = $validated['date'] ?? now()->toDateString();
 
         $assessment = Assessment::with('candidate')->find($validated['assessmentId']);
-        if (!$assessment || !$this->resolveCandidateInScope($request, $assessment->candidate_id)) {
+        if (! $assessment || ! $this->resolveCandidateInScope($request, $assessment->candidate_id)) {
             return response()->json(['error' => 'الدورة غير موجودة'], 404);
         }
 
@@ -343,14 +345,14 @@ class ReceptionController extends Controller
     public function updateArrival(Request $request, int $id)
     {
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::RECEPTION_RECORD)) {
+        if (! $user->hasPermission(Permissions::RECEPTION_RECORD)) {
             return $this->deny('ليس لديك صلاحية تعديل وقت الوصول');
         }
 
         $validated = $request->validate(['arrivedAt' => 'required|date_format:H:i']);
 
         $visit = $this->findVisit($request, $id);
-        if (!$visit) {
+        if (! $visit) {
             return response()->json(['error' => 'الزيارة غير موجودة'], 404);
         }
         if ($visit->status === ReceptionVisit::APPROVED) {
@@ -377,7 +379,7 @@ class ReceptionController extends Controller
     public function sign(Request $request, int $id)
     {
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::RECEPTION_RECORD)) {
+        if (! $user->hasPermission(Permissions::RECEPTION_RECORD)) {
             return $this->deny('ليس لديك صلاحية أخذ توقيع المشارك');
         }
 
@@ -393,7 +395,7 @@ class ReceptionController extends Controller
         ]);
 
         $visit = $this->findVisit($request, $id, ['assessment']);
-        if (!$visit) {
+        if (! $visit) {
             return response()->json(['error' => 'الزيارة غير موجودة'], 404);
         }
         // التوقيع إقرارٌ لا يُعاد: استبداله بعد الاعتماد يجعل الوثيقة الموقَّعة
@@ -433,18 +435,18 @@ class ReceptionController extends Controller
     public function visitCv(Request $request, int $id)
     {
         $user = $request->user();
-        if (!$this->canReadVisitCv($user)) {
+        if (! $this->canReadVisitCv($user)) {
             return $this->deny('ليس لديك صلاحية عرض السيرة الذاتية');
         }
 
         $visit = $this->findVisit($request, $id, ['candidate.cv', 'assessment']);
-        if (!$visit) {
+        if (! $visit) {
             return response()->json(['error' => 'الزيارة غير موجودة'], 404);
         }
 
         $doc = $visit->assessment?->cv_snapshot ?? $visit->candidate->cv?->data ?? CandidateCv::emptyDoc();
         $canSeeNames = $user->hasPermission(Permissions::CANDIDATE_VIEW_NAMES);
-        if (!$canSeeNames) {
+        if (! $canSeeNames) {
             $doc = CvGuard::scrub($doc, $visit->candidate);
         }
 
@@ -455,7 +457,7 @@ class ReceptionController extends Controller
             'name' => $canSeeNames ? $visit->candidate->full_name : null,
             'rank' => $visit->candidate->rank_label,
             'sector' => $visit->candidate->sector?->name_ar,
-            'hasCv' => !CandidateCv::isEmptyDoc($doc),
+            'hasCv' => ! CandidateCv::isEmptyDoc($doc),
             'document' => $doc,
         ]]);
     }
@@ -466,17 +468,17 @@ class ReceptionController extends Controller
     public function assign(Request $request, int $id)
     {
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::RECEPTION_ASSIGN)) {
+        if (! $user->hasPermission(Permissions::RECEPTION_ASSIGN)) {
             return $this->deny('ليس لديك صلاحية توزيع المشاركين');
         }
 
         $validated = $request->validate([
-            'activity' => 'required|in:' . implode(',', ReceptionAssignment::ACTIVITIES),
+            'activity' => 'required|in:'.implode(',', ReceptionAssignment::ACTIVITIES),
             'evaluatorId' => 'required|integer',
         ]);
 
         $visit = $this->findVisit($request, $id, ['assignments', 'assessment', 'candidate']);
-        if (!$visit) {
+        if (! $visit) {
             return response()->json(['error' => 'الزيارة غير موجودة'], 404);
         }
         if ($visit->status === ReceptionVisit::APPROVED) {
@@ -484,7 +486,7 @@ class ReceptionController extends Controller
         }
         // التوزيع بعد الإقرار لا قبله: توزيعُ مشاركٍ لم يُقرّ بصحّة بياناته
         // يُدخِل المقيّم على بياناتٍ لم يُصادَق عليها
-        if (!$visit->isSigned()) {
+        if (! $visit->isSigned()) {
             return response()->json(['error' => 'لم يوقّع المشارك ولم يُقرّ بصحّة بياناته بعد'], 422);
         }
         if ($visit->activeAssignment($validated['activity'])) {
@@ -492,22 +494,22 @@ class ReceptionController extends Controller
         }
 
         $evaluator = User::with('role')->where('is_active', true)->find($validated['evaluatorId']);
-        if (!$evaluator) {
+        if (! $evaluator) {
             return response()->json(['error' => 'المقيّم غير موجود أو غير مفعّل'], 404);
         }
         $roles = ReceptionAssignment::ACTIVITY_ROLES[$validated['activity']];
-        if (!$evaluator->role || !in_array($evaluator->role->code, $roles, true)) {
+        if (! $evaluator->role || ! in_array($evaluator->role->code, $roles, true)) {
             return response()->json([
-                'error' => 'المقيّم المختار لا يمارس ' . ReceptionAssignment::label($validated['activity']),
+                'error' => 'المقيّم المختار لا يمارس '.ReceptionAssignment::label($validated['activity']),
             ], 422);
         }
-        if (!$evaluator->hasPermission(Permissions::RECEPTION_DECIDE)) {
+        if (! $evaluator->hasPermission(Permissions::RECEPTION_DECIDE)) {
             return response()->json(['error' => 'المقيّم المختار لا يملك صلاحية استلام المشاركين'], 422);
         }
         // حدّ القطاع: مقيّم محصور لا يُسنَد إليه مشارك من قطاع آخر إلا بصلاحية
         // التجاوز الصريحة — نفس قاعدة الجدولة، لا قاعدة جديدة
-        if (!$evaluator->coversSector($visit->candidate->sector_id)
-            && !$user->hasPermission(Permissions::CROSS_SECTOR_ASSIGN)) {
+        if (! $evaluator->coversSector($visit->candidate->sector_id)
+            && ! $user->hasPermission(Permissions::CROSS_SECTOR_ASSIGN)) {
             return response()->json(['error' => 'المقيّم من قطاع آخر — يلزم صلاحية الإسناد عبر القطاعات'], 422);
         }
 
@@ -522,6 +524,7 @@ class ReceptionController extends Controller
             if ($visit->status === ReceptionVisit::ARRIVED) {
                 $visit->update(['status' => ReceptionVisit::DISTRIBUTED]);
             }
+
             return $a;
         });
 
@@ -530,9 +533,9 @@ class ReceptionController extends Controller
         $this->notify->notify(
             $evaluator->id,
             'action',
-            'مشارك مُسنَد إليك: ' . $code,
-            'أُسنِد إليك ' . ReceptionAssignment::label($validated['activity'])
-                . ' للمشارك ' . $code . '. افتح شاشة استقبال الموظفين للاستلام أو الردّ.',
+            'مشارك مُسنَد إليك: '.$code,
+            'أُسنِد إليك '.ReceptionAssignment::label($validated['activity'])
+                .' للمشارك '.$code.'. افتح شاشة استقبال الموظفين للاستلام أو الردّ.',
             'reception_assignment',
             (string) $assignment->id,
             $user->id,
@@ -551,12 +554,12 @@ class ReceptionController extends Controller
     public function withdraw(Request $request, int $id)
     {
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::RECEPTION_ASSIGN)) {
+        if (! $user->hasPermission(Permissions::RECEPTION_ASSIGN)) {
             return $this->deny('ليس لديك صلاحية سحب الإسناد');
         }
 
         $assignment = $this->findAssignment($request, $id);
-        if (!$assignment) {
+        if (! $assignment) {
             return response()->json(['error' => 'الإسناد غير موجود'], 404);
         }
         // المستلَم لا يُسحب من تحت المقيّم — يُردّ منه أو يُعتمد
@@ -577,7 +580,9 @@ class ReceptionController extends Controller
         return ReceptionAssignment::with($with)
             ->whereHas('visit.candidate', function ($c) use ($request, $user) {
                 $c->whereIn('classification', $this->allowedClassifications($request));
-                if ($user->isSectorBound()) $c->where('sector_id', $user->sector_id);
+                if ($user->isSectorBound()) {
+                    $c->where('sector_id', $user->sector_id);
+                }
             })
             ->find($id);
     }
@@ -594,7 +599,7 @@ class ReceptionController extends Controller
     {
         // الصلاحية قبل التحقّق من المدخلات: التحقّق أولاً يردّ على غير المُصرَّح
         // له بقواعد الحقول (٤٢٢ مفصَّلة) فيتعلّم شكل المسار قبل أن يُمنع منه
-        if (!$request->user()->hasPermission(Permissions::RECEPTION_DECIDE)) {
+        if (! $request->user()->hasPermission(Permissions::RECEPTION_DECIDE)) {
             return $this->deny('ليس لديك صلاحية البتّ في الإسناد');
         }
 
@@ -610,14 +615,14 @@ class ReceptionController extends Controller
     private function decide(Request $request, int $id, string $status, ?string $reason)
     {
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::RECEPTION_DECIDE)) {
+        if (! $user->hasPermission(Permissions::RECEPTION_DECIDE)) {
             return $this->deny('ليس لديك صلاحية البتّ في الإسناد');
         }
 
         $assignment = $this->findAssignment($request, $id, ['visit.assessment']);
         // صاحب الإسناد وحده يبتّ فيه — لا أحد يقبل نيابةً عن غيره.
         // 404 لا 403: إسناد غيره ليس شأنه فلا يُعلَم بوجوده.
-        if (!$assignment || $assignment->evaluator_id !== $user->id) {
+        if (! $assignment || $assignment->evaluator_id !== $user->id) {
             return response()->json(['error' => 'الإسناد غير موجود'], 404);
         }
         if ($assignment->status !== ReceptionAssignment::PENDING) {
@@ -640,9 +645,9 @@ class ReceptionController extends Controller
             $reached = $this->notify->notifyPermission(
                 Permissions::RECEPTION_ASSIGN,
                 'return',
-                'ردّ إسناد: ' . $code,
-                'ردّ ' . $user->full_name . ' ' . $label . ' للمشارك ' . $code
-                    . '. السبب: ' . $reason . ' — أعد إسناده لمقيّم آخر أو لنشاط آخر.',
+                'ردّ إسناد: '.$code,
+                'ردّ '.$user->full_name.' '.$label.' للمشارك '.$code
+                    .'. السبب: '.$reason.' — أعد إسناده لمقيّم آخر أو لنشاط آخر.',
                 'reception_visit',
                 (string) $assignment->visit_id,
                 $user->id,
@@ -672,12 +677,12 @@ class ReceptionController extends Controller
     public function assignmentCv(Request $request, int $id)
     {
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::RECEPTION_DECIDE)) {
+        if (! $user->hasPermission(Permissions::RECEPTION_DECIDE)) {
             return $this->deny('ليس لديك صلاحية عرض سيرة المُسنَد إليك');
         }
 
         $assignment = $this->findAssignment($request, $id, ['visit.candidate.cv', 'visit.assessment']);
-        if (!$assignment || $assignment->evaluator_id !== $user->id) {
+        if (! $assignment || $assignment->evaluator_id !== $user->id) {
             return response()->json(['error' => 'الإسناد غير موجود'], 404);
         }
         // السيرة تُفتح بعد الاستلام لا قبله: القرار على الرمز والنشاط، لا على
@@ -697,7 +702,7 @@ class ReceptionController extends Controller
         return response()->json(['cv' => [
             'participantCode' => $visit->assessment?->participant_code,
             'activityLabel' => ReceptionAssignment::label($assignment->activity),
-            'hasCv' => !CandidateCv::isEmptyDoc($doc),
+            'hasCv' => ! CandidateCv::isEmptyDoc($doc),
             'document' => $doc,
             // لا يُرسَل أبداً: الاسم، رقم الهوية، الجوال، البريد، معرّف المشارك
         ]]);
@@ -709,18 +714,18 @@ class ReceptionController extends Controller
     public function approve(Request $request, int $id)
     {
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::RECEPTION_APPROVE)) {
+        if (! $user->hasPermission(Permissions::RECEPTION_APPROVE)) {
             return $this->deny('ليس لديك صلاحية اعتماد بيانات الاستقبال');
         }
 
         $visit = $this->findVisit($request, $id, ['assignments', 'assessment']);
-        if (!$visit) {
+        if (! $visit) {
             return response()->json(['error' => 'الزيارة غير موجودة'], 404);
         }
         if ($visit->status === ReceptionVisit::APPROVED) {
             return response()->json(['error' => 'الزيارة معتمدة من قبل'], 422);
         }
-        if (!$visit->isSigned()) {
+        if (! $visit->isSigned()) {
             return response()->json(['error' => 'لم يوقّع المشارك ولم يُقرّ بصحّة بياناته'], 422);
         }
 
@@ -739,7 +744,9 @@ class ReceptionController extends Controller
         $created = DB::transaction(function () use ($visit, $accepted, $user) {
             $n = 0;
             foreach ($accepted as $a) {
-                if ($a->schedule_id) continue;   // مُرحَّل من قبل — لا تكرار
+                if ($a->schedule_id) {
+                    continue;
+                }   // مُرحَّل من قبل — لا تكرار
                 $schedule = Schedule::create([
                     'candidate_id' => $visit->candidate_id,
                     'assessment_id' => $visit->assessment_id,
@@ -748,7 +755,7 @@ class ReceptionController extends Controller
                     'evaluator_id' => $a->evaluator_id,
                 ]);
                 $a->update(['schedule_id' => $schedule->id]);
-                \App\Models\Assessment::refreshDatesFor($visit->assessment_id);
+                Assessment::refreshDatesFor($visit->assessment_id);
                 $n++;
             }
             $visit->update([
@@ -756,18 +763,21 @@ class ReceptionController extends Controller
                 'approved_at' => now(),
                 'approved_by' => $user->id,
             ]);
+
             return $n;
         });
 
         $code = $visit->assessment?->participant_code ?? '—';
         foreach ($accepted as $a) {
-            if (!$a->evaluator_id) continue;
+            if (! $a->evaluator_id) {
+                continue;
+            }
             $this->notify->notify(
                 $a->evaluator_id,
                 'info',
-                'اعتُمد ورُحّل: ' . $code,
-                'اعتُمدت بيانات المشارك ' . $code . ' ورُحّلت ' . ReceptionAssignment::label($a->activity)
-                    . ' إلى جدول اليوم.',
+                'اعتُمد ورُحّل: '.$code,
+                'اعتُمدت بيانات المشارك '.$code.' ورُحّلت '.ReceptionAssignment::label($a->activity)
+                    .' إلى جدول اليوم.',
                 'reception_visit',
                 (string) $visit->id,
                 $user->id,
@@ -790,10 +800,10 @@ class ReceptionController extends Controller
     public function createKiosk(Request $request)
     {
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::RECEPTION_RECORD)) {
+        if (! $user->hasPermission(Permissions::RECEPTION_RECORD)) {
             return $this->deny('ليس لديك صلاحية تشغيل كشك الاستقبال');
         }
-        if (!config('features.reception_kiosk')) {
+        if (! config('features.reception_kiosk')) {
             return response()->json(['error' => 'كشك الاستقبال غير مُفعَّل'], 422);
         }
 
@@ -818,7 +828,7 @@ class ReceptionController extends Controller
     public function kiosks(Request $request)
     {
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::RECEPTION_RECORD)) {
+        if (! $user->hasPermission(Permissions::RECEPTION_RECORD)) {
             return $this->deny('ليس لديك صلاحية تشغيل كشك الاستقبال');
         }
 
@@ -838,12 +848,12 @@ class ReceptionController extends Controller
     public function revokeKiosk(Request $request, int $id)
     {
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::RECEPTION_RECORD)) {
+        if (! $user->hasPermission(Permissions::RECEPTION_RECORD)) {
             return $this->deny('ليس لديك صلاحية تشغيل كشك الاستقبال');
         }
 
         $kiosk = ReceptionKiosk::find($id);
-        if (!$kiosk) {
+        if (! $kiosk) {
             return response()->json(['error' => 'الكشك غير موجود'], 404);
         }
         if ($kiosk->revoked_at === null) {
@@ -861,7 +871,7 @@ class ReceptionController extends Controller
             'label' => $k->label,
             'date' => $k->kiosk_date->toDateString(),
             // الرابط كاملاً: يُنسخ أو يُقرأ رمزاً مربّعاً على الجهاز اللوحي
-            'url' => rtrim(config('app.frontend_url'), '/') . '/kiosk/' . $k->token,
+            'url' => rtrim(config('app.frontend_url'), '/').'/kiosk/'.$k->token,
             'createdBy' => $k->creator?->full_name,
             'lastUsedAt' => $k->last_used_at?->format('H:i'),
         ];
@@ -873,7 +883,7 @@ class ReceptionController extends Controller
     public function printQueue(Request $request)
     {
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::RECEPTION_RECORD)) {
+        if (! $user->hasPermission(Permissions::RECEPTION_RECORD)) {
             return $this->deny('ليس لديك صلاحية طباعة بطاقات المشاركين');
         }
 
@@ -886,7 +896,9 @@ class ReceptionController extends Controller
             ->whereNull('badge_printed_at')
             ->whereHas('candidate', function ($c) use ($request, $user) {
                 $c->whereIn('classification', $this->allowedClassifications($request));
-                if ($user->isSectorBound()) $c->where('sector_id', $user->sector_id);
+                if ($user->isSectorBound()) {
+                    $c->where('sector_id', $user->sector_id);
+                }
             })
             ->orderBy('badge_requested_at')   // ترتيب الطابور هو ترتيب الوصول
             ->get();
@@ -903,12 +915,12 @@ class ReceptionController extends Controller
     public function markBadgePrinted(Request $request, int $id)
     {
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::RECEPTION_RECORD)) {
+        if (! $user->hasPermission(Permissions::RECEPTION_RECORD)) {
             return $this->deny('ليس لديك صلاحية طباعة بطاقات المشاركين');
         }
 
         $visit = $this->findVisit($request, $id, ['assessment']);
-        if (!$visit) {
+        if (! $visit) {
             return response()->json(['error' => 'الزيارة غير موجودة'], 404);
         }
 
@@ -925,12 +937,12 @@ class ReceptionController extends Controller
     public function reprintBadge(Request $request, int $id)
     {
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::RECEPTION_RECORD)) {
+        if (! $user->hasPermission(Permissions::RECEPTION_RECORD)) {
             return $this->deny('ليس لديك صلاحية طباعة بطاقات المشاركين');
         }
 
         $visit = $this->findVisit($request, $id, ['assessment']);
-        if (!$visit) {
+        if (! $visit) {
             return response()->json(['error' => 'الزيارة غير موجودة'], 404);
         }
 
@@ -959,7 +971,7 @@ class ReceptionController extends Controller
             'assessmentType' => Assessment::typeLabel($a?->assessment_type),
             'requestedAt' => $v->badge_requested_at?->format('H:i'),
             'schedules' => collect($a?->schedules ?? [])
-                ->sortBy(fn ($s) => substr((string) $s->schedule_date, 0, 10) . ' ' . $s->schedule_time)
+                ->sortBy(fn ($s) => substr((string) $s->schedule_date, 0, 10).' '.$s->schedule_time)
                 ->values()
                 ->map(fn ($s) => [
                     'time' => $s->schedule_time ? substr((string) $s->schedule_time, 0, 5) : null,

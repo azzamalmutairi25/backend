@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Setting;
 use App\Models\AuditLog;
+use App\Models\Candidate;
+use App\Models\EmailLog;
+use App\Models\IdentityVerification;
+use App\Models\Setting;
 use App\Security\Permissions;
 use App\Services\ActiveDirectoryService;
 use App\Services\CommunicationService;
@@ -11,6 +14,7 @@ use App\Services\IdentityVerificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class SettingsController extends Controller
 {
@@ -21,7 +25,7 @@ class SettingsController extends Controller
 
     public function getLdap(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
         }
 
@@ -39,7 +43,7 @@ class SettingsController extends Controller
 
     public function saveLdap(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
         }
 
@@ -90,7 +94,7 @@ class SettingsController extends Controller
 
     public function testLdap(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية'], 403);
         }
 
@@ -104,7 +108,7 @@ class SettingsController extends Controller
         ]);
 
         // تدقيق كل محاولة اختبار (من، وإلى أي خادم)
-        \App\Models\AuditLog::create([
+        AuditLog::create([
             'user_id' => $request->user()->id,
             'action' => 'TEST_LDAP',
             'details' => ['host' => $validated['host'], 'port' => (int) $validated['port']],
@@ -125,7 +129,7 @@ class SettingsController extends Controller
 
     public function getSms(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
         }
 
@@ -143,7 +147,7 @@ class SettingsController extends Controller
 
     public function saveSms(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
         }
 
@@ -164,7 +168,7 @@ class SettingsController extends Controller
         $newKey = trim((string) ($validated['apiKey'] ?? ''));
         $hasExistingKey = CommunicationService::gatewayConfig()['key'] !== '';
 
-        if ($validated['enabled'] && $newKey === '' && !$hasExistingKey) {
+        if ($validated['enabled'] && $newKey === '' && ! $hasExistingKey) {
             return response()->json([
                 'errors' => ['apiKey' => ['مفتاح البوّابة مطلوب عند التفعيل']],
             ], 422);
@@ -206,7 +210,7 @@ class SettingsController extends Controller
 
     public function testSms(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية'], 403);
         }
 
@@ -228,7 +232,7 @@ class SettingsController extends Controller
         ]);
 
         $g = CommunicationService::gatewayConfig();
-        if (!$g['enabled'] || $g['url'] === '' || $g['key'] === '') {
+        if (! $g['enabled'] || $g['url'] === '' || $g['key'] === '') {
             return response()->json([
                 'success' => false,
                 'message' => 'البوّابة غير مفعّلة أو غير مكتملة — احفظ الإعدادات أولاً',
@@ -252,7 +256,7 @@ class SettingsController extends Controller
 
     public function getSmtp(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
         }
 
@@ -273,7 +277,7 @@ class SettingsController extends Controller
 
     public function saveSmtp(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
         }
 
@@ -331,16 +335,16 @@ class SettingsController extends Controller
         });
 
         // خادم مُفعَّل بلا كلمة مرور قد يكون صحيحاً (مُرحِّل داخلي بلا مصادقة) — تنبيه لا رفض
-        $warn = ($validated['enabled'] && $newPass === '' && !$hasExisting && ($validated['username'] ?? '') !== '')
+        $warn = ($validated['enabled'] && $newPass === '' && ! $hasExisting && ($validated['username'] ?? '') !== '')
             ? ' — تنبيه: اسم مستخدم بلا كلمة مرور'
             : '';
 
-        return response()->json(['message' => 'تم حفظ إعدادات خادم البريد' . $warn]);
+        return response()->json(['message' => 'تم حفظ إعدادات خادم البريد'.$warn]);
     }
 
     public function testSmtp(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية'], 403);
         }
 
@@ -357,7 +361,7 @@ class SettingsController extends Controller
         ]);
 
         $c = CommunicationService::smtpConfig();
-        if (!$c['enabled'] || $c['host'] === '') {
+        if (! $c['enabled'] || $c['host'] === '') {
             return response()->json([
                 'success' => false,
                 'message' => 'خادم البريد غير مفعّل أو غير مكتمل — احفظ الإعدادات أولاً',
@@ -379,10 +383,11 @@ class SettingsController extends Controller
         }
 
         // سبب الفشل مكتوب في السجل — أعِده ليرى المشرف الخطأ الحقيقي بدل «فشل» مبهمة
-        $err = \App\Models\EmailLog::latest('id')->first()?->error_message;
+        $err = EmailLog::latest('id')->first()?->error_message;
+
         return response()->json([
             'success' => false,
-            'message' => 'فشل الإرسال' . ($err ? ': ' . mb_substr($err, 0, 180) : ' — راجع سجل البريد'),
+            'message' => 'فشل الإرسال'.($err ? ': '.mb_substr($err, 0, 180) : ' — راجع سجل البريد'),
         ]);
     }
 
@@ -390,7 +395,7 @@ class SettingsController extends Controller
 
     public function getDistribution(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
         }
 
@@ -401,7 +406,7 @@ class SettingsController extends Controller
 
     public function saveDistribution(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
         }
 
@@ -434,13 +439,14 @@ class SettingsController extends Controller
     // في الكشف تحت «جلسات خارج الأوقات المعتمدة» بدل أن يُقحَم في عمود ليس له.
 
     public const SESSION_TIMES_KEY = 'schedule.session_times';
+
     public const SESSION_TIMES_DEFAULT = ['10:15', '12:30', '14:30'];
 
     // تُقرأ من الإعدادات، وتُنظَّف وتُرتَّب. تُستدعى من كشف الحضور والجدولة أيضاً.
     public static function sessionTimes(): array
     {
         $raw = Setting::find(self::SESSION_TIMES_KEY)?->value;
-        if (!$raw) {
+        if (! $raw) {
             return self::SESSION_TIMES_DEFAULT;
         }
 
@@ -455,7 +461,7 @@ class SettingsController extends Controller
 
     public function getSessionTimes(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
         }
 
@@ -464,7 +470,7 @@ class SettingsController extends Controller
 
     public function saveSessionTimes(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
         }
 
@@ -505,19 +511,19 @@ class SettingsController extends Controller
 
     public function getTier(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
         }
 
         return response()->json(['tier' => [
-            'militaryUpperRanks' => implode('، ', \App\Models\Candidate::tierUpperRanks()),
-            'civilianUpperGrade' => \App\Models\Candidate::tierUpperGrade(),
+            'militaryUpperRanks' => implode('، ', Candidate::tierUpperRanks()),
+            'civilianUpperGrade' => Candidate::tierUpperGrade(),
         ]]);
     }
 
     public function saveTier(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
         }
 
@@ -556,7 +562,7 @@ class SettingsController extends Controller
 
     public function getIdVerify(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
         }
 
@@ -574,7 +580,7 @@ class SettingsController extends Controller
 
     public function saveIdVerify(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
         }
 
@@ -584,7 +590,7 @@ class SettingsController extends Controller
             'url' => 'required_if:enabled,true|nullable|url|starts_with:https://|max:255',
             'apiKey' => 'nullable|string|max:500',
             'appId' => 'nullable|string|max:100',
-            'provider' => ['nullable', \Illuminate\Validation\Rule::in(IdentityVerificationService::PROVIDERS)],
+            'provider' => ['nullable', Rule::in(IdentityVerificationService::PROVIDERS)],
         ], [
             'url.required_if' => 'عنوان بوّابة التحقق مطلوب عند التفعيل',
             'url.starts_with' => 'عنوان البوّابة يجب أن يبدأ بـ https:// (لا يُرسَل المفتاح على اتصال غير مشفّر)',
@@ -594,7 +600,7 @@ class SettingsController extends Controller
         $newKey = trim((string) ($validated['apiKey'] ?? ''));
         $hasExistingKey = IdentityVerificationService::config()['key'] !== '';
 
-        if ($validated['enabled'] && $newKey === '' && !$hasExistingKey) {
+        if ($validated['enabled'] && $newKey === '' && ! $hasExistingKey) {
             return response()->json([
                 'errors' => ['apiKey' => ['مفتاح البوّابة مطلوب عند التفعيل']],
             ], 422);
@@ -636,7 +642,7 @@ class SettingsController extends Controller
 
     public function testIdVerify(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية'], 403);
         }
 
@@ -658,7 +664,7 @@ class SettingsController extends Controller
         ]);
 
         $g = IdentityVerificationService::config();
-        if (!$g['enabled'] || $g['url'] === '' || $g['key'] === '') {
+        if (! $g['enabled'] || $g['url'] === '' || $g['key'] === '') {
             return response()->json([
                 'success' => false,
                 'message' => 'البوّابة غير مفعّلة أو غير مكتملة — احفظ الإعدادات أولاً',
@@ -677,11 +683,11 @@ class SettingsController extends Controller
     // GET /settings/idverify/log — آخر محاولات التحقق (أثر تدقيقي)
     public function idVerifyLog(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية'], 403);
         }
 
-        $rows = \App\Models\IdentityVerification::with(['candidate:id,participant_code', 'checkedBy:id,full_name'])
+        $rows = IdentityVerification::with(['candidate:id,participant_code', 'checkedBy:id,full_name'])
             ->orderByDesc('id')->limit(100)->get()
             ->map(fn ($v) => [
                 'id' => $v->id,

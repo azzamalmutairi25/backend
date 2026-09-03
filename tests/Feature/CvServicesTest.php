@@ -20,6 +20,7 @@ class CvServicesTest extends TestCase
     private function candidate(string $name = 'محمد عبدالله الشهري', array $extra = [])
     {
         [$c] = $this->makeCandidate(array_merge(['fullName' => $name, 'status' => 'scheduled'], $extra));
+
         return $c;
     }
 
@@ -45,7 +46,7 @@ class CvServicesTest extends TestCase
 
     public function test_validator_accepts_a_clean_document(): void
     {
-        $clean = (new CvValidator())->clean($this->doc());
+        $clean = (new CvValidator)->clean($this->doc());
         $this->assertSame('master', $clean['qualifications'][0]['degree']);
         $this->assertSame(12, $clean['totalYearsExperience']);
         $this->assertTrue($clean['experiences'][0]['current']);
@@ -54,7 +55,7 @@ class CvServicesTest extends TestCase
 
     public function test_validator_drops_unknown_keys(): void
     {
-        $clean = (new CvValidator())->clean($this->doc(['status' => 'approved', 'candidate_id' => 999, 'evil' => 1]));
+        $clean = (new CvValidator)->clean($this->doc(['status' => 'approved', 'candidate_id' => 999, 'evil' => 1]));
         $this->assertArrayNotHasKey('status', $clean);
         $this->assertArrayNotHasKey('candidate_id', $clean);
         $this->assertArrayNotHasKey('evil', $clean);
@@ -63,25 +64,25 @@ class CvServicesTest extends TestCase
     public function test_validator_rejects_bad_degree_and_years(): void
     {
         $this->expectException(ValidationException::class);
-        (new CvValidator())->clean($this->doc(['qualifications' => [['degree' => 'phd', 'institution' => 'x', 'gradYear' => 3000]]]));
+        (new CvValidator)->clean($this->doc(['qualifications' => [['degree' => 'phd', 'institution' => 'x', 'gradYear' => 3000]]]));
     }
 
     public function test_validator_cross_field_current_with_toyear(): void
     {
         $this->expectException(ValidationException::class);
-        (new CvValidator())->clean($this->doc(['experiences' => [['position' => 'a', 'organization' => 'b', 'fromYear' => 2010, 'toYear' => 2012, 'current' => true, 'summary' => '']]]));
+        (new CvValidator)->clean($this->doc(['experiences' => [['position' => 'a', 'organization' => 'b', 'fromYear' => 2010, 'toYear' => 2012, 'current' => true, 'summary' => '']]]));
     }
 
     public function test_validator_array_bomb_is_413(): void
     {
         $this->expectException(CvTooLargeException::class);
-        (new CvValidator())->clean($this->doc(['experiences' => array_fill(0, 5000, ['position' => 'a', 'organization' => 'b', 'fromYear' => 2010, 'current' => true])]));
+        (new CvValidator)->clean($this->doc(['experiences' => array_fill(0, 5000, ['position' => 'a', 'organization' => 'b', 'fromYear' => 2010, 'current' => true])]));
     }
 
     public function test_validator_rejects_latin_run_in_bio(): void
     {
         $this->expectException(ValidationException::class);
-        (new CvValidator())->clean($this->doc(['briefBio' => 'قيادي Mohammed في القطاع']));
+        (new CvValidator)->clean($this->doc(['briefBio' => 'قيادي Mohammed في القطاع']));
     }
 
     // ── التنظيف ──
@@ -89,8 +90,8 @@ class CvServicesTest extends TestCase
     public function test_sanitize_strips_tags_and_bidi(): void
     {
         // strip_tags يزيل الوسوم ويُبقي النصّ بينها (نصّ خامل — Vue يهرّبه عند العرض)
-        $this->assertSame('xنص', CvGuard::sanitize("<script>x</script>نص"));
-        $this->assertStringNotContainsString('<', CvGuard::sanitize("<b>نص</b>"));
+        $this->assertSame('xنص', CvGuard::sanitize('<script>x</script>نص'));
+        $this->assertStringNotContainsString('<', CvGuard::sanitize('<b>نص</b>'));
         $this->assertSame('اب', CvGuard::sanitize("ا\u{202E}ب")); // تجاوز الاتجاه محذوف
         $this->assertNull(CvGuard::sanitize("\u{200B}  "));
     }
@@ -130,7 +131,7 @@ class CvServicesTest extends TestCase
         $doc = $this->doc(['briefBio' => "خبرة لدى مح\u{0610}مد المنشأة"]);
         $this->assertSame('briefBio', CvGuard::directIdentifierHit($doc, $c), 'العلامة لا تُفلِت الاسم');
         // وفي حقل منظّم يُطمَس عند القراءة
-        $doc2 = $this->doc(['experiences' => [['position' => "مدير", 'organization' => "مؤسسة العت\u{0610}يبي", 'fromYear' => 2010, 'current' => true, 'summary' => 'x']]]);
+        $doc2 = $this->doc(['experiences' => [['position' => 'مدير', 'organization' => "مؤسسة العت\u{0610}يبي", 'fromYear' => 2010, 'current' => true, 'summary' => 'x']]]);
         $scrubbed = CvGuard::scrub($doc2, $c);
         $this->assertStringContainsString('«•••»', $scrubbed['experiences'][0]['organization']);
     }
@@ -144,7 +145,7 @@ class CvServicesTest extends TestCase
         $this->assertStringContainsString('«•••»', $scrubbed['certifications'][0]['name']);
         // وفي النبذة السردية: أي حرف لاتيني مرفوض أصلاً على الحفظ
         $this->expectException(ValidationException::class);
-        (new CvValidator())->clean($this->doc(['briefBio' => 'نبذة m o h a m m e d خبرة']));
+        (new CvValidator)->clean($this->doc(['briefBio' => 'نبذة m o h a m m e d خبرة']));
     }
 
     public function test_blocks_national_id_and_mobile_and_email(): void

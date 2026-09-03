@@ -2,7 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\Schedule;
+use App\Models\User;
+use App\Security\Permissions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 // المؤشّر لا يعدّ ما تخفيه قائمته.
@@ -50,14 +54,14 @@ class AggregateScopeTest extends TestCase
 
         foreach ([['DW', $ev], ['PR', null]] as [$sector, $owner]) {
             [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => $sector]);
-            \App\Models\Schedule::create([
+            Schedule::create([
                 'candidate_id' => $c->id, 'assessment_id' => $a->id,
                 'schedule_date' => now()->toDateString(), 'schedule_time' => '10:00:00',
                 'activity' => 'interview', 'evaluator_id' => $owner?->id, 'location' => 'قاعة',
             ]);
         }
 
-        \Laravel\Sanctum\Sanctum::actingAs($ev);
+        Sanctum::actingAs($ev);
         $rows = $this->getJson('/api/attendance/today')->assertOk()->json('attendance');
         $stats = $this->getJson('/api/attendance/stats')->assertOk()->json('stats');
 
@@ -70,8 +74,8 @@ class AggregateScopeTest extends TestCase
     // يصير فيها AnalyticsController تسريباً.
     public function test_no_sector_bound_role_holds_analytics(): void
     {
-        foreach (\App\Models\User::SECTOR_BOUND_ROLES as $code) {
-            $perms = \App\Security\Permissions::forRole($code);
+        foreach (User::SECTOR_BOUND_ROLES as $code) {
+            $perms = Permissions::forRole($code);
             $this->assertNotContains('analytics.view', $perms,
                 "{$code} محصور بقطاع ويملك التحليلات — AnalyticsController بلا حصر قطاع");
         }

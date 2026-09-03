@@ -10,7 +10,9 @@ use App\Models\CandidateCv;
 use App\Models\Rank;
 use App\Models\Sector;
 use App\Models\TechnicalArea;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 // ════════════════════════════════════════════════════════════
@@ -34,10 +36,10 @@ use Illuminate\Validation\ValidationException;
 class CandidateImporter
 {
     /**
-     * @param  array  $rows        صفوف الدفعة
-     * @param  int    $userId      من ينسب إليه الإنشاء
-     * @param  int    $lineOffset  رقم أوّل صفّ في الملفّ كلّه (للتقطيع)
-     * @param  array  $seenIds     [الهوية => رقم الصفّ] من الدفعات السابقة، تُعدَّل في مكانها
+     * @param  array  $rows  صفوف الدفعة
+     * @param  int  $userId  من ينسب إليه الإنشاء
+     * @param  int  $lineOffset  رقم أوّل صفّ في الملفّ كلّه (للتقطيع)
+     * @param  array  $seenIds  [الهوية => رقم الصفّ] من الدفعات السابقة، تُعدَّل في مكانها
      * @return array{success: array, errors: array, failures: array}
      */
     public function import(array $rows, int $userId, int $lineOffset = 0, array &$seenIds = []): array
@@ -78,13 +80,14 @@ class CandidateImporter
         $success = [];
         $errors = [];
         $failures = [];
-        
+
         foreach ($rows as $i => $row) {
             $lineNum = $lineOffset + $i + 1;
             // سطر ليس كائناً (نصّ/رقم) يرمي TypeError قبل الحماية فيُسقط الدفعة نصفها —
             // يُحوَّل لخطأ سطر ويُتابَع كبقية الأخطاء
-            if (!is_array($row)) {
+            if (! is_array($row)) {
                 self::reject($errors, $failures, $lineNum, null, null, ['تنسيق السطر غير صحيح']);
+
                 continue;
             }
             $nationalId = trim((string) ($row['nationalId'] ?? ''));
@@ -108,17 +111,24 @@ class CandidateImporter
             // كان الاستيراد يكتفي بطول عشرة، فهويةٌ يرفضها النموذج تدخل القاعدة
             // من هذا الباب — ثمّ تُرفض في التحقّق من البوّابة العامة فيتعطّل مشارك.
             $idError = self::nationalIdError($nationalId);
-            if ($idError !== null) $reasons[] = $idError;
+            if ($idError !== null) {
+                $reasons[] = $idError;
+            }
 
-            if ($fullName === '') $reasons[] = 'الاسم مفقود';
-            elseif (mb_strlen($fullName) > 200) $reasons[] = 'الاسم أطول من ٢٠٠ حرف';
+            if ($fullName === '') {
+                $reasons[] = 'الاسم مفقود';
+            } elseif (mb_strlen($fullName) > 200) {
+                $reasons[] = 'الاسم أطول من ٢٠٠ حرف';
+            }
 
             $sector = null;
             if ($sectorKey === '') {
                 $reasons[] = 'القطاع مفقود';
             } else {
                 $sector = $byKey[mb_strtoupper($sectorKey)] ?? $byKey[self::normalizeAr($sectorKey)] ?? null;
-                if (!$sector) $reasons[] = "قطاع غير معروف ({$sectorKey})";
+                if (! $sector) {
+                    $reasons[] = "قطاع غير معروف ({$sectorKey})";
+                }
             }
 
             // الرتبة تُطابَق على القائمة المُدارة لفئة القطاع. غير المُدرَجة
@@ -140,7 +150,7 @@ class CandidateImporter
 
             $rankWord = Candidate::rankWord($category ?? 'civilian');
             if ($rankLabel === '') {
-                $reasons[] = "{$rankWord} مفقود" . ($category === 'contractor' ? '' : 'ة');
+                $reasons[] = "{$rankWord} مفقود".($category === 'contractor' ? '' : 'ة');
             } elseif ($category === null) {
                 // كانت تُردّ. والفئة رُفع عنها الإلزام، فرتبةٌ لم تُعرف تهبط على
                 // الافتراضي بدل أن يُردّ صفٌّ حمل رتبةً صحيحةً غير مُدرَجة بعد.
@@ -150,7 +160,7 @@ class CandidateImporter
                 // رتب الصنفين يدخل ويُصنَّف «وسطى» صامتةً، فيُقيَّم لواءٌ بمعايير
                 // القيادة الوسطى ولا يظهر الخطأ في أي شاشة.
                 $known = $ranksByCat[$category] ?? [];
-                if ($known && !isset($known[self::normalizeAr($rankLabel)])) {
+                if ($known && ! isset($known[self::normalizeAr($rankLabel)])) {
                     $list = $category === 'military' ? 'الرتب العسكرية' : 'المراتب المدنية';
                     $reasons[] = "{$rankWord} «{$rankLabel}» ليست في قائمة {$list}";
                 }
@@ -158,10 +168,10 @@ class CandidateImporter
 
             // الجوال والبريد لم يكونا يُفحصان هنا إطلاقاً بينما يفرضهما store:
             // جوّالٌ بصيغة 9665… يُقبل ثمّ لا تصل صاحبَه رسالة الدعوة أبداً.
-            if ($mobile !== '' && !preg_match('/^05\d{8}$/', $mobile)) {
+            if ($mobile !== '' && ! preg_match('/^05\d{8}$/', $mobile)) {
                 $reasons[] = 'الجوال يجب أن يبدأ بـ05 ويكون ١٠ أرقام';
             }
-            if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            if ($email !== '' && ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 $reasons[] = "البريد الإلكتروني «{$email}» غير صحيح";
             }
             if (mb_strlen($militaryNumber) > 30) {
@@ -208,7 +218,7 @@ class CandidateImporter
                     $reasons[] = 'بيانات السيرة أكثر من المسموح';
                 } catch (ValidationException $e) {
                     foreach ($e->errors() as $messages) {
-                        $reasons[] = 'السيرة: ' . $messages[0];
+                        $reasons[] = 'السيرة: '.$messages[0];
                     }
                 }
             }
@@ -228,6 +238,7 @@ class CandidateImporter
 
             if ($reasons) {
                 self::reject($errors, $failures, $lineNum, $nationalId, $fullName, $reasons);
+
                 continue;
             }
 
@@ -243,7 +254,7 @@ class CandidateImporter
                 // فدخل من هذا الباب ما يردّه النموذج اليدوي
                 $leak = null;
                 DB::transaction(function () use ($code, $nationalId, $fullName, $mobile, $email, $militaryNumber, $sector, $gender, $rankLabel, $category, $tier, $userId, $cleanCv, $areaIds, &$leak) {
-                    $c = new Candidate();
+                    $c = new Candidate;
                     $c->participant_code = $code;
                     $c->national_id = $nationalId;
                     $c->full_name = $fullName;
@@ -270,7 +281,7 @@ class CandidateImporter
                             throw new \RuntimeException('cv_identifier_leak');
                         }
 
-                        $cv = new CandidateCv();
+                        $cv = new CandidateCv;
                         $cv->candidate_id = $c->id;
                         $cv->data = $cleanCv;
                         $cv->version = 1;
@@ -304,7 +315,7 @@ class CandidateImporter
                 });
 
                 $success[] = ['line' => $lineNum, 'code' => $code, 'name' => $fullName];
-            } catch (\Illuminate\Database\QueryException $e) {
+            } catch (QueryException $e) {
                 // مَيّز تكرار الهوية الحقيقي عن تصادم رمز متزامن (سباق) — لا تُسمِّ التصادم «هوية مكرّرة» فتُسقِط مشاركاً صالحاً بسبب مضلّل
                 $why = Candidate::nationalIdExists($nationalId)
                     ? 'هذه الهوية مسجّلة مسبقاً في المنصّة'
@@ -317,14 +328,14 @@ class CandidateImporter
                     self::reject($errors, $failures, $lineNum, $nationalId, $fullName, [
                         "السيرة تحوي اسم المشارك أو معرّفاً ({$leak}) — أزِله",
                     ]);
+
                     continue;
                 }
                 // لا نُسرّب نص الاستثناء الخام للعميل
-                \Illuminate\Support\Facades\Log::warning('candidate import row failed', ['line' => $lineNum, 'error' => $e->getMessage()]);
+                Log::warning('candidate import row failed', ['line' => $lineNum, 'error' => $e->getMessage()]);
                 self::reject($errors, $failures, $lineNum, $nationalId, $fullName, ['تعذّر استيراد الصفّ']);
             }
         }
-
 
         return ['success' => $success, 'errors' => $errors, 'failures' => $failures];
     }
@@ -342,7 +353,7 @@ class CandidateImporter
             'name' => $name ?: null,
             'reasons' => array_values($reasons),
         ];
-        $errors[] = "الصفّ {$line}: " . implode(' · ', $reasons);
+        $errors[] = "الصفّ {$line}: ".implode(' · ', $reasons);
     }
 
     /**
@@ -351,8 +362,12 @@ class CandidateImporter
      */
     private static function nationalIdError(string $id): ?string
     {
-        if (!preg_match('/^\d{10}$/', $id)) return 'رقم الهوية يجب أن يكون ١٠ أرقام';
-        if ($id[0] !== '1' && $id[0] !== '2') return 'رقم الهوية يجب أن يبدأ بـ١ (مواطن) أو ٢ (مقيم)';
+        if (! preg_match('/^\d{10}$/', $id)) {
+            return 'رقم الهوية يجب أن يكون ١٠ أرقام';
+        }
+        if ($id[0] !== '1' && $id[0] !== '2') {
+            return 'رقم الهوية يجب أن يبدأ بـ١ (مواطن) أو ٢ (مقيم)';
+        }
 
         $sum = 0;
         for ($i = 0; $i < 10; $i++) {
@@ -364,6 +379,7 @@ class CandidateImporter
                 $sum += $d;
             }
         }
+
         return $sum % 10 === 0 ? null : 'رقم الهوية غير صحيح (فشل التحقّق)';
     }
 
@@ -411,7 +427,8 @@ class CandidateImporter
             }
             $mapped = CandidateCv::degreeFromArabic($raw);
             if ($mapped === null) {
-                $reasons[] = "المؤهل «{$raw}» غير معروف — المقبول: " . CandidateCv::degreeChoices();
+                $reasons[] = "المؤهل «{$raw}» غير معروف — المقبول: ".CandidateCv::degreeChoices();
+
                 continue;
             }
             $cv['qualifications'][$i]['degree'] = $mapped;
@@ -429,9 +446,12 @@ class CandidateImporter
             'contractor' => ['متعاقد', 'متعاقده', 'متعاقدة', 'contractor', 'contract'],
         ] as $key => $spellings) {
             foreach ($spellings as $spelling) {
-                if ($v === self::normalizeAr($spelling)) return $key;
+                if ($v === self::normalizeAr($spelling)) {
+                    return $key;
+                }
             }
         }
+
         return null;
     }
 
@@ -440,10 +460,17 @@ class CandidateImporter
     private static function inferCategory(string $rankLabel, array $ranksByCat): ?string
     {
         $key = self::normalizeAr($rankLabel);
-        if (isset($ranksByCat['military'][$key])) return 'military';
-        if (isset($ranksByCat['civilian'][$key])) return 'civilian';
+        if (isset($ranksByCat['military'][$key])) {
+            return 'military';
+        }
+        if (isset($ranksByCat['civilian'][$key])) {
+            return 'civilian';
+        }
         // قائمةٌ لم تُملأ بعدُ لا توقف الاستيراد (التجاوز التدريجي نفسه)
-        if (!$ranksByCat['military'] && !$ranksByCat['civilian']) return 'civilian';
+        if (! $ranksByCat['military'] && ! $ranksByCat['civilian']) {
+            return 'civilian';
+        }
+
         return null;
     }
 
@@ -455,6 +482,7 @@ class CandidateImporter
         $s = str_replace(['ى'], 'ي', $s);
         $s = preg_replace('/\s+/u', '', $s);
         $s = preg_replace('/^ال/u', '', $s);
+
         return $s;
     }
 }

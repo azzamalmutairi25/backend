@@ -2,10 +2,10 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Support\Facades\Crypt;
 
 // وصول مشارك إلى المركز في يومٍ بعينه — نقطة بداية مسار «استقبال الموظفين»
@@ -33,7 +33,9 @@ class ReceptionVisit extends Model
     protected $hidden = ['signature_enc'];
 
     public const ARRIVED = 'arrived';
+
     public const DISTRIBUTED = 'distributed';
+
     public const APPROVED = 'approved';
 
     protected function signature(): Attribute
@@ -50,12 +52,35 @@ class ReceptionVisit extends Model
         return $this->badge_requested_at !== null && $this->badge_printed_at === null;
     }
 
-    public function candidate(): BelongsTo { return $this->belongsTo(Candidate::class); }
-    public function kiosk(): BelongsTo { return $this->belongsTo(ReceptionKiosk::class, 'kiosk_id'); }
-    public function assessment(): BelongsTo { return $this->belongsTo(Assessment::class); }
-    public function receivedBy(): BelongsTo { return $this->belongsTo(User::class, 'received_by'); }
-    public function approvedBy(): BelongsTo { return $this->belongsTo(User::class, 'approved_by'); }
-    public function assignments(): HasMany { return $this->hasMany(ReceptionAssignment::class, 'visit_id'); }
+    public function candidate(): BelongsTo
+    {
+        return $this->belongsTo(Candidate::class);
+    }
+
+    public function kiosk(): BelongsTo
+    {
+        return $this->belongsTo(ReceptionKiosk::class, 'kiosk_id');
+    }
+
+    public function assessment(): BelongsTo
+    {
+        return $this->belongsTo(Assessment::class);
+    }
+
+    public function receivedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'received_by');
+    }
+
+    public function approvedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function assignments(): HasMany
+    {
+        return $this->hasMany(ReceptionAssignment::class, 'visit_id');
+    }
 
     // هل وقّع المشارك وأقرّ بصحّة بياناته؟ الشرطان معاً — توقيعٌ بلا إقرار
     // ليس إقراراً، وإقرارٌ بلا توقيع لا يُلزِم أحداً.

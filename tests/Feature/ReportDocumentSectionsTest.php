@@ -30,7 +30,7 @@ class ReportDocumentSectionsTest extends TestCase
         $behExcel = Competency::create(['name_ar' => 'الحسّ القيادي', 'type' => 'behavioral', 'group' => 'الإحساس', 'max_level' => 5, 'weight' => 1, 'sort_order' => 60]);
         $techFin = Competency::create(['name_ar' => 'التحليل المالي', 'type' => 'technical', 'domain' => 'المالية', 'max_level' => 5, 'weight' => 1, 'sort_order' => 61]);
 
-        $evUser = User::create(['username' => 'ev_' . substr(md5(uniqid('', true)), 0, 8), 'full_name' => 'مقيّم', 'password' => 'Kafaat@2026', 'role_id' => Role::where('code', 'EVALUATOR')->value('id'), 'sector_id' => Sector::where('code', 'DW')->value('id'), 'is_active' => true, 'must_change_password' => false]);
+        $evUser = User::create(['username' => 'ev_'.substr(md5(uniqid('', true)), 0, 8), 'full_name' => 'مقيّم', 'password' => 'Kafaat@2026', 'role_id' => Role::where('code', 'EVALUATOR')->value('id'), 'sector_id' => Sector::where('code', 'DW')->value('id'), 'is_active' => true, 'must_change_password' => false]);
         $ev = Evaluation::create(['candidate_id' => $c->id, 'assessment_id' => $a->id, 'evaluator_id' => $evUser->id, 'activity' => 'interview', 'status' => 'submitted']);
         EvaluationScore::create(['evaluation_id' => $ev->id, 'competency_id' => $behExcel->id, 'score' => 4]);
         EvaluationScore::create(['evaluation_id' => $ev->id, 'competency_id' => $techFin->id, 'score' => 3]);

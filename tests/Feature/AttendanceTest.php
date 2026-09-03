@@ -15,6 +15,7 @@ class AttendanceTest extends TestCase
     private function todaySchedule(array $candAttrs = []): Schedule
     {
         [$c, $a] = $this->makeCandidate($candAttrs + ['status' => 'scheduled']);
+
         return Schedule::create([
             'candidate_id' => $c->id,
             'assessment_id' => $a->id,

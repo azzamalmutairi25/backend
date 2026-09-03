@@ -8,6 +8,7 @@ use App\Models\Schedule;
 use App\Models\ScheduleDispatch;
 use App\Models\SchedulingPeriod;
 use App\Security\Permissions;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 // ════════════════════════════════════════════════════════════
@@ -27,9 +28,7 @@ use Illuminate\Http\Request;
 // يُتخذ صراحةً لا يُستنتج من ميزة.
 class DispatchController extends Controller
 {
-    public function __construct()
-    {
-    }
+    public function __construct() {}
 
     private function log(Request $request, string $action, ?int $entityId, array $details = []): void
     {
@@ -44,14 +43,14 @@ class DispatchController extends Controller
         ]);
     }
 
-    private function denyView(Request $request): ?\Illuminate\Http\JsonResponse
+    private function denyView(Request $request): ?JsonResponse
     {
         return $request->user()->hasPermission(Permissions::SCHEDULE_VIEW)
             ? null
             : response()->json(['error' => 'ليس لديك صلاحية عرض الجدولة'], 403);
     }
 
-    private function denySend(Request $request): ?\Illuminate\Http\JsonResponse
+    private function denySend(Request $request): ?JsonResponse
     {
         return $request->user()->hasPermission(Permissions::SCHEDULE_DISPATCH)
             ? null
@@ -63,11 +62,12 @@ class DispatchController extends Controller
     {
         $v = (string) $v;
         if ($v !== '' && in_array($v[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
-            $v = "'" . $v;
+            $v = "'".$v;
         }
         if (str_contains($v, ',') || str_contains($v, '"') || str_contains($v, "\n")) {
-            $v = '"' . str_replace('"', '""', $v) . '"';
+            $v = '"'.str_replace('"', '""', $v).'"';
         }
+
         return $v;
     }
 
@@ -94,16 +94,18 @@ class DispatchController extends Controller
     /** المدى المطلوب: موجةٌ أو تاريخان. يرجع [from, to, period] أو null */
     private function range(array $v): ?array
     {
-        if (!empty($v['periodId'])) {
+        if (! empty($v['periodId'])) {
             $p = SchedulingPeriod::find($v['periodId']);
-            if (!$p) {
+            if (! $p) {
                 return null;
             }
+
             return [$p->start_date->toDateString(), $p->end_date->toDateString(), $p];
         }
-        if (!empty($v['from']) && !empty($v['to'])) {
+        if (! empty($v['from']) && ! empty($v['to'])) {
             return [$v['from'], $v['to'], null];
         }
+
         return null;
     }
 
@@ -115,7 +117,7 @@ class DispatchController extends Controller
     private function rowsFor(Request $request, DispatchAuthority $authority, string $from, string $to, ?int $periodId, bool $approvedOnly = false): array
     {
         $categories = $authority->categoryList();
-        if (!$categories) {
+        if (! $categories) {
             return [];
         }
 
@@ -159,7 +161,7 @@ class DispatchController extends Controller
         $rows = [];
         foreach ($query->orderBy('schedule_date')->orderBy('schedule_time')->get() as $s) {
             $c = $s->candidate;
-            if (!$c) {
+            if (! $c) {
                 continue;
             }
             $rows[] = [
@@ -172,6 +174,7 @@ class DispatchController extends Controller
                 'activity' => $activityLabel[$s->activity] ?? $s->activity,
             ];
         }
+
         return $rows;
     }
 
@@ -190,13 +193,13 @@ class DispatchController extends Controller
         ]);
 
         $range = $this->range($validated);
-        if (!$range) {
+        if (! $range) {
             return response()->json(['error' => 'حدّد موجةً أو مدىً بتاريخين'], 422);
         }
         [$from, $to, $period] = $range;
 
         $authorities = DispatchAuthority::active()->orderBy('sort_order')
-            ->when(!empty($validated['authorityId']), fn ($q) => $q->where('id', $validated['authorityId']))
+            ->when(! empty($validated['authorityId']), fn ($q) => $q->where('id', $validated['authorityId']))
             ->get();
 
         $out = [];
@@ -240,7 +243,7 @@ class DispatchController extends Controller
         ]);
 
         $range = $this->range($validated);
-        if (!$range) {
+        if (! $range) {
             return response()->json(['error' => 'حدّد موجةً أو مدىً بتاريخين'], 422);
         }
         [$from, $to, $period] = $range;
@@ -254,26 +257,26 @@ class DispatchController extends Controller
         // تسليمٌ فات أوانه لا تسليمٌ متأخّر.
         if ($period && $period->status !== 'approved') {
             return response()->json([
-                'error' => 'لا تُسلَّم إلا موجة معتمَدة — موجة «' . $period->name . '» '
-                    . SchedulingPeriod::label($period->status),
+                'error' => 'لا تُسلَّم إلا موجة معتمَدة — موجة «'.$period->name.'» '
+                    .SchedulingPeriod::label($period->status),
             ], 422);
         }
 
         $authority = DispatchAuthority::find($validated['authorityId']);
         $rows = $this->rowsFor($request, $authority, $from, $to, $period?->id, approvedOnly: true);
 
-        if (!$rows) {
+        if (! $rows) {
             return response()->json(['error' => 'لا صفوف لهذه الجهة في هذا المدى — لا شيء يُسلَّم'], 422);
         }
 
         // BOM كي تفتحه Excel بالعربية سليمةً
-        $csv = "\xEF\xBB\xBF" . implode(',', [
+        $csv = "\xEF\xBB\xBF".implode(',', [
             'رمز المشارك', 'القطاع', 'الرتبة / المرتبة', 'الفئة', 'التاريخ', 'الوقت', 'النشاط',
-        ]) . "\r\n";
+        ])."\r\n";
         foreach ($rows as $r) {
             $csv .= implode(',', array_map(fn ($v) => $this->csv($v), [
                 $r['code'], $r['sector'], $r['rank'], $r['category'], $r['date'], $r['time'], $r['activity'],
-            ])) . "\r\n";
+            ]))."\r\n";
         }
 
         // البصمة تُحسب على ما خرج فعلاً — بها يُثبت بعد شهور أن ما بيد الجهة
@@ -299,11 +302,11 @@ class DispatchController extends Controller
             'checksum' => $checksum,
         ]);
 
-        $name = 'dispatch-' . $authority->code . '-' . $from . '_' . $to . '.csv';
+        $name = 'dispatch-'.$authority->code.'-'.$from.'_'.$to.'.csv';
 
         return response($csv)
             ->header('Content-Type', 'text/csv; charset=UTF-8')
-            ->header('Content-Disposition', 'attachment; filename="' . $name . '"')
+            ->header('Content-Disposition', 'attachment; filename="'.$name.'"')
             ->header('X-Dispatch-Id', (string) $dispatch->id)
             ->header('X-Dispatch-Checksum', $checksum);
     }
@@ -341,7 +344,7 @@ class DispatchController extends Controller
 
         $validated = $request->validate(['dispatchId' => 'required|integer']);
         $d = ScheduleDispatch::with(['authority', 'sender', 'period'])->find($validated['dispatchId']);
-        if (!$d) {
+        if (! $d) {
             return response()->json(['error' => 'سجلّ التسليم غير موجود'], 404);
         }
 

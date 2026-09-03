@@ -57,6 +57,7 @@ class NotificationController extends Controller
     {
         $count = Notification::where('recipient_id', $request->user()->id)
             ->where('is_read', false)->count();
+
         return response()->json(['count' => $count]);
     }
 
@@ -66,6 +67,7 @@ class NotificationController extends Controller
         $notif = Notification::where('id', $id)
             ->where('recipient_id', $request->user()->id)->firstOrFail();
         $notif->update(['is_read' => true, 'read_at' => now()]);
+
         return response()->json(['message' => 'تم']);
     }
 
@@ -75,6 +77,7 @@ class NotificationController extends Controller
         $count = Notification::where('recipient_id', $request->user()->id)
             ->where('is_read', false)
             ->update(['is_read' => true, 'read_at' => now()]);
+
         return response()->json(['message' => "تم تعليم {$count} إشعاراً"]);
     }
 }

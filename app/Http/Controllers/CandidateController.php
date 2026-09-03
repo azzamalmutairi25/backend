@@ -3,22 +3,28 @@
 namespace App\Http\Controllers;
 
 use App\Exceptions\CvTooLargeException;
-use App\Models\Candidate;
 use App\Models\Assessment;
+use App\Models\AuditLog;
+use App\Models\Candidate;
 use App\Models\CandidateCv;
 use App\Models\CandidateUpdateRequest;
+use App\Models\ReceptionVisit;
+use App\Models\Schedule;
 use App\Models\Sector;
 use App\Models\User;
-use App\Models\AuditLog;
-use App\Security\Permissions;
 use App\Rules\SaudiNationalId;
+use App\Security\Permissions;
 use App\Services\CommunicationService;
 use App\Services\CvGuard;
+use App\Services\CvSheetService;
 use App\Services\CvValidator;
 use App\Services\IdentityVerificationService;
+use App\Services\ParticipantCardService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class CandidateController extends Controller
@@ -49,7 +55,7 @@ class CandidateController extends Controller
 
     public function index(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::CANDIDATE_VIEW)) {
+        if (! $request->user()->hasPermission(Permissions::CANDIDATE_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض المشاركين'], 403);
         }
 
@@ -80,7 +86,7 @@ class CandidateController extends Controller
             $query->where('classification', $request->classification);
         }
         if ($request->filled('search')) {
-            $query->where('participant_code', 'like', '%' . $request->search . '%');
+            $query->where('participant_code', 'like', '%'.$request->search.'%');
         }
 
         // نسخةٌ من الاستعلام المحصور قبل تنفيذه — تُستعمل استعلاماً فرعياً أدناه
@@ -97,7 +103,7 @@ class CandidateController extends Controller
         // IN بعدد صفوف القائمة كلّها. على مركزٍ فيه عشرون ألف مشارك يصير
         // نصّ الاستعلام وحده مئات الكيلوبايتات تُرسَل في كل فتحة للشاشة.
         // القاعدة تحصر بنفسها هنا، فلا تعبر المعرّفات الشبكة أصلاً.
-        $absentIds = \App\Models\Schedule::query()
+        $absentIds = Schedule::query()
             ->whereIn('candidate_id', $scopedIds)
             ->whereHas('attendance', fn ($q) => $q->whereIn('status', ['absent_excused', 'absent_unexcused']))
             ->pluck('candidate_id')->unique()->flip();
@@ -130,15 +136,16 @@ class CandidateController extends Controller
     public function show(Request $request, int $id)
     {
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::CANDIDATE_VIEW)) {
+        if (! $user->hasPermission(Permissions::CANDIDATE_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض المشاركين'], 403);
         }
         // النطاق كاملاً — التصنيف والقطاع معاً. كان يفحص التصنيف وحده بينما
         // index() محصور بالقطاع، فكانت التفاصيل الكاملة تُفتح بالمعرّف لمشارك
         // من قطاع آخر لا يظهر في القائمة أصلاً.
         $candidate = $this->resolveCandidateInScope($request, $id, ['sector', 'technicalAreas']);
-        if (!$candidate) {
+        if (! $candidate) {
             $this->log($request, 'DENIED_CANDIDATE_OUT_OF_SCOPE', $id);
+
             return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
 
@@ -185,12 +192,12 @@ class CandidateController extends Controller
     // لا يراها أصلاً. والملاحظة ليست بياناً شخصياً يُحرَس بحارسه.
     public function updateNotes(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::CANDIDATE_EDIT)) {
+        if (! $request->user()->hasPermission(Permissions::CANDIDATE_EDIT)) {
             return response()->json(['error' => 'ليس لديك صلاحية تعديل المشارك'], 403);
         }
 
         $candidate = $this->resolveCandidateInScope($request, $id);
-        if (!$candidate) {
+        if (! $candidate) {
             return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
 
@@ -211,19 +218,20 @@ class CandidateController extends Controller
     {
         $user = $request->user();
         // صلاحية مستقلّة عن CANDIDATE_VIEW: المقيّم/الاستقبال/القياس لا يصلون سيرة بالمعرّف
-        if (!$user->hasPermission(Permissions::CANDIDATE_CV_VIEW)) {
+        if (! $user->hasPermission(Permissions::CANDIDATE_CV_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض السيرة الذاتية'], 403);
         }
         $candidate = $this->resolveCandidateInScope($request, $id, ['cv']);
-        if (!$candidate) {
+        if (! $candidate) {
             $this->log($request, 'DENIED_CANDIDATE_OUT_OF_SCOPE', $id);
+
             return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
 
         $cv = $candidate->cv;
         $doc = $cv?->data ?? CandidateCv::emptyDoc(); // السجلّ الحيّ (وثيقة الإدارة)
         $canSeeNames = $user->hasPermission(Permissions::CANDIDATE_VIEW_NAMES);
-        if (!$canSeeNames) {
+        if (! $canSeeNames) {
             $doc = CvGuard::scrub($doc, $candidate);
         }
 
@@ -241,7 +249,7 @@ class CandidateController extends Controller
         return response()->json(['cv' => [
             'participantCode' => $candidate->participant_code,
             'name' => $canSeeNames ? $candidate->full_name : null,
-            'hasCv' => !CandidateCv::isEmptyDoc($doc),
+            'hasCv' => ! CandidateCv::isEmptyDoc($doc),
             'version' => $cv?->version ?? 0,
             'source' => $cv?->source,
             'document' => $doc,
@@ -256,17 +264,18 @@ class CandidateController extends Controller
     public function saveCv(Request $request, int $id)
     {
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::CANDIDATE_EDIT)) {
+        if (! $user->hasPermission(Permissions::CANDIDATE_EDIT)) {
             return response()->json(['error' => 'ليس لديك صلاحية تعديل السيرة'], 403);
         }
         $candidate = $this->resolveCandidateInScope($request, $id, ['cv']);
-        if (!$candidate) {
+        if (! $candidate) {
             $this->log($request, 'DENIED_CANDIDATE_OUT_OF_SCOPE', $id);
+
             return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
 
         $cvInput = $request->input('cv');
-        if (!is_array($cvInput) || $cvInput === []) {
+        if (! is_array($cvInput) || $cvInput === []) {
             return response()->json(['error' => 'بيانات غير صحيحة'], 422);
         }
 
@@ -299,6 +308,7 @@ class CandidateController extends Controller
             } catch (QueryException $e) {
                 return 'conflict';
             }
+
             return $cv->fresh();
         });
 
@@ -325,17 +335,17 @@ class CandidateController extends Controller
     // الوسيط وفي تاريخ المتصفّح — بيانٌ شخصي يتسرّب إلى حيث لا يُحمى.
     public function lookup(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::CANDIDATE_CREATE)) {
+        if (! $request->user()->hasPermission(Permissions::CANDIDATE_CREATE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إضافة مشارك'], 403);
         }
 
         $validated = $request->validate([
-            'nationalId' => ['required', 'string', new SaudiNationalId()],
+            'nationalId' => ['required', 'string', new SaudiNationalId],
         ]);
 
         $candidate = Candidate::where('national_id_hash', hash('sha256', $validated['nationalId']))->first();
 
-        if (!$candidate || !in_array($candidate->classification, $this->allowedClassifications($request))) {
+        if (! $candidate || ! in_array($candidate->classification, $this->allowedClassifications($request))) {
             return response()->json(['exists' => false]);
         }
 
@@ -360,12 +370,12 @@ class CandidateController extends Controller
 
     public function store(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::CANDIDATE_CREATE)) {
+        if (! $request->user()->hasPermission(Permissions::CANDIDATE_CREATE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إضافة مشارك'], 403);
         }
 
         $validated = $request->validate([
-            'nationalId' => ['required', 'string', new SaudiNationalId()],
+            'nationalId' => ['required', 'string', new SaudiNationalId],
             'fullName' => 'required|string|max:200',
             'mobile' => ['nullable', 'string', 'regex:/^05\d{8}$/'],
             'sectorId' => 'required|exists:sectors,id',
@@ -373,7 +383,7 @@ class CandidateController extends Controller
             // القرار في config/participants.php: أربعةٌ إلزامية وحدها (الهوية
             // والاسم والقطاع والرتبة) وهي أعمدة NOT NULL في القاعدة. ما عداها
             // يُتحقَّق من صيغته إن كُتب ولا يُطلب — فلا إلزامَ بلا سندٍ في المخطّط.
-            'gender' => 'nullable|in:' . implode(',', Candidate::GENDERS),
+            'gender' => 'nullable|in:'.implode(',', Candidate::GENDERS),
             // max:50 يوافق varchar(50) في القاعدة — بدونه يخرج ٥٠٠ من طبقة
             // القاعدة على مسمّى متعاقدٍ طويل بدل رسالة تحقّقٍ عربية
             'rankLabel' => 'required|string|max:50',
@@ -386,7 +396,7 @@ class CandidateController extends Controller
             // ── مُعرِّفان مباشران، مشفّران في القاعدة كالهوية والجوال ──
             'email' => 'nullable|email|max:200',
             'militaryNumber' => 'nullable|string|max:30',
-            'assessmentType' => 'nullable|in:' . implode(',', Assessment::TYPES),
+            'assessmentType' => 'nullable|in:'.implode(',', Assessment::TYPES),
             'classification' => 'nullable|in:normal,secret,top_secret',
             // ── المجالات الفنية: تُحدَّد بعد الإضافة لا معها ──
             // كانت شرطاً هنا، وهي أبطأ قرارٍ في النموذج: المُدخِل يعرف الهوية
@@ -437,7 +447,7 @@ class CandidateController extends Controller
         $isReturning = (bool) $candidate;
 
         // لا يُكشف/يُكتب سجلّ مصنّف لمن لا يملك صلاحيته — نُعامله كأنه غير موجود (منع كشف وجود + طمس بيانات مصنّفة)
-        if ($candidate && !in_array($candidate->classification, $this->allowedClassifications($request))) {
+        if ($candidate && ! in_array($candidate->classification, $this->allowedClassifications($request))) {
             return response()->json(['error' => 'تعذّرت المعالجة'], 422);
         }
 
@@ -451,7 +461,7 @@ class CandidateController extends Controller
             // خطئه، فكان مَن لا يملك القراءة يحصد الرموز بتجريب أرقام الهوية.
             // هنا يُعلَم بالتسجيل السابق وتاريخه فقط — لا رمز ولا اسم — ويُفتح
             // له طريق «طلب تحديث البيانات» ليمرّ التغيير باعتماد صاحب صلاحية.
-            if (!$request->user()->hasPermission(Permissions::CANDIDATE_EDIT)) {
+            if (! $request->user()->hasPermission(Permissions::CANDIDATE_EDIT)) {
                 $pending = CandidateUpdateRequest::where('candidate_id', $candidate->id)
                     ->pending()->first();
                 $this->log($request, 'DUPLICATE_CANDIDATE_ADD', $candidate->id);
@@ -486,18 +496,26 @@ class CandidateController extends Controller
             // `?? null` كان يمسح جنساً أو بريداً مسجّلاً لمجرّد أنّ النافذة لم
             // ترسله. المفتاح الحاضر يكتب، والغائب يترك ما هو قائم — وهو نفس
             // منطق `notes` أسفلَه.
-            if (array_key_exists('gender', $validated)) $candidate->gender = $validated['gender'];
-            if (array_key_exists('email', $validated)) $candidate->email = $validated['email'];
-            if (array_key_exists('militaryNumber', $validated)) $candidate->military_number = $validated['militaryNumber'];
+            if (array_key_exists('gender', $validated)) {
+                $candidate->gender = $validated['gender'];
+            }
+            if (array_key_exists('email', $validated)) {
+                $candidate->email = $validated['email'];
+            }
+            if (array_key_exists('militaryNumber', $validated)) {
+                $candidate->military_number = $validated['militaryNumber'];
+            }
             $candidate->rank_label = $validated['rankLabel'];
             $candidate->personnel_category = $category;
             $candidate->tier = $tier;
             // الملاحظة تُكتب فوق سابقتها فقط إن أُرسلت — الدورة الجديدة لا
             // تمحو ملاحظةً كُتبت على الشخص في دورةٍ ماضية بلا أن يُطلَب ذلك
-            if (array_key_exists('notes', $validated)) $candidate->notes = $validated['notes'];
+            if (array_key_exists('notes', $validated)) {
+                $candidate->notes = $validated['notes'];
+            }
         } else {
             // شخص جديد
-            $candidate = new Candidate();
+            $candidate = new Candidate;
             $candidate->national_id = $validated['nationalId']; // mutator: تشفير + hash
             $candidate->full_name = $validated['fullName'];
             $candidate->mobile = $validated['mobile'] ?? null;
@@ -512,7 +530,7 @@ class CandidateController extends Controller
             $candidate->notes = $validated['notes'] ?? null;
             // تعيين تصنيف أمني يتطلب صلاحية VIEW_CLASSIFIED — منع التصعيد
             $requestedClass = $validated['classification'] ?? 'normal';
-            if ($requestedClass !== 'normal' && !$request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
+            if ($requestedClass !== 'normal' && ! $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
                 return response()->json(['error' => 'ليس لديك صلاحية تعيين تصنيف أمني'], 403);
             }
             $candidate->classification = $requestedClass;
@@ -608,18 +626,18 @@ class CandidateController extends Controller
     private function sendConfirmationSms(Candidate $candidate, Assessment $assessment, ?int $actorId): bool
     {
         $mobile = $candidate->mobile; // فك التشفير عبر المُلحق
-        if (!$mobile) {
+        if (! $mobile) {
             return false; // لا جوّال مسجّل — لا رسالة
         }
         $name = $candidate->full_name ?: 'المشارك';
         $message = "عزيزي {$name}، تم تسجيلك في مركز تمكين الكفاءات لتقييم القيادات."
-            . " رمز المشارك: {$assessment->participant_code}.";
+            ." رمز المشارك: {$assessment->participant_code}.";
 
         // رابط البوّابة يُضاف متى كانت مُشغَّلة وحدها. مع تعطيلها يبقى رمزُ
         // المشارك — وهو المفيد فعلاً عند الاستقبال — ويسقط رابطٌ يفتح صفحة
         // فارغة. رسالةٌ تحمل رابطاً ميتاً أسوأ من رسالةٍ بلا رابط.
         if (config('features.candidate_portal')) {
-            $link = rtrim(config('app.frontend_url'), '/') . '/confirm/' . $assessment->confirm_token;
+            $link = rtrim(config('app.frontend_url'), '/').'/confirm/'.$assessment->confirm_token;
             $message .= " لتأكيد بياناتك وتسجيل الوصول: {$link}";
         } else {
             $message .= ' وسيصلك موعد الحضور من إدارة المركز.';
@@ -633,24 +651,25 @@ class CandidateController extends Controller
                 $mobile, $message, 'invitation', $candidate->id, $actorId
             );
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('confirmation SMS queue failed: ' . $e->getMessage());
+            Log::warning('confirmation SMS queue failed: '.$e->getMessage());
+
             return false;
         }
     }
 
     public function update(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::CANDIDATE_EDIT)) {
+        if (! $request->user()->hasPermission(Permissions::CANDIDATE_EDIT)) {
             return response()->json(['error' => 'ليس لديك صلاحية التعديل'], 403);
         }
 
-                $candidate = $this->resolveCandidateInScope($request, $id);
-        if (!$candidate) {
+        $candidate = $this->resolveCandidateInScope($request, $id);
+        if (! $candidate) {
             return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
 
         $validated = $request->validate([
-            'nationalId' => ['required', 'string', new SaudiNationalId()],
+            'nationalId' => ['required', 'string', new SaudiNationalId],
             'fullName' => 'required|string|max:200',
             'mobile' => ['nullable', 'string', 'regex:/^05\d{8}$/'],
             'sectorId' => 'required|exists:sectors,id',
@@ -658,7 +677,7 @@ class CandidateController extends Controller
             // القرار في config/participants.php: أربعةٌ إلزامية وحدها (الهوية
             // والاسم والقطاع والرتبة) وهي أعمدة NOT NULL في القاعدة. ما عداها
             // يُتحقَّق من صيغته إن كُتب ولا يُطلب — فلا إلزامَ بلا سندٍ في المخطّط.
-            'gender' => 'nullable|in:' . implode(',', Candidate::GENDERS),
+            'gender' => 'nullable|in:'.implode(',', Candidate::GENDERS),
             // max:50 يوافق varchar(50) في القاعدة — بدونه يخرج ٥٠٠ من طبقة
             // القاعدة على مسمّى متعاقدٍ طويل بدل رسالة تحقّقٍ عربية
             'rankLabel' => 'required|string|max:50',
@@ -671,7 +690,7 @@ class CandidateController extends Controller
             // ── مُعرِّفان مباشران، مشفّران في القاعدة كالهوية والجوال ──
             'email' => 'nullable|email|max:200',
             'militaryNumber' => 'nullable|string|max:30',
-            'assessmentType' => 'nullable|in:' . implode(',', Assessment::TYPES),
+            'assessmentType' => 'nullable|in:'.implode(',', Assessment::TYPES),
             'classification' => 'nullable|in:normal,secret,top_secret',
             // كانت إلزاميةً في التعديل وحده (مقبولةً فارغةً في الإضافة) — تفاوتٌ
             // مقصودٌ حينها، ورُفع الآن ضمن القرار العامّ. وثمنُه مُعلَن كما كان:
@@ -699,9 +718,15 @@ class CandidateController extends Controller
         $candidate->mobile = $validated['mobile'] ?? null;
         $candidate->sector_id = $sector->id;
         // الغائب لا يمحو المحفوظ — راجع التعليق نفسه في store()
-        if (array_key_exists('gender', $validated)) $candidate->gender = $validated['gender'];
-        if (array_key_exists('email', $validated)) $candidate->email = $validated['email'];
-        if (array_key_exists('militaryNumber', $validated)) $candidate->military_number = $validated['militaryNumber'];
+        if (array_key_exists('gender', $validated)) {
+            $candidate->gender = $validated['gender'];
+        }
+        if (array_key_exists('email', $validated)) {
+            $candidate->email = $validated['email'];
+        }
+        if (array_key_exists('militaryNumber', $validated)) {
+            $candidate->military_number = $validated['militaryNumber'];
+        }
         $candidate->rank_label = $validated['rankLabel'];
         $candidate->personnel_category = $category;
         $candidate->tier = $tier;
@@ -711,7 +736,7 @@ class CandidateController extends Controller
         $classChanged = false;
         $oldClass = $candidate->classification;
         if (isset($validated['classification']) && $validated['classification'] !== $candidate->classification) {
-            if (!$request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
+            if (! $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
                 return response()->json(['error' => 'ليس لديك صلاحية تغيير التصنيف الأمني'], 403);
             }
             $candidate->classification = $validated['classification'];
@@ -744,7 +769,7 @@ class CandidateController extends Controller
 
     public function destroy(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::CANDIDATE_EDIT)) {
+        if (! $request->user()->hasPermission(Permissions::CANDIDATE_EDIT)) {
             return response()->json(['error' => 'ليس لديك صلاحية الحذف'], 403);
         }
 
@@ -755,12 +780,12 @@ class CandidateController extends Controller
             'reason.min' => 'سبب الحذف قصير جداً',
         ]);
 
-                $candidate = $this->resolveCandidateInScope($request, $id);
-        if (!$candidate) {
+        $candidate = $this->resolveCandidateInScope($request, $id);
+        if (! $candidate) {
             return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
 
-        if (!in_array($candidate->status, ['draft', 'scheduled'])) {
+        if (! in_array($candidate->status, ['draft', 'scheduled'])) {
             return response()->json(['error' => 'لا يمكن حذف مشارك بدأت عملية تقييمه'], 422);
         }
 
@@ -783,13 +808,13 @@ class CandidateController extends Controller
 
     public function approve(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::CANDIDATE_APPROVE)) {
+        if (! $request->user()->hasPermission(Permissions::CANDIDATE_APPROVE)) {
             return response()->json(['error' => 'ليس لديك صلاحية الاعتماد'], 403);
         }
 
         // النطاق كاملاً — مصنّف أو خارج القطاع يُعامَل كـ«غير موجود»
         $candidate = $this->resolveCandidateInScope($request, $id);
-        if (!$candidate) {
+        if (! $candidate) {
             return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
         // الاعتماد انتقال مسودة→مجدول فقط — بلا حارس، يعيد اعتماد مشارك مكتمل فيُرجِع دورته من completed إلى scheduled
@@ -804,7 +829,7 @@ class CandidateController extends Controller
 
     public function reclassify(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
+        if (! $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
             return response()->json(['error' => 'ليس لديك صلاحية تغيير التصنيف'], 403);
         }
 
@@ -815,7 +840,7 @@ class CandidateController extends Controller
         // النطاق: حامل VIEW_CLASSIFIED يرى كل التصنيفات، لكن حدّ القطاع يبقى
         // قائماً — لا يُصنَّف مشارك خارج قطاع من يصنّفه
         $candidate = $this->resolveCandidateInScope($request, $id);
-        if (!$candidate) {
+        if (! $candidate) {
             return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
         $old = $candidate->classification;
@@ -834,12 +859,12 @@ class CandidateController extends Controller
     public function assessments(Request $request, int $id)
     {
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::CANDIDATE_VIEW)) {
+        if (! $user->hasPermission(Permissions::CANDIDATE_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض المشارك'], 403);
         }
         // النطاق كاملاً: التصنيف + القطاع — الحارس الموحّد في Controller
         $candidate = $this->resolveCandidateInScope($request, $id);
-        if (!$candidate) {
+        if (! $candidate) {
             return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
 
@@ -883,11 +908,11 @@ class CandidateController extends Controller
         // EXTERNAL_ADD — وصلاحيته الوحيدة الإضافة — يمرّ بالمعرّفات ١، ٢، ٣… فيفرّق
         // بردّ الخادم بين الموجود والمعدوم، ويحصد رموز المشاركين من رسالة الخطأ.
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::CANDIDATE_CREATE) || !$user->hasPermission(Permissions::CANDIDATE_VIEW)) {
+        if (! $user->hasPermission(Permissions::CANDIDATE_CREATE) || ! $user->hasPermission(Permissions::CANDIDATE_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية إنشاء تقييم'], 403);
         }
         $candidate = $this->resolveCandidateInScope($request, $id, ['sector']);
-        if (!$candidate) {
+        if (! $candidate) {
             return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
 
@@ -905,6 +930,7 @@ class CandidateController extends Controller
             $candidate->participant_code = $code;
             $candidate->status = 'draft';
             $candidate->save();
+
             return Assessment::create([
                 'candidate_id' => $candidate->id,
                 'participant_code' => $code,
@@ -917,6 +943,7 @@ class CandidateController extends Controller
 
         $this->log($request, 'REASSESS_CANDIDATE', $candidate->id, ['code' => $code]);
         $smsQueued = $this->sendConfirmationSms($candidate, $assessment, $request->user()->id);
+
         return response()->json(['message' => 'تمّت إضافة دورة تقييم جديدة', 'participantCode' => $code, 'smsQueued' => $smsQueued], 201);
     }
 
@@ -967,7 +994,7 @@ class CandidateController extends Controller
 
         // سجلّ التدقيق بدأ بعد أن دخل بعضُ المشاركين، فمن أُضيف قبله لا قيدَ
         // لإضافته. تُصطنع له بدايةٌ من تاريخ سجلّه كي لا يبدأ أثرُه من فراغ.
-        if (!$logs->contains(fn ($l) => in_array($l->action, ['CREATE_CANDIDATE', 'IMPORT_CANDIDATE'], true))) {
+        if (! $logs->contains(fn ($l) => in_array($l->action, ['CREATE_CANDIDATE', 'IMPORT_CANDIDATE'], true))) {
             array_unshift($events, [
                 'type' => 'candidate_created',
                 'at' => optional($candidate->created_at)->toIso8601String(),
@@ -982,12 +1009,12 @@ class CandidateController extends Controller
 
     public function journey(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::CANDIDATE_JOURNEY)) {
+        if (! $request->user()->hasPermission(Permissions::CANDIDATE_JOURNEY)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض رحلة المشارك'], 403);
         }
         // النطاق كاملاً: التصنيف + القطاع — الحارس الموحّد في Controller
         $candidate = $this->resolveCandidateInScope($request, $id);
-        if (!$candidate) {
+        if (! $candidate) {
             return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
 
@@ -1000,10 +1027,14 @@ class CandidateController extends Controller
         $userIds = collect();
         foreach ($assessments as $a) {
             $userIds->push($a->created_by);
-            if ($a->report) $userIds->push($a->report->created_by, $a->report->last_returned_by);
+            if ($a->report) {
+                $userIds->push($a->report->created_by, $a->report->last_returned_by);
+            }
             foreach ($a->schedules as $s) {
                 $userIds->push($s->evaluator_id);
-                if ($s->attendance) $userIds->push($s->attendance->recorded_by);
+                if ($s->attendance) {
+                    $userIds->push($s->attendance->recorded_by);
+                }
             }
         }
         $names = User::whereIn('id', $userIds->filter()->unique()->values())->pluck('full_name', 'id');
@@ -1029,11 +1060,11 @@ class CandidateController extends Controller
             ];
 
             foreach ($a->schedules as $s) {
-                $when = $this->toIso(trim(((string) $s->schedule_date) . ' ' . ((string) $s->schedule_time)))
+                $when = $this->toIso(trim(((string) $s->schedule_date).' '.((string) $s->schedule_time)))
                     ?? optional($s->created_at)->toIso8601String();
                 $events[] = [
                     'type' => 'scheduled', 'at' => $when,
-                    'title' => 'جدولة: ' . $act($s->activity), 'meta' => $s->location ?: null,
+                    'title' => 'جدولة: '.$act($s->activity), 'meta' => $s->location ?: null,
                     'cycle' => $code, 'actor' => $nameOf($s->evaluator_id), 'status' => null,
                     'icon' => 'calendar',
                 ];
@@ -1043,7 +1074,7 @@ class CandidateController extends Controller
                     $events[] = [
                         'type' => 'attendance',
                         'at' => optional($att->check_in_time ?? $att->created_at)->toIso8601String(),
-                        'title' => ($present ? 'حضر: ' : 'غياب: ') . $act($s->activity),
+                        'title' => ($present ? 'حضر: ' : 'غياب: ').$act($s->activity),
                         'meta' => $present ? null : ($att->absence_reason ?: null),
                         'cycle' => $code, 'actor' => $nameOf($att->recorded_by), 'status' => $att->status,
                         'icon' => $present ? 'check' : 'x',
@@ -1056,7 +1087,7 @@ class CandidateController extends Controller
                 $events[] = [
                     'type' => 'evaluation',
                     'at' => optional($e->submitted_at ?? $e->created_at)->toIso8601String(),
-                    'title' => ($submitted ? 'تسليم تقييم: ' : 'مسودة تقييم: ') . $act($e->activity),
+                    'title' => ($submitted ? 'تسليم تقييم: ' : 'مسودة تقييم: ').$act($e->activity),
                     'meta' => null, 'cycle' => $code,
                     'actor' => optional($e->evaluator)->full_name, 'status' => $e->status,
                     'icon' => 'clipboard',
@@ -1088,7 +1119,7 @@ class CandidateController extends Controller
                         'title' => 'اعتُمد التقرير نهائياً', 'meta' => null,
                         'cycle' => $code, 'actor' => null, 'status' => null, 'icon' => 'award',
                     ];
-                } elseif (in_array($rep->status, \App\Http\Controllers\ReportController::pendingStatuses(), true)) {
+                } elseif (in_array($rep->status, ReportController::pendingStatuses(), true)) {
                     $events[] = [
                         'type' => 'report_submitted',
                         'at' => optional($rep->updated_at)->toIso8601String(),
@@ -1101,9 +1132,16 @@ class CandidateController extends Controller
 
         // ترتيب زمني تصاعدي؛ الأحداث بلا وقت تُوضع في النهاية
         usort($events, function ($x, $y) {
-            if ($x['at'] === $y['at']) return 0;
-            if ($x['at'] === null) return 1;
-            if ($y['at'] === null) return -1;
+            if ($x['at'] === $y['at']) {
+                return 0;
+            }
+            if ($x['at'] === null) {
+                return 1;
+            }
+            if ($y['at'] === null) {
+                return -1;
+            }
+
             return strcmp($x['at'], $y['at']);
         });
 
@@ -1119,14 +1157,19 @@ class CandidateController extends Controller
     private function toIso($value): ?string
     {
         $value = is_string($value) ? trim($value) : $value;
-        if (!$value) return null;
-        try { return \Illuminate\Support\Carbon::parse($value)->toIso8601String(); }
-        catch (\Throwable $e) { return null; }
+        if (! $value) {
+            return null;
+        }
+        try {
+            return Carbon::parse($value)->toIso8601String();
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 
     public function stats(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::CANDIDATE_VIEW)) {
+        if (! $request->user()->hasPermission(Permissions::CANDIDATE_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض المشاركين'], 403);
         }
         $allowed = $this->allowedClassifications($request);
@@ -1165,7 +1208,7 @@ class CandidateController extends Controller
     public function export(Request $request)
     {
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::CANDIDATE_VIEW)) {
+        if (! $user->hasPermission(Permissions::CANDIDATE_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية تصدير المشاركين'], 403);
         }
         $canSeeNames = $user->hasPermission(Permissions::CANDIDATE_VIEW_NAMES);
@@ -1176,10 +1219,18 @@ class CandidateController extends Controller
         $this->scopeCandidateQuery($request, $query);
 
         // يدعم قيمة واحدة أو عدّة حالات مفصولة بفواصل (كما في index) — وإلا رجع تصدير فارغ لفلتر متعدّد
-        if ($request->filled('status')) $query->whereIn('status', explode(',', $request->status));
-        if ($request->filled('sectorId')) $query->where('sector_id', $request->sectorId);
-        if ($request->filled('tier')) $query->where('tier', $request->tier);
-        if ($request->filled('classification')) $query->where('classification', $request->classification);
+        if ($request->filled('status')) {
+            $query->whereIn('status', explode(',', $request->status));
+        }
+        if ($request->filled('sectorId')) {
+            $query->where('sector_id', $request->sectorId);
+        }
+        if ($request->filled('tier')) {
+            $query->where('tier', $request->tier);
+        }
+        if ($request->filled('classification')) {
+            $query->where('classification', $request->classification);
+        }
 
         $candidates = $query->orderBy('participant_code')->get();
 
@@ -1202,6 +1253,7 @@ class CandidateController extends Controller
                 $row['الاسم'] = $c->full_name;
                 $row['الهوية'] = $c->national_id;
             }
+
             return $row;
         });
 
@@ -1218,24 +1270,25 @@ class CandidateController extends Controller
     // نفسها التي يفرضها showCv — والاسم يبقى محجوباً كبقية المستندات.
     public function cvDocument(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::CANDIDATE_CV_VIEW)) {
+        if (! $request->user()->hasPermission(Permissions::CANDIDATE_CV_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض السيرة الذاتية'], 403);
         }
 
         $candidate = $this->resolveCandidateInScope($request, $id, ['cv', 'sector']);
-        if (!$candidate) {
+        if (! $candidate) {
             $this->log($request, 'DENIED_CANDIDATE_OUT_OF_SCOPE', $id);
+
             return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
 
         $doc = $candidate->cv?->data ?? CandidateCv::emptyDoc();
         $canSeeNames = $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_NAMES);
-        if (!$canSeeNames) {
+        if (! $canSeeNames) {
             $doc = CvGuard::scrub($doc, $candidate);
         }
 
         // أقرب جلسة قادمة، وإلا آخر جلسة — لترويسة «تاريخ التقييم/الساعة»
-        $session = \App\Models\Schedule::where('candidate_id', $candidate->id)
+        $session = Schedule::where('candidate_id', $candidate->id)
             ->orderByRaw('CASE WHEN schedule_date >= ? THEN 0 ELSE 1 END', [now()->toDateString()])
             ->orderBy('schedule_date')
             ->first();
@@ -1253,7 +1306,7 @@ class CandidateController extends Controller
         // وفكّ التشفير هنا لا في الخدمة: المفتاح يُستعمل في أضيق نطاق ممكن.
         $attest = null;
         if ($canSeeNames) {
-            $visit = \App\Models\ReceptionVisit::where('candidate_id', $candidate->id)
+            $visit = ReceptionVisit::where('candidate_id', $candidate->id)
                 ->whereNotNull('signed_at')
                 ->where('attested', true)
                 ->orderByDesc('signed_at')
@@ -1265,7 +1318,7 @@ class CandidateController extends Controller
 
         $this->log($request, 'PRINT_CV_SHEET', $id, ['code' => $candidate->participant_code, 'signed' => (bool) $attest]);
 
-        $html = app(\App\Services\CvSheetService::class)->renderHtml($candidate, $doc, [
+        $html = app(CvSheetService::class)->renderHtml($candidate, $doc, [
             'date' => $session?->schedule_date?->toDateString(),
             'time' => $session?->schedule_time ? substr((string) $session->schedule_time, 0, 5) : null,
             'attest' => $attest,
@@ -1281,7 +1334,7 @@ class CandidateController extends Controller
     // مشارك خارج نطاقك — المعرّف خارج النطاق يسقط صامتاً.
     public function cards(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::CANDIDATE_VIEW)) {
+        if (! $request->user()->hasPermission(Permissions::CANDIDATE_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض المشاركين'], 403);
         }
 
@@ -1296,7 +1349,7 @@ class CandidateController extends Controller
             explode(',', $validated['ids'])
         )), 0, 500);
 
-        if (!$ids) {
+        if (! $ids) {
             return response()->json(['error' => 'اختر مشاركاً واحداً على الأقل'], 422);
         }
 
@@ -1304,7 +1357,7 @@ class CandidateController extends Controller
         $this->scopeCandidateQuery($request, $query);
         $codes = $query->orderBy('participant_code')->pluck('participant_code')->all();
 
-        if (!$codes) {
+        if (! $codes) {
             return response()->json(['error' => 'لا يوجد مشاركون ضمن نطاقك في هذا الاختيار'], 422);
         }
 
@@ -1313,7 +1366,7 @@ class CandidateController extends Controller
             'codes' => $codes,
         ]);
 
-        return response(app(\App\Services\ParticipantCardService::class)->renderHtml($codes), 200)
+        return response(app(ParticipantCardService::class)->renderHtml($codes), 200)
             ->header('Content-Type', 'text/html; charset=UTF-8');
     }
 
