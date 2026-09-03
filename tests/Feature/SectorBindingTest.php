@@ -25,6 +25,7 @@ class SectorBindingTest extends TestCase
             $u->sector_id = null;
             $u->save();
         }
+
         return $u->fresh();
     }
 

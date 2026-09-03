@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Http\Middleware\TrustProxies;
+use Illuminate\Foundation\Http\Kernel;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Tests\TestCase;
@@ -32,8 +33,9 @@ class TrustedProxyTest extends TestCase
         $request->headers->set('X-Forwarded-For', $clientIp);
 
         $seen = '';
-        (new TrustProxies())->handle($request, function (Request $r) use (&$seen) {
+        (new TrustProxies)->handle($request, function (Request $r) use (&$seen) {
             $seen = (string) $r->ip();
+
             return response('');
         });
 
@@ -95,7 +97,7 @@ class TrustedProxyTest extends TestCase
     {
         // استبدالٌ فائت في bootstrap يُعيد وسيط الإطار الذي يقرأ من static
         // مضبوطة وقت الإقلاع — أي القيمة الفارغة نفسها في الإنتاج
-        $globals = app(\Illuminate\Foundation\Http\Kernel::class)->getGlobalMiddleware();
+        $globals = app(Kernel::class)->getGlobalMiddleware();
 
         $this->assertContains(TrustProxies::class, $globals);
         $this->assertNotContains(\Illuminate\Http\Middleware\TrustProxies::class, $globals);

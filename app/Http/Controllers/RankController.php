@@ -15,9 +15,10 @@ class RankController extends Controller
     {
         $canManage = $request->user()->hasPermission(Permissions::SETTINGS_MANAGE);
         $q = Rank::orderBy('category')->orderBy('sort_order')->orderBy('id');
-        if (!$canManage) {
+        if (! $canManage) {
             $q->where('is_active', true);
         }
+
         return response()->json([
             'ranks' => $q->get()->map(fn ($r) => [
                 'id' => $r->id, 'label' => $r->label, 'category' => $r->category,
@@ -30,7 +31,7 @@ class RankController extends Controller
     // POST /ranks — إضافة رتبة
     public function store(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
         }
         $validated = $request->validate([
@@ -47,17 +48,18 @@ class RankController extends Controller
             'tier' => $validated['tier'], 'sort_order' => $validated['sortOrder'] ?? 0, 'is_active' => true,
         ]);
         $this->audit($request, 'CREATE_RANK', $rank);
+
         return response()->json(['message' => 'تمت إضافة الرتبة', 'rankId' => $rank->id], 201);
     }
 
     // PUT /ranks/{id} — تعديل رتبة (التسمية/الفئة/الطبقة/الترتيب/التفعيل)
     public function update(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
         }
         $rank = Rank::find($id);
-        if (!$rank) {
+        if (! $rank) {
             return response()->json(['error' => 'الرتبة غير موجودة'], 404);
         }
         $validated = $request->validate([
@@ -78,21 +80,23 @@ class RankController extends Controller
             'is_active' => $request->boolean('isActive', $rank->is_active),
         ]);
         $this->audit($request, 'UPDATE_RANK', $rank);
+
         return response()->json(['message' => 'تم تحديث الرتبة']);
     }
 
     // DELETE /ranks/{id} — حذف (المشاركون يحفظون النصّ لا المعرّف، فلا يُيتّم أحد)
     public function destroy(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الإعدادات'], 403);
         }
         $rank = Rank::find($id);
-        if (!$rank) {
+        if (! $rank) {
             return response()->json(['error' => 'الرتبة غير موجودة'], 404);
         }
         $rank->delete();
         $this->audit($request, 'DELETE_RANK', $rank);
+
         return response()->json(['message' => 'تم حذف الرتبة']);
     }
 

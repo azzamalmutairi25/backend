@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\Candidate;
 use App\Models\RosterGroup;
+use App\Models\Schedule;
 use App\Security\Permissions;
 use App\Services\RosterSheetService;
 use Illuminate\Http\Request;
@@ -22,9 +23,7 @@ use Illuminate\Support\Facades\DB;
 
 class RosterController extends Controller
 {
-    public function __construct(private RosterSheetService $service)
-    {
-    }
+    public function __construct(private RosterSheetService $service) {}
 
     private function log(Request $request, string $action, array $details = []): void
     {
@@ -62,12 +61,12 @@ class RosterController extends Controller
     // GET /roster/sectors — قطاعات اليوم وأعدادها، لفتح ملفٍّ لكل قطاع
     public function sectors(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SCHEDULE_VIEW)) {
+        if (! $request->user()->hasPermission(Permissions::SCHEDULE_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض الجدولة'], 403);
         }
 
         $date = $this->date($request);
-        $query = \App\Models\Schedule::with('candidate.sector')->whereDate('schedule_date', $date);
+        $query = Schedule::with('candidate.sector')->whereDate('schedule_date', $date);
         $this->scopeViaCandidate($request, $query);
         if ($bound = $this->sectorScope($request)) {
             $query->whereHas('candidate', fn ($q) => $q->where('sector_id', $bound));
@@ -76,7 +75,7 @@ class RosterController extends Controller
         $counts = [];
         foreach ($query->get() as $s) {
             $c = $s->candidate;
-            if (!$c || !$c->sector_id) {
+            if (! $c || ! $c->sector_id) {
                 continue;
             }
             $key = $c->sector_id;
@@ -99,7 +98,7 @@ class RosterController extends Controller
     // GET /roster — مجموعات يومٍ بعينه (للشاشة)
     public function index(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SCHEDULE_VIEW)) {
+        if (! $request->user()->hasPermission(Permissions::SCHEDULE_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض الجدولة'], 403);
         }
 
@@ -121,13 +120,13 @@ class RosterController extends Controller
     // POST /roster/assign — إسناد مجموعة لعدة مشاركين دفعةً واحدة
     public function assign(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::ROSTER_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::ROSTER_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إسناد مجموعات المشاركين'], 403);
         }
 
         $validated = $request->validate([
             'date' => 'required|date_format:Y-m-d',
-            'group' => ['required', 'string', 'in:' . implode(',', RosterGroup::LETTERS)],
+            'group' => ['required', 'string', 'in:'.implode(',', RosterGroup::LETTERS)],
             'candidateIds' => 'required|array|min:1|max:200',
             'candidateIds.*' => 'required|integer',
         ], [
@@ -168,7 +167,7 @@ class RosterController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'تم إسناد ' . $candidates->count() . ' مشاركاً للمجموعة ' . RosterGroup::label($validated['group']),
+            'message' => 'تم إسناد '.$candidates->count().' مشاركاً للمجموعة '.RosterGroup::label($validated['group']),
             'assigned' => $candidates->count(),
             'skipped' => count($validated['candidateIds']) - $candidates->count(),
         ]);
@@ -177,7 +176,7 @@ class RosterController extends Controller
     // DELETE /roster — سحب الإسناد عن مشاركين في يوم
     public function unassign(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::ROSTER_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::ROSTER_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إسناد مجموعات المشاركين'], 403);
         }
 
@@ -200,13 +199,13 @@ class RosterController extends Controller
             'count' => $removed,
         ]);
 
-        return response()->json(['message' => 'تم سحب الإسناد عن ' . $removed . ' مشاركاً', 'removed' => $removed]);
+        return response()->json(['message' => 'تم سحب الإسناد عن '.$removed.' مشاركاً', 'removed' => $removed]);
     }
 
     // GET /roster/document — كشف الحضور المطبوع (المتصفّح → PDF)
     public function document(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::SCHEDULE_VIEW)) {
+        if (! $request->user()->hasPermission(Permissions::SCHEDULE_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض الجدولة'], 403);
         }
 

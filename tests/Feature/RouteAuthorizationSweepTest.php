@@ -74,9 +74,9 @@ class RouteAuthorizationSweepTest extends TestCase
     // هل هذا المسار خارج ما يُفترض أن يبلغه أدنى دور؟
     private function shouldBeDenied(string $key): bool
     {
-        return !in_array($key, $this->publicRoutes(), true)
-            && !in_array($key, self::OPEN_TO_ANY_AUTHENTICATED, true)
-            && !in_array($key, self::WITHIN_EXTERNAL_ROLE, true);
+        return ! in_array($key, $this->publicRoutes(), true)
+            && ! in_array($key, self::OPEN_TO_ANY_AUTHENTICATED, true)
+            && ! in_array($key, self::WITHIN_EXTERNAL_ROLE, true);
     }
 
     // ── مسارات عامة بلا مصادقة — تُستثنى من محكّ 401 ──
@@ -121,7 +121,7 @@ class RouteAuthorizationSweepTest extends TestCase
         $out = [];
         foreach (Route::getRoutes() as $route) {
             $uri = $route->uri();
-            if (!str_starts_with($uri, 'api/')) {
+            if (! str_starts_with($uri, 'api/')) {
                 continue;
             }
             $method = collect($route->methods())->first(fn ($m) => $m !== 'HEAD');
@@ -131,6 +131,7 @@ class RouteAuthorizationSweepTest extends TestCase
             $out["{$method} {$uri}"] = $uri;
         }
         ksort($out);
+
         return $out;
     }
 
@@ -147,7 +148,8 @@ class RouteAuthorizationSweepTest extends TestCase
             '{activity}' => 'interview',
             '{token}' => str_repeat('a', 48),
         ];
-        return '/' . strtr($uri, $map);
+
+        return '/'.strtr($uri, $map);
     }
 
     private function seedTargets(): array
@@ -157,6 +159,7 @@ class RouteAuthorizationSweepTest extends TestCase
             'candidate_id' => $c->id, 'assessment_id' => $a->id,
             'recommendation' => 'مشارك', 'status' => 'draft', 'created_by' => null,
         ]);
+
         return ['candidate' => $c->id, 'id' => $report->id];
     }
 
@@ -170,14 +173,14 @@ class RouteAuthorizationSweepTest extends TestCase
             if (in_array($key, $this->publicRoutes(), true)) {
                 continue;
             }
-            [$method, ] = explode(' ', $key, 2);
+            [$method] = explode(' ', $key, 2);
             $res = $this->json($method, $this->fill($uri, $ids));
             if ($res->getStatusCode() !== 401) {
                 $leaks[] = "{$key} ⇒ {$res->getStatusCode()}";
             }
         }
 
-        $this->assertSame([], $leaks, "مسارات لا تردّ 401 لغير المُصادَق:\n" . implode("\n", $leaks));
+        $this->assertSame([], $leaks, "مسارات لا تردّ 401 لغير المُصادَق:\n".implode("\n", $leaks));
     }
 
     // ═══ ٢) أدنى دور: لا 2xx على ما ليس له ═══
@@ -188,17 +191,17 @@ class RouteAuthorizationSweepTest extends TestCase
 
         $reachable = [];
         foreach ($this->apiRoutes() as $key => $uri) {
-            if (!$this->shouldBeDenied($key)) {
+            if (! $this->shouldBeDenied($key)) {
                 continue;
             }
-            [$method, ] = explode(' ', $key, 2);
+            [$method] = explode(' ', $key, 2);
             $status = $this->json($method, $this->fill($uri, $ids))->getStatusCode();
             if ($status >= 200 && $status < 300) {
                 $reachable[] = "{$key} ⇒ {$status}";
             }
         }
 
-        $this->assertSame([], $reachable, "مسارات وصلها أدنى دور بنجاح:\n" . implode("\n", $reachable));
+        $this->assertSame([], $reachable, "مسارات وصلها أدنى دور بنجاح:\n".implode("\n", $reachable));
     }
 
     // ═══ ٣) ترتيب الحارس: الصلاحية قبل التحقّق من المدخلات ═══
@@ -211,11 +214,11 @@ class RouteAuthorizationSweepTest extends TestCase
 
         $validatedFirst = [];
         foreach ($this->apiRoutes() as $key => $uri) {
-            if (!$this->shouldBeDenied($key)) {
+            if (! $this->shouldBeDenied($key)) {
                 continue;
             }
-            [$method, ] = explode(' ', $key, 2);
-            if (!in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
+            [$method] = explode(' ', $key, 2);
+            if (! in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
                 continue; // المسارات القارئة لا حمولة لها
             }
             if ($this->json($method, $this->fill($uri, $ids))->getStatusCode() === 422) {
@@ -225,7 +228,7 @@ class RouteAuthorizationSweepTest extends TestCase
 
         $this->assertSame([], $validatedFirst,
             "مسارات تتحقّق من المدخلات قبل الصلاحية (تُفصح بقواعد الحقول لغير المُصرَّح له):\n"
-            . implode("\n", $validatedFirst));
+            .implode("\n", $validatedFirst));
     }
 
     // ═══ ٤) الشبكة تغطّي فعلاً ═══

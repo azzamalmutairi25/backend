@@ -3,14 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Attendance;
-use App\Models\Schedule;
 use App\Models\AuditLog;
+use App\Models\Schedule;
 use App\Security\Permissions;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 
 class AttendanceController extends Controller
 {
-
     // ── من يستقبل المشارك يسجّل حضوره ──
     // المقيّم/المساعد يسجّلان الجلسات المُسنَدة لهما وحدها؛ والاستقبال ومشرف
     // القياس يسجّلان أي جلسة (ATTENDANCE_RECORD_ANY) لأنهما يستقبلان من لا
@@ -22,6 +22,7 @@ class AttendanceController extends Controller
         if ($user->hasPermission(Permissions::ATTENDANCE_RECORD_ANY)) {
             return true;
         }
+
         return $schedule->evaluator_id === $user->id || $schedule->assistant_id === $user->id;
     }
 
@@ -40,7 +41,7 @@ class AttendanceController extends Controller
 
     public function today(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::ATTENDANCE_VIEW)) {
+        if (! $request->user()->hasPermission(Permissions::ATTENDANCE_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض الحضور'], 403);
         }
 
@@ -60,6 +61,7 @@ class AttendanceController extends Controller
             ->get()
             ->map(function ($sch) use ($request, $canRecord) {
                 $att = $sch->attendance; // eager-loaded — لا N+1
+
                 return [
                     'id' => $sch->id,
                     'participantCode' => $sch->candidate->participant_code,
@@ -83,7 +85,7 @@ class AttendanceController extends Controller
 
     public function stats(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::ATTENDANCE_VIEW)) {
+        if (! $request->user()->hasPermission(Permissions::ATTENDANCE_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض الحضور'], 403);
         }
 
@@ -111,17 +113,18 @@ class AttendanceController extends Controller
 
     public function checkIn(Request $request, int $scheduleId)
     {
-        if (!$request->user()->hasPermission(Permissions::ATTENDANCE_RECORD)) {
+        if (! $request->user()->hasPermission(Permissions::ATTENDANCE_RECORD)) {
             return response()->json(['error' => 'ليس لديك صلاحية تسجيل الحضور'], 403);
         }
 
         $schedule = Schedule::with('candidate')->find($scheduleId);
-        if (!$schedule) {
+        if (! $schedule) {
             return response()->json(['error' => 'الجدول غير موجود'], 404);
         }
 
-        if (!in_array($schedule->candidate->classification, $this->allowedClassifications($request))) {
+        if (! in_array($schedule->candidate->classification, $this->allowedClassifications($request))) {
             $this->log($request, 'DENIED_ATTENDANCE_CLASSIFIED', $scheduleId);
+
             return response()->json(['error' => 'الجدول غير موجود'], 404);
         }
         // القطاع بُعدٌ من النطاق كالتصنيف: خارجه = «غير موجود» (404) قبل فحص الإسناد —
@@ -129,11 +132,13 @@ class AttendanceController extends Controller
         $actor = $request->user();
         if ($actor->isSectorBound() && $schedule->candidate->sector_id !== $actor->sector_id) {
             $this->log($request, 'DENIED_ATTENDANCE_OUT_OF_SECTOR', $scheduleId);
+
             return response()->json(['error' => 'الجدول غير موجود'], 404);
         }
 
-        if (!$this->canRecordFor($request, $schedule)) {
+        if (! $this->canRecordFor($request, $schedule)) {
             $this->log($request, 'DENIED_ATTENDANCE_NOT_ASSIGNED', $scheduleId);
+
             return response()->json(['error' => 'هذه الجلسة ليست مُسنَدة لك'], 403);
         }
 
@@ -151,7 +156,7 @@ class AttendanceController extends Controller
                 'check_in_time' => now(),
                 'recorded_by' => $request->user()->id,
             ]);
-        } catch (\Illuminate\Database\QueryException $e) {
+        } catch (QueryException $e) {
             // فقط انتهاك الفهرس الفريد (23505) يعني «سُجّلت مسبقاً»؛ أي خطأ آخر يُصعّد بدل ابتلاع فشل حقيقي
             if ($e->getCode() === '23505') {
                 return response()->json(['error' => 'تم تسجيل حالة هذه الجلسة مسبقاً'], 422);
@@ -168,17 +173,18 @@ class AttendanceController extends Controller
 
     public function recordAbsence(Request $request, int $scheduleId)
     {
-        if (!$request->user()->hasPermission(Permissions::ATTENDANCE_RECORD)) {
+        if (! $request->user()->hasPermission(Permissions::ATTENDANCE_RECORD)) {
             return response()->json(['error' => 'ليس لديك صلاحية التسجيل'], 403);
         }
 
         $schedule = Schedule::with('candidate')->find($scheduleId);
-        if (!$schedule) {
+        if (! $schedule) {
             return response()->json(['error' => 'الجدول غير موجود'], 404);
         }
 
-        if (!in_array($schedule->candidate->classification, $this->allowedClassifications($request))) {
+        if (! in_array($schedule->candidate->classification, $this->allowedClassifications($request))) {
             $this->log($request, 'DENIED_ATTENDANCE_CLASSIFIED', $scheduleId);
+
             return response()->json(['error' => 'الجدول غير موجود'], 404);
         }
         // القطاع بُعدٌ من النطاق كالتصنيف: خارجه = «غير موجود» (404) قبل فحص الإسناد —
@@ -186,11 +192,13 @@ class AttendanceController extends Controller
         $actor = $request->user();
         if ($actor->isSectorBound() && $schedule->candidate->sector_id !== $actor->sector_id) {
             $this->log($request, 'DENIED_ATTENDANCE_OUT_OF_SECTOR', $scheduleId);
+
             return response()->json(['error' => 'الجدول غير موجود'], 404);
         }
 
-        if (!$this->canRecordFor($request, $schedule)) {
+        if (! $this->canRecordFor($request, $schedule)) {
             $this->log($request, 'DENIED_ATTENDANCE_NOT_ASSIGNED', $scheduleId);
+
             return response()->json(['error' => 'هذه الجلسة ليست مُسنَدة لك'], 403);
         }
 
@@ -213,7 +221,7 @@ class AttendanceController extends Controller
                 'absence_reason' => $validated['reason'] ?? null,
                 'recorded_by' => $request->user()->id,
             ]);
-        } catch (\Illuminate\Database\QueryException $e) {
+        } catch (QueryException $e) {
             if ($e->getCode() === '23505') {
                 return response()->json(['error' => 'تم تسجيل حالة هذه الجلسة مسبقاً'], 422);
             }

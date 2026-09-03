@@ -37,12 +37,13 @@ class ApiDocumentationCoverageTest extends TestCase
         $paths = [];
         foreach (Route::getRoutes() as $route) {
             $uri = $route->uri();
-            if (!str_starts_with($uri, 'api/')) {
+            if (! str_starts_with($uri, 'api/')) {
                 continue;
             }
             $paths[substr($uri, strlen('api'))] = true;   // يبقى '/'
         }
         ksort($paths);
+
         return array_keys($paths);
     }
 
@@ -52,14 +53,14 @@ class ApiDocumentationCoverageTest extends TestCase
 
         $missing = [];
         foreach ($this->registeredPaths() as $path) {
-            if (!str_contains($doc, '`' . $this->normalize($path) . '`')) {
+            if (! str_contains($doc, '`'.$this->normalize($path).'`')) {
                 $missing[] = $path;
             }
         }
 
         $this->assertSame([], $missing,
-            "مسارات مسجَّلة لا سطر لها في " . self::DOC . " — أضفها قبل الدمج:\n  "
-            . implode("\n  ", $missing));
+            'مسارات مسجَّلة لا سطر لها في '.self::DOC." — أضفها قبل الدمج:\n  "
+            .implode("\n  ", $missing));
     }
 
     // الوجه الآخر: مسارٌ يُحذف من الشيفرة ويبقى في المرجع يقود المتكامِل إلى ٤٠٤
@@ -77,13 +78,13 @@ class ApiDocumentationCoverageTest extends TestCase
             if (str_contains($cited, '.md') || str_contains($cited, '.php') || $cited === '/api') {
                 continue;
             }
-            if (!in_array($this->normalize($cited), $registered, true)) {
+            if (! in_array($this->normalize($cited), $registered, true)) {
                 $ghosts[] = $cited;
             }
         }
 
         $this->assertSame([], $ghosts,
-            "مسارات في " . self::DOC . " لا وجود لها في الشيفرة — تقود المتكامِل إلى ٤٠٤:\n  "
-            . implode("\n  ", $ghosts));
+            'مسارات في '.self::DOC." لا وجود لها في الشيفرة — تقود المتكامِل إلى ٤٠٤:\n  "
+            .implode("\n  ", $ghosts));
     }
 }

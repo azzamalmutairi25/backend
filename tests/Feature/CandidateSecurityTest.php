@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Sector;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -43,7 +44,7 @@ class CandidateSecurityTest extends TestCase
         $this->actingAsRole('EXTERNAL_ADD'); // CANDIDATE_CREATE only, no view/clearance
 
         $res = $this->postJson('/api/candidates', [
-            'nationalId' => $nid, 'fullName' => 'مهاجم', 'sectorId' => \App\Models\Sector::first()->id,
+            'nationalId' => $nid, 'fullName' => 'مهاجم', 'sectorId' => Sector::first()->id,
             'personnelCategory' => 'civilian',
             'personnelCategory' => 'civilian', 'rankLabel' => 'الرابعة عشرة',
         ]);

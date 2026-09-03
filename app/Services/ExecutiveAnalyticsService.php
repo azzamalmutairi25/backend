@@ -67,13 +67,14 @@ class ExecutiveAnalyticsService
                 'avgReadiness' => $this->avgReadiness($approved),
             ];
         }
+
         return $out;
     }
 
     // ── توزيع جاهزية التقارير المعتمدة على شرائح (صحّة خطّ الكفاءات) ──
     public function readinessDistribution(array $allowed): array
     {
-        $r = "(coalesce(behavioral_fit,0) + coalesce(technical_fit,0)) / 2";
+        $r = '(coalesce(behavioral_fit,0) + coalesce(technical_fit,0)) / 2';
         $row = FinalReport::where('status', 'approved')
             ->whereHas('candidate', fn ($q) => $q->whereIn('classification', $allowed))
             ->selectRaw("
@@ -145,12 +146,12 @@ class ExecutiveAnalyticsService
         $cells = [];
         foreach ($rows as $r) {
             $comp = $comps->get($r->competency_id);
-            if (!$comp) {
+            if (! $comp) {
                 continue;
             }
             $max = (int) ($comp->max_level ?: 5);
             $pct = $max > 0 ? min(100.0, round((float) $r->avg_score / $max * 100, 1)) : 0.0;
-            $cells[$r->competency_id . '-' . $r->sector_id] = ['pct' => $pct, 'samples' => (int) $r->n];
+            $cells[$r->competency_id.'-'.$r->sector_id] = ['pct' => $pct, 'samples' => (int) $r->n];
             $compIds[$r->competency_id] = true;
             $sectorIds[$r->sector_id] = true;
         }
@@ -195,6 +196,7 @@ class ExecutiveAnalyticsService
 
         // ترتيب تنازلي بالجاهزية (الأعلى أولاً) — رتبة لكل قطاع
         $ranked = $rows->sortByDesc(fn ($r) => $r['avgReadiness'] ?? -1)->values();
+
         return $ranked->map(fn ($r, $i) => $r + ['rank' => $i + 1])->all();
     }
 
@@ -223,6 +225,7 @@ class ExecutiveAnalyticsService
                 'avgReadiness' => $row && $row->readiness !== null ? round((float) $row->readiness, 1) : null,
             ];
         }
+
         return $out;
     }
 
@@ -283,7 +286,7 @@ class ExecutiveAnalyticsService
                 'title' => 'اتجاه الجاهزية',
                 'detail' => $diff >= 0
                     ? "ارتفعت جاهزية التقارير المعتمدة بمقدار {$diff} نقطة عن الشهر السابق."
-                    : "انخفضت جاهزية التقارير المعتمدة بمقدار " . abs($diff) . " نقطة عن الشهر السابق.",
+                    : 'انخفضت جاهزية التقارير المعتمدة بمقدار '.abs($diff).' نقطة عن الشهر السابق.',
             ];
         }
 
@@ -778,6 +781,7 @@ class ExecutiveAnalyticsService
         foreach ($labels as $key => $label) {
             $out[] = ['label' => $label, 'value' => (int) ($counts[$key] ?? 0)];
         }
+
         return $out;
     }
 
@@ -785,6 +789,7 @@ class ExecutiveAnalyticsService
     private function avgReadiness($approvedQuery): ?float
     {
         $v = $approvedQuery->selectRaw('avg((coalesce(behavioral_fit,0) + coalesce(technical_fit,0)) / 2) r')->value('r');
+
         return $v === null ? null : round((float) $v, 1);
     }
 
@@ -805,7 +810,7 @@ class ExecutiveAnalyticsService
         $list = [];
         foreach ($rows as $r) {
             $comp = $comps->get($r->competency_id);
-            if (!$comp) {
+            if (! $comp) {
                 continue;
             }
             $max = (int) ($comp->max_level ?: 5);
@@ -815,6 +820,7 @@ class ExecutiveAnalyticsService
             ];
         }
         usort($list, fn ($a, $b) => $b['pct'] <=> $a['pct']);
+
         return $list;
     }
 
@@ -839,6 +845,7 @@ class ExecutiveAnalyticsService
                 $topStatus = $status;
             }
         }
+
         return $topStatus ? ['status' => $topStatus, 'label' => $labels[$topStatus], 'count' => $topCount] : null;
     }
 
@@ -848,6 +855,7 @@ class ExecutiveAnalyticsService
         $curr = (float) ($curr ?? 0);
         $prev = (float) ($prev ?? 0);
         $pct = $prev > 0 ? round(($curr - $prev) / $prev * 100, 1) : ($curr > 0 ? 100.0 : 0.0);
+
         return [
             'value' => $decimals > 0 ? round($curr, $decimals) : (int) $curr,
             'prev' => $decimals > 0 ? round($prev, $decimals) : (int) $prev,

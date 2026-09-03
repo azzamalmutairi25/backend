@@ -11,14 +11,16 @@ class SaudiNationalId implements ValidationRule
     {
         $id = (string) $value;
 
-        if (!preg_match('/^\d{10}$/', $id)) {
+        if (! preg_match('/^\d{10}$/', $id)) {
             $fail('رقم الهوية يجب أن يكون ١٠ أرقام');
+
             return;
         }
 
         $type = (int) $id[0];
         if ($type !== 1 && $type !== 2) {
             $fail('رقم الهوية يجب أن يبدأ بـ ١ (مواطن) أو ٢ (مقيم)');
+
             return;
         }
 
@@ -35,6 +37,7 @@ class SaudiNationalId implements ValidationRule
 
         if ($sum % 10 !== 0) {
             $fail('رقم الهوية غير صحيح (فشل التحقق)');
+
             return;
         }
     }

@@ -1,8 +1,10 @@
 <?php
 
+use App\Http\Middleware\EnsurePasswordChanged;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -21,13 +23,13 @@ return Application::configure(basePath: dirname(__DIR__))
         // .env إطلاقاً — فكانت env() هنا تُرجِع فارغاً على الخادم دائماً، ويسقط
         // تقييد المعدّل وصحّة سجل التدقيق بصمت. راجع App\Http\Middleware\TrustProxies.
         $middleware->replace(
-            \Illuminate\Http\Middleware\TrustProxies::class,
-            \App\Http\Middleware\TrustProxies::class,
+            TrustProxies::class,
+            App\Http\Middleware\TrustProxies::class,
         );
 
         // فرض تغيير كلمة المرور خادمياً (كان في الواجهة فقط). يُلحق بمجموعة api
         // فيسري على كل مسارات /api؛ الوسيط نفسه يتخطّى غير المُصادَق والمسارات المسموحة.
-        $middleware->appendToGroup('api', \App\Http\Middleware\EnsurePasswordChanged::class);
+        $middleware->appendToGroup('api', EnsurePasswordChanged::class);
 
         // تقييد معدّل عام على كل مسارات /api (المعرّف 'api' في AppServiceProvider).
         // يسدّ غياب الحدّ عن الـ85 مساراً المحمية؛ الحدود الأخصّ (login 10/د، البوّابة

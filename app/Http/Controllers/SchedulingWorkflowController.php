@@ -8,6 +8,7 @@ use App\Models\SchedulingPeriod;
 use App\Models\SchedulingWorkflowStep;
 use App\Security\Permissions;
 use App\Services\SchedulingWorkflowService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -19,9 +20,7 @@ use Illuminate\Support\Facades\DB;
 // قادمة. والقراءة والتأشير سلطةُ جدولة — من يبني الموجة هو من يؤشّر خطواتها.
 class SchedulingWorkflowController extends Controller
 {
-    public function __construct(private SchedulingWorkflowService $workflow)
-    {
-    }
+    public function __construct(private SchedulingWorkflowService $workflow) {}
 
     private function log(Request $request, string $action, ?int $entityId, array $details = []): void
     {
@@ -36,7 +35,7 @@ class SchedulingWorkflowController extends Controller
         ]);
     }
 
-    private function denyManage(Request $request): ?\Illuminate\Http\JsonResponse
+    private function denyManage(Request $request): ?JsonResponse
     {
         return $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)
             ? null
@@ -69,14 +68,14 @@ class SchedulingWorkflowController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::SCHEDULE_VIEW)
-            && !$user->hasPermission(Permissions::SETTINGS_MANAGE)) {
+        if (! $user->hasPermission(Permissions::SCHEDULE_VIEW)
+            && ! $user->hasPermission(Permissions::SETTINGS_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض سير عمل الجدولة'], 403);
         }
 
         $canManage = $user->hasPermission(Permissions::SETTINGS_MANAGE);
         $query = SchedulingWorkflowStep::ordered();
-        if (!$canManage) {
+        if (! $canManage) {
             $query->active();   // من لا يحرّر لا يرى المُطفأة
         }
 
@@ -90,7 +89,7 @@ class SchedulingWorkflowController extends Controller
     private function stepRules(bool $creating): array
     {
         return [
-            'title' => ($creating ? 'required|' : 'sometimes|required|') . 'string|max:150',
+            'title' => ($creating ? 'required|' : 'sometimes|required|').'string|max:150',
             'description' => 'nullable|string|max:500',
             'autoKey' => 'nullable|string|max:40',
             'isRequired' => 'nullable|boolean',
@@ -108,7 +107,7 @@ class SchedulingWorkflowController extends Controller
         $validated = $request->validate($this->stepRules(true));
 
         // مفتاحٌ غير معروف يعني خطوةً «آلية» لا أحد يحسبها، فتبقى معلّقة أبداً
-        if (!SchedulingWorkflowService::isKnownCheck($validated['autoKey'] ?? null)) {
+        if (! SchedulingWorkflowService::isKnownCheck($validated['autoKey'] ?? null)) {
             return response()->json(['error' => 'مفتاح التحقّق الآلي غير معروف'], 422);
         }
 
@@ -136,22 +135,32 @@ class SchedulingWorkflowController extends Controller
         }
 
         $step = SchedulingWorkflowStep::find($id);
-        if (!$step) {
+        if (! $step) {
             return response()->json(['error' => 'الخطوة غير موجودة'], 404);
         }
 
         $validated = $request->validate($this->stepRules(false));
 
         if (array_key_exists('autoKey', $validated)
-            && !SchedulingWorkflowService::isKnownCheck($validated['autoKey'])) {
+            && ! SchedulingWorkflowService::isKnownCheck($validated['autoKey'])) {
             return response()->json(['error' => 'مفتاح التحقّق الآلي غير معروف'], 422);
         }
 
-        if (isset($validated['title']))                 { $step->title_ar = $validated['title']; }
-        if (array_key_exists('description', $validated)) { $step->description = $validated['description']; }
-        if (array_key_exists('autoKey', $validated))     { $step->auto_key = $validated['autoKey'] ?: null; }
-        if ($request->has('isRequired'))                 { $step->is_required = $request->boolean('isRequired'); }
-        if ($request->has('isActive'))                   { $step->is_active = $request->boolean('isActive'); }
+        if (isset($validated['title'])) {
+            $step->title_ar = $validated['title'];
+        }
+        if (array_key_exists('description', $validated)) {
+            $step->description = $validated['description'];
+        }
+        if (array_key_exists('autoKey', $validated)) {
+            $step->auto_key = $validated['autoKey'] ?: null;
+        }
+        if ($request->has('isRequired')) {
+            $step->is_required = $request->boolean('isRequired');
+        }
+        if ($request->has('isActive')) {
+            $step->is_active = $request->boolean('isActive');
+        }
         $step->save();
 
         $this->log($request, 'UPDATE_WORKFLOW_STEP', $step->id, ['title' => $step->title_ar]);
@@ -171,7 +180,7 @@ class SchedulingWorkflowController extends Controller
         }
 
         $step = SchedulingWorkflowStep::find($id);
-        if (!$step) {
+        if (! $step) {
             return response()->json(['error' => 'الخطوة غير موجودة'], 404);
         }
         if (SchedulingWorkflowStep::count() <= 1) {
@@ -186,7 +195,7 @@ class SchedulingWorkflowController extends Controller
 
         return response()->json([
             'message' => $marked > 0
-                ? 'حُذفت الخطوة، وسقط تأشيرها على ' . $marked . ' موجة'
+                ? 'حُذفت الخطوة، وسقط تأشيرها على '.$marked.' موجة'
                 : 'حُذفت الخطوة',
         ]);
     }
@@ -228,12 +237,12 @@ class SchedulingWorkflowController extends Controller
     // GET /scheduling-periods/{id}/workflow — أين وصلت هذه الموجة
     public function periodWorkflow(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::SCHEDULE_VIEW)) {
+        if (! $request->user()->hasPermission(Permissions::SCHEDULE_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض الجدولة'], 403);
         }
 
         $period = SchedulingPeriod::find($id);
-        if (!$period) {
+        if (! $period) {
             return response()->json(['error' => 'الموجة غير موجودة'], 404);
         }
 
@@ -243,16 +252,16 @@ class SchedulingWorkflowController extends Controller
     // POST /scheduling-periods/{id}/workflow/{stepId} — تأشير خطوة يدوية
     public function markStep(Request $request, int $id, int $stepId)
     {
-        if (!$request->user()->hasPermission(Permissions::SCHEDULE_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::SCHEDULE_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة الجدولة'], 403);
         }
 
         $period = SchedulingPeriod::find($id);
-        if (!$period) {
+        if (! $period) {
             return response()->json(['error' => 'الموجة غير موجودة'], 404);
         }
         $step = SchedulingWorkflowStep::find($stepId);
-        if (!$step || !$step->is_active) {
+        if (! $step || ! $step->is_active) {
             return response()->json(['error' => 'الخطوة غير موجودة'], 404);
         }
 
@@ -260,7 +269,7 @@ class SchedulingWorkflowController extends Controller
         // يناقض ما يراه النظام، وهو أسوأ من خطوةٍ معلّقة
         if ($step->isAutomatic()) {
             return response()->json([
-                'error' => 'هذه خطوة آلية يتحقّق منها النظام: ' . (SchedulingWorkflowService::CHECKS[$step->auto_key] ?? ''),
+                'error' => 'هذه خطوة آلية يتحقّق منها النظام: '.(SchedulingWorkflowService::CHECKS[$step->auto_key] ?? ''),
             ], 422);
         }
 

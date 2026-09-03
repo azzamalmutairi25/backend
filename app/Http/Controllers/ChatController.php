@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\ChatThread;
 use App\Models\ChatMessage;
+use App\Models\ChatThread;
 use App\Models\FinalReport;
 use App\Security\Permissions;
 use App\Services\NotificationService;
@@ -17,19 +17,18 @@ class ChatController extends Controller
 {
     public function __construct(private NotificationService $notify) {}
 
-
     // يتحقق أن للمستخدم صلاحية الوصول لكيان المحادثة (نفس بوابة الكيان الأصلي)
     private function authorizeEntity(Request $request, string $entityType, int $entityId)
     {
         // بوّابتان لا واحدة: CHAT_VIEW تفتح الميزة نفسها، وبوّابة الكيان تفتح
         // محادثةً بعينها. كانت الأولى غائبة، فكان سحبُها من دورٍ في شاشة
         // الأدوار يُخفي الشاشة ويترك مسارها مفتوحاً لكل من يقرأ التقارير.
-        if (!$request->user()->hasPermission(Permissions::CHAT_VIEW)) {
+        if (! $request->user()->hasPermission(Permissions::CHAT_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية المحادثات'], 403);
         }
 
         if ($entityType === 'report') {
-            if (!$request->user()->hasPermission(Permissions::REPORT_VIEW)) {
+            if (! $request->user()->hasPermission(Permissions::REPORT_VIEW)) {
                 return response()->json(['error' => 'ليس لديك صلاحية الوصول لهذه المحادثة'], 403);
             }
             // نطاق التقرير نفسه لا نصفه: كان يفحص التصنيف وحده، فكانت محادثة
@@ -39,9 +38,10 @@ class ChatController extends Controller
             $q = FinalReport::with('candidate');
             $this->scopeReports($request, $q);
 
-            if (!$q->find($entityId)) {
+            if (! $q->find($entityId)) {
                 return response()->json(['error' => 'المحادثة غير موجودة'], 404);
             }
+
             return null;
         }
 

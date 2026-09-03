@@ -2,9 +2,14 @@
 
 namespace App\Services;
 
+use App\Models\Assessment;
+use App\Models\Candidate;
+use App\Models\DispatchAuthority;
+use App\Models\GoldenScheduleEntry;
 use App\Models\PeriodAssessor;
 use App\Models\PeriodStepProgress;
 use App\Models\Schedule;
+use App\Models\ScheduleDispatch;
 use App\Models\SchedulingPeriod;
 use App\Models\SchedulingWorkflowStep;
 
@@ -43,6 +48,7 @@ class SchedulingWorkflowService
         foreach (self::CHECKS as $key => $label) {
             $out[] = ['key' => $key, 'label' => $label];
         }
+
         return $out;
     }
 
@@ -75,7 +81,7 @@ class SchedulingWorkflowService
             'period.participants' => Schedule::where('period_id', $period->id)->exists(),
 
             'period.evaluators_linked' => Schedule::where('period_id', $period->id)->exists()
-                && !Schedule::where('period_id', $period->id)->whereNull('evaluator_id')->exists(),
+                && ! Schedule::where('period_id', $period->id)->whereNull('evaluator_id')->exists(),
 
             'period.daily_spread' => $this->everyDayHasSession($period),
 
@@ -93,9 +99,9 @@ class SchedulingWorkflowService
 
             // ترحيل التواريخ: لا دورةَ في الموجة بلا تاريخ تقييمٍ مكتوب
             'period.dates_written' => Schedule::where('period_id', $period->id)->exists()
-                && !\App\Models\Assessment::whereIn(
-                        'id', Schedule::where('period_id', $period->id)->select('assessment_id')
-                    )->whereNull('first_session_date')->exists(),
+                && ! Assessment::whereIn(
+                    'id', Schedule::where('period_id', $period->id)->select('assessment_id')
+                )->whereNull('first_session_date')->exists(),
 
             default => false,
         };
@@ -119,11 +125,11 @@ class SchedulingWorkflowService
         // يقرأ رمز الدورة وحده ثم **يُسقط** ما خلا منه — فيفحص أقلّ ممّا كُتب،
         // ويُعلن التغطية تامّةً وفيها ناقص.
         $needed = $sessions->map(fn ($s) => substr((string) $s->schedule_date, 0, 10)
-            . '|' . (GoldenScheduleService::codeFor($s) ?? ''))->unique()->filter(fn ($k) => !str_ends_with($k, '|'));
+            .'|'.(GoldenScheduleService::codeFor($s) ?? ''))->unique()->filter(fn ($k) => ! str_ends_with($k, '|'));
 
-        $have = \App\Models\GoldenScheduleEntry::where('period_id', $period->id)
+        $have = GoldenScheduleEntry::where('period_id', $period->id)
             ->get()
-            ->map(fn ($e) => $e->entry_date->toDateString() . '|' . $e->participant_code)
+            ->map(fn ($e) => $e->entry_date->toDateString().'|'.$e->participant_code)
             ->all();
 
         return $needed->every(fn ($k) => in_array($k, $have, true));
@@ -132,23 +138,24 @@ class SchedulingWorkflowService
     /** لكل جهةٍ لها مشاركون في الموجة سجلُّ تسليمٍ فيها؟ */
     private function dispatchesCoverPeriod(SchedulingPeriod $period): bool
     {
-        $categories = \App\Models\Candidate::whereIn(
-                'id', Schedule::where('period_id', $period->id)->select('candidate_id')
-            )->distinct()->pluck('personnel_category')->filter()->all();
+        $categories = Candidate::whereIn(
+            'id', Schedule::where('period_id', $period->id)->select('candidate_id')
+        )->distinct()->pluck('personnel_category')->filter()->all();
 
-        if (!$categories) {
+        if (! $categories) {
             return false;   // لا مشاركين ⇒ لا شيء سُلّم
         }
 
-        $sent = \App\Models\ScheduleDispatch::where('period_id', $period->id)
+        $sent = ScheduleDispatch::where('period_id', $period->id)
             ->pluck('authority_id')->unique();
 
-        foreach (\App\Models\DispatchAuthority::active()->get() as $a) {
+        foreach (DispatchAuthority::active()->get() as $a) {
             $owes = array_intersect($a->categoryList(), $categories);
-            if ($owes && !$sent->contains($a->id)) {
+            if ($owes && ! $sent->contains($a->id)) {
                 return false;
             }
         }
+
         return true;
     }
 
@@ -158,7 +165,7 @@ class SchedulingWorkflowService
         $scheduled = Schedule::where('period_id', $period->id)
             ->distinct()->pluck('activity')->filter()->all();
 
-        if (!$scheduled) {
+        if (! $scheduled) {
             return false;   // لا جلسات ⇒ لا إسناد يُقاس
         }
 
@@ -168,7 +175,7 @@ class SchedulingWorkflowService
             ->distinct()->pluck('activity')->all();
 
         foreach ($scheduled as $activity) {
-            if (!in_array($activity, $covered, true)) {
+            if (! in_array($activity, $covered, true)) {
                 return false;
             }
         }
@@ -189,10 +196,11 @@ class SchedulingWorkflowService
             ->all();
 
         foreach ($days as $day) {
-            if (!in_array($day->toDateString(), $covered, true)) {
+            if (! in_array($day->toDateString(), $covered, true)) {
                 return false;
             }
         }
+
         return true;
     }
 

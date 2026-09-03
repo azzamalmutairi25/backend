@@ -23,8 +23,9 @@ class DailyMaintenanceTest extends TestCase
     private function userWithRole(string $roleCode): User
     {
         $role = Role::where('code', $roleCode)->firstOrFail();
+
         return User::create([
-            'username' => 'u_' . substr(md5(uniqid('', true)), 0, 8),
+            'username' => 'u_'.substr(md5(uniqid('', true)), 0, 8),
             'full_name' => 'مستخدم', 'role_id' => $role->id, 'is_active' => true,
             'must_change_password' => false, 'user_type' => 'external', 'password' => 'Kafaat@2026',
         ]);

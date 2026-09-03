@@ -2,9 +2,10 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Crypt;
 
 // سيرة ذاتية واحدة لكل مشارك. الوثيقة كلها مشفّرة في cv_data_enc، وتُقرأ/تُكتب
@@ -123,11 +124,11 @@ class CandidateCv extends Model
     // العمر من تاريخ الميلاد — يُحسب عند العرض ولا يُخزَّن
     public static function ageFrom(?string $birthDate): ?int
     {
-        if (!$birthDate) {
+        if (! $birthDate) {
             return null;
         }
         try {
-            return \Illuminate\Support\Carbon::parse($birthDate)->age;
+            return Carbon::parse($birthDate)->age;
         } catch (\Throwable) {
             return null;
         }
@@ -138,6 +139,7 @@ class CandidateCv extends Model
     public static function isEmptyDoc(array $d): bool
     {
         $blank = fn ($v) => $v === null || $v === '';
+
         return $blank($d['currentPosition'] ?? null) && $blank($d['briefBio'] ?? null)
             // البيانات الوظيفية تُحسب هنا أيضاً: وثيقة لا تحمل غير الإدارة ليست فارغة
             && $blank($d['birthDate'] ?? null) && $blank($d['appointmentDate'] ?? null)

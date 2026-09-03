@@ -30,9 +30,10 @@ class DistributionTest extends TestCase
     private function makeEvaluator(string $sectorCode = 'DW'): User
     {
         $role = Role::where('code', 'EVALUATOR')->firstOrFail();
+
         return User::create([
-            'username' => 'ev_' . substr(md5(uniqid('', true)), 0, 8),
-            'full_name' => 'مقيّم ' . $sectorCode,
+            'username' => 'ev_'.substr(md5(uniqid('', true)), 0, 8),
+            'full_name' => 'مقيّم '.$sectorCode,
             'password' => 'Kafaat@2026',
             'role_id' => $role->id,
             'sector_id' => Sector::where('code', $sectorCode)->value('id'),
@@ -48,10 +49,11 @@ class DistributionTest extends TestCase
         for ($i = 0; $i < $n; $i++) {
             [$c] = $this->makeCandidate([
                 'status' => 'scheduled', 'sectorCode' => $sectorCode,
-                'code' => 'D' . $sectorCode . $i . random_int(100, 999),
+                'code' => 'D'.$sectorCode.$i.random_int(100, 999),
             ]);
             $out[] = $c;
         }
+
         return $out;
     }
 
@@ -66,7 +68,7 @@ class DistributionTest extends TestCase
 
         $proposal = app(DistributionService::class)->propose($this->makeEvaluator('MS'));
 
-        $byEvDay = $proposal->items->groupBy(fn ($i) => $i->evaluator_id . '|' . $i->scheduled_date);
+        $byEvDay = $proposal->items->groupBy(fn ($i) => $i->evaluator_id.'|'.$i->scheduled_date);
         foreach ($byEvDay as $key => $items) {
             $this->assertLessThanOrEqual(2, $items->count(), "الحدّ 2 لكل مقيّم/يوم — {$key}");
         }

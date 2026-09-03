@@ -61,7 +61,10 @@ class WorkflowSettingsTest extends TestCase
     {
         $this->actingAsRole('ADMIN');
         $stages = collect($this->payload())->map(function ($s) {
-            if ($s['position'] === 3) { $s['isActive'] = false; } // تطوير الكفاءات
+            if ($s['position'] === 3) {
+                $s['isActive'] = false;
+            } // تطوير الكفاءات
+
             return $s;
         })->all();
 
@@ -82,7 +85,10 @@ class WorkflowSettingsTest extends TestCase
 
         $this->actingAsRole('ADMIN');
         $stages = collect($this->payload())->map(function ($s) {
-            if ($s['position'] === 2) { $s['isActive'] = false; }
+            if ($s['position'] === 2) {
+                $s['isActive'] = false;
+            }
+
             return $s;
         })->all();
 
@@ -96,6 +102,7 @@ class WorkflowSettingsTest extends TestCase
         $this->actingAsRole('ADMIN');
         $stages = collect($this->payload())->map(function ($s) {
             $s['isActive'] = false;
+
             return $s;
         })->all();
 
@@ -125,7 +132,10 @@ class WorkflowSettingsTest extends TestCase
         // فعّل «لا يعتمد ما كتبه» على مرحلة المقيّم، ثم تحقّق أنها تمنع الكاتب
         $this->actingAsRole('ADMIN');
         $stages = collect($this->payload())->map(function ($s) {
-            if ($s['label'] !== null) $s['blocksSelfAuthored'] = true;
+            if ($s['label'] !== null) {
+                $s['blocksSelfAuthored'] = true;
+            }
+
             return $s;
         })->all();
         $this->putJson('/api/workflow/report', ['stages' => $stages])->assertOk();

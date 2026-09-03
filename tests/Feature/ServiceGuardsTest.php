@@ -94,7 +94,7 @@ class ServiceGuardsTest extends TestCase
     {
         foreach (['upper', 'middle'] as $tier) {
             $this->actingAsRole('EVALUATOR');
-            [$c, ] = $this->makeCandidate(['status' => 'assessed', 'tier' => $tier]);
+            [$c] = $this->makeCandidate(['status' => 'assessed', 'tier' => $tier]);
 
             $this->actingAsRole('ASSESS_MANAGER'); // REPORT_CREATE
             $this->getJson("/api/reports/competency-gap?candidateId={$c->id}")

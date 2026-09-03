@@ -54,13 +54,14 @@ class RoleController extends Controller
     private function actorPermissions(User $actor): array
     {
         $perms = $actor->effectivePermissions();
+
         return in_array('*', $perms, true) ? Permissions::all() : $perms;
     }
 
     // ── قائمة الأدوار مع عدد حامليها ──
     public function index(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::USER_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::USER_MANAGE)) {
             return $this->deny('ليس لديك صلاحية إدارة الأدوار');
         }
 
@@ -90,12 +91,12 @@ class RoleController extends Controller
     public function permissions(Request $request, int $id)
     {
         $actor = $request->user();
-        if (!$actor->hasPermission(Permissions::USER_MANAGE)) {
+        if (! $actor->hasPermission(Permissions::USER_MANAGE)) {
             return $this->deny('ليس لديك صلاحية إدارة الأدوار');
         }
 
         $role = Role::find($id);
-        if (!$role) {
+        if (! $role) {
             return response()->json(['error' => 'الدور غير موجود'], 404);
         }
 
@@ -138,14 +139,19 @@ class RoleController extends Controller
     // سبب قفل صلاحية عن التعديل — أو null إن كانت قابلة للتبديل
     private function lockReason(string $p, array $actorPerms, bool $isSelf, bool $isProtected): ?string
     {
-        if ($isProtected) return 'دور مدير النظام لا يُعدَّل';
-        if ($isSelf) return 'لا تعدّل صلاحيات دورك';
+        if ($isProtected) {
+            return 'دور مدير النظام لا يُعدَّل';
+        }
+        if ($isSelf) {
+            return 'لا تعدّل صلاحيات دورك';
+        }
         if (in_array($p, Permissions::NON_DELEGABLE, true)) {
             return 'سلطة نظام تُدار بالدور المبذور لا بالتحرير';
         }
-        if (!in_array($p, $actorPerms, true)) {
+        if (! in_array($p, $actorPerms, true)) {
             return 'لا تملك هذه الصلاحية بنفسك';
         }
+
         return null;
     }
 
@@ -153,7 +159,7 @@ class RoleController extends Controller
     public function savePermissions(Request $request, int $id)
     {
         $actor = $request->user();
-        if (!$actor->hasPermission(Permissions::USER_MANAGE)) {
+        if (! $actor->hasPermission(Permissions::USER_MANAGE)) {
             return $this->deny('ليس لديك صلاحية إدارة الأدوار');
         }
 
@@ -163,7 +169,7 @@ class RoleController extends Controller
         ]);
 
         $role = Role::find($id);
-        if (!$role) {
+        if (! $role) {
             return response()->json(['error' => 'الدور غير موجود'], 404);
         }
         if (in_array($role->code, self::PROTECTED_CODES, true)) {
@@ -183,8 +189,9 @@ class RoleController extends Controller
         $beyond = $added->reject(fn ($p) => in_array($p, $actorPerms, true))->values();
         if ($beyond->isNotEmpty()) {
             $this->log($request, 'DENIED_ROLE_ESCALATION', $role->id, ['attempted' => $beyond->all()]);
+
             return response()->json([
-                'error' => 'لا تُمنح صلاحيةً لا تملكها: ' . $beyond->implode('، '),
+                'error' => 'لا تُمنح صلاحيةً لا تملكها: '.$beyond->implode('، '),
             ], 422);
         }
 
@@ -194,7 +201,7 @@ class RoleController extends Controller
             ->values();
         if ($nonDelegableChanged->isNotEmpty()) {
             return response()->json([
-                'error' => 'سلطات النظام لا تُعدَّل من هنا: ' . $nonDelegableChanged->implode('، '),
+                'error' => 'سلطات النظام لا تُعدَّل من هنا: '.$nonDelegableChanged->implode('، '),
             ], 422);
         }
 
@@ -237,7 +244,7 @@ class RoleController extends Controller
     public function store(Request $request)
     {
         $actor = $request->user();
-        if (!$actor->hasPermission(Permissions::USER_MANAGE)) {
+        if (! $actor->hasPermission(Permissions::USER_MANAGE)) {
             return $this->deny('ليس لديك صلاحية إدارة الأدوار');
         }
 
@@ -277,7 +284,7 @@ class RoleController extends Controller
     public function update(Request $request, int $id)
     {
         $actor = $request->user();
-        if (!$actor->hasPermission(Permissions::USER_MANAGE)) {
+        if (! $actor->hasPermission(Permissions::USER_MANAGE)) {
             return $this->deny('ليس لديك صلاحية إدارة الأدوار');
         }
 
@@ -287,7 +294,7 @@ class RoleController extends Controller
         ]);
 
         $role = Role::find($id);
-        if (!$role) {
+        if (! $role) {
             return response()->json(['error' => 'الدور غير موجود'], 404);
         }
 
@@ -301,12 +308,12 @@ class RoleController extends Controller
     public function destroy(Request $request, int $id)
     {
         $actor = $request->user();
-        if (!$actor->hasPermission(Permissions::USER_MANAGE)) {
+        if (! $actor->hasPermission(Permissions::USER_MANAGE)) {
             return $this->deny('ليس لديك صلاحية إدارة الأدوار');
         }
 
         $role = Role::find($id);
-        if (!$role) {
+        if (! $role) {
             return response()->json(['error' => 'الدور غير موجود'], 404);
         }
         if (in_array($role->code, self::PROTECTED_CODES, true)) {
@@ -337,18 +344,18 @@ class RoleController extends Controller
     public function reset(Request $request, int $id)
     {
         $actor = $request->user();
-        if (!$actor->hasPermission(Permissions::USER_MANAGE)) {
+        if (! $actor->hasPermission(Permissions::USER_MANAGE)) {
             return $this->deny('ليس لديك صلاحية إدارة الأدوار');
         }
 
         $role = Role::find($id);
-        if (!$role) {
+        if (! $role) {
             return response()->json(['error' => 'الدور غير موجود'], 404);
         }
         if ($actor->role_id === $role->id) {
             return response()->json(['error' => 'لا يمكنك تعديل صلاحيات دورك'], 422);
         }
-        if (!isset(Permissions::matrix()[$role->code])) {
+        if (! isset(Permissions::matrix()[$role->code])) {
             return response()->json(['error' => 'هذا الدور لا افتراضي له — أُنشئ من الشاشة'], 422);
         }
 

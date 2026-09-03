@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Sector;
 use App\Models\Setting;
 use App\Services\IdentityVerificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -171,7 +172,7 @@ class IdVerifySettingsTest extends TestCase
         $this->actingAsRole('ADMIN'); // يملك SETTINGS_MANAGE و candidate.create
         $this->putJson('/api/settings/idverify', $this->validPayload())->assertOk();
 
-        $sector = \App\Models\Sector::where('code', 'DW')->value('id');
+        $sector = Sector::where('code', 'DW')->value('id');
         $res = $this->postJson('/api/candidates', $this->candidateRequired() + [
             'nationalId' => $this->validNationalId(), 'fullName' => 'مشارك', 'mobile' => '0501112223',
             'sectorId' => $sector, 'personnelCategory' => 'civilian', 'rankLabel' => 'الرابعة عشرة',
@@ -184,7 +185,7 @@ class IdVerifySettingsTest extends TestCase
     {
         // بلا إعداد: idVerification = null ولا سجلّ (لا أثر على التدفّق)
         $this->actingAsRole('ADMIN');
-        $sector = \App\Models\Sector::where('code', 'DW')->value('id');
+        $sector = Sector::where('code', 'DW')->value('id');
         $this->postJson('/api/candidates', $this->candidateRequired() + [
             'nationalId' => $this->validNationalId(), 'fullName' => 'مشارك', 'mobile' => '0501112223',
             'sectorId' => $sector, 'personnelCategory' => 'civilian', 'rankLabel' => 'الرابعة عشرة',

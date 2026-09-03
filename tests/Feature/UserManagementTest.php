@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Role;
+use App\Models\Sector;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -17,19 +18,20 @@ class UserManagementTest extends TestCase
     private function makeUser(string $roleCode = 'EVALUATOR', array $attrs = []): User
     {
         $role = Role::where('code', $roleCode)->firstOrFail();
+
         return User::create(array_merge([
-            'username' => 'u_' . substr(md5(uniqid('', true)), 0, 8),
+            'username' => 'u_'.substr(md5(uniqid('', true)), 0, 8),
             'full_name' => 'مستخدم', 'role_id' => $role->id, 'is_active' => true,
             // الأدوار المحصورة بقطاع لا توجد بلا قطاع
             'sector_id' => in_array($roleCode, User::SECTOR_BOUND_ROLES, true)
-                ? \App\Models\Sector::value('id') : null,
+                ? Sector::value('id') : null,
             'must_change_password' => false, 'user_type' => 'external', 'password' => 'Kafaat@2026',
         ], $attrs));
     }
 
     private function sectorId(): int
     {
-        return \App\Models\Sector::value('id');
+        return Sector::value('id');
     }
 
     public function test_non_admin_cannot_manage_users(): void

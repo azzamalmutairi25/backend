@@ -2,6 +2,8 @@
 
 namespace App\Security;
 
+use Illuminate\Support\Facades\DB;
+
 // ════════════════════════════════════════════════════════════
 //  نظام الصلاحيات الكامل (منقول من نظام .NET)
 //  يوثّق كل الأدوار والصلاحيات ويتحقق منها
@@ -11,30 +13,44 @@ class Permissions
 {
     // ── الصلاحيات المتاحة ──
     const CANDIDATE_VIEW = 'candidate.view';
+
     const CANDIDATE_CREATE = 'candidate.create';
+
     const CANDIDATE_EDIT = 'candidate.edit';
+
     const CANDIDATE_APPROVE = 'candidate.approve';
+
     const CANDIDATE_VIEW_NAMES = 'candidate.view_names';   // رؤية الأسماء (حساس)
+
     const CANDIDATE_VIEW_CLASSIFIED = 'candidate.view_classified';   // رؤية المشاركين السرّيين
+
     const CANDIDATE_JOURNEY = 'candidate.journey';   // عرض رحلة المشارك (الخط الزمني)
+
     const CANDIDATE_CV_VIEW = 'candidate.cv_view';   // قراءة السيرة الذاتية بمعرّف المشارك (مسار الإدارة)
+
     // رفع طلب تحديث بيانات مشارك مسجّل — للمستخدم الخارجي الذي لا يملك التعديل.
     // الطلب اقتراح لا كتابة: لا يمسّ السجلّ حتى يعتمده صاحب صلاحية.
     const CANDIDATE_UPDATE_REQUEST = 'candidate.update_request';
+
     // البتّ في طلبات التحديث (اعتماد/رفض) — سلطة تعديل بيانات المشارك بالنيابة
     const CANDIDATE_UPDATE_APPROVE = 'candidate.update_approve';
+
     // إسناد مشارك لمقيّم من قطاع آخر — الأصل أن كل مقيّم لقطاعه
     const CROSS_SECTOR_ASSIGN = 'candidate.cross_sector';
 
     const SCHEDULE_VIEW = 'schedule.view';
+
     const SCHEDULE_MANAGE = 'schedule.manage';
+
     // التوزيع الأسبوعي: اقتراح واعتماد — لمسؤول الجدولة (إدارة المشاركين)
     const DISTRIBUTION_MANAGE = 'schedule.distribute';
+
     // اعتماد موجة الجدولة — لمدير المركز وحده، ولا تُمنح لمن يبنيها.
     // فصلُ مهامٍ لا تسمية: قبلها كان الباني هو المعتمِد، فخطوة «إرسال الجدولة
     // إلى مدير المركز للاعتماد» بلا معنى تقني. قابلة للتفويض بالاستثناء الفردي
     // كي لا يقف الاعتماد بغيابه.
     const SCHEDULE_APPROVE_CENTER = 'schedule.approve_center';
+
     // تسليم الجدولة للجهة (وكالة الشؤون العسكرية / الموارد البشرية) — فعلٌ
     // يخرج من المركز إلى خارجه، فصلاحيته مستقلّة عن بناء الجدول واعتماده.
     const SCHEDULE_DISPATCH = 'schedule.dispatch';
@@ -45,8 +61,10 @@ class Permissions
     const ROSTER_MANAGE = 'roster.manage';
 
     const ATTENDANCE_VIEW = 'attendance.view';
+
     // تسجيل حضور الجلسات المُسنَدة للمستخدم (مقيّماً أو مساعداً) — «الذي يستقبله يسجّله»
     const ATTENDANCE_RECORD = 'attendance.record';
+
     // تسجيل أي جلسة بلا إسناد — للاستقبال ومشرف القياس: يستقبلان من لا جلسة لهما فيه
     const ATTENDANCE_RECORD_ANY = 'attendance.record_any';
 
@@ -55,45 +73,68 @@ class Permissions
     // مَن يسجّل الوصول ليس بالضرورة مَن يوزّع، ومَن يوزّع ليس مَن يقبل، ومَن
     // يقبل ليس مَن يعتمد. جمعُها في واحدة يجعل كلَّ من فتح الشاشة يملك المسار كاملاً.
     const RECEPTION_VIEW = 'reception.view';        // فتح شاشة الاستقبال وقراءة كشف اليوم
+
     const RECEPTION_RECORD = 'reception.record';    // تسجيل الوصول وتعديل وقته وأخذ التوقيع والإقرار
+
     const RECEPTION_ASSIGN = 'reception.assign';    // توزيع المشارك على مقابلة/حلقة نقاش/أدوات قياس
+
     const RECEPTION_DECIDE = 'reception.decide';    // قرار المقيّم: استلام المشارك أو ردّه
+
     const RECEPTION_APPROVE = 'reception.approve';  // اعتماد العمليات وترحيل الجلسات إلى الجدول
 
     const EVALUATION_VIEW = 'evaluation.view';
+
     const EVALUATION_INPUT = 'evaluation.input';
+
     const EVALUATION_APPROVE = 'evaluation.approve';
+
     const EVALUATION_ASSIST = 'evaluation.assist';
 
     const MEASUREMENT_VIEW = 'measurement.view';
+
     const MEASUREMENT_UPLOAD = 'measurement.upload';
 
     const REPORT_VIEW = 'report.view';
+
     const REPORT_CREATE = 'report.create';
+
     const REPORT_EDIT_ANY = 'report.edit_any';   // تعديل تقرير أنشأه غيره (مدير التقييم)
+
     // سلسلة الاعتماد: صلاحية لكل مرحلة — المرحلة تحدَّد من حالة التقرير لا من الدور.
     // ترتيب المراحل وتفعيلها بيانات في workflow_stages، لا ثوابت هنا.
     const REPORT_APPROVE_EVALUATOR = 'report.approve_evaluator';   // اعتماد المقيّم
+
     const REPORT_APPROVE_MANAGER = 'report.approve_manager';       // اعتماد مدير إدارة التقييم
+
     const REPORT_APPROVE = 'report.approve';                       // اعتماد إدارة تطوير الكفاءات
+
     const REPORT_APPROVE_CENTER = 'report.approve_center';         // اعتماد مدير المركز
+
     // الإرجاع (لمسودة أو للمرحلة السابقة) والإلغاء — مدير المركز وحده.
     // كانا موزّعين على كل مرحلة، فكان كلُّ معتمِدٍ يردّ التقرير خطوات للوراء.
     const REPORT_RETURN = 'report.return';
+
     const REPORT_CANCEL = 'report.cancel';
+
     const REPORT_EXPORT = 'report.export';
+
     // اسم المشارك في المستند المطبوع — لا يراه غير حامل هذه الصلاحية، ولو ملك رؤية الأسماء
     const REPORT_VIEW_NAMES = 'report.view_names';
+
     const REPORT_EXEC_SUMMARY = 'report.exec_summary';   // الملخّص التنفيذي النهائي (مدير المركز، قابل للتفويض)
 
     const COMPETENCY_VIEW = 'competency.view';
+
     const COMPETENCY_MANAGE = 'competency.manage';
 
     const SEND_INVITATION = 'communication.invite';
 
     const USER_MANAGE = 'user.manage';
+
     const AUDIT_VIEW = 'audit.view';
+
     const SETTINGS_MANAGE = 'settings.manage';
+
     const ANALYTICS_VIEW = 'analytics.view';
 
     // ── صلاحية مستقلّة لكل شاشة ──
@@ -101,9 +142,13 @@ class Permissions
     // التنفيذية والتقرير اليومي معه، ومن ملك «التقارير» ملك خطط التطوير،
     // ومن ملك «الإعدادات» ملك سير العمل. فلم يكن يمكن منح شاشةٍ دون أختها.
     const ANALYTICS_EXECUTIVE = 'analytics.executive';      // القيادة التنفيذية للمركز
+
     const ANALYTICS_DAILY_REPORT = 'analytics.daily_report'; // التقرير اليومي
+
     const DEVELOPMENT_PLAN_VIEW = 'development_plan.view';   // خطط التطوير
+
     const CHAT_VIEW = 'chat.view';                           // المحادثات
+
     const WORKFLOW_MANAGE = 'workflow.manage';               // مراحل الاعتماد
 
     // ════════════════════════════════════════════════════════
@@ -405,11 +450,15 @@ class Permissions
         // متأخّرة عن أخواتها — والشاشة تُقرأ بالعين لا بالترتيب الداخلي.
         $ordered = [];
         foreach (array_keys($groups) as $key) {
-            if (isset($out[$key])) $ordered[$key] = $out[$key];
+            if (isset($out[$key])) {
+                $ordered[$key] = $out[$key];
+            }
         }
         // مجموعة بلا مدخل في $groups تبقى ظاهرة في الذيل لا تختفي صامتة
         foreach ($out as $key => $g) {
-            if (!isset($ordered[$key])) $ordered[$key] = $g;
+            if (! isset($ordered[$key])) {
+                $ordered[$key] = $g;
+            }
         }
 
         return $ordered;
@@ -438,7 +487,7 @@ class Permissions
 
         $map = [];
         try {
-            $rows = \Illuminate\Support\Facades\DB::table('role_permissions')
+            $rows = DB::table('role_permissions')
                 ->join('roles', 'roles.id', '=', 'role_permissions.role_id')
                 ->select('roles.code', 'role_permissions.permission')
                 ->get();
@@ -452,6 +501,7 @@ class Permissions
         }
 
         $app->instance(self::CACHE_KEY, $map);
+
         return $map;
     }
 
@@ -465,7 +515,9 @@ class Permissions
     public static function roleHasPermission(string $roleCode, string $permission): bool
     {
         $perms = self::forRole($roleCode);
-        if ($perms === []) return false;
+        if ($perms === []) {
+            return false;
+        }
 
         // '*' يُفرَد على الصلاحيات المعرَّفة لا على أي نصّ. كان يمرّر أي سلسلة،
         // فخطأ مطبعي في فحصٍ داخل متحكّم (hasPermission('candidate.viewww'))

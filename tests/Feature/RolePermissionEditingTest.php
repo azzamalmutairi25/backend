@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\Role;
 use App\Models\RolePermission;
-use App\Models\User;
 use App\Security\Permissions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -31,6 +30,7 @@ class RolePermissionEditingTest extends TestCase
     private function permsOf(string $code): array
     {
         Permissions::forgetCache();
+
         return Permissions::forRole($code);
     }
 
@@ -250,7 +250,7 @@ class RolePermissionEditingTest extends TestCase
         ));
 
         $this->assertSame([], $missing,
-            'صلاحيات بلا وصف عربي — تظهر للمدير كمفتاح خام: ' . implode('، ', $missing));
+            'صلاحيات بلا وصف عربي — تظهر للمدير كمفتاح خام: '.implode('، ', $missing));
     }
 
     // مفتاح ذاكرةٍ داخلي اسمه 'kafaat.rolePermissions' كان يمرّ بفحص «فيه نقطة»

@@ -34,6 +34,7 @@ class ParticipantCodeTest extends TestCase
     private function counter(string $prefix): ?int
     {
         $v = DB::table('participant_code_counters')->where('prefix', $prefix)->value('last_number');
+
         return $v === null ? null : (int) $v;
     }
 
@@ -186,14 +187,16 @@ class ParticipantCodeTest extends TestCase
         }
 
         $queries = [];
-        DB::listen(function ($q) use (&$queries) { $queries[] = $q->sql; });
+        DB::listen(function ($q) use (&$queries) {
+            $queries[] = $q->sql;
+        });
         Assessment::generateParticipantCode($sector);
 
         $scans = array_values(array_filter($queries, fn ($sql) => stripos($sql, 'participant_code') !== false
             && stripos($sql, 'like') !== false));
 
         $this->assertSame([], $scans,
-            "التوليد ما زال يمسح عمود الرموز — الكلفة تنمو مع البيانات:\n" . implode("\n", $scans));
+            "التوليد ما زال يمسح عمود الرموز — الكلفة تنمو مع البيانات:\n".implode("\n", $scans));
 
         // ويقرأ من جدول العدّاد فعلاً — لا مسار جانبي صامت
         $this->assertNotEmpty(array_filter($queries,

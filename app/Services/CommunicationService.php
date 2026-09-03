@@ -2,13 +2,14 @@
 
 namespace App\Services;
 
+use App\Jobs\SendSmsJob;
 use App\Models\EmailLog;
-use App\Models\SmsLog;
 use App\Models\Setting;
+use App\Models\SmsLog;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Http;
 
 // ════════════════════════════════════════════════════════════
 //  خدمات الاتصال: البريد الإلكتروني والرسائل النصية
@@ -36,7 +37,7 @@ class CommunicationService
             try {
                 $key = Crypt::decryptString($storedKey);
             } catch (\Throwable $e) {
-                Log::error('sms gateway key decrypt failed (APP_KEY mismatch?): ' . $e->getMessage());
+                Log::error('sms gateway key decrypt failed (APP_KEY mismatch?): '.$e->getMessage());
                 $keyError = true;
             }
         }
@@ -81,7 +82,7 @@ class CommunicationService
                 $pass = Crypt::decryptString($pass);
             } catch (\Throwable $e) {
                 // مفتاح تطبيق تغيّر أو قيمة تالفة — عطّل بدل المصادقة بكلمة خاطئة
-                Log::warning('smtp password decrypt failed: ' . $e->getMessage());
+                Log::warning('smtp password decrypt failed: '.$e->getMessage());
                 $pass = '';
             }
         }
@@ -111,7 +112,7 @@ class CommunicationService
     private static function applySmtpConfig(): bool
     {
         $c = self::smtpConfig();
-        if (!$c['enabled'] || $c['host'] === '') {
+        if (! $c['enabled'] || $c['host'] === '') {
             return false; // اترك المُرسِل الافتراضي (log/array حسب البيئة)
         }
 
@@ -186,7 +187,8 @@ class CommunicationService
                 'created_by' => $createdBy,
             ]);
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('email log write failed: ' . $e->getMessage());
+            Log::warning('email log write failed: '.$e->getMessage());
+
             return false;
         }
 
@@ -199,11 +201,13 @@ class CommunicationService
             });
 
             $log->update(['status' => 'sent', 'sent_at' => now()]);
+
             return true;
         } catch (\Throwable $e) {
             // Throwable لا Exception: أخطاء نقل Symfony قد تأتي كـError، وتسريبها
             // يُصعّد 500 لطرف النداء بدل الفشل اللطيف الذي يوثّقه السجل
             $log->update(['status' => 'failed', 'error_message' => mb_substr($e->getMessage(), 0, 500)]);
+
             return false;
         }
     }
@@ -248,11 +252,13 @@ class CommunicationService
                 'created_by' => $createdBy,
             ]);
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('sms log write failed: ' . $e->getMessage());
+            Log::warning('sms log write failed: '.$e->getMessage());
+
             return false;
         }
 
-        \App\Jobs\SendSmsJob::dispatch($log->id);
+        SendSmsJob::dispatch($log->id);
+
         return true;
     }
 
@@ -275,7 +281,8 @@ class CommunicationService
                 'created_by' => $createdBy,
             ]);
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('sms log write failed: ' . $e->getMessage());
+            Log::warning('sms log write failed: '.$e->getMessage());
+
             return false;
         }
 
@@ -303,16 +310,18 @@ class CommunicationService
                 'status' => 'failed',
                 'error_message' => 'فشل فكّ تشفير مفتاح البوّابة (تحقّق من تطابق APP_KEY)',
             ]);
+
             return false;
         }
 
-        if (!$g['enabled'] || $g['url'] === '' || $g['key'] === '') {
+        if (! $g['enabled'] || $g['url'] === '' || $g['key'] === '') {
             // وضع التطوير: البوّابة معطّلة أو غير مكتملة (لا مفتاح مُخزَّن أصلاً)
             $log->update([
                 'status' => 'sent',
                 'sent_at' => now(),
                 'error_message' => '(وضع التطوير: لم تُرسل فعلياً - أعدّ بوّابة الرسائل)',
             ]);
+
             return true;
         }
 
@@ -331,7 +340,7 @@ class CommunicationService
         } catch (\Throwable $e) {
             // خطأ اتصال/مهلة = عابر: وسم failed ثم رمي ليعيد الطابور المحاولة
             $log->update(['status' => 'failed', 'error_message' => mb_substr($e->getMessage(), 0, 500)]);
-            throw new \RuntimeException('SMS gateway transient error: ' . $e->getMessage(), 0, $e);
+            throw new \RuntimeException('SMS gateway transient error: '.$e->getMessage(), 0, $e);
         }
 
         if ($response->successful()) {
@@ -340,15 +349,17 @@ class CommunicationService
                 'sent_at' => now(),
                 'provider_ref' => mb_substr($response->body(), 0, 100),
             ]);
+
             return true;
         }
 
-        $log->update(['status' => 'failed', 'error_message' => 'HTTP ' . $response->status()]);
+        $log->update(['status' => 'failed', 'error_message' => 'HTTP '.$response->status()]);
 
         // 5xx = عطل مؤقّت في البوّابة ⇒ عابر (أعد المحاولة)؛ 4xx = طلب خاطئ ⇒ دائم
         if ($response->serverError()) {
-            throw new \RuntimeException('SMS gateway HTTP ' . $response->status());
+            throw new \RuntimeException('SMS gateway HTTP '.$response->status());
         }
+
         return false;
     }
 }

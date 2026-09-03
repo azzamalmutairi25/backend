@@ -44,7 +44,7 @@ class CandidateUpdateRequestController extends Controller
     public function store(Request $request)
     {
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::CANDIDATE_UPDATE_REQUEST)) {
+        if (! $user->hasPermission(Permissions::CANDIDATE_UPDATE_REQUEST)) {
             return response()->json(['error' => 'ليس لديك صلاحية طلب تحديث بيانات مشارك'], 403);
         }
 
@@ -54,7 +54,7 @@ class CandidateUpdateRequestController extends Controller
         }
 
         $validated = $request->validate([
-            'nationalId' => ['required', 'string', new SaudiNationalId()],
+            'nationalId' => ['required', 'string', new SaudiNationalId],
             'fullName' => 'required|string|max:200',
             'mobile' => ['nullable', 'string', 'regex:/^05\d{8}$/'],
             'email' => 'nullable|email|max:200',
@@ -76,7 +76,7 @@ class CandidateUpdateRequestController extends Controller
         ]);
 
         // تقييد بالمعدّل على المستخدم — الطلب مفتوح لجهة خارجية
-        if (RateLimiter::hit('curq:user:' . $user->id, 600) > 20) {
+        if (RateLimiter::hit('curq:user:'.$user->id, 600) > 20) {
             return response()->json(['error' => 'طلبات كثيرة، حاول لاحقاً'], 429);
         }
 
@@ -90,7 +90,7 @@ class CandidateUpdateRequestController extends Controller
         $candidate = Candidate::with(['cv', 'sector'])
             ->where('national_id_hash', hash('sha256', $validated['nationalId']))
             ->first();
-        if (!$candidate || !in_array($candidate->classification, $this->allowedClassifications($request))) {
+        if (! $candidate || ! in_array($candidate->classification, $this->allowedClassifications($request))) {
             return response()->json([
                 'error' => 'لا يوجد مشارك مسجّل بهذا الرقم — أضِفه كمشارك جديد',
             ], 404);
@@ -146,8 +146,8 @@ class CandidateUpdateRequestController extends Controller
                         'sectorId' => $sector->id,
                         'sectorName' => $sector->name_ar,
                         'rankLabel' => $validated['rankLabel'],
-            'personnelCategory' => $validated['personnelCategory'],
-            'tier' => $validated['tier'] ?? null,
+                        'personnelCategory' => $validated['personnelCategory'],
+                        'tier' => $validated['tier'] ?? null,
                     ],
                     'cv' => $cleanCv,
                 ],
@@ -178,7 +178,7 @@ class CandidateUpdateRequestController extends Controller
     public function mine(Request $request)
     {
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::CANDIDATE_UPDATE_REQUEST)) {
+        if (! $user->hasPermission(Permissions::CANDIDATE_UPDATE_REQUEST)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض طلبات التحديث'], 403);
         }
 
@@ -204,7 +204,7 @@ class CandidateUpdateRequestController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::CANDIDATE_UPDATE_APPROVE)) {
+        if (! $user->hasPermission(Permissions::CANDIDATE_UPDATE_APPROVE)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض طلبات التحديث'], 403);
         }
 
@@ -251,12 +251,12 @@ class CandidateUpdateRequestController extends Controller
     public function show(Request $request, int $id)
     {
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::CANDIDATE_UPDATE_APPROVE)) {
+        if (! $user->hasPermission(Permissions::CANDIDATE_UPDATE_APPROVE)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض طلبات التحديث'], 403);
         }
 
         $updateRequest = $this->resolveInScope($request, $id);
-        if (!$updateRequest) {
+        if (! $updateRequest) {
             return response()->json(['error' => 'الطلب غير موجود'], 404);
         }
 
@@ -293,7 +293,7 @@ class CandidateUpdateRequestController extends Controller
     public function approve(Request $request, int $id)
     {
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::CANDIDATE_UPDATE_APPROVE)) {
+        if (! $user->hasPermission(Permissions::CANDIDATE_UPDATE_APPROVE)) {
             return response()->json(['error' => 'ليس لديك صلاحية اعتماد طلبات التحديث'], 403);
         }
 
@@ -302,7 +302,7 @@ class CandidateUpdateRequestController extends Controller
         ]);
 
         $updateRequest = $this->resolveInScope($request, $id);
-        if (!$updateRequest) {
+        if (! $updateRequest) {
             return response()->json(['error' => 'الطلب غير موجود'], 404);
         }
         if ($updateRequest->status !== CandidateUpdateRequest::PENDING) {
@@ -314,23 +314,23 @@ class CandidateUpdateRequestController extends Controller
         // السيرة اختيارية: طلبٌ حُفظ بلا سيرة كان يصير غيرَ قابلٍ للاعتماد أبداً
         // («محتوى الطلب تالف») — أي طلبٌ مسجونٌ لا يُبتّ فيه بنعم ولا بلا.
         $cvDoc = is_array($payload['cv'] ?? null) ? $payload['cv'] : null;
-        if (!$identity) {
+        if (! $identity) {
             return response()->json(['error' => 'محتوى الطلب تالف — تعذّر تطبيقه'], 422);
         }
 
         $sector = Sector::find($identity['sectorId'] ?? null);
-        if (!$sector) {
+        if (! $sector) {
             return response()->json(['error' => 'القطاع المطلوب لم يعد موجوداً — ارفض الطلب'], 422);
         }
 
         $applied = DB::transaction(function () use ($updateRequest, $identity, $cvDoc, $sector, $user, $validated) {
             // القفل يسلسل معتمِدَين متزامنين، وإعادة الفحص تحته تمنع الاعتماد المزدوج
             $locked = CandidateUpdateRequest::whereKey($updateRequest->id)->lockForUpdate()->first();
-            if (!$locked || $locked->status !== CandidateUpdateRequest::PENDING) {
+            if (! $locked || $locked->status !== CandidateUpdateRequest::PENDING) {
                 return false;
             }
             $candidate = Candidate::whereKey($locked->candidate_id)->lockForUpdate()->first();
-            if (!$candidate) {
+            if (! $candidate) {
                 return false;
             }
 
@@ -371,7 +371,7 @@ class CandidateUpdateRequestController extends Controller
             return true;
         });
 
-        if (!$applied) {
+        if (! $applied) {
             return response()->json(['error' => 'بُتّ في هذا الطلب مسبقاً'], 422);
         }
 
@@ -389,7 +389,7 @@ class CandidateUpdateRequestController extends Controller
     public function reject(Request $request, int $id)
     {
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::CANDIDATE_UPDATE_APPROVE)) {
+        if (! $user->hasPermission(Permissions::CANDIDATE_UPDATE_APPROVE)) {
             return response()->json(['error' => 'ليس لديك صلاحية البتّ في طلبات التحديث'], 403);
         }
 
@@ -401,13 +401,13 @@ class CandidateUpdateRequestController extends Controller
         ]);
 
         $updateRequest = $this->resolveInScope($request, $id);
-        if (!$updateRequest) {
+        if (! $updateRequest) {
             return response()->json(['error' => 'الطلب غير موجود'], 404);
         }
 
         $rejected = DB::transaction(function () use ($updateRequest, $user, $validated) {
             $locked = CandidateUpdateRequest::whereKey($updateRequest->id)->lockForUpdate()->first();
-            if (!$locked || $locked->status !== CandidateUpdateRequest::PENDING) {
+            if (! $locked || $locked->status !== CandidateUpdateRequest::PENDING) {
                 return false;
             }
             $locked->status = CandidateUpdateRequest::REJECTED;
@@ -419,7 +419,7 @@ class CandidateUpdateRequestController extends Controller
             return true;
         });
 
-        if (!$rejected) {
+        if (! $rejected) {
             return response()->json(['error' => 'بُتّ في هذا الطلب مسبقاً'], 422);
         }
 
@@ -593,7 +593,7 @@ class CandidateUpdateRequestController extends Controller
     // إبلاغ مقدّم الطلب بالنتيجة — بلا رمز المشارك (لا يملك قراءته)
     private function notifyRequester(CandidateUpdateRequest $updateRequest, string $title, ?string $note): void
     {
-        if (!$updateRequest->requested_by) {
+        if (! $updateRequest->requested_by) {
             return;
         }
         app(NotificationService::class)->notify(

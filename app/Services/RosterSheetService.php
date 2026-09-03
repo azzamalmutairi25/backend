@@ -79,15 +79,15 @@ class RosterSheetService
         $byCandidate = [];
         foreach ($sessions as $s) {
             $c = $s->candidate;
-            if (!$c) {
+            if (! $c) {
                 continue;
             }
             $time = $s->schedule_time ? substr((string) $s->schedule_time, 0, 5) : null;
-            if ($time !== null && !in_array($time, $slots, true)) {
+            if ($time !== null && ! in_array($time, $slots, true)) {
                 $offSlot++;
             }
 
-            if (!isset($byCandidate[$c->id])) {
+            if (! isset($byCandidate[$c->id])) {
                 $byCandidate[$c->id] = [
                     'candidate' => $c,
                     // رمز دورة التقييم من الجلسة نفسها — لا من المشارك: المشارك
@@ -137,6 +137,7 @@ class RosterSheetService
         usort($rows, function ($a, $b) {
             $ga = $a['group'] ?? 'ZZ';
             $gb = $b['group'] ?? 'ZZ';
+
             return [$ga, $a['code']] <=> [$gb, $b['code']];
         });
 
@@ -171,7 +172,7 @@ class RosterSheetService
         $slots = $data['slots'];
 
         $slotHead = implode('', array_map(
-            fn ($t) => '<th class="gold">' . e($t) . '</th>',
+            fn ($t) => '<th class="gold">'.e($t).'</th>',
             $slots
         ));
 
@@ -182,15 +183,15 @@ class RosterSheetService
 
         $notes = [];
         if ($data['ungrouped'] > 0) {
-            $notes[] = '<span class="warn">' . e($data['ungrouped']) . ' مشاركاً بلا مجموعة مُسنَدة</span>';
+            $notes[] = '<span class="warn">'.e($data['ungrouped']).' مشاركاً بلا مجموعة مُسنَدة</span>';
         }
         if ($data['offSlot'] > 0) {
-            $notes[] = '<span class="warn">' . e($data['offSlot']) . ' جلسة خارج الأوقات المعتمدة — لا تظهر في أعمدة التوقيت</span>';
+            $notes[] = '<span class="warn">'.e($data['offSlot']).' جلسة خارج الأوقات المعتمدة — لا تظهر في أعمدة التوقيت</span>';
         }
-        if (!$data['showNationalId']) {
+        if (! $data['showNationalId']) {
             $notes[] = 'عمود الهوية الوطنية محجوب في هذه النسخة';
         }
-        $notesHtml = $notes ? '<div class="notes">' . implode(' · ', $notes) . '</div>' : '';
+        $notesHtml = $notes ? '<div class="notes">'.implode(' · ', $notes).'</div>' : '';
 
         $empty = $data['rows']
             ? ''
@@ -274,10 +275,10 @@ HTML;
         $first = true;
 
         foreach ($grouped as $rows) {
-            if (!$first) {
+            if (! $first) {
                 // فاصل بصري بين المجموعتين، كما في النموذج الورقي
                 $span = 6 + count($slots) + 5;
-                $out .= '<tbody><tr class="gap"><td colspan="' . $span . '" style="border:0"></td></tr></tbody>';
+                $out .= '<tbody><tr class="gap"><td colspan="'.$span.'" style="border:0"></td></tr></tbody>';
             }
             $first = false;
 
@@ -285,25 +286,25 @@ HTML;
             foreach ($rows as $r) {
                 $slotCells = '';
                 foreach ($slots as $t) {
-                    $slotCells .= '<td>' . $this->activityIcon($r['slots'][$t] ?? null) . '</td>';
+                    $slotCells .= '<td>'.$this->activityIcon($r['slots'][$t] ?? null).'</td>';
                 }
 
                 $body .= '<tr>'
-                    . '<td class="seq">' . e($r['seq']) . '</td>'
-                    . '<td class="seq">' . e($r['groupLabel']) . '</td>'
-                    . '<td>' . e($r['nationalId']) . '</td>'
-                    . '<td>' . e($r['rank']) . '</td>'
-                    . '<td>' . e($r['code']) . '</td>'
-                    . '<td></td>'
-                    . $slotCells
-                    . '<td>' . e($r['evaluator']) . '</td>'
-                    . '<td>' . e($r['assistant']) . '</td>'
-                    . '<td>' . e($r['discussionEvaluator']) . '</td>'
-                    . '<td>' . e($r['discussionAssistant']) . '</td>'
-                    . '<td></td>'
-                    . '</tr>';
+                    .'<td class="seq">'.e($r['seq']).'</td>'
+                    .'<td class="seq">'.e($r['groupLabel']).'</td>'
+                    .'<td>'.e($r['nationalId']).'</td>'
+                    .'<td>'.e($r['rank']).'</td>'
+                    .'<td>'.e($r['code']).'</td>'
+                    .'<td></td>'
+                    .$slotCells
+                    .'<td>'.e($r['evaluator']).'</td>'
+                    .'<td>'.e($r['assistant']).'</td>'
+                    .'<td>'.e($r['discussionEvaluator']).'</td>'
+                    .'<td>'.e($r['discussionAssistant']).'</td>'
+                    .'<td></td>'
+                    .'</tr>';
             }
-            $out .= '<tbody>' . $body . '</tbody>';
+            $out .= '<tbody>'.$body.'</tbody>';
         }
 
         return $out;
@@ -312,7 +313,7 @@ HTML;
     // ── الصفحة الثانية: جدول إسناد لكل مجموعة، معنون بفترة جلسة نقاشها ──
     private function renderAssessorTables(array $grouped): string
     {
-        if (!$grouped) {
+        if (! $grouped) {
             return '<div class="empty">لا مجموعات مُسنَدة</div>';
         }
 
@@ -322,29 +323,29 @@ HTML;
             $body = '';
             foreach ($rows as $i => $r) {
                 $periodCell = $i === 0
-                    ? '<td colspan="2" class="period">' . e($period) . '</td>'
-                    : '<td>' . e($r['discussionEvaluator']) . '</td><td>' . e($r['discussionAssistant']) . '</td>';
+                    ? '<td colspan="2" class="period">'.e($period).'</td>'
+                    : '<td>'.e($r['discussionEvaluator']).'</td><td>'.e($r['discussionAssistant']).'</td>';
 
                 $body .= '<tr>'
-                    . '<td class="seq">' . e($i + 1) . '</td>'
-                    . '<td class="seq">' . e($r['groupLabel']) . '</td>'
-                    . '<td>' . e($r['rank']) . '</td>'
-                    . '<td>' . e($r['code']) . '</td>'
-                    . '<td>' . e($r['evaluator']) . '</td>'
-                    . '<td>' . e($r['assistant']) . '</td>'
-                    . $periodCell
-                    . '<td></td>'
-                    . '</tr>';
+                    .'<td class="seq">'.e($i + 1).'</td>'
+                    .'<td class="seq">'.e($r['groupLabel']).'</td>'
+                    .'<td>'.e($r['rank']).'</td>'
+                    .'<td>'.e($r['code']).'</td>'
+                    .'<td>'.e($r['evaluator']).'</td>'
+                    .'<td>'.e($r['assistant']).'</td>'
+                    .$periodCell
+                    .'<td></td>'
+                    .'</tr>';
             }
 
             $out .= '<table class="form" style="max-width:62%; margin-inline-start:auto; margin-bottom:28px">'
-                . '<thead><tr>'
-                . '<th style="width:6%">م</th><th style="width:6%">ج</th>'
-                . '<th style="width:13%">الرتبة/المرتبة</th><th style="width:13%">رمز المشارك</th>'
-                . '<th style="width:15%">اسم المقيم</th><th style="width:15%">مساعد المقيم</th>'
-                . '<th style="width:14%">مقيم جلسة النقاش</th><th style="width:14%">مساعد مقيم جلسة النقاش</th>'
-                . '<th class="gold" style="width:9%">S</th>'
-                . '</tr></thead><tbody>' . $body . '</tbody></table>';
+                .'<thead><tr>'
+                .'<th style="width:6%">م</th><th style="width:6%">ج</th>'
+                .'<th style="width:13%">الرتبة/المرتبة</th><th style="width:13%">رمز المشارك</th>'
+                .'<th style="width:15%">اسم المقيم</th><th style="width:15%">مساعد المقيم</th>'
+                .'<th style="width:14%">مقيم جلسة النقاش</th><th style="width:14%">مساعد مقيم جلسة النقاش</th>'
+                .'<th class="gold" style="width:9%">S</th>'
+                .'</tr></thead><tbody>'.$body.'</tbody></table>';
         }
 
         return $out;
@@ -376,28 +377,28 @@ HTML;
     }
 
     private const ICON_LAPTOP = '<svg width="30" height="23" viewBox="0 0 44 34" fill="none">'
-        . '<rect x="8" y="5" width="28" height="18" rx="2.2" fill="#2F6B3E"/>'
-        . '<rect x="10.5" y="7.5" width="23" height="13" rx="1.2" fill="#EAF3EC"/>'
-        . '<path d="M3 27h38l-2.5-3H5.5L3 27Z" fill="#2F6B3E"/></svg>';
+        .'<rect x="8" y="5" width="28" height="18" rx="2.2" fill="#2F6B3E"/>'
+        .'<rect x="10.5" y="7.5" width="23" height="13" rx="1.2" fill="#EAF3EC"/>'
+        .'<path d="M3 27h38l-2.5-3H5.5L3 27Z" fill="#2F6B3E"/></svg>';
 
     private const ICON_INTERVIEW = '<svg width="25" height="21" viewBox="0 0 40 34" fill="none">'
-        . '<circle cx="12" cy="8" r="4" fill="#12795C"/>'
-        . '<path d="M6 22c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="#12795C" stroke-width="2.4" stroke-linecap="round"/>'
-        . '<circle cx="28" cy="8" r="4" fill="#12795C"/>'
-        . '<path d="M22 22c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="#12795C" stroke-width="2.4" stroke-linecap="round"/>'
-        . '<path d="M4 26h32" stroke="#12795C" stroke-width="2.4" stroke-linecap="round"/></svg>';
+        .'<circle cx="12" cy="8" r="4" fill="#12795C"/>'
+        .'<path d="M6 22c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="#12795C" stroke-width="2.4" stroke-linecap="round"/>'
+        .'<circle cx="28" cy="8" r="4" fill="#12795C"/>'
+        .'<path d="M22 22c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="#12795C" stroke-width="2.4" stroke-linecap="round"/>'
+        .'<path d="M4 26h32" stroke="#12795C" stroke-width="2.4" stroke-linecap="round"/></svg>';
 
     private const ICON_DISCUSSION = '<svg width="28" height="21" viewBox="0 0 44 34" fill="none">'
-        . '<circle cx="9" cy="10" r="4" fill="#C4A02F"/>'
-        . '<circle cx="22" cy="7" r="4.6" fill="#C4A02F"/>'
-        . '<circle cx="35" cy="10" r="4" fill="#C4A02F"/>'
-        . '<path d="M2 26c0-3.9 3.1-7 7-7s7 3.1 7 7" fill="#C4A02F"/>'
-        . '<path d="M14 28c0-4.4 3.6-8 8-8s8 3.6 8 8" fill="#C4A02F"/>'
-        . '<path d="M28 26c0-3.9 3.1-7 7-7s7 3.1 7 7" fill="#C4A02F"/></svg>';
+        .'<circle cx="9" cy="10" r="4" fill="#C4A02F"/>'
+        .'<circle cx="22" cy="7" r="4.6" fill="#C4A02F"/>'
+        .'<circle cx="35" cy="10" r="4" fill="#C4A02F"/>'
+        .'<path d="M2 26c0-3.9 3.1-7 7-7s7 3.1 7 7" fill="#C4A02F"/>'
+        .'<path d="M14 28c0-4.4 3.6-8 8-8s8 3.6 8 8" fill="#C4A02F"/>'
+        .'<path d="M28 26c0-3.9 3.1-7 7-7s7 3.1 7 7" fill="#C4A02F"/></svg>';
 
     private const ICON_INTEGRATION = '<svg width="24" height="21" viewBox="0 0 34 34" fill="none">'
-        . '<circle cx="12" cy="17" r="8" stroke="#5b6a62" stroke-width="2.4"/>'
-        . '<circle cx="22" cy="17" r="8" stroke="#5b6a62" stroke-width="2.4"/></svg>';
+        .'<circle cx="12" cy="17" r="8" stroke="#5b6a62" stroke-width="2.4"/>'
+        .'<circle cx="22" cy="17" r="8" stroke="#5b6a62" stroke-width="2.4"/></svg>';
 
     private function renderLegend(): string
     {
@@ -408,7 +409,7 @@ HTML;
         ];
 
         return implode('', array_map(
-            fn ($i) => '<div class="leg">' . $i[0] . '<span>' . e($i[1]) . '</span></div>',
+            fn ($i) => '<div class="leg">'.$i[0].'<span>'.e($i[1]).'</span></div>',
             $items
         ));
     }

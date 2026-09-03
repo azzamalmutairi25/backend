@@ -34,6 +34,13 @@ class ReceptionKiosk extends Model
             && $this->kiosk_date->isSameDay(now());
     }
 
-    public function creator(): BelongsTo { return $this->belongsTo(User::class, 'created_by'); }
-    public function visits(): HasMany { return $this->hasMany(ReceptionVisit::class, 'kiosk_id'); }
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function visits(): HasMany
+    {
+        return $this->hasMany(ReceptionVisit::class, 'kiosk_id');
+    }
 }

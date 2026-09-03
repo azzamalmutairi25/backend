@@ -1,8 +1,8 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\SectorController;
 use App\Http\Controllers\RankController;
+use App\Http\Controllers\SectorController;
+use Illuminate\Support\Facades\Route;
 
 // ════════════════════════════════════════════════════════════
 //  مسارات إعدادات النظام القابلة للتعديل (قطاعات/رتب/توزيع).

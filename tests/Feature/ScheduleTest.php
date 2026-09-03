@@ -85,12 +85,12 @@ class ScheduleTest extends TestCase
     {
         [$c, $a] = $this->makeCandidate(['status' => 'scheduled']);
         $ev = $this->actingAsRole('EVALUATOR', 'DW');
-        $sch = \App\Models\Schedule::create([
+        $sch = Schedule::create([
             'candidate_id' => $c->id, 'assessment_id' => $a->id,
             'schedule_date' => $this->tomorrow(), 'schedule_time' => '10:00:00',
             'activity' => 'interview', 'evaluator_id' => $ev->id, 'location' => 'قاعة',
         ]);
-        \App\Models\Attendance::create(['schedule_id' => $sch->id, 'status' => 'present', 'recorded_by' => null]);
+        Attendance::create(['schedule_id' => $sch->id, 'status' => 'present', 'recorded_by' => null]);
 
         // مشرف القياس يجدول لكن لا CANDIDATE_EDIT — القفل قائم عليه
         $this->actingAsRole('MEASURE_SUPER');
@@ -105,7 +105,7 @@ class ScheduleTest extends TestCase
         $id = $this->postJson('/api/schedules', [
             'candidateId' => $c->id, 'activity' => 'interview', 'date' => $this->tomorrow(), 'time' => '09:30',
         ])->assertCreated()->json('scheduleId');
-        \App\Models\Attendance::create(['schedule_id' => $id, 'status' => 'present', 'recorded_by' => null]);
+        Attendance::create(['schedule_id' => $id, 'status' => 'present', 'recorded_by' => null]);
 
         // تغيير المكان فقط: الحضور يبقى — لم يتبدّل الموعد
         $this->putJson("/api/schedules/{$id}", ['location' => 'قاعة ٣'])

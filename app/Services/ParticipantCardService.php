@@ -18,7 +18,9 @@ class ParticipantCardService
 {
     // ألوان الهوية — من ملف التصميم
     private const GREEN = '#008769';
+
     private const GREEN_DARK = '#024032';
+
     private const GOLD = '#C8A535';
 
     private const EMBLEM_PATH = 'brand/moi-emblem.png';
@@ -29,11 +31,11 @@ class ParticipantCardService
     private function emblemDataUri(): string
     {
         $path = public_path(self::EMBLEM_PATH);
-        if (!is_file($path)) {
+        if (! is_file($path)) {
             return '';
         }
 
-        return 'data:image/png;base64,' . base64_encode((string) file_get_contents($path));
+        return 'data:image/png;base64,'.base64_encode((string) file_get_contents($path));
     }
 
     // $codes: رموز المشاركين بالترتيب المطلوب طباعته
@@ -60,7 +62,7 @@ class ParticipantCardService
         // طباعة مشارك واحد على ورقة كاملة تهدر الورق وتُخرج بطاقة في ركن،
         // فالصفحة نفسها تصير بحجم البطاقة ويخرج ملف PDF ببطاقة واحدة تماماً.
         $single = $count === 1;
-        $title = $single ? 'بطاقة المشارك — ' . e($codes[0]) : 'بطاقات المشاركين — ' . $count . ' بطاقة';
+        $title = $single ? 'بطاقة المشارك — '.e($codes[0]) : 'بطاقات المشاركين — '.$count.' بطاقة';
 
         $sheetCss = $single
             ? '.sheet { width:91.4mm; margin:16px auto; padding:0; display:block; direction:ltr; }'
@@ -114,15 +116,15 @@ HTML;
     private function card(string $code): string
     {
         return '<div class="card">'
-            . '<div class="goldbar"></div>'
-            . '<div class="art"></div>'
-            . '<div class="org">'
-            . '<div>وزارة الداخلية</div>'
-            . '<div>برنامج تطوير وزارة الداخلية</div>'
-            . '<div>مركز تمكين الكفاءات</div>'
-            . '</div>'
-            . '<div class="code">' . e($code) . '</div>'
-            . '<div class="band"></div>'
-            . '</div>';
+            .'<div class="goldbar"></div>'
+            .'<div class="art"></div>'
+            .'<div class="org">'
+            .'<div>وزارة الداخلية</div>'
+            .'<div>برنامج تطوير وزارة الداخلية</div>'
+            .'<div>مركز تمكين الكفاءات</div>'
+            .'</div>'
+            .'<div class="code">'.e($code).'</div>'
+            .'<div class="band"></div>'
+            .'</div>';
     }
 }

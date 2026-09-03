@@ -26,8 +26,8 @@ class SchedulingPeriodTest extends TestCase
     private function person(string $roleCode, string $sectorCode = 'DW', bool $active = true): User
     {
         return User::create([
-            'username' => 'u_' . substr(md5(uniqid('', true)), 0, 8),
-            'full_name' => 'مستخدم ' . $roleCode,
+            'username' => 'u_'.substr(md5(uniqid('', true)), 0, 8),
+            'full_name' => 'مستخدم '.$roleCode,
             'password' => 'Kafaat@2026',
             'role_id' => Role::where('code', $roleCode)->value('id'),
             'sector_id' => Sector::where('code', $sectorCode)->value('id'),
@@ -39,7 +39,7 @@ class SchedulingPeriodTest extends TestCase
     private function makePeriod(array $over = []): SchedulingPeriod
     {
         return SchedulingPeriod::create(array_merge([
-            'name' => 'دورة الاختبار ' . uniqid(),
+            'name' => 'دورة الاختبار '.uniqid(),
             'start_date' => now()->addDay()->toDateString(),
             'end_date' => now()->addDays(3)->toDateString(),
             'status' => 'draft',
@@ -389,7 +389,7 @@ class SchedulingPeriodTest extends TestCase
         $period->update(['status' => 'approved']);
 
         // كان الحارس على الإنشاء والتعديل دون الحذف: ما يُمنع إضافةً كان يمرّ حذفاً
-        $this->deleteJson('/api/schedules/' . $id)->assertStatus(422);
+        $this->deleteJson('/api/schedules/'.$id)->assertStatus(422);
     }
 
     public function test_an_approved_but_empty_wave_cannot_be_deleted(): void

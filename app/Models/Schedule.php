@@ -20,6 +20,7 @@ class Schedule extends Model
     {
         return $this->belongsTo(Candidate::class);
     }
+
     public function assessment()
     {
         return $this->belongsTo(Assessment::class);

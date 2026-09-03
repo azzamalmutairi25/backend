@@ -89,15 +89,15 @@ return new class extends Migration
                     array_slice($rows, 0, 5)
                 );
                 $clashes[] = "— {$label} ({$table}): {$total} تعارضاً على الأقل\n     "
-                    . implode("\n     ", $sample);
+                    .implode("\n     ", $sample);
             }
         }
 
         if ($clashes) {
             throw new RuntimeException(
                 "لا يمكن تركيب حرّاس التعارض: توجد تعارضاتٌ مخزَّنة.\n"
-                . implode("\n", $clashes)
-                . "\n\nالأعمدة بترتيب كل سطر تسبق العدد. عالِج التعارضات ثم أعِد الهجرة."
+                .implode("\n", $clashes)
+                ."\n\nالأعمدة بترتيب كل سطر تسبق العدد. عالِج التعارضات ثم أعِد الهجرة."
             );
         }
 

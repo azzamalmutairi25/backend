@@ -22,6 +22,7 @@ class ExecutiveSummaryTest extends TestCase
             'candidate_id' => $c->id, 'assessment_id' => $a->id, 'status' => 'pending_center',
             'recommendation' => 'يوصى به', 'created_by' => null,
         ]);
+
         return [$c, $r];
     }
 

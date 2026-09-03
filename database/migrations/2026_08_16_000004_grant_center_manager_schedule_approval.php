@@ -1,5 +1,6 @@
 <?php
 
+use App\Security\Permissions;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
@@ -19,19 +20,20 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration
 {
     private const ROLE = 'CENTER_MANAGER';
+
     private const PERMISSION = 'schedule.approve_center';
 
     public function up(): void
     {
         $roleId = DB::table('roles')->where('code', self::ROLE)->value('id');
-        if (!$roleId) {
+        if (! $roleId) {
             return;   // منصّة لم تُبذَر بعد — المصفوفة تكفيها
         }
 
         $rows = DB::table('role_permissions')->where('role_id', $roleId)->pluck('permission');
 
         // دورٌ جُرّد عمداً من الشاشة — لا يُنقض قراره هنا
-        if ($rows->count() === 1 && $rows->first() === \App\Security\Permissions::PLACEHOLDER) {
+        if ($rows->count() === 1 && $rows->first() === Permissions::PLACEHOLDER) {
             return;
         }
         // دورٌ بلا صفوف يقع على المصفوفة، وقد أُضيفت فيها — فلا حاجة لصفّ هنا
@@ -50,7 +52,7 @@ return new class extends Migration
     public function down(): void
     {
         $roleId = DB::table('roles')->where('code', self::ROLE)->value('id');
-        if (!$roleId) {
+        if (! $roleId) {
             return;
         }
 

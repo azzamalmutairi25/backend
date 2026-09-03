@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\EmailLog;
 use App\Models\Setting;
 use App\Services\CommunicationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -196,7 +197,7 @@ class SmtpSettingsTest extends TestCase
             ->assertOk()->assertJsonPath('success', true);
 
         $this->assertDatabaseHas('audit_logs', ['action' => 'TEST_SMTP', 'user_id' => $u->id]);
-        $this->assertSame('check@example.com', \App\Models\EmailLog::latest('id')->first()->to_email);
+        $this->assertSame('check@example.com', EmailLog::latest('id')->first()->to_email);
     }
 
     public function test_audit_records_the_save_without_leaking_the_password(): void

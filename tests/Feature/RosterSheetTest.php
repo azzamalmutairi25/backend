@@ -70,7 +70,7 @@ class RosterSheetTest extends TestCase
     public function test_document_requires_schedule_view(): void
     {
         $this->actingAsRole('EVALUATOR');
-        $this->get('/api/roster/document?date=' . self::DAY)->assertStatus(403);
+        $this->get('/api/roster/document?date='.self::DAY)->assertStatus(403);
     }
 
     public function test_document_is_html(): void
@@ -78,7 +78,7 @@ class RosterSheetTest extends TestCase
         $this->participant();
         $this->actingAsRole('SCHEDULER');
 
-        $this->get('/api/roster/document?date=' . self::DAY)
+        $this->get('/api/roster/document?date='.self::DAY)
             ->assertOk()
             ->assertHeader('Content-Type', 'text/html; charset=UTF-8');
     }
@@ -117,7 +117,7 @@ class RosterSheetTest extends TestCase
         // قراره إجرائي فيعمل بالرمز (كان مدير المركز حتى مُنح الأسماء)
         $this->actingAsRole('OPERATIONS');
 
-        $html = $this->get('/api/roster/document?date=' . self::DAY . '&showNationalId=1')
+        $html = $this->get('/api/roster/document?date='.self::DAY.'&showNationalId=1')
             ->assertOk()->getContent();
 
         $this->assertStringNotContainsString($nid, $html, 'رقم الهوية ظهر لمن لا يملك صلاحية الأسماء');
@@ -130,12 +130,12 @@ class RosterSheetTest extends TestCase
         $nid = $c->national_id;
         $this->actingAsRole('SCHEDULER');
 
-        $html = $this->get('/api/roster/document?date=' . self::DAY . '&showNationalId=1')
+        $html = $this->get('/api/roster/document?date='.self::DAY.'&showNationalId=1')
             ->assertOk()->getContent();
         $this->assertStringContainsString($nid, $html);
 
         // وبدون الطلب لا تُطبع ولو ملك الصلاحية
-        $plain = $this->get('/api/roster/document?date=' . self::DAY)->assertOk()->getContent();
+        $plain = $this->get('/api/roster/document?date='.self::DAY)->assertOk()->getContent();
         $this->assertStringNotContainsString($nid, $plain);
     }
 
@@ -161,7 +161,7 @@ class RosterSheetTest extends TestCase
         $other = $this->participant('CD');
 
         $this->boundUserWith(Permissions::SCHEDULE_VIEW, 'DW');
-        $html = $this->get('/api/roster/document?date=' . self::DAY)->assertOk()->getContent();
+        $html = $this->get('/api/roster/document?date='.self::DAY)->assertOk()->getContent();
 
         $this->assertStringContainsString($mine->participant_code, $html);
         $this->assertStringNotContainsString($other->participant_code, $html);
@@ -191,7 +191,7 @@ class RosterSheetTest extends TestCase
         ]);
 
         $this->actingAsRole('SCHEDULER');
-        $html = $this->get('/api/roster/document?date=' . self::DAY)->assertOk()->getContent();
+        $html = $this->get('/api/roster/document?date='.self::DAY)->assertOk()->getContent();
 
         $this->assertStringContainsString('خارج الأوقات المعتمدة', $html);
     }
@@ -202,7 +202,7 @@ class RosterSheetTest extends TestCase
         $this->participant();
         $this->actingAsRole('SCHEDULER');
 
-        $html = $this->get('/api/roster/document?date=' . self::DAY)->assertOk()->getContent();
+        $html = $this->get('/api/roster/document?date='.self::DAY)->assertOk()->getContent();
 
         $this->assertStringContainsString('08:00', $html);
         $this->assertStringContainsString('16:45', $html);

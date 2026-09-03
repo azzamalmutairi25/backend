@@ -23,7 +23,7 @@ class ChatNotifScopeFixesTest extends TestCase
     private function userWith(string $roleCode, ?string $sectorCode = null): User
     {
         return User::create([
-            'username' => 'u_' . strtolower($roleCode) . '_' . substr(md5(uniqid('', true)), 0, 6),
+            'username' => 'u_'.strtolower($roleCode).'_'.substr(md5(uniqid('', true)), 0, 6),
             'full_name' => "مستخدم {$roleCode}",
             'password' => 'Kafaat@2026',
             'role_id' => Role::where('code', $roleCode)->value('id'),
@@ -40,6 +40,7 @@ class ChatNotifScopeFixesTest extends TestCase
             'classification' => $classification,
             'status' => 'assessed',
         ]);
+
         return FinalReport::create([
             'candidate_id' => $c->id,
             'assessment_id' => $a->id,
@@ -61,7 +62,7 @@ class ChatNotifScopeFixesTest extends TestCase
         $otherSector = $this->userWith('EVALUATOR', 'MS');
 
         $this->svc()->notifyRole('EVALUATOR', 'approval', 'عنوان',
-            'تقرير المشارك ' . $report->candidate->participant_code . ' وصل مرحلة اعتمادك',
+            'تقرير المشارك '.$report->candidate->participant_code.' وصل مرحلة اعتمادك',
             'report', (string) $report->id, null);
 
         $this->assertSame(1, Notification::where('recipient_id', $inSector->id)->count());
@@ -75,7 +76,7 @@ class ChatNotifScopeFixesTest extends TestCase
         $evaluator = $this->userWith('EVALUATOR', 'DW'); // لا يملك CANDIDATE_VIEW_CLASSIFIED
 
         $this->svc()->notifyRole('EVALUATOR', 'approval', 'عنوان',
-            'تقرير المشارك ' . $report->candidate->participant_code . ' وصل مرحلة اعتمادك',
+            'تقرير المشارك '.$report->candidate->participant_code.' وصل مرحلة اعتمادك',
             'report', (string) $report->id, null);
 
         $this->assertSame(0, Notification::where('recipient_id', $evaluator->id)->count());
@@ -88,7 +89,7 @@ class ChatNotifScopeFixesTest extends TestCase
         $manager = $this->userWith('ASSESS_MANAGER'); // مركزي + CANDIDATE_VIEW_CLASSIFIED
 
         $this->svc()->notifyRole('ASSESS_MANAGER', 'approval', 'عنوان',
-            'تقرير المشارك ' . $report->candidate->participant_code . ' وصل مرحلة اعتمادك',
+            'تقرير المشارك '.$report->candidate->participant_code.' وصل مرحلة اعتمادك',
             'report', (string) $report->id, null);
 
         $this->assertSame(1, Notification::where('recipient_id', $manager->id)->count());

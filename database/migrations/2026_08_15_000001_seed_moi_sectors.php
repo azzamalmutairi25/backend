@@ -31,7 +31,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (!Schema::hasColumn('sectors', 'full_name_ar')) {
+        if (! Schema::hasColumn('sectors', 'full_name_ar')) {
             Schema::table('sectors', function (Blueprint $table) {
                 $table->string('full_name_ar', 200)->nullable()->after('name_ar');
             });
@@ -54,10 +54,13 @@ return new class extends Migration
         $blocked = [];
         foreach (array_keys(MoiSectors::LEGACY_MAP) as $legacyCode) {
             $sector = DB::table('sectors')->where('code', $legacyCode)->first();
-            if (!$sector) continue;
+            if (! $sector) {
+                continue;
+            }
 
             if ($this->linkCount($sector->id) > 0) {
                 $blocked[] = $legacyCode;
+
                 continue;
             }
 
@@ -65,9 +68,9 @@ return new class extends Migration
         }
 
         if ($blocked) {
-            echo "⚠ لم تُحذف القطاعات التجريبية المرتبطة ببيانات: " . implode('، ', $blocked) . "\n"
-               . "  لنقل بياناتها إلى القطاعات المعتمدة ثم حذفها:\n"
-               . "      php artisan kafaat:retire-demo-sectors\n";
+            echo '⚠ لم تُحذف القطاعات التجريبية المرتبطة ببيانات: '.implode('، ', $blocked)."\n"
+               ."  لنقل بياناتها إلى القطاعات المعتمدة ثم حذفها:\n"
+               ."      php artisan kafaat:retire-demo-sectors\n";
         }
     }
 

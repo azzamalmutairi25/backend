@@ -17,18 +17,18 @@ class TestUsersSeeder extends Seeder
 
         // اسم المستخدم => رمز الدور
         $map = [
-            'admin'      => 'ADMIN',            // كل الصلاحيات
-            'center'     => 'CENTER_MANAGER',   // إشراف عام (عرض) + تحليلات + تدقيق
-            'scheduler'  => 'SCHEDULER',        // إضافة/اعتماد مشارك + جدولة + دعوات
-            'reception'  => 'RECEPTIONIST',     // استقبال الموظفين: وصول + توقيع + توزيع
+            'admin' => 'ADMIN',            // كل الصلاحيات
+            'center' => 'CENTER_MANAGER',   // إشراف عام (عرض) + تحليلات + تدقيق
+            'scheduler' => 'SCHEDULER',        // إضافة/اعتماد مشارك + جدولة + دعوات
+            'reception' => 'RECEPTIONIST',     // استقبال الموظفين: وصول + توقيع + توزيع
             'operations' => 'OPERATIONS',       // اعتماد الاستقبال وإعادة إسناد المردود
-            'assess'     => 'ASSESS_MANAGER',   // اعتماد التقييم + إنشاء/تعديل التقارير + تحليلات
-            'evaluator'  => 'EVALUATOR',        // إدخال تقييم المقابلة
+            'assess' => 'ASSESS_MANAGER',   // اعتماد التقييم + إنشاء/تعديل التقارير + تحليلات
+            'evaluator' => 'EVALUATOR',        // إدخال تقييم المقابلة
             'discussion' => 'DISCUSSION_EVAL',  // إدخال تقييم حلقة النقاش
-            'assistant'  => 'ASSISTANT',        // مساعدة التقييم (رصد)
+            'assistant' => 'ASSISTANT',        // مساعدة التقييم (رصد)
             'devmanager' => 'DEV_MANAGER',      // الاعتماد النهائي للتقارير + إدارة الكفاءات + تحليلات
-            'measure'    => 'MEASURE_SUPER',    // رفع أدوات القياس + تسجيل حضور
-            'external'   => 'EXTERNAL_ADD',     // إضافة مشارك فقط (صلاحية دنيا)
+            'measure' => 'MEASURE_SUPER',    // رفع أدوات القياس + تسجيل حضور
+            'external' => 'EXTERNAL_ADD',     // إضافة مشارك فقط (صلاحية دنيا)
         ];
 
         // الأدوار المحصورة بقطاع تحتاج قطاعاً وإلا لم تُقيّم أحداً — نُسندها لديوان
@@ -38,8 +38,9 @@ class TestUsersSeeder extends Seeder
         $created = 0;
         foreach ($map as $username => $roleCode) {
             $role = Role::where('code', $roleCode)->first();
-            if (!$role) {
+            if (! $role) {
                 $this->command->warn("تخطّي {$username}: الدور {$roleCode} غير موجود");
+
                 continue;
             }
             $bound = in_array($roleCode, User::SECTOR_BOUND_ROLES, true);

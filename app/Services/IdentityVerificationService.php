@@ -40,7 +40,7 @@ class IdentityVerificationService
             try {
                 $key = Crypt::decryptString($storedKey);
             } catch (\Throwable $e) {
-                Log::error('idverify key decrypt failed (APP_KEY mismatch?): ' . $e->getMessage());
+                Log::error('idverify key decrypt failed (APP_KEY mismatch?): '.$e->getMessage());
                 $keyError = true;
             }
         }
@@ -86,7 +86,7 @@ class IdentityVerificationService
                 'message' => 'فشل فكّ تشفير مفتاح بوّابة التحقق (تحقّق من تطابق APP_KEY)'];
         }
 
-        if (!$g['enabled'] || $g['url'] === '' || $g['key'] === '') {
+        if (! $g['enabled'] || $g['url'] === '' || $g['key'] === '') {
             return ['ok' => true, 'matched' => null, 'devMode' => true,
                 'message' => 'وضع التطوير: بوّابة التحقق غير مُعَدّة'];
         }
@@ -99,14 +99,15 @@ class IdentityVerificationService
             }
             $response = $req->post($g['url'], $this->buildPayload($g, $nationalId));
         } catch (\Throwable $e) {
-            Log::warning('idverify request failed: ' . $e->getMessage());
+            Log::warning('idverify request failed: '.$e->getMessage());
+
             return ['ok' => false, 'matched' => null, 'devMode' => false,
                 'message' => 'تعذّر الاتصال ببوّابة التحقق'];
         }
 
         if (! $response->successful()) {
             return ['ok' => false, 'matched' => null, 'devMode' => false,
-                'message' => 'ردّت البوّابة بخطأ HTTP ' . $response->status()];
+                'message' => 'ردّت البوّابة بخطأ HTTP '.$response->status()];
         }
 
         $matched = $this->extractMatched($g['provider'], $response->json());
@@ -174,7 +175,7 @@ class IdentityVerificationService
                 'checked_by' => $checkedBy,
             ]);
         } catch (\Throwable $e) {
-            Log::warning('idverify log write failed: ' . $e->getMessage());
+            Log::warning('idverify log write failed: '.$e->getMessage());
         }
 
         return $result + ['status' => $status];

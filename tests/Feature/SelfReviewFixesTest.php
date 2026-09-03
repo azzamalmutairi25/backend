@@ -50,7 +50,7 @@ class SelfReviewFixesTest extends TestCase
 
         // الدورة 2 حيّة ومُقيَّمة (assessed) بتقييمها الخاص
         $a2 = Assessment::create([
-            'candidate_id' => $c->id, 'participant_code' => $a1->participant_code . 'B',
+            'candidate_id' => $c->id, 'participant_code' => $a1->participant_code.'B',
             'assessment_type' => 'comprehensive', 'status' => 'assessed', 'created_by' => null,
         ]);
         $c->update(['status' => 'assessed']);

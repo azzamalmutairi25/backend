@@ -2,9 +2,9 @@
 
 namespace App\Services;
 
+use App\Models\FinalReport;
 use App\Models\Notification;
 use App\Models\User;
-use App\Models\FinalReport;
 use App\Security\Permissions;
 
 // ════════════════════════════════════════════════════════════
@@ -29,9 +29,9 @@ class NotificationService
     ): void {
         // ارفض مبكراً برسالة واضحة: انتهاك CHECK يُجهض المعاملة المحيطة كاملة في Postgres،
         // فيسقط الفعل الأصلي بسبب إشعار — والخطأ يظهر بعيداً عن سببه
-        if (!in_array($type, self::TYPES, true)) {
+        if (! in_array($type, self::TYPES, true)) {
             throw new \InvalidArgumentException(
-                "نوع إشعار غير معروف: '{$type}'. المسموح: " . implode(', ', self::TYPES)
+                "نوع إشعار غير معروف: '{$type}'. المسموح: ".implode(', ', self::TYPES)
             );
         }
 
@@ -79,13 +79,14 @@ class NotificationService
                 $recipients = $recipients->filter(function (User $u) use ($candidate) {
                     // المصنّف يتطلّب صلاحية رؤية المصنّفين
                     if ($candidate->classification !== 'normal'
-                        && !$u->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
+                        && ! $u->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
                         return false;
                     }
                     // المحصور قطاعياً لا يُشعَر بمشارك خارج قطاعه
                     if ($u->isSectorBound() && $u->sector_id !== $candidate->sector_id) {
                         return false;
                     }
+
                     return true;
                 });
             }

@@ -4,9 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\Evaluation;
 use App\Models\FinalReport;
-use App\Models\User;
 use App\Models\Notification;
+use App\Models\User;
+use App\Models\WorkflowStage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 // سلسلة اعتماد التقرير:
@@ -84,7 +86,7 @@ class ReportApprovalChainTest extends TestCase
     {
         $mgr = $this->actingAsRole('ASSESS_MANAGER');
         $r = $this->reportAt('pending_manager', null, $this->assistantOf($mgr));
-        \Laravel\Sanctum\Sanctum::actingAs($mgr);
+        Sanctum::actingAs($mgr);
 
         $this->postJson("/api/reports/{$r->id}/approve")
             ->assertOk()->assertJsonPath('status', 'pending_dev_approval');
@@ -94,7 +96,7 @@ class ReportApprovalChainTest extends TestCase
     // يُقرأ من workflow_stages لا يُكتب هنا، فيصمد إن أُعيد ترتيب السلسلة.
     public function test_the_last_stage_completes_the_chain_and_the_candidate(): void
     {
-        $last = \App\Models\WorkflowStage::chain()->last();
+        $last = WorkflowStage::chain()->last();
         $r = $this->reportAt($last->status_key);
         $this->actingAsRole($last->role_code);
 
@@ -170,7 +172,7 @@ class ReportApprovalChainTest extends TestCase
     {
         $u = $this->actingAsRole('ASSESS_MANAGER');
         $r = $this->reportAt('pending_evaluator', null, $this->assistantOf($u));
-        \Laravel\Sanctum\Sanctum::actingAs($u);
+        Sanctum::actingAs($u);
 
         $this->postJson("/api/reports/{$r->id}/approve")
             ->assertOk()
@@ -189,7 +191,7 @@ class ReportApprovalChainTest extends TestCase
     {
         $u = $this->actingAsRole('ASSESS_MANAGER');
         $r = $this->reportAt('pending_manager', null, $this->assistantOf($u));
-        \Laravel\Sanctum\Sanctum::actingAs($u);
+        Sanctum::actingAs($u);
         $this->postJson("/api/reports/{$r->id}/approve")->assertOk();
 
         $this->assertDatabaseHas('audit_logs', ['action' => 'APPROVE_REPORT', 'user_id' => $u->id]);
@@ -212,7 +214,7 @@ class ReportApprovalChainTest extends TestCase
     public function test_any_stage_can_return_the_report(): void
     {
         // الإرجاع لمدير المركز وحده — لا لكل معتمِد
-        foreach (\App\Models\WorkflowStage::chain()->pluck('status_key') as $status) {
+        foreach (WorkflowStage::chain()->pluck('status_key') as $status) {
             $r = $this->reportAt($status);
             $this->actingAsRole('CENTER_MANAGER');
 
@@ -252,7 +254,7 @@ class ReportApprovalChainTest extends TestCase
 
     public function test_final_approval_notifies_the_author(): void
     {
-        $last = \App\Models\WorkflowStage::chain()->last();
+        $last = WorkflowStage::chain()->last();
         [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed']);
         $author = $this->actingAsRole('ASSISTANT');
         $r = FinalReport::create([

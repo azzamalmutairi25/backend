@@ -27,9 +27,7 @@ class SendSmsJob implements ShouldQueue
     // تباعد تصاعدي بين المحاولات (ثوانٍ): دقيقة ثم خمس
     public array $backoff = [60, 300];
 
-    public function __construct(public int $smsLogId)
-    {
-    }
+    public function __construct(public int $smsLogId) {}
 
     public function handle(CommunicationService $comm): void
     {
@@ -47,6 +45,6 @@ class SendSmsJob implements ShouldQueue
     // نكتفي بأثر تشغيلي يلتقطه الرصد (failed_jobs + هذا السطر).
     public function failed(\Throwable $e): void
     {
-        Log::error("SendSmsJob failed permanently for sms_log {$this->smsLogId}: " . $e->getMessage());
+        Log::error("SendSmsJob failed permanently for sms_log {$this->smsLogId}: ".$e->getMessage());
     }
 }

@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\Attendance;
 use App\Models\Schedule;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -26,6 +25,7 @@ class AssessmentDataFixesTest extends TestCase
             'status' => $candidateStatus,
             'assessmentStatus' => $candidateStatus === 'completed' ? 'completed' : 'scheduled',
         ]);
+
         return Schedule::create([
             'candidate_id' => $c->id,
             'assessment_id' => $a->id,

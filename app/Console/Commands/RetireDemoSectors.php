@@ -42,11 +42,14 @@ class RetireDemoSectors extends Command
         $plan = [];
         foreach (MoiSectors::LEGACY_MAP as $legacyCode => $targetCode) {
             $legacy = DB::table('sectors')->where('code', $legacyCode)->first();
-            if (!$legacy) continue;
+            if (! $legacy) {
+                continue;
+            }
 
             $target = DB::table('sectors')->where('code', $targetCode)->first();
-            if (!$target) {
+            if (! $target) {
                 $this->error("القطاع المعتمد {$targetCode} غير موجود — شغّل php artisan migrate أولاً");
+
                 return self::FAILURE;
             }
 
@@ -60,8 +63,9 @@ class RetireDemoSectors extends Command
             ];
         }
 
-        if (!$plan) {
+        if (! $plan) {
             $this->info('✓ لا توجد قطاعات تجريبية — لا شيء ليُنقل');
+
             return self::SUCCESS;
         }
 
@@ -76,21 +80,24 @@ class RetireDemoSectors extends Command
 
         if ($dry) {
             $this->comment('— تجربة فقط (--dry-run): لم يُنفَّذ شيء');
+
             return self::SUCCESS;
         }
 
         // الإنتاج لا يُنقل بسؤالٍ على الشاشة: بياناته حقيقية ورموزه مطبوعة
-        if (app()->environment('production') && !$this->option('force')) {
+        if (app()->environment('production') && ! $this->option('force')) {
             $this->error('على الإنتاج يلزم --force صراحةً (تُعاد كتابة رموز مشاركين صادرة)');
+
             return self::FAILURE;
         }
 
-        if (!$this->option('force') && !$this->confirm('تُنقل البيانات أعلاه ثم تُحذف القطاعات التجريبية. متابعة؟')) {
+        if (! $this->option('force') && ! $this->confirm('تُنقل البيانات أعلاه ثم تُحذف القطاعات التجريبية. متابعة؟')) {
             $this->comment('أُلغي');
+
             return self::SUCCESS;
         }
 
-        $rewrite = !$this->option('keep-codes');
+        $rewrite = ! $this->option('keep-codes');
         $now = now();
 
         DB::transaction(function () use ($plan, $rewrite, $now) {
@@ -121,6 +128,7 @@ class RetireDemoSectors extends Command
         });
 
         $this->info('✓ تمّت إحالة القطاعات التجريبية');
+
         return self::SUCCESS;
     }
 
@@ -129,7 +137,7 @@ class RetireDemoSectors extends Command
     {
         $candidates = DB::table('candidates')
             ->where('sector_id', $legacySectorId)
-            ->where('participant_code', 'like', $oldPrefix . '-%')
+            ->where('participant_code', 'like', $oldPrefix.'-%')
             ->get(['id', 'participant_code']);
 
         $highest = 0;
@@ -144,6 +152,7 @@ class RetireDemoSectors extends Command
                 || DB::table('assessments')->where('participant_code', $newCode)->exists();
             if ($taken) {
                 $this->warn("  • {$c->participant_code} بقي كما هو — {$newCode} مستعمل");
+
                 continue;
             }
 
@@ -167,11 +176,12 @@ class RetireDemoSectors extends Command
     {
         $row = DB::table('participant_code_counters')->where('prefix', $prefix)->first();
 
-        if (!$row) {
+        if (! $row) {
             DB::table('participant_code_counters')->insert([
                 'prefix' => $prefix, 'last_number' => $highest,
                 'created_at' => $now, 'updated_at' => $now,
             ]);
+
             return;
         }
 

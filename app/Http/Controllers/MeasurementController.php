@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Candidate;
-use App\Models\MeasurementResult;
 use App\Models\AuditLog;
+use App\Models\MeasurementResult;
 use App\Security\Permissions;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 
 // ════════════════════════════════════════════════════════════
@@ -14,7 +14,6 @@ use Illuminate\Http\Request;
 
 class MeasurementController extends Controller
 {
-
     private function log(Request $request, string $action, int $entityId, array $details = []): void
     {
         AuditLog::create([
@@ -30,7 +29,10 @@ class MeasurementController extends Controller
 
     private function present(?MeasurementResult $m): ?array
     {
-        if (!$m) return null;
+        if (! $m) {
+            return null;
+        }
+
         return [
             'personalityScore' => $m->personality_score,
             'analyticalScore' => $m->analytical_score,
@@ -42,12 +44,12 @@ class MeasurementController extends Controller
     // GET /measurements/{candidateId} — نتيجة القياس للدورة الحالية
     public function show(Request $request, int $candidateId)
     {
-        if (!$request->user()->hasPermission(Permissions::MEASUREMENT_VIEW)) {
+        if (! $request->user()->hasPermission(Permissions::MEASUREMENT_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض القياس'], 403);
         }
         // النطاق كاملاً — كان التصنيف وحده، فكانت نتائج القياس مفتوحة لكل قطاع
         $candidate = $this->resolveCandidateInScope($request, $candidateId);
-        if (!$candidate) {
+        if (! $candidate) {
             return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
         $assessment = $candidate->assessments()->orderByDesc('id')->first();
@@ -61,7 +63,7 @@ class MeasurementController extends Controller
     // POST /measurements — رفع/تحديث نتيجة القياس للدورة النشطة (upsert لكل دورة)
     public function store(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::MEASUREMENT_UPLOAD)) {
+        if (! $request->user()->hasPermission(Permissions::MEASUREMENT_UPLOAD)) {
             return response()->json(['error' => 'ليس لديك صلاحية رفع القياس'], 403);
         }
 
@@ -74,12 +76,12 @@ class MeasurementController extends Controller
 
         // النطاق كاملاً — كان التصنيف وحده، فكانت نتائج القياس مفتوحة لكل قطاع
         $candidate = $this->resolveCandidateInScope($request, $validated['candidateId']);
-        if (!$candidate) {
+        if (! $candidate) {
             return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
         // القياس يُرصد ضمن الدورة النشطة (غير المكتملة) — لا نكتب على دورة منتهية
         $assessment = $candidate->assessments()->where('status', '!=', 'completed')->orderByDesc('id')->first();
-        if (!$assessment) {
+        if (! $assessment) {
             return response()->json(['error' => 'لا توجد دورة تقييم نشطة للمشارك'], 422);
         }
 
@@ -92,10 +94,10 @@ class MeasurementController extends Controller
         ];
         try {
             $m = MeasurementResult::updateOrCreate(['assessment_id' => $assessment->id], $attrs);
-        } catch (\Illuminate\Database\QueryException $e) {
+        } catch (QueryException $e) {
             // رفعان متزامنان أوّلان: كلاهما لا يجد صفاً فيُدرج، والثاني ينتهك الفهرس
             // الفريد (23505). أعِد المحاولة تحديثاً للصف الذي أدرجه الأوّل بدل 500.
-            if ($e->getCode() !== '23505' || !($m = MeasurementResult::where('assessment_id', $assessment->id)->first())) {
+            if ($e->getCode() !== '23505' || ! ($m = MeasurementResult::where('assessment_id', $assessment->id)->first())) {
                 throw $e;
             }
             $m->update($attrs);

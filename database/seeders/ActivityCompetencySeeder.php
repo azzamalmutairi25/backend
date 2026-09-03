@@ -10,7 +10,7 @@ class ActivityCompetencySeeder extends Seeder
     public function run(): void
     {
         $map = [
-            'interview'  => [1, 3, 4, 7, 8],
+            'interview' => [1, 3, 4, 7, 8],
             'discussion' => [1, 2, 5, 6],
         ];
 

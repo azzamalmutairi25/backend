@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\ExpertiseArea;
+use App\Models\User;
 use App\Security\Permissions;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 // مجالات الخبرة — مرجعٌ يُدار من الإعدادات كالرتب، تُوسَم به حسابات المقيّمين.
@@ -23,7 +25,7 @@ class ExpertiseAreaController extends Controller
         ]);
     }
 
-    private function denyManage(Request $request): ?\Illuminate\Http\JsonResponse
+    private function denyManage(Request $request): ?JsonResponse
     {
         return $request->user()->hasPermission(Permissions::SETTINGS_MANAGE)
             ? null
@@ -42,11 +44,11 @@ class ExpertiseAreaController extends Controller
     {
         $user = $request->user();
         $canManage = $user->hasPermission(Permissions::SETTINGS_MANAGE);
-        if (!$canManage && !$user->hasPermission(Permissions::USER_MANAGE)) {
+        if (! $canManage && ! $user->hasPermission(Permissions::USER_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض مجالات الخبرة'], 403);
         }
         $q = ExpertiseArea::ordered();
-        if (!$canManage) {
+        if (! $canManage) {
             $q->active();
         }
 
@@ -96,7 +98,7 @@ class ExpertiseAreaController extends Controller
         }
 
         $area = ExpertiseArea::find($id);
-        if (!$area) {
+        if (! $area) {
             return response()->json(['error' => 'المجال غير موجود'], 404);
         }
 
@@ -128,7 +130,7 @@ class ExpertiseAreaController extends Controller
         }
 
         $area = ExpertiseArea::find($id);
-        if (!$area) {
+        if (! $area) {
             return response()->json(['error' => 'المجال غير موجود'], 404);
         }
 
@@ -139,7 +141,7 @@ class ExpertiseAreaController extends Controller
 
         return response()->json([
             'message' => $tagged > 0
-                ? 'حُذف المجال، وسقط وسمه عن ' . $tagged . ' مستخدماً'
+                ? 'حُذف المجال، وسقط وسمه عن '.$tagged.' مستخدماً'
                 : 'حُذف المجال',
         ]);
     }
@@ -150,12 +152,12 @@ class ExpertiseAreaController extends Controller
     // وحده، ولا يستدعي فتح نموذج المستخدم كاملاً بكلمة مروره وأدواره.
     public function setUserExpertise(Request $request, int $id)
     {
-        if (!$request->user()->hasPermission(Permissions::USER_MANAGE)) {
+        if (! $request->user()->hasPermission(Permissions::USER_MANAGE)) {
             return response()->json(['error' => 'ليس لديك صلاحية إدارة المستخدمين'], 403);
         }
 
-        $user = \App\Models\User::find($id);
-        if (!$user) {
+        $user = User::find($id);
+        if (! $user) {
             return response()->json(['error' => 'المستخدم غير موجود'], 404);
         }
 

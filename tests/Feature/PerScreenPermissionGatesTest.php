@@ -94,7 +94,7 @@ class PerScreenPermissionGatesTest extends TestCase
             if (in_array('*', $perms, true)) {
                 continue;
             }
-            if (!in_array(Permissions::ANALYTICS_VIEW, $perms, true)) {
+            if (! in_array(Permissions::ANALYTICS_VIEW, $perms, true)) {
                 continue;
             }
             // التقرير اليومي يبقى لكل من يملك التحليلات العامّة — فقدُه عطلٌ صامت.
@@ -106,7 +106,7 @@ class PerScreenPermissionGatesTest extends TestCase
 
         // خطة التطوير والمحادثات: كل من يقرأ التقارير يملكهما
         foreach (Permissions::matrix() as $role => $perms) {
-            if (in_array('*', $perms, true) || !in_array(Permissions::REPORT_VIEW, $perms, true)) {
+            if (in_array('*', $perms, true) || ! in_array(Permissions::REPORT_VIEW, $perms, true)) {
                 continue;
             }
             $this->assertContains(Permissions::DEVELOPMENT_PLAN_VIEW, $perms, "{$role} فقد خطة التطوير");

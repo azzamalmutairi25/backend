@@ -32,16 +32,20 @@ class LakeBackfill extends Command
 
     public function handle(ReportSnapshotService $snapshots): int
     {
-        if (!config('lake.enabled') && !$this->option('dry-run')) {
+        if (! config('lake.enabled') && ! $this->option('dry-run')) {
             $this->error('البحيرة معطّلة (LAKE_ENABLED=false). فعّلها أو استخدم --dry-run.');
+
             return self::FAILURE;
         }
 
         $dry = (bool) $this->option('dry-run');
         $total = FinalReport::count();
-        $this->info("تقارير في المنصّة: {$total}" . ($dry ? '  [تجربة]' : ''));
+        $this->info("تقارير في المنصّة: {$total}".($dry ? '  [تجربة]' : ''));
 
-        $written = 0; $suppressed = 0; $failed = 0; $skipped = 0;
+        $written = 0;
+        $suppressed = 0;
+        $failed = 0;
+        $skipped = 0;
         $bar = $this->output->createProgressBar($total);
         $bar->start();
 
@@ -56,15 +60,21 @@ class LakeBackfill extends Command
                         $payload = $snapshots->freeze($report, 'report.backfilled', $report->status);
                     } catch (LakeSuppressed $e) {
                         $suppressed++;   // مُصنَّف — لا يغادر، بالتصميم
+
                         continue;
                     } catch (\Throwable $e) {
                         $failed++;
                         $this->newLine();
                         $this->warn("تقرير {$report->id}: {$e->getMessage()}");
+
                         continue;
                     }
 
-                    if ($dry) { $written++; continue; }
+                    if ($dry) {
+                        $written++;
+
+                        continue;
+                    }
 
                     // لحظةُ الوقوع = updated_at لا now(): التاريخ يجب أن
                     // يهبط في شهره لا في اليوم الذي عُبِّئ فيه، وإلّا صار
@@ -107,9 +117,10 @@ class LakeBackfill extends Command
         $this->newLine(2);
         $this->info("كُتب: {$written}   محجوب (مُصنَّف): {$suppressed}   مكرَّر: {$skipped}   فشل: {$failed}");
 
-        if (!$dry && $written > 0) {
+        if (! $dry && $written > 0) {
             $this->line('التالي:  php artisan kafaat:lake:ship --batches=1000');
         }
+
         return self::SUCCESS;
     }
 }

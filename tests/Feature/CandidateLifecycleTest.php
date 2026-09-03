@@ -6,8 +6,10 @@ use App\Models\Assessment;
 use App\Models\Competency;
 use App\Models\Evaluation;
 use App\Models\FinalReport;
+use App\Models\WorkflowStage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 // تكامل آلة حالة المشارك: draft → scheduled → assessed → (تقرير) → completed
@@ -26,6 +28,7 @@ class CandidateLifecycleTest extends TestCase
                 'activity' => $activity, 'competency_id' => $cid, 'created_at' => now(), 'updated_at' => now(),
             ]);
         }
+
         return $ids;
     }
 
@@ -67,7 +70,7 @@ class CandidateLifecycleTest extends TestCase
 
         // 4) سلسلة الاعتماد كاملة — تُقرأ من workflow_stages، فيصمد الاختبار إن
         // أُعيد ترتيبها من الشاشة. كل مرحلة يعتمدها صاحبها.
-        $chain = \App\Models\WorkflowStage::chain();
+        $chain = WorkflowStage::chain();
         foreach ($chain as $stage) {
             $this->assertSame($stage->status_key, FinalReport::find($reportId)->status,
                 "التقرير عند المرحلة {$stage->position}");
@@ -76,9 +79,13 @@ class CandidateLifecycleTest extends TestCase
             // يُعاد استعمال الفاعلَين لا إنشاء غيرهما: المقيّم هو من قيّم المشارك
             // (وإلا لم يرَ تقريره)، والمدير هو مدير كاتب التقرير (تشترطه قاعدة
             // الفريق). المراحل الأخرى غير محصورة فيكفيها دورٌ جديد.
-            if ($stage->role_code === 'EVALUATOR')          { \Laravel\Sanctum\Sanctum::actingAs($ev); }
-            elseif ($stage->role_code === 'ASSESS_MANAGER') { \Laravel\Sanctum\Sanctum::actingAs($mgr); }
-            else                                            { $this->actingAsRole($stage->role_code); }
+            if ($stage->role_code === 'EVALUATOR') {
+                Sanctum::actingAs($ev);
+            } elseif ($stage->role_code === 'ASSESS_MANAGER') {
+                Sanctum::actingAs($mgr);
+            } else {
+                $this->actingAsRole($stage->role_code);
+            }
 
             $this->postJson("/api/reports/{$reportId}/approve")->assertOk();
         }

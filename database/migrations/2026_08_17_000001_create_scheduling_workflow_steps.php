@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 // سير عمل الجدولة — الخطوات الاثنتا عشرة في مخطّط «إجراءات الجدولة» **بياناتٍ
@@ -68,7 +69,7 @@ return new class extends Migration
                 'updated_at' => $now,
             ];
         }
-        \Illuminate\Support\Facades\DB::table('scheduling_workflow_steps')->insert($rows);
+        DB::table('scheduling_workflow_steps')->insert($rows);
     }
 
     public function down(): void

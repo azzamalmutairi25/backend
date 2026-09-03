@@ -11,7 +11,6 @@ use App\Models\MeasurementResult;
 use App\Models\Schedule;
 use App\Models\Setting;
 use App\Models\WorkflowStage;
-use App\Support\LakeRef;
 use App\Support\LakeSuppressed;
 
 // ════════════════════════════════════════════════════════════════════════
@@ -39,15 +38,16 @@ class ReportSnapshotService
      * يبني ظرف الحدث كاملاً.
      *
      * @param  string  $toStatus  الحالة المقصودة بعد الانتقال — تُمرَّر صراحةً
-     *   ولا تُقرأ من النموذج: عند الاعتماد يُستدعى البناء والنموذجُ قد لا
-     *   يكون قد زُوملت حالتُه بعد، فكانت البحيرة ستُسجّل الحالة السابقة
-     *   دائماً — أي أن «معتمَد» لا يظهر فيها أبداً.
+     *                            ولا تُقرأ من النموذج: عند الاعتماد يُستدعى البناء والنموذجُ قد لا
+     *                            يكون قد زُوملت حالتُه بعد، فكانت البحيرة ستُسجّل الحالة السابقة
+     *                            دائماً — أي أن «معتمَد» لا يظهر فيها أبداً.
+     *
      * @throws LakeSuppressed إن كان المشارك مُصنَّفاً.
      */
     public function freeze(FinalReport $report, string $eventType, ?string $toStatus = null, array $ctx = []): array
     {
         $candidate = $report->candidate;
-        if (!$candidate) {
+        if (! $candidate) {
             throw new LakeSuppressed('تقريرٌ بلا مشارك — لا يُصدَّر');
         }
 
@@ -56,7 +56,7 @@ class ReportSnapshotService
         // إلى قاعدةٍ يقرؤها طرفٌ ثالث نقضٌ للضابط نفسه، فيُمنع هنا قبل
         // أن تُبنى الحمولة — لا بعدها.
         $allowed = (array) config('lake.classifications', ['normal']);
-        if (!in_array($candidate->classification ?? 'normal', $allowed, true)) {
+        if (! in_array($candidate->classification ?? 'normal', $allowed, true)) {
             throw new LakeSuppressed('مشاركٌ مُصنَّف — لا يغادر القاعدة الأساسية');
         }
 
@@ -137,6 +137,7 @@ class ReportSnapshotService
         if ($eventType === 'report.approved') {
             return ['approved_at' => now()->toIso8601String(), 'approved_at_inferred' => false];
         }
+
         return [
             'approved_at' => optional($report->updated_at)->toIso8601String(),
             'approved_at_inferred' => true,
@@ -175,6 +176,7 @@ class ReportSnapshotService
                 'met' => ($target !== null && $achieved !== null) ? $achieved >= $target : null,
             ];
         }
+
         return $out;
     }
 
@@ -182,7 +184,9 @@ class ReportSnapshotService
     private function measurements(int $assessmentId): array
     {
         $m = MeasurementResult::where('assessment_id', $assessmentId)->orderByDesc('id')->first();
-        if (!$m) return [];
+        if (! $m) {
+            return [];
+        }
 
         $out = [];
         foreach ([
@@ -190,9 +194,12 @@ class ReportSnapshotService
             'analytical' => $m->analytical_score,
             'english' => $m->english_score,
         ] as $tool => $score) {
-            if ($score === null) continue;
+            if ($score === null) {
+                continue;
+            }
             $out[] = ['tool_code' => $tool, 'scale_code' => null, 'score' => (float) $score, 'band' => null];
         }
+
         return $out;
     }
 
@@ -229,13 +236,14 @@ class ReportSnapshotService
         $items = DevelopmentPlanItem::where('assessment_id', $report->assessment_id)
             ->orderBy('id')->get();
 
-        if (!config('lake.publish.narrative')) {
+        if (! config('lake.publish.narrative')) {
             return $items->map(fn ($i) => ['area' => null, 'action' => null, 'priority' => $i->status])->all();
         }
 
         return $items->map(function ($i) use ($candidate) {
-            $clean = \App\Services\CvGuard::scrub(
+            $clean = CvGuard::scrub(
                 ['area' => (string) $i->area, 'action' => (string) $i->action], $candidate);
+
             return [
                 'area' => $clean['area'] ?? null,
                 'action' => $clean['action'] ?? null,
@@ -252,7 +260,8 @@ class ReportSnapshotService
             'strengths' => array_map('strval', (array) $report->strengths),
             'development_areas' => array_map('strval', (array) $report->development_areas),
         ];
-        return \App\Services\CvGuard::scrub($doc, $candidate);
+
+        return CvGuard::scrub($doc, $candidate);
     }
 
     /**
@@ -277,7 +286,7 @@ class ReportSnapshotService
             'workflow_version' => $this->fingerprint(json_encode($stages)),
             'settings_version' => $this->fingerprint(
                 (string) (Setting::find('tier.military_upper_ranks')?->value)
-                . '|' . (string) (Setting::find('tier.civilian_upper_grade')?->value)),
+                .'|'.(string) (Setting::find('tier.civilian_upper_grade')?->value)),
             'workflow_stages' => $stages,
         ];
     }

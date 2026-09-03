@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
+use App\Models\Candidate;
 use App\Models\User;
 use App\Security\Permissions;
 use Illuminate\Http\Request;
@@ -102,13 +103,13 @@ class AuditController extends Controller
         // أدوار من أحد عشر، بينما شقيقه systemLog على الجدول نفسه محروس بـAUDIT_VIEW.
         // السجل يكشف من فعل ماذا ومتى: من رأى بيانات المشارك، ومن حاول ورُفض.
         $user = $request->user();
-        if (!$user->hasPermission(Permissions::AUDIT_VIEW)) {
+        if (! $user->hasPermission(Permissions::AUDIT_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض سجل التدقيق'], 403);
         }
         // احترام تصنيف المشارك — فشل مغلق: مشارك محذوف قد يكون كان مصنّفاً
-        $candidate = \App\Models\Candidate::find($id);
-        if (!$user->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
-            if (!$candidate || $candidate->classification !== 'normal') {
+        $candidate = Candidate::find($id);
+        if (! $user->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
+            if (! $candidate || $candidate->classification !== 'normal') {
                 return response()->json(['error' => 'المشارك غير موجود'], 404);
             }
         }
@@ -123,6 +124,7 @@ class AuditController extends Controller
 
         $history = $logs->map(function ($log) use ($users) {
             $user = $users->get($log->user_id);
+
             return [
                 'action' => $this->label($log->action),
                 'actionCode' => $log->action,
@@ -138,7 +140,7 @@ class AuditController extends Controller
 
     public function systemLog(Request $request)
     {
-        if (!$request->user()->hasPermission(Permissions::AUDIT_VIEW)) {
+        if (! $request->user()->hasPermission(Permissions::AUDIT_VIEW)) {
             return response()->json(['error' => 'ليس لديك صلاحية عرض سجل التدقيق'], 403);
         }
 
@@ -151,10 +153,18 @@ class AuditController extends Controller
         ]);
 
         $query = AuditLog::query();
-        if ($request->filled('action'))   { $query->where('action', $request->action); }
-        if ($request->filled('userId'))   { $query->where('user_id', $request->userId); }
-        if ($request->filled('dateFrom')) { $query->whereDate('created_at', '>=', $request->dateFrom); }
-        if ($request->filled('dateTo'))   { $query->whereDate('created_at', '<=', $request->dateTo); }
+        if ($request->filled('action')) {
+            $query->where('action', $request->action);
+        }
+        if ($request->filled('userId')) {
+            $query->where('user_id', $request->userId);
+        }
+        if ($request->filled('dateFrom')) {
+            $query->whereDate('created_at', '>=', $request->dateFrom);
+        }
+        if ($request->filled('dateTo')) {
+            $query->whereDate('created_at', '<=', $request->dateTo);
+        }
 
         $logs = $query->orderBy('created_at', 'desc')->limit(200)->get();
 
@@ -169,9 +179,9 @@ class AuditController extends Controller
         $canSeeClassified = $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED);
         $candidateLinked = ['candidate', 'evaluation', 'report', 'schedule', 'attendance', 'measurement', 'development_plan', 'distribution'];
         $visibleCandidateIds = [];
-        if (!$canSeeClassified) {
+        if (! $canSeeClassified) {
             $candIds = $logs->where('entity_type', 'candidate')->pluck('entity_id')->unique()->filter();
-            $visibleCandidateIds = \App\Models\Candidate::whereIn('id', $candIds)
+            $visibleCandidateIds = Candidate::whereIn('id', $candIds)
                 ->where('classification', 'normal')
                 ->pluck('id')->map(fn ($i) => (string) $i)->all();
         }
@@ -185,14 +195,15 @@ class AuditController extends Controller
             // candidate يُظهر العادي الموجود؛ صفوف الأشقّاء تُحجب تفاصيلها كلها (schema غير
             // موحّد) — يبقى الفعل/الفاعل/الوقت/الIP، ويغيب رمز/تفاصيل المشارك.
             $redact = false;
-            if (!$canSeeClassified
+            if (! $canSeeClassified
                 && in_array($log->entity_type, $candidateLinked, true)
                 && $log->entity_id !== null
                 && $log->entity_id !== '0') {
                 $redact = $log->entity_type === 'candidate'
-                    ? !in_array((string) $log->entity_id, $visibleCandidateIds, true)
+                    ? ! in_array((string) $log->entity_id, $visibleCandidateIds, true)
                     : true;
             }
+
             return [
                 'id' => $log->id,
                 'action' => $this->label($log->action),

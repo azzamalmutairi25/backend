@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\WorkflowStage;
 use App\Security\Permissions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 // قواعد المرحلة على الكاتب + الإرجاع والإلغاء لمدير المركز وحده.
@@ -23,6 +24,7 @@ class StageRulesTest extends TestCase
     private function reportBy(?User $author, string $status = 'pending_manager'): FinalReport
     {
         [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'assessmentStatus' => 'assessed']);
+
         return FinalReport::create([
             'candidate_id' => $c->id, 'assessment_id' => $a->id,
             'recommendation' => 'يوصى به', 'status' => $status, 'created_by' => $author?->id,
@@ -47,7 +49,7 @@ class StageRulesTest extends TestCase
         $assistant = $this->actingAsRole('ASSISTANT', 'DW', $mgr);
         $r = $this->reportBy($assistant);
 
-        \Laravel\Sanctum\Sanctum::actingAs($mgr);
+        Sanctum::actingAs($mgr);
         $this->postJson("/api/reports/{$r->id}/approve")
             ->assertOk()->assertJsonPath('status', 'pending_dev_approval');
     }

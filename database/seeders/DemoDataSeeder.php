@@ -15,6 +15,7 @@ use App\Models\Notification;
 use App\Models\Schedule;
 use App\Models\Sector;
 use App\Models\User;
+use App\Services\ScoringService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -36,16 +37,20 @@ class DemoDataSeeder extends Seeder
 
     // رتب عسكرية: عميد فما فوق = فئة عليا (حسب Candidate::classifyTier)
     private const MILITARY_UPPER = ['عميد', 'لواء', 'فريق'];
+
     private const MILITARY_MID = ['عقيد', 'مقدم', 'رائد'];
+
     // مدني: م-13 فأعلى = فئة عليا
     private const CIVIL_UPPER = ['م-15', 'م-14', 'م-13'];
+
     private const CIVIL_MID = ['م-12', 'م-11', 'م-10'];
 
-    private const FIRST = ['عبدالله','محمد','خالد','سعد','فهد','ناصر','بندر','ماجد','سلطان','تركي',
-        'عبدالعزيز','مشعل','ريان','ياسر','وليد','هاني','طلال','بدر','منصور','عمر',
-        'نورة','سارة','هيفاء','منال','لطيفة','أمل','ريم','دانة','الجوهرة','مها'];
-    private const LAST = ['القحطاني','العتيبي','الغامدي','الشهري','الحربي','الدوسري','الزهراني','المطيري',
-        'السبيعي','الشمري','البقمي','الرشيدي','العنزي','الخالدي','الأحمدي','السهلي'];
+    private const FIRST = ['عبدالله', 'محمد', 'خالد', 'سعد', 'فهد', 'ناصر', 'بندر', 'ماجد', 'سلطان', 'تركي',
+        'عبدالعزيز', 'مشعل', 'ريان', 'ياسر', 'وليد', 'هاني', 'طلال', 'بدر', 'منصور', 'عمر',
+        'نورة', 'سارة', 'هيفاء', 'منال', 'لطيفة', 'أمل', 'ريم', 'دانة', 'الجوهرة', 'مها'];
+
+    private const LAST = ['القحطاني', 'العتيبي', 'الغامدي', 'الشهري', 'الحربي', 'الدوسري', 'الزهراني', 'المطيري',
+        'السبيعي', 'الشمري', 'البقمي', 'الرشيدي', 'العنزي', 'الخالدي', 'الأحمدي', 'السهلي'];
 
     private const RECOMMENDATIONS = [
         'مشارك قوي — جاهز للتكليف القيادي',
@@ -54,10 +59,11 @@ class DemoDataSeeder extends Seeder
         'غير مناسب للمستوى المطلوب حالياً',
     ];
 
-    private const STRENGTHS = ['قيادة الفرق','التواصل الفعّال','التفكير الاستراتيجي','صنع القرار تحت الضغط',
-        'بناء العلاقات','المرونة والتكيّف','التخطيط بعيد المدى','إدارة الأزمات'];
-    private const DEV_AREAS = ['التفويض الفعّال','إدارة الوقت','التغذية الراجعة','التفكير التحليلي',
-        'إدارة التغيير','الحضور القيادي'];
+    private const STRENGTHS = ['قيادة الفرق', 'التواصل الفعّال', 'التفكير الاستراتيجي', 'صنع القرار تحت الضغط',
+        'بناء العلاقات', 'المرونة والتكيّف', 'التخطيط بعيد المدى', 'إدارة الأزمات'];
+
+    private const DEV_AREAS = ['التفويض الفعّال', 'إدارة الوقت', 'التغذية الراجعة', 'التفكير التحليلي',
+        'إدارة التغيير', 'الحضور القيادي'];
 
     private const DEV_ACTIONS = [
         'برنامج تدريبي متخصص (٥ أيام)',
@@ -73,6 +79,7 @@ class DemoDataSeeder extends Seeder
         $sectors = Sector::all()->keyBy('code');
         if ($sectors->isEmpty()) {
             $this->command->error('لا توجد قطاعات — شغّل DatabaseSeeder أولاً');
+
             return;
         }
 
@@ -83,6 +90,7 @@ class DemoDataSeeder extends Seeder
 
         if ($evaluators->isEmpty() || $managers->isEmpty()) {
             $this->command->error('لا يوجد مقيّمون/مديرون — شغّل DatabaseSeeder أولاً');
+
             return;
         }
 
@@ -120,7 +128,7 @@ class DemoDataSeeder extends Seeder
     // ── إزالة بيانات العرض السابقة فقط — لا تُمسّ البيانات الحقيقية ──
     private function purge(): void
     {
-        $ids = Candidate::where('participant_code', 'like', self::CODE_PREFIX . '-%')->pluck('id');
+        $ids = Candidate::where('participant_code', 'like', self::CODE_PREFIX.'-%')->pluck('id');
         if ($ids->isEmpty()) {
             return;
         }
@@ -143,7 +151,7 @@ class DemoDataSeeder extends Seeder
             Candidate::whereIn('id', $ids)->delete();
         });
 
-        $this->command->warn('… أُزيلت بيانات عرض سابقة: ' . $ids->count() . ' مشارك');
+        $this->command->warn('… أُزيلت بيانات عرض سابقة: '.$ids->count().' مشارك');
     }
 
     private function usersByRole(array $codes)
@@ -174,16 +182,16 @@ class DemoDataSeeder extends Seeder
             default => 'normal',
         };
 
-        $name = $this->pick(self::FIRST) . ' ' . $this->pick(self::LAST);
+        $name = $this->pick(self::FIRST).' '.$this->pick(self::LAST);
         $type = $tier === 'upper' && $this->seq % 4 === 0 ? 'special_request' : 'comprehensive';
         $code = sprintf('%s-%03d', self::CODE_PREFIX, $this->seq);
 
-        $c = new Candidate();
+        $c = new Candidate;
         $c->participant_code = $code;
         $c->national_id = $this->nationalId();
         $c->full_name = $name;
-        $c->mobile = '05' . str_pad((string) random_int(0, 99999999), 8, '0', STR_PAD_LEFT);
-        $c->email = 'demo' . $this->seq . '@example.com';
+        $c->mobile = '05'.str_pad((string) random_int(0, 99999999), 8, '0', STR_PAD_LEFT);
+        $c->email = 'demo'.$this->seq.'@example.com';
         $c->sector_id = $sector->id;
         $c->rank_label = $rank;
         $c->tier = $tier;
@@ -231,7 +239,7 @@ class DemoDataSeeder extends Seeder
                 'activity' => $activity,
                 'evaluator_id' => $evaluators->random()->id,
                 'assistant_id' => $assistants->isNotEmpty() ? $assistants->random()->id : null,
-                'location' => 'مركز التقييم — قاعة ' . (($i % 3) + 1),
+                'location' => 'مركز التقييم — قاعة '.(($i % 3) + 1),
             ]);
 
             Attendance::create([
@@ -258,8 +266,8 @@ class DemoDataSeeder extends Seeder
                 'evaluator_id' => $evaluators->random()->id,
                 'activity' => $activity,
                 'status' => 'approved',
-                'notes' => 'أداء ' . ($level >= 4 ? 'متميّز' : ($level >= 3 ? 'جيد' : 'يحتاج تطويراً'))
-                    . ' في ' . ($activity === 'interview' ? 'المقابلة الشخصية' : 'حلقة النقاش') . '.',
+                'notes' => 'أداء '.($level >= 4 ? 'متميّز' : ($level >= 3 ? 'جيد' : 'يحتاج تطويراً'))
+                    .' في '.($activity === 'interview' ? 'المقابلة الشخصية' : 'حلقة النقاش').'.',
                 'submitted_at' => $day->copy()->addHours(2),
                 'approved_at' => $day->copy()->addDays(1),
                 'approved_by' => $managers->random()->id,
@@ -288,7 +296,7 @@ class DemoDataSeeder extends Seeder
         }
 
         // ── معتمد فأعلى: تقرير نهائي بتوافق محتسَب من الدرجات الفعلية ──
-        $fit = app(\App\Services\ScoringService::class)->computeFit($a->fresh());
+        $fit = app(ScoringService::class)->computeFit($a->fresh());
         $rec = match (true) {
             ($fit['overallFit'] ?? 0) >= 85 => self::RECOMMENDATIONS[0],
             ($fit['overallFit'] ?? 0) >= 70 => self::RECOMMENDATIONS[1],
@@ -305,9 +313,9 @@ class DemoDataSeeder extends Seeder
             // الفاعل «النتائج» لا الشخص: قائمة الأسماء تضم الجنسين، وإسناد الفعل
             // للمشارك مباشرة يفرض مطابقة تذكير/تأنيث تُنتج عربية خاطئة لنصف الصفوف
             'overview_text' => 'أظهرت نتائج التقييم مستوى '
-                . ($level >= 4 ? 'متقدماً' : ($level >= 3 ? 'جيداً' : 'متوسطاً'))
-                . " من الكفاءات القيادية لدى {$name} خلال أنشطة الدورة."
-                . ' التوافق العام المحتسَب ' . ($fit['overallFit'] ?? 0) . '%.',
+                .($level >= 4 ? 'متقدماً' : ($level >= 3 ? 'جيداً' : 'متوسطاً'))
+                ." من الكفاءات القيادية لدى {$name} خلال أنشطة الدورة."
+                .' التوافق العام المحتسَب '.($fit['overallFit'] ?? 0).'%.',
             'strengths' => $this->sample(self::STRENGTHS, random_int(2, 4)),
             'development_areas' => $this->sample(self::DEV_AREAS, random_int(1, 3)),
             'status' => 'approved',
@@ -347,6 +355,7 @@ class DemoDataSeeder extends Seeder
     private function sample(array $a, int $n): array
     {
         shuffle($a);
+
         return array_slice($a, 0, $n);
     }
 
@@ -355,7 +364,7 @@ class DemoDataSeeder extends Seeder
     private function nationalId(): string
     {
         do {
-            $base = '1' . str_pad((string) random_int(0, 99999999), 8, '0', STR_PAD_LEFT);
+            $base = '1'.str_pad((string) random_int(0, 99999999), 8, '0', STR_PAD_LEFT);
 
             $sum = 0;
             for ($i = 0; $i < 9; $i++) {
@@ -367,7 +376,7 @@ class DemoDataSeeder extends Seeder
                     $sum += $d;
                 }
             }
-            $id = $base . ((10 - ($sum % 10)) % 10);
+            $id = $base.((10 - ($sum % 10)) % 10);
         } while (Candidate::where('national_id_hash', hash('sha256', $id))->exists());
 
         return $id;

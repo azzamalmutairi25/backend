@@ -23,6 +23,7 @@ class ChatSettingsTest extends TestCase
         ]);
         // GET ينشئ المحادثة
         $threadId = $this->getJson("/api/chat/report/{$report->id}")->assertOk()->json('threadId');
+
         return [$report, $threadId];
     }
 

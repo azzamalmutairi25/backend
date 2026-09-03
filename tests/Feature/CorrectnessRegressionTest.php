@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Assessment;
 use App\Models\AuditLog;
+use App\Models\Candidate;
 use App\Models\Competency;
 use App\Models\Evaluation;
 use App\Models\FinalReport;
@@ -31,6 +32,7 @@ class CorrectnessRegressionTest extends TestCase
                 'activity' => $activity, 'competency_id' => $cid, 'created_at' => now(), 'updated_at' => now(),
             ]);
         }
+
         return $ids;
     }
 
@@ -46,7 +48,7 @@ class CorrectnessRegressionTest extends TestCase
         $this->actingAsRole('SCHEDULER'); // CANDIDATE_EDIT
         $this->deleteJson("/api/candidates/{$c->id}", ['reason' => 'سبب موثّق للحذف'])->assertOk();
 
-        $this->assertNull(\App\Models\Candidate::find($c->id));
+        $this->assertNull(Candidate::find($c->id));
         $this->assertSame(0, SmsLog::where('candidate_id', $c->id)->count());
         $this->assertSame(1, AuditLog::where('action', 'DELETE_CANDIDATE')
             ->where('entity_id', (string) $c->id)->count());
@@ -99,7 +101,7 @@ class CorrectnessRegressionTest extends TestCase
         ])]])->assertOk();
         $this->assertSame(1, $res->json('imported'));
 
-        $imported = \App\Models\Candidate::where('national_id_hash', hash('sha256', $importedNid))->first();
+        $imported = Candidate::where('national_id_hash', hash('sha256', $importedNid))->first();
         $this->assertNotNull($imported);
         $this->assertSame(1, Assessment::where('candidate_id', $imported->id)->count()); // دورة أُنشئت
 

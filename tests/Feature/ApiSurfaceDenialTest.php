@@ -86,10 +86,10 @@ class ApiSurfaceDenialTest extends TestCase
         $out = [];
         foreach (Route::getRoutes() as $route) {
             $uri = $route->uri();
-            if (!str_starts_with($uri, 'api/') || str_starts_with($uri, 'api/public/')) {
+            if (! str_starts_with($uri, 'api/') || str_starts_with($uri, 'api/public/')) {
                 continue;
             }
-            if (!in_array('auth:sanctum', $route->gatherMiddleware(), true)) {
+            if (! in_array('auth:sanctum', $route->gatherMiddleware(), true)) {
                 continue;
             }
             foreach ($route->methods() as $verb) {
@@ -99,6 +99,7 @@ class ApiSurfaceDenialTest extends TestCase
                 $out[] = [$verb, $uri];
             }
         }
+
         return $out;
     }
 
@@ -128,7 +129,7 @@ class ApiSurfaceDenialTest extends TestCase
                 continue;   // القراءة مفتوحة؛ أمّا الكتابة عليها فتُفحَص كغيرها
             }
 
-            $status = $this->json($verb, '/' . $this->fill($uri))->getStatusCode();
+            $status = $this->json($verb, '/'.$this->fill($uri))->getStatusCode();
 
             if ($status >= 200 && $status < 300) {
                 $leaked[] = "{$verb} /{$uri} ⇒ {$status}";
@@ -139,11 +140,11 @@ class ApiSurfaceDenialTest extends TestCase
         }
 
         $this->assertSame([], $leaked,
-            "مسارات استجابت لمن لا يملكها:\n" . implode("\n", $leaked));
+            "مسارات استجابت لمن لا يملكها:\n".implode("\n", $leaked));
 
         $this->assertSame([], $taught,
             "مسارات تكشف قواعد حقولها لغير المُصرَّح له — الصلاحية تسبق التحقّق:\n"
-            . implode("\n", $taught));
+            .implode("\n", $taught));
     }
 
     // المستخدم الخارجي يُدخل ولا يقرأ — حدٌّ يُنسى بسهولة حين تُضاف قراءةٌ للنموذج
@@ -166,19 +167,19 @@ class ApiSurfaceDenialTest extends TestCase
 
         foreach (Route::getRoutes() as $route) {
             $uri = $route->uri();
-            if (!preg_match('#^api/settings/[a-z]+/test$#', $uri)) {
+            if (! preg_match('#^api/settings/[a-z]+/test$#', $uri)) {
                 continue;
             }
             $throttled = collect($route->gatherMiddleware())
                 ->contains(fn ($m) => str_contains(strtolower((string) $m), 'throttle'));
 
-            if (!$throttled) {
-                $bare[] = '/' . $uri;
+            if (! $throttled) {
+                $bare[] = '/'.$uri;
             }
         }
 
         $this->assertSame([], $bare,
-            "مسارات اختبار تكامل خارجي بلا سقف معدّل:\n  " . implode("\n  ", $bare));
+            "مسارات اختبار تكامل خارجي بلا سقف معدّل:\n  ".implode("\n  ", $bare));
     }
 
     // بلا رمز أصلاً: كل شيء ٤٠١، ولا مسار ينسى المصادقة
@@ -187,13 +188,13 @@ class ApiSurfaceDenialTest extends TestCase
         $leaked = [];
 
         foreach ($this->protectedRoutes() as [$verb, $uri]) {
-            $status = $this->json($verb, '/' . $this->fill($uri))->getStatusCode();
+            $status = $this->json($verb, '/'.$this->fill($uri))->getStatusCode();
             if ($status !== 401) {
                 $leaked[] = "{$verb} /{$uri} ⇒ {$status} (يُنتظَر ٤٠١)";
             }
         }
 
         $this->assertSame([], $leaked,
-            "مسارات لا تطلب مصادقة:\n" . implode("\n", $leaked));
+            "مسارات لا تطلب مصادقة:\n".implode("\n", $leaked));
     }
 }
