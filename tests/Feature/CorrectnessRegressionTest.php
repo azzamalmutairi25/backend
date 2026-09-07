@@ -26,6 +26,11 @@ class CorrectnessRegressionTest extends TestCase
 
     private function linkCompetencies(string $activity, int $count = 2): array
     {
+        // الهجرات تبذر ربطاً حقيقياً (كفاءات المركز موزّعةً على نشاطيها)،
+        // فالاختبار يبني حالته من فراغٍ بدل أن يفترضه: بغير ذلك يُحسب
+        // اكتمالُ التقييم على كفاءاتٍ لم يضعها هذا الاختبار.
+        DB::table('activity_competency')->where('activity', $activity)->delete();
+
         $ids = Competency::orderBy('id')->limit($count)->pluck('id')->all();
         foreach ($ids as $cid) {
             DB::table('activity_competency')->insert([

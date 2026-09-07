@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\Competency;
+use App\Models\Rank;
 use App\Security\Permissions;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 // ════════════════════════════════════════════════════════════
 //  إطار الكفاءات المرجعي — الأوزان والمستويات المطلوبة حسب الفئة
@@ -45,7 +47,25 @@ class CompetencyController extends Controller
             'targetMiddle' => $c->target_middle,
         ]);
 
-        return response()->json(['competencies' => $competencies]);
+        // مصفوفة (رتبة × كفاءة). الشاشة كانت تعرض عمودَي الفئة وحدهما،
+        // فيبدو أنّ كلّ من في «العليا» يُحاسَب بسقفٍ واحد — وليس كذلك.
+        $ranks = Rank::where('is_active', true)
+            ->orderBy('category')->orderByDesc('sort_order')->get();
+
+        $targets = DB::table('rank_competency_targets')
+            ->get()->groupBy('rank_id')
+            ->map(fn ($rows) => $rows->pluck('target', 'competency_id'));
+
+        return response()->json([
+            'competencies' => $competencies,
+            'ranks' => $ranks->map(fn ($r) => [
+                'id' => $r->id,
+                'label' => $r->label,
+                'category' => $r->category,
+                'tier' => $r->tier,
+                'targets' => $targets->get($r->id, collect()),
+            ])->values(),
+        ]);
     }
 
     // POST /competencies — إضافة كفاءة جديدة (سلوكية/قيادية/فنية)

@@ -15,7 +15,7 @@ class Candidate extends Model
     protected $fillable = [
         'participant_code', 'national_id_enc', 'national_id_hash',
         'full_name_enc', 'mobile_enc', 'email_enc', 'military_number_enc',
-        'sector_id', 'gender', 'rank_label', 'personnel_category', 'tier', 'assessment_type', 'status',
+        'sector_id', 'gender', 'rank_label', 'rank_id', 'personnel_category', 'tier', 'assessment_type', 'status',
         'classification', 'notes',
     ];
 
@@ -120,6 +120,14 @@ class Candidate extends Model
     public function sector(): BelongsTo
     {
         return $this->belongsTo(Sector::class);
+    }
+
+    // الرتبة المُدارة — مفتاحُ مصفوفة (رتبة × كفاءة) في تحليل الفجوة.
+    // قد تكون فارغة: `rank_label` نصٌّ حرّ يَرِد فيه أحياناً مسمّى وظيفة لا
+    // رتبة، وتحليلُ الفجوة يسقط حينها على عمودَي الفئة.
+    public function rank(): BelongsTo
+    {
+        return $this->belongsTo(Rank::class);
     }
 
     // دورات التقييم لهذا الشخص (شخص واحد ← عدة دورات/رموز)

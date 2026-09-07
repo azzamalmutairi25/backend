@@ -35,7 +35,10 @@ class CandidateImportBatchTest extends TestCase
             'rankLabel' => 'الرابعة عشرة',
             'personnelCategory' => 'civilian',
             'gender' => 'ذكر',
-            'technicalAreas' => ['القيادة'],
+            // مجالٌ من تصنيف المركز المزروع. كان هنا «القيادة» — أحد أربعةٍ
+            // مؤقّتة استُبدلت بالتصنيف الفعلي، ومجالٌ غير معروف يُسقط الصفَّ
+            // كلَّه فيُقرأ الإخفاق خطأً في الاستيراد لا في المُثبَّتة.
+            'technicalAreas' => ['عمليات الشرطة'],
             'cv' => $this->validCvDoc(),
         ];
     }

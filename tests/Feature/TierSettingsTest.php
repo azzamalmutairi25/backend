@@ -42,11 +42,13 @@ class TierSettingsTest extends TestCase
 
     public function test_settings_list_governs_ranks_outside_the_managed_list(): void
     {
-        // «مشير» و«فريق» ليستا في الرتب المزروعة، فتسقطان إلى قائمة الإعدادات
+        // «مشير» و«عريف» ليستا في الرتب المزروعة، فتسقطان إلى قائمة الإعدادات.
+        // («فريق» كانت المثال هنا حتى صارت رتبةً مُدارة، فحُسمت من الجدول لا
+        // من الإعدادات — وذاك هو الترتيب الذي يثبّته الاختبار قبله.)
         Setting::updateOrCreate(['key' => 'tier.military_upper_ranks'], ['value' => 'مشير']);
 
         $this->assertSame('upper', Candidate::classifyTier('مشير', 'military'));
-        $this->assertSame('middle', Candidate::classifyTier('فريق', 'military'));
+        $this->assertSame('middle', Candidate::classifyTier('عريف', 'military'));
     }
 
     public function test_saved_civilian_grade_threshold_changes_classification(): void
