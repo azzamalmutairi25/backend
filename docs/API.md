@@ -73,7 +73,7 @@
 | PUT | `/candidates/{id}` | `candidate.edit` | تعديل |
 | DELETE | `/candidates/{id}` | `candidate.edit` | حذف |
 | POST | `/candidates/{id}/approve` | `candidate.edit` | اعتماد للتقييم |
-| PATCH | `/candidates/{id}/classify` | `candidate.view_classified` | تغيير تصنيف السرّية |
+| PATCH | `/candidates/{id}/employment` | `candidate.approve` | الحالة الوظيفية: على رأس العمل أو متقاعد — بيد مسؤول الجدولة وحده، لا ضمن التعديل العامّ |
 | PATCH | `/candidates/{id}/notes` | `candidate.edit` | حفظ ملاحظات المشارك وحدها — لا تشترط الهوية والاسم كما يشترطهما التعديل الكامل، فيكتبها من يرى المشارك بلا بياناته الشخصية |
 | GET | `/candidates/{id}/assessments` | `candidate.view` | دورات المشارك |
 | GET | `/candidates/{id}/journey` | `candidate.journey` | رحلة المشارك |

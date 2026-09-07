@@ -33,11 +33,10 @@ class ChatNotifScopeFixesTest extends TestCase
         ]);
     }
 
-    private function reportFor(string $sectorCode, string $classification): FinalReport
+    private function reportFor(string $sectorCode): FinalReport
     {
         [$c, $a] = $this->makeCandidate([
             'sectorCode' => $sectorCode,
-            'classification' => $classification,
             'status' => 'assessed',
         ]);
 
@@ -57,7 +56,7 @@ class ChatNotifScopeFixesTest extends TestCase
     // ── #1: مقيّم خارج القطاع لا يُشعَر بتقرير مشارك قطاع آخر ──
     public function test_report_role_notification_skips_out_of_sector_evaluator(): void
     {
-        $report = $this->reportFor('DW', 'normal');
+        $report = $this->reportFor('DW');
         $inSector = $this->userWith('EVALUATOR', 'DW');
         $otherSector = $this->userWith('EVALUATOR', 'MS');
 
@@ -69,24 +68,11 @@ class ChatNotifScopeFixesTest extends TestCase
         $this->assertSame(0, Notification::where('recipient_id', $otherSector->id)->count());
     }
 
-    // ── #2: مشارك مصنّف لا يصل رمزه لمقيّم بلا صلاحية رؤية المصنّفين (ولو في قطاعه) ──
-    public function test_classified_report_notification_skips_uncleared_evaluator(): void
-    {
-        $report = $this->reportFor('DW', 'secret');
-        $evaluator = $this->userWith('EVALUATOR', 'DW'); // لا يملك CANDIDATE_VIEW_CLASSIFIED
-
-        $this->svc()->notifyRole('EVALUATOR', 'approval', 'عنوان',
-            'تقرير المشارك '.$report->candidate->participant_code.' وصل مرحلة اعتمادك',
-            'report', (string) $report->id, null);
-
-        $this->assertSame(0, Notification::where('recipient_id', $evaluator->id)->count());
-    }
-
     // ── #3: الدور المركزي المصرَّح له يبقى يُشعَر بأي قطاع/تصنيف ──
     public function test_central_cleared_role_still_notified_regardless_of_sector(): void
     {
-        $report = $this->reportFor('DW', 'secret');
-        $manager = $this->userWith('ASSESS_MANAGER'); // مركزي + CANDIDATE_VIEW_CLASSIFIED
+        $report = $this->reportFor('DW');
+        $manager = $this->userWith('ASSESS_MANAGER'); // دورٌ مركزيّ لا يحصره قطاع
 
         $this->svc()->notifyRole('ASSESS_MANAGER', 'approval', 'عنوان',
             'تقرير المشارك '.$report->candidate->participant_code.' وصل مرحلة اعتمادك',

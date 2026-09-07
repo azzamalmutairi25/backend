@@ -150,19 +150,6 @@ class DiscussionAssignmentTest extends TestCase
         $this->assertSame([$sup->id], $ids);
     }
 
-    public function test_integration_falls_back_to_interview_evaluators(): void
-    {
-        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
-        $ev = $this->person('EVALUATOR');
-
-        $this->actingAsRole('SCHEDULER');
-        // التمرين التكاملي لا صفّ له في خريطة الاستقبال — يقع على مقيّم المقابلة
-        // بدل قائمةٍ فارغة تُفرِغ الشاشة بلا سبب ظاهر
-        $ids = collect($this->getJson("/api/candidates/{$c->id}/assessors?activity=integration&seat=evaluator")
-            ->assertOk()->json('assessors'))->pluck('id')->all();
-        $this->assertSame([$ev->id], $ids);
-    }
-
     public function test_updating_a_session_can_set_the_assistant(): void
     {
         [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);

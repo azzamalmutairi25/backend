@@ -41,7 +41,6 @@ class KioskController extends Controller
         'interview' => 'المقابلة الشخصية',
         'discussion' => 'حلقة النقاش',
         'measurement' => 'أدوات القياس',
-        'integration' => 'التمرين التكاملي',
     ];
 
     private const ACCESS_TTL = 300;         // عمر جلسة المشارك على الكشك: ٥ دقائق

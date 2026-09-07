@@ -28,7 +28,6 @@ class RosterSheetService
         'interview' => 'مقابلة شخصية',
         'discussion' => 'جلسة النقاش',
         'measurement' => 'أدوات القياس',
-        'integration' => 'جلسة تكامل',
     ];
 
     private const DAY_NAMES = [
@@ -371,7 +370,6 @@ HTML;
             'measurement' => self::ICON_LAPTOP,
             'interview' => self::ICON_INTERVIEW,
             'discussion' => self::ICON_DISCUSSION,
-            'integration' => self::ICON_INTEGRATION,
             default => '',
         };
     }
@@ -395,10 +393,6 @@ HTML;
         .'<path d="M2 26c0-3.9 3.1-7 7-7s7 3.1 7 7" fill="#C4A02F"/>'
         .'<path d="M14 28c0-4.4 3.6-8 8-8s8 3.6 8 8" fill="#C4A02F"/>'
         .'<path d="M28 26c0-3.9 3.1-7 7-7s7 3.1 7 7" fill="#C4A02F"/></svg>';
-
-    private const ICON_INTEGRATION = '<svg width="24" height="21" viewBox="0 0 34 34" fill="none">'
-        .'<circle cx="12" cy="17" r="8" stroke="#5b6a62" stroke-width="2.4"/>'
-        .'<circle cx="22" cy="17" r="8" stroke="#5b6a62" stroke-width="2.4"/></svg>';
 
     private function renderLegend(): string
     {

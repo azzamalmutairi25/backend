@@ -304,25 +304,6 @@ class DispatchAndDocumentsTest extends TestCase
         $this->assertSame(0, ScheduleDispatch::count());
     }
 
-    public function test_a_classified_participant_is_absent_from_the_preview(): void
-    {
-        $p = $this->period();
-        $date = $p->start_date->toDateString();
-
-        $this->actingAsRole('ADMIN');
-        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW', 'classification' => 'secret']);
-        $c->forceFill(['personnel_category' => 'military'])->save();
-        $this->postJson('/api/schedules', [
-            'candidateId' => $c->id, 'activity' => 'interview',
-            'date' => $date, 'time' => '10:15', 'periodId' => $p->id,
-        ])->assertStatus(201);
-
-        $this->actingAsRole('SCHEDULER');   // بلا candidate.view_classified
-        $byName = collect($this->getJson("/api/dispatch/preview?periodId={$p->id}")->assertOk()->json('authorities'))
-            ->keyBy('authorityName');
-        $this->assertSame(0, $byName['وكالة الشؤون العسكرية']['count']);
-    }
-
     public function test_the_receipt_carries_the_checksum(): void
     {
         $p = $this->period();

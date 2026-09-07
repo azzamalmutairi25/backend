@@ -18,7 +18,6 @@ class CvPortalTest extends TestCase
 {
     // البوّابة مُعطَّلة في التشغيل — تُشغَّل هنا لتبقى شيفرتها مُختبَرة
     use EnablesCandidatePortal;
-
     use RefreshDatabase;
 
     protected $seed = true;

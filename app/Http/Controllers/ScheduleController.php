@@ -28,7 +28,6 @@ class ScheduleController extends Controller
         'interview' => 'المقابلة الشخصية',
         'discussion' => 'حلقة النقاش',
         'measurement' => 'أدوات القياس',
-        'integration' => 'التمرين التكاملي',
     ];
 
     public function __construct(private WaveGuard $waves) {}
@@ -68,7 +67,7 @@ class ScheduleController extends Controller
 
         $validated = $request->validate([
             'date' => 'nullable|date',
-            'activity' => 'nullable|in:interview,discussion,measurement,integration',
+            'activity' => 'nullable|in:interview,discussion,measurement',
             'candidateId' => 'nullable|integer',
             'evaluatorId' => 'nullable|integer',
             'periodId' => 'nullable|integer',
@@ -139,7 +138,7 @@ class ScheduleController extends Controller
     {
         return [
             // النشاط إلزامي عند الإنشاء، واختياري عند التعديل الجزئي (يُطبَّق فقط إن أُرسل)
-            'activity' => ($creating ? 'required|' : 'sometimes|').'in:interview,discussion,measurement,integration',
+            'activity' => ($creating ? 'required|' : 'sometimes|').'in:interview,discussion,measurement',
             'date' => ($creating ? 'required|' : 'nullable|').'date|after_or_equal:today',
             // الوقت إلزامي عند الإنشاء: كشف الحضور المطبوع يوزّع الجلسات على أعمدة
             // الأوقات المعتمدة، وجلسة بلا وقت لا مكان لها فيه. وعند التعديل الجزئي
@@ -251,7 +250,7 @@ class ScheduleController extends Controller
         }
 
         $validated = $request->validate([
-            'activity' => 'nullable|in:interview,discussion,measurement,integration',
+            'activity' => 'nullable|in:interview,discussion,measurement',
             'seat' => 'nullable|in:evaluator,assistant',
             'periodId' => 'nullable|integer|exists:scheduling_periods,id',
             'date' => 'nullable|date_format:Y-m-d',

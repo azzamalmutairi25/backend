@@ -153,28 +153,6 @@ class ExecutiveLeadershipTest extends TestCase
 
     // مَن لا يقرأ المصنَّف لا تُحسب له صفوفه ولو في عدّادٍ مجمّع.
     // الطرفان مدير مركز — واحدهما مسحوبةٌ عنه رؤية المصنَّف باستثناء فردي،
-    // فالفرق بينهما هو التصنيف وحده لا الدور.
-    public function test_overview_respects_classification_scope(): void
-    {
-        $this->makeCandidate(['sectorCode' => 'DW', 'classification' => 'normal']);
-        $this->makeCandidate(['sectorCode' => 'DW', 'classification' => 'secret']);
-
-        $total = fn () => collect(collect($this->getJson('/api/analytics/executive/overview')->json('sections'))
-            ->keyBy('key')['candidates']['metrics'])->firstWhere('label', 'الإجمالي')['value'];
-
-        $this->actingAsRole('CENTER_MANAGER');   // يقرأ المصنَّف
-        $this->assertSame(2, $total());
-
-        $narrow = $this->actingAsRole('CENTER_MANAGER');
-        UserPermissionOverride::create([
-            'user_id' => $narrow->id, 'permission' => Permissions::CANDIDATE_VIEW_CLASSIFIED, 'granted' => false,
-        ]);
-        $narrow->refresh();
-        $this->assertSame(1, $total(), 'المصنَّف دخل عدّاد من لا يقرؤه');
-    }
-
-    // ── لوحة التقارير ──
-
     public function test_reports_board_returns_pipeline_aging_and_rows(): void
     {
         $this->actingAsRole('CENTER_MANAGER');

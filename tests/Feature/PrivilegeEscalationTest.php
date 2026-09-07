@@ -175,10 +175,10 @@ class PrivilegeEscalationTest extends TestCase
         $actor = $this->userManagerWithoutAdmin('SCHEDULER');
 
         $this->putJson("/api/users/{$actor->id}/permissions", [
-            'overrides' => [['permission' => Permissions::CANDIDATE_VIEW_CLASSIFIED, 'granted' => true]],
+            'overrides' => [['permission' => Permissions::REPORT_APPROVE, 'granted' => true]],
         ])->assertStatus(422);
 
-        $this->assertFalse($actor->fresh()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED));
+        $this->assertFalse($actor->fresh()->hasPermission(Permissions::REPORT_APPROVE));
     }
 
     public function test_administrative_permissions_are_never_delegated_by_override(): void
@@ -198,13 +198,13 @@ class PrivilegeEscalationTest extends TestCase
     public function test_you_cannot_grant_a_permission_you_do_not_hold(): void
     {
         $target = $this->actingAsRole('RECEPTIONIST');
-        $this->userManagerWithoutAdmin('SCHEDULER'); // لا يملك رؤية المصنّفين
+        $this->userManagerWithoutAdmin('SCHEDULER'); // لا يملك اعتماد التقارير
 
         $this->putJson("/api/users/{$target->id}/permissions", [
-            'overrides' => [['permission' => Permissions::CANDIDATE_VIEW_CLASSIFIED, 'granted' => true]],
+            'overrides' => [['permission' => Permissions::REPORT_APPROVE, 'granted' => true]],
         ])->assertStatus(403);
 
-        $this->assertFalse($target->fresh()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED));
+        $this->assertFalse($target->fresh()->hasPermission(Permissions::REPORT_APPROVE));
     }
 
     public function test_a_non_administrator_cannot_strip_an_administrator(): void

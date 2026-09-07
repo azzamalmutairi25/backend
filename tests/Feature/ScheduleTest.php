@@ -137,12 +137,12 @@ class ScheduleTest extends TestCase
         [$c] = $this->makeCandidate(['status' => 'scheduled']);
         $this->actingAsRole('SCHEDULER');
         $this->postJson('/api/schedules', [
-            'candidateId' => $c->id, 'activity' => 'integration', 'date' => $this->tomorrow(), 'time' => '09:30',
+            'candidateId' => $c->id, 'activity' => 'measurement', 'date' => $this->tomorrow(), 'time' => '09:30',
         ])->assertCreated();
 
         $res = $this->getJson('/api/schedules')->assertOk();
         $this->assertCount(1, $res->json('schedules'));
-        $this->assertSame('integration', $res->json('schedules.0.activity'));
+        $this->assertSame('measurement', $res->json('schedules.0.activity'));
     }
 
     public function test_partial_update_changes_only_location(): void

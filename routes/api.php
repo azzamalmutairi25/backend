@@ -116,7 +116,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/candidates/import/batch', [ImportController::class, 'startBatch'])
         ->middleware('throttle:60,1');
     Route::get('/candidates/import/batch/{id}', [ImportController::class, 'batchStatus']);
-    Route::patch('/candidates/{id}/classify', [CandidateController::class, 'reclassify']);
+    // الحالة الوظيفية — بيد مسؤول الجدولة وحده، لا ضمن التعديل العامّ
+    Route::patch('/candidates/{id}/employment', [CandidateController::class, 'updateEmployment']);
     // الملاحظات وحدها — لا تشترط الهوية والاسم كما يشترطهما التعديل الكامل
     Route::patch('/candidates/{id}/notes', [CandidateController::class, 'updateNotes']);
     Route::get('/candidates/{id}/assessments', [CandidateController::class, 'assessments']);

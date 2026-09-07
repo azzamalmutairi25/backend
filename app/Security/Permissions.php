@@ -22,7 +22,11 @@ class Permissions
 
     const CANDIDATE_VIEW_NAMES = 'candidate.view_names';   // رؤية الأسماء (حساس)
 
-    const CANDIDATE_VIEW_CLASSIFIED = 'candidate.view_classified';   // رؤية المشاركين السرّيين
+    // مُتقاعدة: لا تُمنَح لدورٍ ولا تظهر في شاشة الأدوار ولا في `all()`.
+    // والثابت باقٍ لأنّ ثمانية مواضع ما زالت تقرؤه — وكلّها صارت بلا أثر:
+    // كل صفٍّ 'normal'، فالفرعُ المُقيَّد هو المسلوك دائماً ولا يحجب شيئاً.
+    // يُنزع هو ومواضعه مع العمود في الخطوة الثانية.
+    const CANDIDATE_VIEW_CLASSIFIED = 'candidate.view_classified';
 
     const CANDIDATE_JOURNEY = 'candidate.journey';   // عرض رحلة المشارك (الخط الزمني)
 
@@ -171,7 +175,7 @@ class Permissions
             // وASSISTANT). حجبُ الاسم عمّن لا يرصد لم يكن يحمي شيئاً.
             'CENTER_MANAGER' => [
                 self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_NAMES,
-                self::CANDIDATE_JOURNEY, self::CANDIDATE_CV_VIEW, self::CANDIDATE_VIEW_CLASSIFIED,
+                self::CANDIDATE_JOURNEY, self::CANDIDATE_CV_VIEW,
                 self::CANDIDATE_EDIT, self::CANDIDATE_APPROVE,
                 self::SCHEDULE_VIEW, self::SCHEDULE_MANAGE, self::DISTRIBUTION_MANAGE, self::ROSTER_MANAGE,
                 self::SCHEDULE_APPROVE_CENTER, self::SCHEDULE_DISPATCH,
@@ -243,7 +247,7 @@ class Permissions
             // مدير إدارة التقييم — يكتب التقرير، ويعتمد المرحلة الثانية.
             // بلا ANALYTICS_EXECUTIVE: انظر التعليق عند CENTER_MANAGER أدناه.
             'ASSESS_MANAGER' => [
-                self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_NAMES, self::CANDIDATE_VIEW_CLASSIFIED, self::CANDIDATE_JOURNEY, self::CANDIDATE_CV_VIEW, self::SCHEDULE_VIEW,
+                self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_NAMES, self::CANDIDATE_JOURNEY, self::CANDIDATE_CV_VIEW, self::SCHEDULE_VIEW,
                 self::ATTENDANCE_VIEW, self::EVALUATION_VIEW, self::EVALUATION_APPROVE,
                 self::MEASUREMENT_VIEW, self::REPORT_VIEW, self::REPORT_CREATE,
                 self::REPORT_EDIT_ANY, self::REPORT_APPROVE_MANAGER,
@@ -283,7 +287,7 @@ class Permissions
             // إدارة تطوير الكفاءات — الاعتماد النهائي.
             // بلا ANALYTICS_EXECUTIVE: انظر التعليق عند CENTER_MANAGER أعلاه.
             'DEV_MANAGER' => [
-                self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_CLASSIFIED, self::CANDIDATE_JOURNEY, self::CANDIDATE_CV_VIEW, self::EVALUATION_VIEW, self::MEASUREMENT_VIEW,
+                self::CANDIDATE_VIEW, self::CANDIDATE_JOURNEY, self::CANDIDATE_CV_VIEW, self::EVALUATION_VIEW, self::MEASUREMENT_VIEW,
                 self::REPORT_VIEW, self::REPORT_APPROVE,
                 self::REPORT_EXPORT, self::COMPETENCY_VIEW, self::COMPETENCY_MANAGE,
                 self::ANALYTICS_VIEW, self::ANALYTICS_DAILY_REPORT,
@@ -318,6 +322,9 @@ class Permissions
     // ── كل الصلاحيات المعرَّفة ──
     // تُقرأ من ثوابت الصنف بالانعكاس، فلا تُنسى واحدة عند إضافتها.
     // تُستعمل لفَرْد '*' قبل تطبيق سحبٍ على مدير النظام، ولبناء شاشة الصلاحيات.
+    /** صلاحيات مُتقاعدة — ثوابتها باقية لمواضع تقرؤها، ولا تُمنَح ولا تُعرَض */
+    public const RETIRED = [self::CANDIDATE_VIEW_CLASSIFIED];
+
     public static function all(): array
     {
         static $cache = null;
@@ -330,9 +337,14 @@ class Permissions
         // فيها ما ليس صلاحية؛ ومفتاح ذاكرة اسمه 'kafaat.rolePermissions' كان
         // يمرّ بالفحص القديم فيصير صلاحيةً وهمية تظهر مربّعَ اختيارٍ في شاشة
         // صلاحيات الأدوار. الشكل الحقيقي: مجموعة.فعل بحروف صغيرة وشرطة سفلية.
+        // والمتقاعدة تُستثنى: ثابتٌ باقٍ لمواضع تقرؤه، لا صلاحيةٌ تُمنَح.
+        // بقاؤها في القائمة يجعلها يتيمةً بلا دورٍ ولا وسم، فتُسقط محكَّي
+        // الثوابت اللذين يمسكان الصلاحيات الميتة — وهما ما نريده حيّاً.
         return $cache = array_values(array_filter(
             $consts,
-            fn ($v) => is_string($v) && preg_match('/^[a-z][a-z_]*\.[a-z][a-z_]*$/', $v) === 1
+            fn ($v) => is_string($v)
+                && ! in_array($v, self::RETIRED, true)
+                && preg_match('/^[a-z][a-z_]*\.[a-z][a-z_]*$/', $v) === 1
         ));
     }
 
@@ -347,7 +359,6 @@ class Permissions
         'candidate.edit' => 'تعديل بيانات مشارك',
         'candidate.approve' => 'اعتماد ترشيح',
         'candidate.view_names' => 'رؤية أسماء المشاركين (حسّاسة)',
-        'candidate.view_classified' => 'رؤية المشاركين المصنَّفين (حسّاسة)',
         'candidate.journey' => 'عرض رحلة المشارك',
         'candidate.cv_view' => 'قراءة السيرة الذاتية',
         'candidate.update_request' => 'رفع طلب تحديث بيانات',

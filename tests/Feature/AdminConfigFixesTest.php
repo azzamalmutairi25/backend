@@ -77,24 +77,6 @@ class AdminConfigFixesTest extends TestCase
         $this->assertNull($row['details']);
     }
 
-    // ── Fix 3: الدور المصرَّح له يرى تفاصيل صف الكيان المرتبط ──
-    public function test_audit_log_shows_sibling_details_to_cleared_auditor(): void
-    {
-        $auditor = $this->actingAsRole('CENTER_MANAGER'); // AUDIT_VIEW + view_classified بالدور
-        [$c] = $this->makeCandidate(['sectorCode' => 'DW', 'classification' => 'secret']);
-        AuditLog::create([
-            'user_id' => $auditor->id, 'action' => 'CREATE_DEV_ITEM',
-            'entity_type' => 'development_plan', 'entity_id' => '4243',
-            'details' => ['candidate' => $c->participant_code],
-            'ip_address' => '127.0.0.1', 'created_at' => now(),
-        ]);
-
-        $row = collect($this->getJson('/api/audit/log')->assertOk()->json('entries'))
-            ->firstWhere('actionCode', 'CREATE_DEV_ITEM');
-        $this->assertFalse($row['redacted']);
-        $this->assertSame($c->participant_code, $row['details']['candidate']);
-    }
-
     // ── Fix 3: صفّ المشارك «العادي» المباشر يبقى مرئياً لغير المصرَّح له (لا إفراط بالحجب) ──
     public function test_audit_log_keeps_normal_candidate_rows_visible(): void
     {

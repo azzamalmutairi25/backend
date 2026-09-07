@@ -91,10 +91,10 @@ class ExecutiveSummaryTest extends TestCase
         $this->get("/api/reports/{$r->id}/brief")->assertStatus(403);
     }
 
-    public function test_center_manager_handles_classified_report_at_its_stage(): void
+    public function test_center_manager_writes_the_summary_at_its_stage(): void
     {
-        // مدير المركز يرى المصنّفين (سلطته النهائية) — يكتب ملخّص تقرير مصنّف
-        [$c, $a] = $this->makeCandidate(['status' => 'assessed', 'classification' => 'secret']);
+        // سلطته النهائية: يكتب الملخّص حين يبلغ التقرير مرحلته
+        [$c, $a] = $this->makeCandidate(['status' => 'assessed']);
         $r = FinalReport::create(['candidate_id' => $c->id, 'assessment_id' => $a->id, 'status' => 'pending_center', 'recommendation' => 'x', 'created_by' => null]);
         $this->actingAsRole('CENTER_MANAGER');
         $this->postJson("/api/reports/{$r->id}/executive-summary", ['executiveSummary' => 'ملخّص مصنّف'])->assertOk();

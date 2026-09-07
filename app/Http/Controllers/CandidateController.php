@@ -41,7 +41,6 @@ class CandidateController extends Controller
             'rank' => 'rank_label',
             'tier' => 'tier',
             'status' => 'status',
-            'classification' => 'classification',
             'created' => 'created_at',
             // اسم القطاع لا معرّفه — الترتيب الهجائي هو ما يراه المستخدم.
             // استعلامٌ مرتبط لا انضمام: الانضمام يُدخِل أعمدة sectors في
@@ -82,8 +81,11 @@ class CandidateController extends Controller
         if ($request->filled('tier')) {
             $query->where('tier', $request->tier);
         }
-        if ($request->filled('classification')) {
-            $query->where('classification', $request->classification);
+        if ($request->filled('employmentStatus')) {
+            $query->where('employment_status', $request->employmentStatus);
+        }
+        if ($request->filled('gender')) {
+            $query->where('gender', $request->gender);
         }
         if ($request->filled('search')) {
             $query->where('participant_code', 'like', '%'.$request->search.'%');
@@ -116,10 +118,10 @@ class CandidateController extends Controller
             'gender' => $c->gender,
             'rankLabel' => $c->rank_label,
             'personnelCategory' => $c->personnel_category,
+            'employmentStatus' => $c->employment_status,
             'tier' => $c->tier,
             'assessmentType' => $c->assessment_type,
             'status' => $c->status,
-            'classification' => $c->classification,
             'technicalAreas' => $c->technicalAreas->map(fn ($a) => [
                 'id' => $a->id, 'label' => $a->label_ar,
             ])->values(),
@@ -175,10 +177,11 @@ class CandidateController extends Controller
             ])->values(),
             'rankLabel' => $candidate->rank_label,
             'personnelCategory' => $candidate->personnel_category,
+            'employer' => $candidate->employer,
+            'employmentStatus' => $candidate->employment_status,
             'tier' => $candidate->tier,
             'assessmentType' => $candidate->assessment_type,
             'status' => $candidate->status,
-            'classification' => $candidate->classification,
             'createdAt' => $candidate->created_at,
             'trail' => array_slice(array_reverse($this->writeTrail($candidate)), 0, 6),
             'canSeeNames' => $canSeeNames,
@@ -397,7 +400,8 @@ class CandidateController extends Controller
             'email' => 'nullable|email|max:200',
             'militaryNumber' => 'nullable|string|max:30',
             'assessmentType' => 'nullable|in:'.implode(',', Assessment::TYPES),
-            'classification' => 'nullable|in:normal,secret,top_secret',
+            // جهة العمل — للقطاع الخاص وحده، وتُهمَل لغيره
+            'employer' => 'nullable|string|max:200',
             // ── المجالات الفنية: تُحدَّد بعد الإضافة لا معها ──
             // كانت شرطاً هنا، وهي أبطأ قرارٍ في النموذج: المُدخِل يعرف الهوية
             // والرتبة والقطاع فوراً، ولا يعرف مجالات المشارك إلا بعد مراجعة
@@ -488,7 +492,7 @@ class CandidateController extends Controller
                 ], 422);
             }
 
-            // تحديث بيانات الشخص للأحدث (قد يكون تغيّر قطاعه/رتبته). التصنيف يُدار عبر reclassify فقط.
+            // تحديث بيانات الشخص للأحدث (قد يكون تغيّر قطاعه/رتبته).
             $candidate->full_name = $validated['fullName'];
             $candidate->mobile = $validated['mobile'] ?? null;
             $candidate->sector_id = $sector->id;
@@ -520,6 +524,10 @@ class CandidateController extends Controller
             $candidate->full_name = $validated['fullName'];
             $candidate->mobile = $validated['mobile'] ?? null;
             $candidate->sector_id = $sector->id;
+            // جهة العمل للقطاع الخاص وحده — تُهمَل لغيره كي لا يبقى نصٌّ
+            // يقرؤه الخطاب لمشاركٍ صار مدنياً أو عسكرياً بعد تصحيح فئته
+            $candidate->employer = $category === Candidate::CATEGORY_CONTRACTOR
+                ? ($validated['employer'] ?? null) : null;
             $candidate->gender = $validated['gender'] ?? null;
             // مُعرِّفان مشفّران كالجوال — mutator يتولّى التشفير
             $candidate->email = $validated['email'] ?? null;
@@ -528,12 +536,7 @@ class CandidateController extends Controller
             $candidate->personnel_category = $category;
             $candidate->tier = $tier;
             $candidate->notes = $validated['notes'] ?? null;
-            // تعيين تصنيف أمني يتطلب صلاحية VIEW_CLASSIFIED — منع التصعيد
-            $requestedClass = $validated['classification'] ?? 'normal';
-            if ($requestedClass !== 'normal' && ! $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
-                return response()->json(['error' => 'ليس لديك صلاحية تعيين تصنيف أمني'], 403);
-            }
-            $candidate->classification = $requestedClass;
+            $candidate->classification = 'normal';
         }
 
         // فحص تسرّب هوية المشارك داخل السيرة — يحتاج بياناته، فيقع بعد تعبئتها.
@@ -691,7 +694,7 @@ class CandidateController extends Controller
             'email' => 'nullable|email|max:200',
             'militaryNumber' => 'nullable|string|max:30',
             'assessmentType' => 'nullable|in:'.implode(',', Assessment::TYPES),
-            'classification' => 'nullable|in:normal,secret,top_secret',
+            'employer' => 'nullable|string|max:200',
             // كانت إلزاميةً في التعديل وحده (مقبولةً فارغةً في الإضافة) — تفاوتٌ
             // مقصودٌ حينها، ورُفع الآن ضمن القرار العامّ. وثمنُه مُعلَن كما كان:
             // مشاركٌ بلا مجال لا يظهر في أي قائمة ترشيح، ولذلك تبقى الشاشة
@@ -732,16 +735,8 @@ class CandidateController extends Controller
         $candidate->tier = $tier;
         $candidate->notes = $validated['notes'] ?? null;
         $candidate->assessment_type = $validated['assessmentType'] ?? 'comprehensive';
-        // تغيير التصنيف الأمني حوكمة حسّاسة — يتطلب صلاحية VIEW_CLASSIFIED (كما في reclassify) ويُسجَّل
-        $classChanged = false;
-        $oldClass = $candidate->classification;
-        if (isset($validated['classification']) && $validated['classification'] !== $candidate->classification) {
-            if (! $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
-                return response()->json(['error' => 'ليس لديك صلاحية تغيير التصنيف الأمني'], 403);
-            }
-            $candidate->classification = $validated['classification'];
-            $classChanged = true;
-        }
+        $candidate->employer = $candidate->personnel_category === Candidate::CATEGORY_CONTRACTOR
+            ? ($validated['employer'] ?? null) : null;
 
         // نوع التقييم سمة للدورة الحالية — زامن الدورة الأحدث «غير المكتملة» فقط.
         // دورة مكتملة سجلٌّ تاريخي لما جرى فعلاً؛ إعادة كتابة نوعها تُفسد التاريخ (لا نمسّها)
@@ -758,11 +753,6 @@ class CandidateController extends Controller
         });
 
         $this->log($request, 'UPDATE_CANDIDATE', $candidate->id, ['code' => $candidate->participant_code]);
-        if ($classChanged) {
-            $this->log($request, 'RECLASSIFY_CANDIDATE', $candidate->id, [
-                'code' => $candidate->participant_code, 'from' => $oldClass, 'to' => $candidate->classification,
-            ]);
-        }
 
         return response()->json(['message' => 'تم تحديث بيانات المشارك', 'tier' => $tier]);
     }
@@ -827,32 +817,44 @@ class CandidateController extends Controller
         return response()->json(['message' => 'تم اعتماد المشارك']);
     }
 
-    public function reclassify(Request $request, int $id)
+    // PATCH /candidates/{id}/employment — الحالة الوظيفية: على رأس العمل أو متقاعد
+    //
+    // مسارٌ مستقلّ لا حقلٌ في التعديل العامّ: يضبطه مسؤول الجدولة وحده
+    // (CANDIDATE_APPROVE)، وهو من يقرّر من يدخل الجدولة ومن يخرج منها.
+    // ولو كان حقلاً في نموذج التعديل لَملَكه كلُّ من يملك `candidate.edit`،
+    // ومنهم موظّف الإدخال الذي يملأ البيانات ولا يبتّ في شيء.
+    public function updateEmployment(Request $request, int $id)
     {
-        if (! $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
-            return response()->json(['error' => 'ليس لديك صلاحية تغيير التصنيف'], 403);
+        if (! $request->user()->hasPermission(Permissions::CANDIDATE_APPROVE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية تعديل الحالة الوظيفية'], 403);
         }
 
         $validated = $request->validate([
-            'classification' => 'required|in:normal,secret,top_secret',
+            'employmentStatus' => 'required|in:'.implode(',', Candidate::EMPLOYMENT_STATUSES),
         ]);
 
-        // النطاق: حامل VIEW_CLASSIFIED يرى كل التصنيفات، لكن حدّ القطاع يبقى
-        // قائماً — لا يُصنَّف مشارك خارج قطاع من يصنّفه
+        // النطاق كاملاً — 404 موحّد لغير الموجود ولغير المصرَّح
         $candidate = $this->resolveCandidateInScope($request, $id);
         if (! $candidate) {
             return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
-        $old = $candidate->classification;
-        $candidate->update(['classification' => $validated['classification']]);
 
-        $this->log($request, 'RECLASSIFY_CANDIDATE', $id, [
+        $from = $candidate->employment_status;
+        if ($from === $validated['employmentStatus']) {
+            return response()->json(['message' => 'لا تغيير']);
+        }
+
+        $candidate->update(['employment_status' => $validated['employmentStatus']]);
+        $this->log($request, 'UPDATE_EMPLOYMENT_STATUS', $id, [
             'code' => $candidate->participant_code,
-            'from' => $old,
-            'to' => $validated['classification'],
+            'from' => $from,
+            'to' => $validated['employmentStatus'],
         ]);
 
-        return response()->json(['message' => 'تم تحديث التصنيف']);
+        return response()->json([
+            'message' => 'تم تحديث الحالة الوظيفية',
+            'employmentStatus' => $candidate->employment_status,
+        ]);
     }
 
     // سجل دورات المشارك مع تقييماتها وتفاصيلها (لعرض التاريخ + التقييم السابق)
@@ -1044,7 +1046,6 @@ class CandidateController extends Controller
             'interview' => 'المقابلة الشخصية',
             'discussion' => 'حلقة النقاش',
             'measurement' => 'أدوات القياس',
-            'integration' => 'التمرين التكاملي',
         ];
         $act = fn ($a) => $activityLabel[$a] ?? $a;
 
@@ -1184,7 +1185,6 @@ class CandidateController extends Controller
         $middle = (clone $base)->where('tier', 'middle')->count();
 
         $byStatus = (clone $base)->selectRaw('status, count(*) as c')->groupBy('status')->pluck('c', 'status');
-        $byClass = (clone $base)->selectRaw('classification, count(*) as c')->groupBy('classification')->pluck('c', 'classification');
 
         return response()->json([
             'total' => $total,
@@ -1196,11 +1196,6 @@ class CandidateController extends Controller
                 'assessed' => $byStatus['assessed'] ?? 0,
                 'approved' => $byStatus['approved'] ?? 0,
                 'completed' => $byStatus['completed'] ?? 0,
-            ],
-            'byClassification' => [
-                'normal' => $byClass['normal'] ?? 0,
-                'secret' => $byClass['secret'] ?? 0,
-                'top_secret' => $byClass['top_secret'] ?? 0,
             ],
         ]);
     }
@@ -1228,9 +1223,6 @@ class CandidateController extends Controller
         if ($request->filled('tier')) {
             $query->where('tier', $request->tier);
         }
-        if ($request->filled('classification')) {
-            $query->where('classification', $request->classification);
-        }
 
         $candidates = $query->orderBy('participant_code')->get();
 
@@ -1247,7 +1239,6 @@ class CandidateController extends Controller
                 'الرتبة / المرتبة' => $c->rank_label,
                 'الفئة القيادية' => $c->tier === 'upper' ? 'قيادة عليا' : 'قيادة وسطى',
                 'الحالة' => $c->status,
-                'التصنيف' => $c->classification,
             ];
             if ($canSeeNames) {
                 $row['الاسم'] = $c->full_name;

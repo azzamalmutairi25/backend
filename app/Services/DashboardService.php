@@ -39,7 +39,6 @@ class DashboardService
         'interview' => 'مقابلة شخصية',
         'discussion' => 'حلقة نقاش',
         'measurement' => 'أدوات القياس',
-        'integration' => 'جلسة تكاملية',
     ];
 
     private const TIER_AR = [

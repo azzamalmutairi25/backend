@@ -142,7 +142,7 @@ class CandidateImporter
             // وإن كانت الرتبة غير معروفة في القائمتين قيلت الحاجةُ إلى العمود صراحةً.
             $category = self::categoryFromInput($categoryRaw);
             if ($categoryRaw !== '' && $category === null) {
-                $reasons[] = "الفئة «{$categoryRaw}» غير معروفة — مدني أو عسكري أو متعاقد";
+                $reasons[] = "الفئة «{$categoryRaw}» غير معروفة — مدني أو عسكري أو قطاع خاص";
             }
             if ($category === null && $rankLabel !== '') {
                 $category = self::inferCategory($rankLabel, $ranksByCat);
@@ -443,7 +443,11 @@ class CandidateImporter
         foreach ([
             'civilian' => ['مدني', 'مدنيه', 'مدنية', 'civilian', 'civil'],
             'military' => ['عسكري', 'عسكريه', 'عسكرية', 'military'],
-            'contractor' => ['متعاقد', 'متعاقده', 'متعاقدة', 'contractor', 'contract'],
+            // «قطاع خاص» هي التسمية المعتمدة الآن، و«متعاقد» تبقى مقبولةً:
+            // كشوف الجهات المرسَلة قبل التغيير تحملها، ورفضُها يُسقط صفوفاً
+            // سليمة بحجّة لفظٍ استُبدل عندنا لا عندهم.
+            'contractor' => ['قطاع خاص', 'قطاع خاصّ', 'القطاع الخاص',
+                'متعاقد', 'متعاقده', 'متعاقدة', 'contractor', 'contract'],
         ] as $key => $spellings) {
             foreach ($spellings as $spelling) {
                 if ($v === self::normalizeAr($spelling)) {

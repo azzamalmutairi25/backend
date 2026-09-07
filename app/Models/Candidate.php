@@ -15,7 +15,8 @@ class Candidate extends Model
     protected $fillable = [
         'participant_code', 'national_id_enc', 'national_id_hash',
         'full_name_enc', 'mobile_enc', 'email_enc', 'military_number_enc',
-        'sector_id', 'gender', 'rank_label', 'rank_id', 'personnel_category', 'tier', 'assessment_type', 'status',
+        'sector_id', 'employer', 'employment_status', 'gender', 'rank_label', 'rank_id',
+        'personnel_category', 'tier', 'assessment_type', 'status',
         'classification', 'notes',
     ];
 
@@ -31,6 +32,14 @@ class Candidate extends Model
         };
     }
 
+    // الحالة الوظيفية — صفةُ الشخص، لا حالتُه في مسار التقييم
+    public const EMPLOYMENT_STATUSES = ['active', 'retired'];
+
+    public static function employmentStatusLabel(?string $status): string
+    {
+        return $status === 'retired' ? 'متقاعد' : 'على رأس العمل';
+    }
+
     // فئة المنسوب — صفةُ الشخص لا صفةُ قطاعه
     public const CATEGORIES = ['civilian', 'military', 'contractor'];
 
@@ -41,7 +50,10 @@ class Candidate extends Model
     {
         return match ($category) {
             'military' => 'عسكري',
-            'contractor' => 'متعاقد',
+            // القيمة تبقى 'contractor' والتسمية تتغيّر: تغييرُ القيمة يوجب
+            // ترحيل صفوف المشاركين وعمود `ranks.category` وكل ما يقارنهما،
+            // ولا يكسب شيئاً — التسمية هي ما يُقرأ.
+            'contractor' => 'قطاع خاص',
             default => 'مدني',
         };
     }

@@ -157,11 +157,11 @@ class PermissionMatrixInvariantsTest extends TestCase
             'رؤية أسماء المشاركين — أي توسيع قرارٌ أمني'
         );
 
-        $this->assertEqualsCanonicalizing(
-            ['ADMIN', 'CENTER_MANAGER', 'ASSESS_MANAGER', 'DEV_MANAGER'],
-            $holders(Permissions::CANDIDATE_VIEW_CLASSIFIED),
-            'رؤية المشاركين المصنّفين — أي توسيع قرارٌ أمني'
-        );
+        // «رؤية المشاركين المصنّفين» تقاعدت: لا يملكها دورٌ ولا تُمنَح، وكل
+        // صفٍّ صار 'normal'. فالقائمة المغلقة صارت فارغة، والمحكّ الحيّ عليها
+        // هو أنها ليست في `all()` — يمسكه اختبار الصلاحيات اليتيمة.
+        $this->assertSame(['ADMIN'], $holders(Permissions::CANDIDATE_VIEW_CLASSIFIED),
+            'صلاحية متقاعدة: لا يملكها دورٌ مسمّى — و«ADMIN» يظهر لأنه يحمل النجمة');
 
         $this->assertEqualsCanonicalizing(
             ['ADMIN'],

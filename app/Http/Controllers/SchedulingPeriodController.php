@@ -29,13 +29,12 @@ use Illuminate\Support\Facades\DB;
 // لحظتين)، وهو خطأ إدخال لا قرار إداري — وموضعه شاشة الجدولة لا هذه.
 class SchedulingPeriodController extends Controller
 {
-    private const ACTIVITIES = ['interview', 'discussion', 'measurement', 'integration'];
+    private const ACTIVITIES = ['interview', 'discussion', 'measurement'];
 
     private const ACTIVITY_LABEL = [
         'interview' => 'المقابلة الشخصية',
         'discussion' => 'حلقة النقاش',
         'measurement' => 'أدوات القياس',
-        'integration' => 'التمرين التكاملي',
     ];
 
     public function __construct(private NotificationService $notifications) {}

@@ -29,7 +29,6 @@ class PublicAssessmentController extends Controller
         'interview' => 'المقابلة الشخصية',
         'discussion' => 'حلقة النقاش',
         'measurement' => 'أدوات القياس',
-        'integration' => 'التمرين التكاملي',
     ];
 
     private const MAX_ATTEMPTS = 5;      // محاولات التحقق قبل القفل
