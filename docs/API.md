@@ -386,13 +386,11 @@
 | GET · PUT | `/settings/distribution` | ضوابط التوزيع الأسبوعي |
 | GET · PUT | `/settings/tier` | حدود الفئات القيادية |
 | GET · PUT | `/settings/session-times` | أوقات جلسات اليوم (خيارات الحقل وأعمدة الكشف) |
-| GET | `/expertise-areas` | مجالات الخبرة — مرجعٌ للجميع، وغير الفعّالة لحاملي `settings.manage` |
-| POST · PUT · DELETE | `/expertise-areas` · `/expertise-areas/{id}` | إدارة المجالات (`settings.manage`) |
-| PUT | `/users/{id}/expertise` | وسم حساب بمجالاته — `areaIds[]` (`user.manage`) |
-| GET | `/technical-areas` | المجالات الفنية — مرجعٌ يُوسَم به المشارك ويُرشَّح عليه. قراءتها أوسع من مجالات الخبرة: تكفيها `candidate.view` أو `candidate.create` لأن نموذج الإضافة يعرضها وشاشة الترشيح تفلتر بها. تُرجع `areas[{id, label, sortOrder, isActive, participantCount}]` و`canManage`؛ وغير الفعّالة لحاملي `settings.manage` وحدهم ليعيدوا تفعيلها |
-| POST | `/technical-areas` | إضافة مجال — `{label, sortOrder?}` ← `{message, areaId}` (٢٠١)؛ الاسم المكرّر ٤٢٢ في `errors.label` (`settings.manage`) |
-| PUT | `/technical-areas/{id}` | تعديل مجال — `{label, sortOrder?, isActive?}` ← `{message}`؛ غير الموجود ٤٠٤ والاسم المكرّر ٤٢٢ (`settings.manage`) |
+| GET | `/technical-areas` | المجالات الفنية — مرجعٌ يُوسَم به المشارك ويُرشَّح عليه. قراءتها أوسع من مجالات الخبرة: تكفيها `candidate.view` أو `candidate.create` لأن نموذج الإضافة يعرضها وشاشة الترشيح تفلتر بها. تقبل `?sectorId=` فتُرجع مجالات ذلك القطاع وحدها — نموذج المشارك يطلب مجالات قطاعه لا مجالات الجهات كلّها. تُرجع `areas[{id, label, sortOrder, isActive, sectorIds, sectorNames, participantCount}]` و`canManage`؛ وغير الفعّالة لحاملي `settings.manage` وحدهم ليعيدوا تفعيلها |
+| POST | `/technical-areas` | إضافة مجال — `{label, sectorIds[] (قطاعٌ واحد على الأقلّ), sortOrder?}` ← `{message, areaId}` (٢٠١)؛ الاسم المكرّر ٤٢٢ في `errors.label` (`settings.manage`) |
+| PUT | `/technical-areas/{id}` | تعديل مجال — `{label, sectorIds[], sortOrder?, isActive?}` ← `{message}`؛ غير الموجود ٤٠٤ والاسم المكرّر ٤٢٢ (`settings.manage`) |
 | DELETE | `/technical-areas/{id}` | حذف مجال ← `{message}`؛ **مجالٌ موصوفٌ به مشاركون لا يُحذف** — ٤٢٢ تدلّ على تعطيله ليبقى وسمهم مقروءاً (`settings.manage`) |
+| PUT | `/users/{id}/technical-areas` | وسم المستشار بمجالاته الفنية — `{areaIds[]}` ← `{message, areaIds}`؛ عليها تقوم مطابقته بالمشارك (تقاطعٌ صريح لا بحثٌ نصّيّ). بـ`user.manage` أو `schedule.manage` |
 | GET · POST | `/settings/scheduling-workflow` | خطوات سير عمل الجدولة — القراءة تكفيها `schedule.view`، والإضافة `settings.manage` |
 | PUT · DELETE | `/settings/scheduling-workflow/{id}` | تعديل/حذف خطوة (`settings.manage`) |
 | PUT | `/settings/scheduling-workflow/reorder` | إعادة الترتيب — `ids[]` كاملةً لا جزئية (`settings.manage`) |

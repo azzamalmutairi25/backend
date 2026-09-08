@@ -218,7 +218,7 @@ class Candidate extends Model
     public static function classifyTier(string $rankLabel, string $category): string
     {
         if ($category === self::CATEGORY_CONTRACTOR) {
-            throw new \InvalidArgumentException('طبقة المتعاقد تُختار صراحةً لا تُستنتج');
+            throw new \InvalidArgumentException('طبقة القطاع الخاص تُختار صراحةً لا تُستنتج');
         }
 
         $isMilitary = $category === 'military';

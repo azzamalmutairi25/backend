@@ -17,7 +17,6 @@ use App\Http\Controllers\DiscussionCircleController;
 use App\Http\Controllers\DispatchController;
 use App\Http\Controllers\DistributionController;
 use App\Http\Controllers\EvaluationController;
-use App\Http\Controllers\ExpertiseAreaController;
 use App\Http\Controllers\GoldenScheduleController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\KioskController;
@@ -199,21 +198,14 @@ Route::middleware('auth:sanctum')->group(function () {
     // الرتب والمراتب — مرجعٌ يقرؤه كل من يملأ نموذج مشارك، والإدارة داخل
     // RankController على `settings.manage`. كان الصنف مكتوباً كاملاً بلا مسار
     // يبلغه، والتوثيق يذكره — فالميزة موجودة ولا سبيل إليها.
-    // مجالات الخبرة — مرجعٌ يُدار من الإعدادات، تُوسَم به حسابات المقيّمين
-    // فتُقترح أقربهم إلى سيرة المشارك عند الجدولة («حسب الخبرات»).
-    Route::get('/expertise-areas', [ExpertiseAreaController::class, 'index']);
-    Route::post('/expertise-areas', [ExpertiseAreaController::class, 'store']);
-    Route::put('/expertise-areas/{id}', [ExpertiseAreaController::class, 'update']);
-    Route::delete('/expertise-areas/{id}', [ExpertiseAreaController::class, 'destroy']);
-    // وسم حساب مقيّم بمجالاته — بصلاحية إدارة المستخدمين
-    Route::put('/users/{id}/expertise', [ExpertiseAreaController::class, 'setUserExpertise']);
-
     // المجالات الفنية — مرجعٌ يُدار من الإعدادات، يُوسَم به المشارك ويُرشَّح
     // عليه. القراءة أوسع من نظيرتها: نموذج الإضافة يعرضها وشاشة الترشيح تفلتر بها.
     Route::get('/technical-areas', [TechnicalAreaController::class, 'index']);
     Route::post('/technical-areas', [TechnicalAreaController::class, 'store']);
     Route::put('/technical-areas/{id}', [TechnicalAreaController::class, 'update']);
     Route::delete('/technical-areas/{id}', [TechnicalAreaController::class, 'destroy']);
+    // وسم المستشار بمجالاته — حلّت محلّ /users/{id}/expertise
+    Route::put('/users/{id}/technical-areas', [TechnicalAreaController::class, 'setUserAreas']);
 
     Route::get('/ranks', [RankController::class, 'index']);
     Route::post('/ranks', [RankController::class, 'store']);

@@ -17,6 +17,21 @@ class TechnicalArea extends Model
         'sort_order' => 'integer',
     ];
 
+    // القطاعات التي يُعرَض فيها هذا المجال — واحدٌ على الأقلّ.
+    // مجالٌ بلا قطاع لا يظهر في أي نموذج، فيصير سجلاًّ ميتاً لا يُوسَم به أحد.
+    public function sectors()
+    {
+        return $this->belongsToMany(Sector::class, 'technical_area_sectors', 'technical_area_id', 'sector_id')
+            ->withTimestamps();
+    }
+
+    // المستشارون الموسومون به — طرفُ المطابقة الآخر
+    public function users()
+    {
+        return $this->belongsToMany(User::class, 'user_technical_areas', 'technical_area_id', 'user_id')
+            ->withTimestamps();
+    }
+
     public function candidates()
     {
         return $this->belongsToMany(

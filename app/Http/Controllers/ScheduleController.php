@@ -11,7 +11,6 @@ use App\Models\Schedule;
 use App\Models\User;
 use App\Security\Permissions;
 use App\Services\EntryPermitService;
-use App\Services\ExpertiseMatcher;
 use App\Services\WaveGuard;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
@@ -258,7 +257,7 @@ class ScheduleController extends Controller
         $activity = $validated['activity'] ?? 'interview';
         $seat = $validated['seat'] ?? 'evaluator';
 
-        $candidate = $this->resolveCandidateInScope($request, $id);
+        $candidate = $this->resolveCandidateInScope($request, $id, ['technicalAreas']);
         if (! $candidate) {
             $this->log($request, 'DENIED_CANDIDATE_OUT_OF_SCOPE', $id);
 
@@ -266,7 +265,7 @@ class ScheduleController extends Controller
         }
 
         $roles = PeriodAssessor::eligibleRoles($activity, $seat);
-        $people = User::with('expertiseAreas')
+        $people = User::with('technicalAreas')
             ->whereHas('role', fn ($q) => $q->whereIn('code', $roles))
             ->where('is_active', true)
             // ── من لا يحصره قطاع يخدم القطاعات كلّها ──
@@ -283,10 +282,15 @@ class ScheduleController extends Controller
             ->orderBy('full_name')
             ->get();
 
-        // «حسب الخبرات»: المجالات التي تذكرها سيرة المشارك، تُقارَن بوسم كل مقيّم.
-        // اقتراح ترتيبٍ لا حجب: من درجته صفر يبقى في القائمة قابلاً للاختيار.
-        $matcher = new ExpertiseMatcher;
-        $candidateAreas = $matcher->areasInText($matcher->candidateText($candidate));
+        // ── المطابقة بالمجالات الفنية ──
+        // كانت بحثاً نصّياً في نثر السيرة (المنصب والنبذة والإدارة) عن اسم
+        // مجال خبرة المقيّم بعد تطبيع الهمزات — تُصيب وتُخطئ بلا أن يعرف أحدٌ
+        // أيّهما وقع. وصارت **تقاطعاً صريحاً**: وسمُ المشارك ووسمُ المستشار من
+        // مرجعٍ واحد، فالدرجة تُعدّ وتُعرَض ويُراجَع سببها.
+        //
+        // وترتيبٌ لا حجب: لا يُلزَم الإسناد بها، فقد يختلف المجال بين
+        // المقيّمين. من تقاطعه صفر يبقى في القائمة قابلاً للاختيار.
+        $candidateAreas = $candidate->technicalAreas->pluck('label_ar', 'id')->all();
 
         // لوحة الموجة وحملها — تُقرأ مرّة واحدة لا مرّة لكل اسم
         $panel = [];
@@ -322,13 +326,13 @@ class ScheduleController extends Controller
             $seatRow = $panel[$u->id] ?? null;
             $matched = array_values(array_intersect_key(
                 $candidateAreas,
-                $u->expertiseAreas->keyBy('id')->all()
+                $u->technicalAreas->keyBy('id')->all()
             ));
 
             return [
                 'id' => $u->id,
                 'name' => $u->full_name,
-                // مجالات هذا المقيّم التي تذكرها سيرة المشارك — تُعرض للمُجدوِل
+                // المجالات المشتركة بينه وبين المشارك — تُعرض للمُجدوِل ليرى سبب الترتيب
                 'matchedAreas' => $matched,
                 'matchScore' => count($matched),
                 // مُدرَجٌ في لوحة الموجة؟ من ليس فيها يظهر ويُختار — اللوحة

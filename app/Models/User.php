@@ -3,10 +3,12 @@
 namespace App\Models;
 
 use App\Security\Permissions;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Crypt;
 use Laravel\Sanctum\HasApiTokens;
 
 // ════════════════════════════════════════════════════════════
@@ -21,13 +23,38 @@ class User extends Authenticatable
     public const SECTOR_BOUND_ROLES = ['EVALUATOR', 'DISCUSSION_EVAL', 'ASSISTANT'];
 
     protected $fillable = [
-        'username', 'full_name', 'email', 'password',
+        'username', 'code', 'full_name', 'national_id_enc', 'national_id_hash', 'email', 'password',
         'role_id', 'sector_id', 'manager_id', 'is_active', 'must_change_password', 'last_login_at',
         'failed_attempts', 'locked_until',
         'user_type', 'ad_username',
     ];
 
-    protected $hidden = ['password', 'remember_token'];
+    protected $hidden = ['password', 'remember_token', 'national_id_enc', 'national_id_hash'];
+
+    // هوية المستشار — معرّفٌ شخصيّ مباشر، يُشفَّر كهوية المشارك حرفاً بحرف.
+    // والبصمة للبحث بمطابقةٍ تامّة لا للعرض: التشفير لا يُبحث فيه.
+    protected function nationalId(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => $this->national_id_enc
+                ? Crypt::decryptString($this->national_id_enc)
+                : null,
+            set: fn ($value) => $value
+                ? [
+                    'national_id_enc' => Crypt::encryptString($value),
+                    'national_id_hash' => hash('sha256', $value),
+                ]
+                : ['national_id_enc' => null, 'national_id_hash' => null],
+        );
+    }
+
+    // المجالات الفنية التي يقيّم عليها — من مرجع المشاركين نفسه، فالمطابقة
+    // تقاطعٌ صريح لا بحثٌ نصّيّ في نثر السيرة
+    public function technicalAreas()
+    {
+        return $this->belongsToMany(TechnicalArea::class, 'user_technical_areas', 'user_id', 'technical_area_id')
+            ->withTimestamps();
+    }
 
     protected function casts(): array
     {
@@ -50,14 +77,6 @@ class User extends Authenticatable
         return $this->belongsTo(Sector::class);
     }
 
-    // مجالات خبرة المقيّم — تُطابَق بسيرة المشارك عند اختيار المستشار
-    public function expertiseAreas()
-    {
-        return $this->belongsToMany(ExpertiseArea::class, 'user_expertise', 'user_id', 'expertise_area_id')
-            ->withTimestamps();
-    }
-
-    // مدير المستخدم — للمساعد: مدير إدارة التقييم الذي يعتمد تقاريره
     public function manager(): BelongsTo
     {
         return $this->belongsTo(User::class, 'manager_id');
