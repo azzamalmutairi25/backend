@@ -69,9 +69,9 @@ class SchedulingPeriodController extends Controller
 
     private function denyApprove(Request $request): ?JsonResponse
     {
-        return $request->user()->hasPermission(Permissions::SCHEDULE_APPROVE_CENTER)
+        return $request->user()->hasPermission(Permissions::SCHEDULE_APPROVE)
             ? null
-            : response()->json(['error' => 'اعتماد الجدولة لمدير المركز'], 403);
+            : response()->json(['error' => 'اعتماد الجدولة لمسؤول الجدولة'], 403);
     }
 
     private function row(SchedulingPeriod $p, array $counts = []): array
@@ -135,7 +135,7 @@ class SchedulingPeriodController extends Controller
         return response()->json([
             'periods' => $rows,
             'canManage' => $request->user()->hasPermission(Permissions::SCHEDULE_MANAGE),
-            'canApprove' => $request->user()->hasPermission(Permissions::SCHEDULE_APPROVE_CENTER),
+            'canApprove' => $request->user()->hasPermission(Permissions::SCHEDULE_APPROVE),
         ]);
     }
 
@@ -636,10 +636,10 @@ class SchedulingPeriodController extends Controller
         $period->reject_reason = null;   // إرسالٌ جديد يمسح سبب رفضٍ سابق
         $period->save();
 
-        // بالصلاحية لا بالدور: مركزٌ لم يُنشئ دور مدير المركز كان الإشعار
-        // فيه يذهب إلى لا أحد فتقف الموجة بلا أن يعلم أحد.
+        // بالصلاحية لا بالدور: مركزٌ لم يُنشئ الدور المعتمِد كان الإشعار فيه
+        // يذهب إلى لا أحد فتقف الفترة بلا أن يعلم أحد.
         $reached = $this->notifications->notifyPermission(
-            Permissions::SCHEDULE_APPROVE_CENTER,
+            Permissions::SCHEDULE_APPROVE,
             'approval',
             'جدولة بانتظار اعتمادك',
             'موجة «'.$period->name.'» ('.$period->start_date->toDateString()
@@ -720,14 +720,14 @@ class SchedulingPeriodController extends Controller
             return response()->json(['error' => 'لا تُعتمد إلا موجة مُرسَلة للاعتماد'], 422);
         }
         // ── من يبني الجدول لا يعتمده ──
-        // الهجرة التي منحت هذه الصلاحية كتبت غرضها صراحةً: «فصل مهام لا صلاحية
-        // تجميلية». لكنها فصلت الأدوار ولم تفصل الأشخاص — ومدير المركز يحمل
-        // schedule.manage وschedule.approve_center معاً، فكان يبني ويرسل ويعتمد
-        // وحده، وخطوة «إرسال الجدولة إلى مدير المركز» بلا معنى.
+        // الاعتماد انتقل من مدير المركز إلى مسؤول الجدولة، وفصلُ المهامّ لم
+        // يسقط بل انتقل داخل الإدارة: موظّف الإعداد يبني ويُرسل، والمسؤول
+        // يعتمد. ولولا هذا الفحص لَعاد المسؤول يبني ويعتمد وحده، وصارت خطوة
+        // «إرسال الجدولة للاعتماد» بلا معنى تقني.
         //
         // والفحص على المُرسِل لا على المُنشِئ ولا على من مسّ اللوحة: الإرسال هو
-        // فعل «أُعلنُها جاهزة»، وهو ما يقابله الاعتماد. ومديرٌ صحّح نصاب اسمٍ في
-        // لوحة موجةٍ بناها غيره لا يفقد حقّه في اعتمادها.
+        // فعل «أُعلنُها جاهزة»، وهو ما يقابله الاعتماد. ومسؤولٌ صحّح نصاب اسمٍ
+        // في لوحة فترةٍ بناها غيره لا يفقد حقّه في اعتمادها.
         if ($period->submitted_by === $request->user()->id) {
             return response()->json([
                 'error' => 'لا تعتمد موجةً أرسلتَها بنفسك — الاعتماد لمن لم يبنِها',

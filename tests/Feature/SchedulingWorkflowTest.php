@@ -285,7 +285,7 @@ class SchedulingWorkflowTest extends TestCase
         $this->assertSame('pending', $byKey($before, 'period.approved')['status']);
 
         $this->postJson("/api/scheduling-periods/{$period->id}/submit")->assertOk();
-        $this->actingAsRole('CENTER_MANAGER');
+        $this->actingAsRole('SCHEDULER');
         $this->postJson("/api/scheduling-periods/{$period->id}/approve")->assertOk();
 
         $after = $this->getJson("/api/scheduling-periods/{$period->id}/workflow");

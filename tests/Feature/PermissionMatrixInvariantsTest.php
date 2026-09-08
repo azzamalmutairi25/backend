@@ -152,7 +152,8 @@ class PermissionMatrixInvariantsTest extends TestCase
         };
 
         $this->assertEqualsCanonicalizing(
-            ['ADMIN', 'CENTER_MANAGER', 'SCHEDULER', 'RECEPTIONIST', 'ASSESS_MANAGER'],
+            ['ADMIN', 'CENTER_MANAGER', 'SCHEDULER', 'SCHEDULE_CLERK', 'DATA_ENTRY',
+                'RECEPTIONIST', 'ASSESS_MANAGER'],
             $holders(Permissions::CANDIDATE_VIEW_NAMES),
             'رؤية أسماء المشاركين — أي توسيع قرارٌ أمني'
         );
@@ -162,6 +163,11 @@ class PermissionMatrixInvariantsTest extends TestCase
         // هو أنها ليست في `all()` — يمسكه اختبار الصلاحيات اليتيمة.
         $this->assertSame(['ADMIN'], $holders(Permissions::CANDIDATE_VIEW_CLASSIFIED),
             'صلاحية متقاعدة: لا يملكها دورٌ مسمّى — و«ADMIN» يظهر لأنه يحمل النجمة');
+
+        // اعتماد الفترة انتقل من مدير المركز إلى مسؤول الجدولة
+        $this->assertEqualsCanonicalizing(['ADMIN', 'SCHEDULER'],
+            $holders(Permissions::SCHEDULE_APPROVE),
+            'اعتماد فترة الجدولة — أي توسيع قرارٌ أمني');
 
         $this->assertEqualsCanonicalizing(
             ['ADMIN'],

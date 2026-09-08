@@ -195,7 +195,7 @@ class ParticipantCodeTest extends TestCase
             'schedule_time' => '09:00',
         ]);
 
-        $this->actingAsRole('CENTER_MANAGER');
+        $this->actingAsRole('SCHEDULER');
         $this->postJson("/api/scheduling-periods/{$period->id}/approve")
             ->assertOk()->assertJsonPath('codesIssued', 1);
 
@@ -225,7 +225,7 @@ class ParticipantCodeTest extends TestCase
             'schedule_time' => '09:00',
         ]);
 
-        $this->actingAsRole('CENTER_MANAGER');
+        $this->actingAsRole('SCHEDULER');
         $this->postJson("/api/scheduling-periods/{$period->id}/approve")->assertOk();
 
         $this->assertStringEndsWith(now()->subMonths(3)->format('My'), $c->fresh()->participant_code);
@@ -248,7 +248,7 @@ class ParticipantCodeTest extends TestCase
             'schedule_time' => '09:00',
         ]);
 
-        $this->actingAsRole('CENTER_MANAGER');
+        $this->actingAsRole('SCHEDULER');
         $this->postJson("/api/scheduling-periods/{$period->id}/approve")
             ->assertOk()->assertJsonPath('codesIssued', 0);
 

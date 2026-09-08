@@ -211,8 +211,8 @@
 | GET | `/scheduling-periods/{id}/assessors` | `schedule.view` | لوحة المقيّمين والمساعدين ونصابهم وحملهم |
 | PUT | `/scheduling-periods/{id}/assessors` | `schedule.manage` | حفظ اللوحة كاملةً (استبدال ذرّي) |
 | POST | `/scheduling-periods/{id}/submit` | `schedule.manage` | إرسال الجدولة لمدير المركز |
-| POST | `/scheduling-periods/{id}/approve` | `schedule.approve_center` | اعتماد الموجة |
-| POST | `/scheduling-periods/{id}/reject` | `schedule.approve_center` | إرجاعها مسودّةً بسبب (`reason` إلزامي) |
+| POST | `/scheduling-periods/{id}/approve` | `schedule.approve` | اعتماد الموجة |
+| POST | `/scheduling-periods/{id}/reject` | `schedule.approve` | إرجاعها مسودّةً بسبب (`reason` إلزامي) |
 | POST | `/scheduling-periods/{id}/close` | `schedule.manage` | إغلاق موجة معتمَدة |
 | GET | `/scheduling-periods/{id}/workflow` | `schedule.view` | خطوات سير العمل وحالة كلٍّ منها على الموجة + نسبة الإنجاز |
 | POST | `/scheduling-periods/{id}/workflow/{stepId}` | `schedule.manage` | تأشير خطوة يدوية — `status=done\|skipped\|pending`، و`note` إلزامية مع `skipped` |

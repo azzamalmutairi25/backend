@@ -49,10 +49,18 @@ class Permissions
     // التوزيع الأسبوعي: اقتراح واعتماد — لمسؤول الجدولة (إدارة المشاركين)
     const DISTRIBUTION_MANAGE = 'schedule.distribute';
 
-    // اعتماد موجة الجدولة — لمدير المركز وحده، ولا تُمنح لمن يبنيها.
-    // فصلُ مهامٍ لا تسمية: قبلها كان الباني هو المعتمِد، فخطوة «إرسال الجدولة
-    // إلى مدير المركز للاعتماد» بلا معنى تقني. قابلة للتفويض بالاستثناء الفردي
-    // كي لا يقف الاعتماد بغيابه.
+    // اعتماد فترة الجدولة — لمسؤول الجدولة.
+    //
+    // كانت لمدير المركز، ونُقلت بقرار صاحب المنصّة: الفترة شأن إدارة الجدولة،
+    // ومدير المركز يطّلع ولا يعتمدها. وفصلُ المهامّ لم يسقط بل انتقل داخل
+    // الإدارة نفسها — موظّف الإعداد يبني ويُرسل، والمسؤول يعتمد.
+    //
+    // وصلاحيةٌ مستقلّة لا مدموجة في `schedule.manage`: من يبني لا يعتمد،
+    // ولو صارتا واحدة لتعذّر الفصل غداً إلا بتعديلٍ برمجي.
+    const SCHEDULE_APPROVE = 'schedule.approve';
+
+    // مُتقاعدة: اعتماد الفترة انتقل إلى `schedule.approve`. الثابت باقٍ ولا
+    // يُمنَح ولا يُعرَض — يُنزع في تنظيفٍ لاحق.
     const SCHEDULE_APPROVE_CENTER = 'schedule.approve_center';
 
     // تسليم الجدولة للجهة (وكالة الشؤون العسكرية / الموارد البشرية) — فعلٌ
@@ -178,7 +186,7 @@ class Permissions
                 self::CANDIDATE_JOURNEY, self::CANDIDATE_CV_VIEW,
                 self::CANDIDATE_EDIT, self::CANDIDATE_APPROVE,
                 self::SCHEDULE_VIEW, self::SCHEDULE_MANAGE, self::DISTRIBUTION_MANAGE, self::ROSTER_MANAGE,
-                self::SCHEDULE_APPROVE_CENTER, self::SCHEDULE_DISPATCH,
+                self::SCHEDULE_DISPATCH,
                 self::RECEPTION_VIEW, self::RECEPTION_ASSIGN, self::RECEPTION_APPROVE,
                 self::ATTENDANCE_VIEW, self::ATTENDANCE_RECORD_ANY,
                 self::EVALUATION_VIEW, self::EVALUATION_APPROVE,
@@ -211,7 +219,8 @@ class Permissions
                 // البتّ في طلبات التحديث الواردة من المستخدمين الخارجيين — هو مالك
                 // بيانات المشاركين (CANDIDATE_EDIT)، فالاعتماد امتداد لسلطته لا سلطة جديدة
                 self::CANDIDATE_UPDATE_APPROVE,
-                self::SCHEDULE_VIEW, self::SCHEDULE_MANAGE, self::DISTRIBUTION_MANAGE, self::ATTENDANCE_VIEW,
+                self::SCHEDULE_VIEW, self::SCHEDULE_MANAGE, self::SCHEDULE_APPROVE,
+                self::DISTRIBUTION_MANAGE, self::ATTENDANCE_VIEW,
                 self::ROSTER_MANAGE,
                 self::SEND_INVITATION, self::CHAT_VIEW,
                 // العمليات: يستقبل المردود فيعيد إسناده، ويعتمد البيانات ويُرحّلها
@@ -226,6 +235,44 @@ class Permissions
             // سيرة من يستقبله اليوم تُقرأ من مسار الاستقبال بـRECEPTION_RECORD،
             // وهو محصور بزيارةٍ قائمة في يومها — فرقٌ بين «يقرأ سيرة من أمامه»
             // و«يتصفّح سِيَر المشاركين».
+            // ── موظّف إدخال بيانات المشاركين ──
+            // يملأ ولا يبتّ: يضيف المشارك ويحرّر بياناته وسيرته، ولا يعتمد
+            // ترشيحه ولا يعدّل حاله الوظيفي — تلك سلطة مسؤول الجدولة.
+            // وهو داخليّ لا خارجيّ: يرى قاعدة المشاركين كلَّها بخلاف
+            // EXTERNAL_ADD الذي لا يرى غير ما أضاف.
+            'DATA_ENTRY' => [
+                self::CANDIDATE_VIEW, self::CANDIDATE_CREATE, self::CANDIDATE_EDIT,
+                self::CANDIDATE_VIEW_NAMES, self::CANDIDATE_CV_VIEW, self::CANDIDATE_JOURNEY,
+                self::CHAT_VIEW,
+            ],
+
+            // ── موظّف إعداد الجدولة ──
+            // يختار المشاركين ويبني الشبكة ويُسند للمستشارين ويُرسل — ولا
+            // يعتمد. وبلا CANDIDATE_APPROVE: اعتماد الترشيح سابقٌ للجدولة
+            // وليس من عمله.
+            'SCHEDULE_CLERK' => [
+                self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_NAMES, self::CANDIDATE_CV_VIEW,
+                self::SCHEDULE_VIEW, self::SCHEDULE_MANAGE, self::DISTRIBUTION_MANAGE,
+                self::ROSTER_MANAGE, self::ATTENDANCE_VIEW,
+                self::RECEPTION_VIEW,
+                self::CHAT_VIEW,
+            ],
+
+            // ── موظّف التقييم ──
+            // طبقةُ مراجعةٍ بين المستشار ومدير التقييم: يراجع تقارير المراحل،
+            // ويُرجع الناقص للمستشار، ويجمع مراحل المشارك، ويحوّل للمدير.
+            //
+            // **غير محصورٍ بقطاع** — لا يمكن أن يجمع تقارير المركز كلّه وهو
+            // محصور. ويعمل بالرموز لا بالأسماء: مراجعتُه فنّية ولا تحتاج
+            // معرفة الشخص، فلا CANDIDATE_VIEW_NAMES.
+            'ASSESS_CLERK' => [
+                self::CANDIDATE_VIEW, self::CANDIDATE_JOURNEY,
+                self::EVALUATION_VIEW,
+                self::REPORT_VIEW, self::REPORT_RETURN, self::DEVELOPMENT_PLAN_VIEW,
+                self::MEASUREMENT_VIEW,
+                self::COMPETENCY_VIEW, self::CHAT_VIEW,
+            ],
+
             'RECEPTIONIST' => [
                 self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_NAMES,
                 self::ATTENDANCE_VIEW, self::ATTENDANCE_RECORD, self::ATTENDANCE_RECORD_ANY,
@@ -323,7 +370,7 @@ class Permissions
     // تُقرأ من ثوابت الصنف بالانعكاس، فلا تُنسى واحدة عند إضافتها.
     // تُستعمل لفَرْد '*' قبل تطبيق سحبٍ على مدير النظام، ولبناء شاشة الصلاحيات.
     /** صلاحيات مُتقاعدة — ثوابتها باقية لمواضع تقرؤها، ولا تُمنَح ولا تُعرَض */
-    public const RETIRED = [self::CANDIDATE_VIEW_CLASSIFIED];
+    public const RETIRED = [self::CANDIDATE_VIEW_CLASSIFIED, self::SCHEDULE_APPROVE_CENTER];
 
     public static function all(): array
     {
@@ -368,7 +415,7 @@ class Permissions
         'schedule.view' => 'عرض الجدول',
         'schedule.manage' => 'إدارة الجدولة',
         'schedule.distribute' => 'التوزيع الأسبوعي',
-        'schedule.approve_center' => 'اعتماد موجة الجدولة (مدير المركز)',
+        'schedule.approve' => 'اعتماد فترة الجدولة (مسؤول الجدولة)',
         'schedule.dispatch' => 'تسليم الجدولة للجهات',
         'roster.manage' => 'إسناد مجموعات كشف اليوم',
         // استقبال الموظفين
