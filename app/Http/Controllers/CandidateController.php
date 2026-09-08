@@ -551,9 +551,9 @@ class CandidateController extends Controller
         // مصدر السيرة: من لا يملك التعديل جهةٌ خارجية لا إدارة — يُعلَن للمراجع
         $cvSource = $request->user()->hasPermission(Permissions::CANDIDATE_EDIT) ? 'admin' : 'external';
 
-        // دورة تقييم جديدة برمز فريد + مزامنة الحقول «الحالية» على سجل الشخص
-        $code = Assessment::generateParticipantCode($sector);
-        $candidate->participant_code = $code;
+        // دورة تقييم جديدة **بلا رمز**: الرمز يُصدَر عند اعتماد الفترة التي
+        // تُجدوَل فيها جلساته، لا عند دخوله القاعدة. ومن أُضيف ولم يُجدوَل بعد
+        // يُعرَف باسمه أو هويته — والرمز مُعرِّفُ من صار له موعد.
         $candidate->status = 'draft';
         $candidate->assessment_type = $assessmentType;
 
@@ -562,7 +562,7 @@ class CandidateController extends Controller
         // null ⇒ لا تُمسّ، ومصفوفةٌ ⇒ تحلّ محلّها.
         $areaIds = $validated['technicalAreaIds'] ?? null;
 
-        $assessment = DB::transaction(function () use ($candidate, $code, $assessmentType, $request, $cleanCv, $cvSource, $areaIds) {
+        $assessment = DB::transaction(function () use ($candidate, $assessmentType, $request, $cleanCv, $cvSource, $areaIds) {
             $candidate->save();
 
             // السيرة تُحفظ داخل المعاملة متى وردت: إمّا مشارك بسيرته أو لا
@@ -587,7 +587,6 @@ class CandidateController extends Controller
 
             return Assessment::create([
                 'candidate_id' => $candidate->id,
-                'participant_code' => $code,
                 'assessment_type' => $assessmentType,
                 'status' => 'draft',
                 'created_by' => $request->user()->id,
@@ -595,7 +594,7 @@ class CandidateController extends Controller
             ]);
         });
 
-        $this->log($request, $isReturning ? 'REASSESS_CANDIDATE' : 'CREATE_CANDIDATE', $candidate->id, ['code' => $code]);
+        $this->log($request, $isReturning ? 'REASSESS_CANDIDATE' : 'CREATE_CANDIDATE', $candidate->id);
 
         // التحقق من الهوية عبر البوّابة الخارجية — فقط إن كانت مُعَدّة (وإلا لا أثر).
         // fail-open: نتيجة سلبية/فشل لا توقف الإضافة (الدورة أُنشئت)، بل تُسجَّل وتُبلَّغ.
@@ -610,7 +609,8 @@ class CandidateController extends Controller
 
         return response()->json([
             'message' => $isReturning ? 'تمّت إضافة دورة تقييم جديدة لمشارك موجود' : 'تمت إضافة المشارك',
-            'participantCode' => $code,
+            // بلا رمز — يُصدَر عند اعتماد الفترة التي تُجدوَل فيها جلساته
+            'participantCode' => null,
             'candidateId' => $candidate->id,
             'tier' => $tier,
             'isReturning' => $isReturning,
@@ -633,8 +633,10 @@ class CandidateController extends Controller
             return false; // لا جوّال مسجّل — لا رسالة
         }
         $name = $candidate->full_name ?: 'المشارك';
+        // الرمز يُذكر متى صدر — ورسالةُ التسجيل تسبق اعتماد الجدولة، فلا رمز
+        // فيها غالباً. وذِكرُ فراغٍ باسم «رمز المشارك» أسوأ من السكوت عنه.
         $message = "عزيزي {$name}، تم تسجيلك في مركز تمكين الكفاءات لتقييم القيادات."
-            ." رمز المشارك: {$assessment->participant_code}.";
+            .($assessment->participant_code ? " رمز المشارك: {$assessment->participant_code}." : '');
 
         // رابط البوّابة يُضاف متى كانت مُشغَّلة وحدها. مع تعطيلها يبقى رمزُ
         // المشارك — وهو المفيد فعلاً عند الاستقبال — ويسقط رابطٌ يفتح صفحة
@@ -927,15 +929,15 @@ class CandidateController extends Controller
             ], 422);
         }
 
-        $code = Assessment::generateParticipantCode($candidate->sector);
-        $assessment = DB::transaction(function () use ($candidate, $code, $request) {
-            $candidate->participant_code = $code;
+        // الدورة الجديدة بلا رمز — يُصدَر عند اعتماد الفترة كما في الدورة
+        // الأولى. والرمز القديم يبقى على دورته المنتهية وتقريرها.
+        $assessment = DB::transaction(function () use ($candidate, $request) {
+            $candidate->participant_code = null;
             $candidate->status = 'draft';
             $candidate->save();
 
             return Assessment::create([
                 'candidate_id' => $candidate->id,
-                'participant_code' => $code,
                 'assessment_type' => $candidate->assessment_type ?? 'comprehensive',
                 'status' => 'draft',
                 'created_by' => $request->user()->id,
@@ -943,10 +945,10 @@ class CandidateController extends Controller
             ]);
         });
 
-        $this->log($request, 'REASSESS_CANDIDATE', $candidate->id, ['code' => $code]);
+        $this->log($request, 'REASSESS_CANDIDATE', $candidate->id);
         $smsQueued = $this->sendConfirmationSms($candidate, $assessment, $request->user()->id);
 
-        return response()->json(['message' => 'تمّت إضافة دورة تقييم جديدة', 'participantCode' => $code, 'smsQueued' => $smsQueued], 201);
+        return response()->json(['message' => 'تمّت إضافة دورة تقييم جديدة', 'participantCode' => null, 'smsQueued' => $smsQueued], 201);
     }
 
     // ── رحلة المشارك: خط زمني كامل (إضافة → جدولة → حضور → تقييم → تقرير → اعتماد) ──

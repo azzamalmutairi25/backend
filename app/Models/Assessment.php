@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -155,17 +156,29 @@ class Assessment extends Model
     // يُستدعى خارج المعاملات في كل مواضعه، فالقفل على صفّ العدّاد لا يُحتجَز
     // إلا لحظة العبارة نفسها. لو استُدعي داخل معاملة طويلة لسلسل الإضافات
     // خلفه — فليبقَ الاستدعاء قبل DB::transaction لا داخلها.
-    public static function generateParticipantCode(Sector $sector): string
+    // ── الصيغة ──
+    //   PV0007Aug26 = بادئة القطاع + تسلسل رباعي + شهر الإضافة + سنتاها
+    //
+    // بلا فواصل، ولا يوم فيه. والتسلسل **متّصل لكل قطاع** لا يُصفَّر شهرياً،
+    // فهو وحده ما يجعل الرمز فريداً — والشهر والسنة يقولان متى دخل صاحبه
+    // المنصّة لا متى صدر رمزه، ولذلك يُمرَّران من تاريخ إضافته لا من اليوم.
+    //
+    // الرباعيّ لا الثنائيّ: الاستيراد الضخم يعالج حتى عشرة آلاف صفّ في
+    // الدفعة، فسعةُ تسعةٍ وتسعين تنفد على أوّل كشفٍ كبير — والنفاد هنا ليس
+    // رسالة خطأ بل مشاركٌ لا يُضاف.
+    public static function generateParticipantCode(Sector $sector, ?\DateTimeInterface $addedAt = null): string
     {
         // البادئة قابلة للتحديد من الإعدادات؛ الرجوع لأول حرفين يبقي التنصيبات
         // القديمة عاملة قبل تشغيل هجرة البادئة
         $prefix = strtoupper($sector->participant_prefix ?: substr($sector->code, 0, 2));
+        // 'My' يعطي «Aug26» — الشهر مختصراً إنجليزياً والسنة برقمين
+        $stamp = ($addedAt ? Carbon::parse($addedAt) : now())->format('My');
 
         // حلقة محدودة لتخطّي رمزٍ موجودٍ من قبل العدّاد (بيانات مستوردة أو
         // مبذورة يدوياً بأرقام تتجاوز ما بُذر به العدّاد). الحالة نادرة،
         // والحدّ يمنع حلقةً لا تنتهي إن كان الجدول ممتلئاً بشكل مرضي.
         for ($attempt = 0; $attempt < 100; $attempt++) {
-            $code = sprintf('%s-%03d', $prefix, self::nextCodeNumber($prefix));
+            $code = sprintf('%s%04d%s', $prefix, self::nextCodeNumber($prefix), $stamp);
             if (! self::participantCodeTaken($code)) {
                 return $code;
             }

@@ -67,7 +67,12 @@ abstract class TestCase extends BaseTestCase
     {
         $sector = Sector::where('code', $attrs['sectorCode'] ?? 'DW')->firstOrFail();
         $status = $attrs['status'] ?? 'draft';
-        $code = $attrs['code'] ?? ('T'.random_int(1000, 999999));
+        // `null` صراحةً تعني مشاركاً بلا رمز — وهو حاله قبل اعتماد جدولته.
+        // `??` وحدها لا تفرّق بين «لم يُمرَّر» و«مُرِّر فارغاً»، والثانية صارت
+        // حالةً حقيقية تُختبَر منذ صار الرمز يُصدَر عند الاعتماد.
+        $code = array_key_exists('code', $attrs)
+            ? $attrs['code']
+            : ('T'.random_int(1000, 999999));
 
         $c = new Candidate;
         $c->national_id = $attrs['nationalId'] ?? $this->validNationalId();

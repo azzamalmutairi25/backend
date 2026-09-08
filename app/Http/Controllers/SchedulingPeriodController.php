@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Assessment;
 use App\Models\AuditLog;
 use App\Models\PeriodAssessor;
 use App\Models\Schedule;
@@ -631,6 +632,47 @@ class SchedulingPeriodController extends Controller
     }
 
     // POST /scheduling-periods/{id}/approve — اعتماد مدير المركز
+    /**
+     * إصدار رموز المشاركين لفترةٍ اعتُمدت.
+     *
+     * صفٌّ واحد لكل دورةٍ لها جلسة في الفترة ولا رمز لها بعد. والرمز يُكتب على
+     * الدورة وعلى المشارك معاً — الأولى سجلٌّ تاريخي لا يُعاد كتابته، والثاني
+     * «رمزه الحالي» الذي تعرضه الشاشات.
+     *
+     * والتوليد **خارج المعاملة**: العدّاد ذرّيٌّ بعبارةٍ واحدة، وحبسُه داخل
+     * معاملةٍ تمرّ على مئة دورة يُسلسل كل إضافةٍ في المنصّة خلفها.
+     *
+     * ومن حمل رمزاً من قبل لا يُمسّ: إعادةُ اعتمادٍ أو فترةٌ ثانية تشمله لا
+     * تغيّر رمزاً طُبع على تصريحٍ أو خطاب.
+     */
+    private function issueParticipantCodes(SchedulingPeriod $period): int
+    {
+        $assessments = Assessment::with('candidate.sector')
+            ->whereNull('participant_code')
+            ->whereIn('id', Schedule::where('period_id', $period->id)->select('assessment_id'))
+            ->get();
+
+        $issued = 0;
+        foreach ($assessments as $assessment) {
+            $candidate = $assessment->candidate;
+            if (! $candidate || ! $candidate->sector) {
+                continue;
+            }
+
+            // الشهر والسنة من تاريخ إضافة المشارك لا من اليوم — الرمز يقول
+            // متى دخل صاحبه المنصّة، لا متى صدر
+            $code = Assessment::generateParticipantCode($candidate->sector, $candidate->created_at);
+
+            DB::transaction(function () use ($assessment, $candidate, $code) {
+                $assessment->forceFill(['participant_code' => $code])->save();
+                $candidate->forceFill(['participant_code' => $code])->save();
+            });
+            $issued++;
+        }
+
+        return $issued;
+    }
+
     public function approve(Request $request, int $id)
     {
         if ($deny = $this->denyApprove($request)) {
@@ -664,6 +706,12 @@ class SchedulingPeriodController extends Controller
         $period->approved_at = now();
         $period->save();
 
+        // ── هنا تُصدَر رموز المشاركين ──
+        // الرمز مُعرِّفُ من صار له موعد، لا من دخل القاعدة. فمن جُدولت جلساته
+        // في هذه الفترة واعتُمدت، يأخذ رمزه الآن. ومن أُضيف ولم يُجدوَل بعد
+        // يبقى بلا رمز يُعرَف باسمه أو هويته.
+        $issued = $this->issueParticipantCodes($period);
+
         if ($period->submitted_by) {
             $this->notifications->notify(
                 $period->submitted_by,
@@ -676,10 +724,13 @@ class SchedulingPeriodController extends Controller
             );
         }
 
-        $this->log($request, 'APPROVE_PERIOD', $period->id, ['name' => $period->name]);
+        $this->log($request, 'APPROVE_PERIOD', $period->id, ['name' => $period->name, 'codesIssued' => $issued]);
 
         return response()->json([
-            'message' => 'اعتُمدت موجة الجدولة',
+            'message' => $issued > 0
+                ? "اعتُمدت موجة الجدولة — وصدر {$issued} رمز مشارك"
+                : 'اعتُمدت موجة الجدولة',
+            'codesIssued' => $issued,
             'period' => $this->row($period->fresh(['creator', 'approver'])),
         ]);
     }

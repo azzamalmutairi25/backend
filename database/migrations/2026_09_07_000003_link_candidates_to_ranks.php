@@ -21,18 +21,18 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     // الرتب الناقصة عن النموذج المعتمد.
-    // «فريق» أعلى الرتب العسكرية. والمتعاقدون سُلّمٌ موازٍ صرّح
+    // «فريق» أعلى الرتب العسكرية. والقطاع الخاص سُلّمٌ موازٍ صرّح
     // `Candidate::classifyTier` بأنّ طبقتهم «تُختار صراحةً لا تُستنتج»، فهي
-    // مكتوبةٌ هنا لا محسوبة: متعاقد ٦ و٧ يقابلان عميداً ولواءً في المصفوفة.
+    // مكتوبةٌ هنا لا محسوبة: «قطاع خاص ٦» و«٧» يقابلان عميداً ولواءً في المصفوفة.
     private const MISSING = [
         ['فريق', 'military', 'upper', 90],
-        ['متعاقد 1', 'contractor', 'middle', 10],
-        ['متعاقد 2', 'contractor', 'middle', 20],
-        ['متعاقد 3', 'contractor', 'middle', 30],
-        ['متعاقد 4', 'contractor', 'middle', 40],
-        ['متعاقد 5', 'contractor', 'middle', 50],
-        ['متعاقد 6', 'contractor', 'upper', 60],
-        ['متعاقد 7', 'contractor', 'upper', 70],
+        ['قطاع خاص 1', 'contractor', 'middle', 10],
+        ['قطاع خاص 2', 'contractor', 'middle', 20],
+        ['قطاع خاص 3', 'contractor', 'middle', 30],
+        ['قطاع خاص 4', 'contractor', 'middle', 40],
+        ['قطاع خاص 5', 'contractor', 'middle', 50],
+        ['قطاع خاص 6', 'contractor', 'upper', 60],
+        ['قطاع خاص 7', 'contractor', 'upper', 70],
     ];
 
     // مرادفاتٌ لُوحظت فعلاً في البيانات: «م-14» في سجلّنا، و«المرتبة 14»

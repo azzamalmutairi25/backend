@@ -246,16 +246,16 @@ class CandidateImporter
                 // المتعاقد المستورَد «وسطى» افتراضاً — الطبقة اختيارٌ صريح لا يحمله
                 // الملفّ، وتُصحَّح من شاشة المشاركين
                 $tier = Candidate::resolveTier($category, $rankLabel, null);
-                // نفس مولّد بقية المسارات (يقرأ من جدول الدورات) — وإلا انجرف التسلسل عن store/reassess فصادم لاحقاً
-                $code = Assessment::generateParticipantCode($sector);
+                // بلا رمز — يُصدَر عند اعتماد الفترة كما في الإضافة اليدوية.
+                // ولو وُلّد هنا لَحمَل كلُّ صفٍّ مستورَد رمزاً ولو لم يُجدوَل قطّ،
+                // وكشفٌ من عشرة آلاف صفّ يستهلك عشرة آلاف رقمٍ من عدّاد القطاع.
 
                 // مشارك + دورة تقييم + سيرة + مجالات معاً (كما في store) — وإلا
                 // بقي المشارك بلا دورة فكسر ثابت المزامنة و/confirm، أو بلا سيرة
                 // فدخل من هذا الباب ما يردّه النموذج اليدوي
                 $leak = null;
-                DB::transaction(function () use ($code, $nationalId, $fullName, $mobile, $email, $militaryNumber, $sector, $gender, $rankLabel, $category, $tier, $userId, $cleanCv, $areaIds, &$leak) {
+                DB::transaction(function () use ($nationalId, $fullName, $mobile, $email, $militaryNumber, $sector, $gender, $rankLabel, $category, $tier, $userId, $cleanCv, $areaIds, &$leak) {
                     $c = new Candidate;
-                    $c->participant_code = $code;
                     $c->national_id = $nationalId;
                     $c->full_name = $fullName;
                     $c->mobile = $mobile ?: null;
@@ -294,7 +294,6 @@ class CandidateImporter
 
                     Assessment::create([
                         'candidate_id' => $c->id,
-                        'participant_code' => $code,
                         'assessment_type' => 'comprehensive',
                         'status' => 'draft',
                         'created_by' => $userId,
@@ -309,17 +308,18 @@ class CandidateImporter
                         'action' => 'IMPORT_CANDIDATE',
                         'entity_type' => 'candidate',
                         'entity_id' => (string) $c->id,
-                        'details' => ['code' => $code],
+                        'details' => null,
                         'created_at' => now(),
                     ]);
                 });
 
-                $success[] = ['line' => $lineNum, 'code' => $code, 'name' => $fullName];
+                // بلا رمز في الإيصال: لم يصدر بعد. والسطر واسمُه يكفيان للمطابقة.
+                $success[] = ['line' => $lineNum, 'code' => null, 'name' => $fullName];
             } catch (QueryException $e) {
                 // مَيّز تكرار الهوية الحقيقي عن تصادم رمز متزامن (سباق) — لا تُسمِّ التصادم «هوية مكرّرة» فتُسقِط مشاركاً صالحاً بسبب مضلّل
                 $why = Candidate::nationalIdExists($nationalId)
                     ? 'هذه الهوية مسجّلة مسبقاً في المنصّة'
-                    : 'تعذّر توليد رمز فريد (تعارض متزامن) — أعد المحاولة';
+                    : 'تعذّر حفظ الصفّ (تعارض متزامن) — أعد المحاولة';
                 self::reject($errors, $failures, $lineNum, $nationalId, $fullName, [$why]);
             } catch (\Throwable $e) {
                 // تسرّب الاسم سببٌ يُقال بعينه: صاحب الملفّ يستطيع إصلاحه،

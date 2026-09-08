@@ -40,7 +40,7 @@ class SectorPrefixTest extends TestCase
         $this->putJson("/api/sectors/{$s->id}/prefix", ['prefix' => 'EDU'])->assertOk();
 
         $code = Assessment::generateParticipantCode($s->fresh());
-        $this->assertStringStartsWith('EDU-', $code);
+        $this->assertStringStartsWith('EDU0001', $code);
     }
 
     public function test_existing_codes_are_not_rewritten(): void
