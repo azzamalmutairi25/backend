@@ -26,6 +26,11 @@
         <env name="DB_CONNECTION" value="pgsql"/>
         <env name="DB_DATABASE" value="kafaat_test"/>
         <env name="DB_URL" value=""/>
+        <!-- البحيرة تُعزَل كما تُعزَل القاعدة. كان `DB_DATABASE` وحده يُتجاوَز،
+             فيُحلّ اتصالا البحيرة على `kafaat_lake` الحقيقية — أحدهما بدور
+             lake_owner الذي يملك DDL. لا اختبار يكتب فيها اليوم، لكن أوّل
+             اختبارٍ يستدعي الشاحن يكتب في بحيرة الإنتاج بمالكها. -->
+        <env name="DB_LAKE_DATABASE" value="kafaat_lake_test"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
