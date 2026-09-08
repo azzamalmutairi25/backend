@@ -33,7 +33,7 @@ class DashboardController extends Controller
         $scope = [
             'classifications' => $this->allowedClassifications($request),
             // القطاع حدٌّ أعلى للمحصور — وnull لغيره (بلا حصر)
-            'sectorId' => $user->isSectorBound() ? $user->sector_id : null,
+            'sectorId' => $user->isSectorBound() ? ($user->sectorIds()[0] ?? null) : null,
             'sectorBound' => $user->isSectorBound(),
 
             // مغلّفات: كلٌّ ترجع استعلاماً جديداً محصوراً (لا clone لحالة مشتركة)

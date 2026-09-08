@@ -56,7 +56,7 @@ class ScheduleController extends Controller
             return true;
         }
 
-        return $user->isSectorBound() && $schedule->candidate->sector_id !== $user->sector_id;
+        return ! $user->coversSector($schedule->candidate->sector_id);
     }
 
     // GET /schedules — قائمة الجلسات (فلترة بالتاريخ/النشاط/المشارك/المُقيّم)
@@ -83,7 +83,7 @@ class ScheduleController extends Controller
         // المحصور بقطاع يرى جلسات قطاعه وحدها
         $user = $request->user();
         if ($user->isSectorBound()) {
-            $query->whereHas('candidate', fn ($q) => $q->where('sector_id', $user->sector_id));
+            $query->whereHas('candidate', fn ($q) => $q->whereIn('sector_id', $user->sectorIds()));
         }
 
         if (! empty($validated['date'])) {
@@ -666,7 +666,7 @@ class ScheduleController extends Controller
         $this->scopeViaCandidate($request, $query);
 
         // المحصور بقطاع يُشدّ إلى قطاعه مهما طلب — والحرّ يختار
-        $sectorId = $user->isSectorBound() ? $user->sector_id : ($validated['sectorId'] ?? null);
+        $sectorId = $user->resolveSectorFilter($validated['sectorId'] ?? null);
         if ($sectorId) {
             $query->whereHas('candidate', fn ($q) => $q->where('sector_id', $sectorId));
         }
@@ -721,7 +721,7 @@ class ScheduleController extends Controller
         }
         // المحصور بقطاع لا يرى غياب قطاع آخر
         $user = $request->user();
-        if ($user->isSectorBound() && $candidate->sector_id !== $user->sector_id) {
+        if (! $user->coversSector($candidate->sector_id)) {
             return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
 

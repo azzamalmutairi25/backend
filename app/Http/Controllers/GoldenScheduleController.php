@@ -40,7 +40,7 @@ class GoldenScheduleController extends Controller
     {
         $user = $request->user();
 
-        return $user->isSectorBound() ? $user->sector_id : $asked;
+        return $user->resolveSectorFilter($asked);
     }
 
     private function period(int $id): ?SchedulingPeriod
@@ -75,7 +75,7 @@ class GoldenScheduleController extends Controller
             'canManage' => $request->user()->hasPermission(Permissions::SCHEDULE_MANAGE),
             'sectors' => $data['sectors'],
             'sectorOptions' => $request->user()->isSectorBound()
-                ? Sector::whereKey($request->user()->sector_id)->get(['id', 'name_ar'])
+                ? Sector::whereIn('id', $request->user()->sectorIds())->get(['id', 'name_ar'])
                 : Sector::orderBy('name_ar')->get(['id', 'name_ar']),
         ]));
     }
@@ -123,7 +123,7 @@ class GoldenScheduleController extends Controller
         }
 
         $user = $request->user();
-        if ($user->isSectorBound() && (int) $validated['sectorId'] !== $user->sector_id) {
+        if (! $user->coversSector((int) $validated['sectorId'])) {
             return response()->json(['error' => 'لا تُضيف صفّاً لقطاع غير قطاعك'], 403);
         }
 
@@ -161,7 +161,7 @@ class GoldenScheduleController extends Controller
 
         $user = $request->user();
         $entry = GoldenScheduleEntry::when($user->isSectorBound(),
-            fn ($q) => $q->where('sector_id', $user->sector_id))->find($id);
+            fn ($q) => $q->whereIn('sector_id', $user->sectorIds()))->find($id);
         if (! $entry) {
             return response()->json(['error' => 'الصفّ غير موجود'], 404);
         }

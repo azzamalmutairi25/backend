@@ -355,7 +355,7 @@
 | GET | `/users` | `user.manage` | قائمة المستخدمين |
 | GET | `/users/roles` | `user.manage` | الأدوار |
 | GET | `/users/role-permissions` | `user.manage` | مصفوفة الدور↔الصلاحية |
-| POST | `/users` | `user.manage` | إنشاء (بسقف امتياز) |
+| POST | `/users` | `user.manage` ويقبل `sectorIds[]` — المستشار قد يغطّي أكثر من قطاع، والأساسي يبقى في `sectorId` ويُدرَج في القائمة دائماً. | إنشاء (بسقف امتياز) |
 | PUT | `/users/{id}` | `user.manage` | تعديل (لا تعديل من يفوقك) |
 | PATCH | `/users/{id}/toggle` | `user.manage` | تفعيل/تعطيل |
 | PATCH | `/users/{id}/password` | `user.manage` | إعادة تعيين كلمة المرور |

@@ -69,7 +69,7 @@ class ReceptionController extends Controller
             ->whereHas('candidate', function ($q) use ($request, $user) {
                 $q->whereIn('classification', $this->allowedClassifications($request));
                 if ($user->isSectorBound()) {
-                    $q->where('sector_id', $user->sector_id);
+                    $q->whereIn('sector_id', $user->sectorIds());
                 }
             })
             ->find($id);
@@ -117,7 +117,7 @@ class ReceptionController extends Controller
                 ->whereHas('candidate', function ($c) use ($request, $user) {
                     $c->whereIn('classification', $this->allowedClassifications($request));
                     if ($user->isSectorBound()) {
-                        $c->where('sector_id', $user->sector_id);
+                        $c->whereIn('sector_id', $user->sectorIds());
                     }
                 })
                 ->orderBy('arrived_at')
@@ -208,7 +208,7 @@ class ReceptionController extends Controller
             ->whereHas('candidate', function ($c) use ($request, $user) {
                 $c->whereIn('classification', $this->allowedClassifications($request));
                 if ($user->isSectorBound()) {
-                    $c->where('sector_id', $user->sector_id);
+                    $c->whereIn('sector_id', $user->sectorIds());
                 }
             });
 
@@ -582,7 +582,7 @@ class ReceptionController extends Controller
             ->whereHas('visit.candidate', function ($c) use ($request, $user) {
                 $c->whereIn('classification', $this->allowedClassifications($request));
                 if ($user->isSectorBound()) {
-                    $c->where('sector_id', $user->sector_id);
+                    $c->whereIn('sector_id', $user->sectorIds());
                 }
             })
             ->find($id);
@@ -907,7 +907,7 @@ class ReceptionController extends Controller
             ->whereHas('candidate', function ($c) use ($request, $user) {
                 $c->whereIn('classification', $this->allowedClassifications($request));
                 if ($user->isSectorBound()) {
-                    $c->where('sector_id', $user->sector_id);
+                    $c->whereIn('sector_id', $user->sectorIds());
                 }
             })
             ->orderBy('badge_requested_at')   // ترتيب الطابور هو ترتيب الوصول

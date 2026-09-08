@@ -142,7 +142,7 @@ class CandidateController extends Controller
         // فلا يوسّعه بتمرير sectorId لقطاع آخر
         $user = $request->user();
         if ($user->isSectorBound()) {
-            $query->where('sector_id', $user->sector_id);
+            $query->whereIn('sector_id', $user->sectorIds());
         }
 
         if ($request->filled('status')) {
@@ -1254,7 +1254,7 @@ class CandidateController extends Controller
         $base = Candidate::whereIn('classification', $allowed)
             // نفس حصر index — وإلا أفشى المؤشّر حجم ما تخفيه القائمة:
             // مقيّم يرى ٥ مشاركين ومؤشّرٌ يقول ٤٤ يكشف اتساع القطاعات الأخرى
-            ->when($user->isSectorBound(), fn ($q) => $q->where('sector_id', $user->sector_id));
+            ->when($user->isSectorBound(), fn ($q) => $q->whereIn('sector_id', $user->sectorIds()));
 
         $total = (clone $base)->count();
         $upper = (clone $base)->where('tier', 'upper')->count();

@@ -483,7 +483,7 @@ class SchedulingPeriodController extends Controller
             // بحكم UserController) يبقى ظاهراً للجميع: حصرُه بقطاعٍ لا ينتمي
             // إليه يُخفيه عن كل مُجدوِل محصور.
             ->when($request->user()->isSectorBound(),
-                fn ($q) => $q->where(fn ($w) => $w->where('sector_id', $request->user()->sector_id)
+                fn ($q) => $q->where(fn ($w) => $w->whereIn('sector_id', $request->user()->sectorIds())
                     ->orWhereHas('role', fn ($r) => $r->whereNotIn('code', User::SECTOR_BOUND_ROLES))))
             ->orderBy('full_name')
             ->get()

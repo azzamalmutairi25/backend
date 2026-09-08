@@ -57,7 +57,7 @@ class AttendanceController extends Controller
             ->whereHas('candidate', fn ($q) => $q->whereIn('classification', $allowed))
             // المحصور بقطاع لا يرى حضور قطاع آخر
             ->when($user->isSectorBound(), fn ($q) => $q->whereHas('candidate',
-                fn ($c) => $c->where('sector_id', $user->sector_id)))
+                fn ($c) => $c->whereIn('sector_id', $user->sectorIds())))
             ->get()
             ->map(function ($sch) use ($request, $canRecord) {
                 $att = $sch->attendance; // eager-loaded — لا N+1
@@ -96,7 +96,7 @@ class AttendanceController extends Controller
         $scheduleIds = Schedule::whereDate('schedule_date', $today)
             ->whereHas('candidate', fn ($q) => $q->whereIn('classification', $allowed))
             ->when($user->isSectorBound(), fn ($q) => $q->whereHas('candidate',
-                fn ($c) => $c->where('sector_id', $user->sector_id)))
+                fn ($c) => $c->whereIn('sector_id', $user->sectorIds())))
             ->pluck('id');
         $total = $scheduleIds->count();
         $present = Attendance::whereIn('schedule_id', $scheduleIds)->where('status', 'present')->count();
@@ -130,7 +130,7 @@ class AttendanceController extends Controller
         // القطاع بُعدٌ من النطاق كالتصنيف: خارجه = «غير موجود» (404) قبل فحص الإسناد —
         // وإلا صار فرق 403/404 مِكشافَ وجودٍ لجداول قطاعٍ آخر (كما في today/stats).
         $actor = $request->user();
-        if ($actor->isSectorBound() && $schedule->candidate->sector_id !== $actor->sector_id) {
+        if (! $actor->coversSector($schedule->candidate->sector_id)) {
             $this->log($request, 'DENIED_ATTENDANCE_OUT_OF_SECTOR', $scheduleId);
 
             return response()->json(['error' => 'الجدول غير موجود'], 404);
@@ -190,7 +190,7 @@ class AttendanceController extends Controller
         // القطاع بُعدٌ من النطاق كالتصنيف: خارجه = «غير موجود» (404) قبل فحص الإسناد —
         // وإلا صار فرق 403/404 مِكشافَ وجودٍ لجداول قطاعٍ آخر (كما في today/stats).
         $actor = $request->user();
-        if ($actor->isSectorBound() && $schedule->candidate->sector_id !== $actor->sector_id) {
+        if (! $actor->coversSector($schedule->candidate->sector_id)) {
             $this->log($request, 'DENIED_ATTENDANCE_OUT_OF_SECTOR', $scheduleId);
 
             return response()->json(['error' => 'الجدول غير موجود'], 404);

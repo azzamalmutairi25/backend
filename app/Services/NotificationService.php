@@ -83,7 +83,7 @@ class NotificationService
                         return false;
                     }
                     // المحصور قطاعياً لا يُشعَر بمشارك خارج قطاعه
-                    if ($u->isSectorBound() && $u->sector_id !== $candidate->sector_id) {
+                    if (! $u->coversSector($candidate->sector_id)) {
                         return false;
                     }
 

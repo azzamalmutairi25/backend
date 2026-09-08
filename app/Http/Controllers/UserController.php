@@ -34,6 +34,7 @@ class UserController extends Controller
             'roleCode' => $u->role->code,
             'roleName' => $u->role->name_ar,
             'sectorId' => $u->sector_id,
+            'sectorIds' => $u->sectorIds(),
             // مجالات الخبرة — تقرأها نافذة الوسم لتبدأ بما هو مسجَّل فعلاً.
             // بدونها كانت النافذة تفتح فارغةً فيمحو الحفظُ وسماً قائماً.
             'code' => $u->code,
@@ -551,6 +552,24 @@ class UserController extends Controller
         return false;
     }
 
+    /**
+     * مزامنة قطاعات المستخدم.
+     *
+     * الأساسي يبقى في العمود ويُدرَج في الجدول معه — فقراءةٌ واحدة تكفي
+     * لمعرفة ما يغطّيه، ولا يُنسى الأساسي حين تُقرأ القائمة وحدها.
+     *
+     * وإرسالُ `sectorIds` فارغةً يعني «الأساسي وحده» لا «لا شيء»: محصورٌ بلا
+     * قطاعٍ واحد لا يغطّي شيئاً، وذاك خللٌ في البيانات لا حالةٌ تُطلَب.
+     */
+    private function syncSectors(User $user, array $validated): void
+    {
+        $ids = $validated['sectorIds'] ?? [];
+        if ($user->sector_id) {
+            $ids[] = $user->sector_id;
+        }
+        $user->sectors()->sync(array_values(array_unique(array_map('intval', $ids))));
+    }
+
     public function store(Request $request)
     {
         if (! $request->user()->hasPermission(Permissions::USER_MANAGE)) {
@@ -570,6 +589,11 @@ class UserController extends Controller
             'email' => 'nullable|email',
             'roleId' => 'required|exists:roles,id',
             'sectorId' => 'nullable|exists:sectors,id',
+            // قطاعاتٌ إضافية: المستشار قد يخدم أكثر من قطاع. الأساسي أوّلها
+            // ويبقى في `sectorId` — هو ما يُعرض في بطاقته وما تسقط إليه
+            // الشاشات التي تعرض قطاعاً واحداً.
+            'sectorIds' => 'nullable|array|max:25',
+            'sectorIds.*' => 'integer|distinct|exists:sectors,id',
             'managerId' => 'nullable|exists:users,id',
         ];
         if ($userType === 'internal') {
@@ -616,6 +640,7 @@ class UserController extends Controller
             $user->must_change_password = true;
         }
         $user->save();
+        $this->syncSectors($user, $validated);
 
         $this->log($request, 'CREATE_USER', $user->id, ['username' => $user->username]);
 
@@ -635,6 +660,8 @@ class UserController extends Controller
             'email' => 'nullable|email',
             'roleId' => 'required|exists:roles,id',
             'sectorId' => 'nullable|exists:sectors,id',
+            'sectorIds' => 'nullable|array|max:25',
+            'sectorIds.*' => 'integer|distinct|exists:sectors,id',
             'managerId' => 'nullable|exists:users,id',
             'code' => ['nullable', 'string', 'regex:/^[A-Z]{1,2}$/', 'unique:users,code,'.$id],
             'nationalId' => ['nullable', 'string', new SaudiNationalId],
@@ -678,6 +705,7 @@ class UserController extends Controller
         $user->sector_id = $validated['sectorId'] ?? null;
         $user->manager_id = $validated['managerId'] ?? null;
         $user->save();
+        $this->syncSectors($user, $validated);
 
         // تغيير الدور أو القطاع يغيّر ما يراه ويقيّمه — أبطل جلساته ليعيد الدخول بنطاقه الجديد
         if ($roleChanged || $sectorChanged) {

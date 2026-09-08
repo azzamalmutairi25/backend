@@ -61,7 +61,7 @@ class DiscussionCircleController extends Controller
         $user = $request->user();
 
         return DiscussionCircle::with(['sector', 'evaluator', 'assistant'])
-            ->when($user->isSectorBound(), fn ($q) => $q->where('sector_id', $user->sector_id))
+            ->when($user->isSectorBound(), fn ($q) => $q->whereIn('sector_id', $user->sectorIds()))
             ->find($id);
     }
 
@@ -124,7 +124,7 @@ class DiscussionCircleController extends Controller
             $query->where('sector_id', $validated['sectorId']);
         }
         if ($user->isSectorBound()) {
-            $query->where('sector_id', $user->sector_id);
+            $query->whereIn('sector_id', $user->sectorIds());
         }
 
         // بلا مُرشِّح حاصر: نافذة متدحرجة كنظيرتها في الجدولة، لا كل تاريخ المركز
@@ -196,7 +196,7 @@ class DiscussionCircleController extends Controller
         $validated = $request->validate($this->rules(true));
 
         $user = $request->user();
-        if ($user->isSectorBound() && (int) $validated['sectorId'] !== $user->sector_id) {
+        if (! $user->coversSector((int) $validated['sectorId'])) {
             return response()->json(['error' => 'لا تُنشئ حلقةً لقطاع غير قطاعك'], 403);
         }
         if ($err = $this->periodError($validated['periodId'] ?? null, $validated['date'])) {
