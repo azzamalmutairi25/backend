@@ -365,6 +365,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/reception/visits/{id}/sign', [ReceptionController::class, 'sign'])
         ->middleware('throttle:60,1');
     Route::get('/reception/visits/{id}/cv', [ReceptionController::class, 'visitCv']);
+    // ── السيرة عند المكتب: تُصحَّح، ثم تُعتمد، ثم تُرسَل ──
+    // الاعتماد بوّابةُ البطاقة والإرسال معاً، والتصحيح بعده ينقضه.
+    Route::put('/reception/visits/{id}/cv', [ReceptionController::class, 'updateCv']);
+    Route::post('/reception/visits/{id}/cv/approve', [ReceptionController::class, 'approveCv']);
+    Route::get('/reception/visits/{id}/cv/revisions', [ReceptionController::class, 'cvRevisions']);
+    // إرسال قوائم اليوم دفعةً — ويعود بمن لم يُرسَل وبسببه
+    Route::post('/reception/send', [ReceptionController::class, 'send']);
     Route::post('/reception/visits/{id}/assign', [ReceptionController::class, 'assign']);
     Route::post('/reception/visits/{id}/approve', [ReceptionController::class, 'approve']);
     Route::delete('/reception/assignments/{id}', [ReceptionController::class, 'withdraw']);

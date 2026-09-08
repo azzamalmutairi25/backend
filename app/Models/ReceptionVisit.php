@@ -16,6 +16,7 @@ class ReceptionVisit extends Model
         'signed_at', 'attested', 'received_by', 'kiosk_id', 'status',
         'approved_at', 'approved_by',
         'badge_requested_at', 'badge_printed_at', 'badge_printed_by',
+        'cv_approved_at', 'cv_approved_by', 'sent_at', 'sent_by',
     ];
 
     protected $casts = [
@@ -26,6 +27,8 @@ class ReceptionVisit extends Model
         'attested' => 'boolean',
         'badge_requested_at' => 'datetime',
         'badge_printed_at' => 'datetime',
+        'cv_approved_at' => 'datetime',
+        'sent_at' => 'datetime',
     ];
 
     // signature_enc خارج $fillable عمداً: يُكتب عبر هذه الخاصية وحدها فيُشفَّر
@@ -75,6 +78,23 @@ class ReceptionVisit extends Model
     public function approvedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    // من اعتمد السيرة — يُقرأ في سير الأحداث وفي المراجعة بعد شهور
+    public function cvApprovedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cv_approved_by');
+    }
+
+    public function sentBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'sent_by');
+    }
+
+    // هل جاهزةٌ لتُرسَل؟ وقّع، واعتُمدت سيرته — والإسناد يُفحَص في مساره
+    public function cvApproved(): bool
+    {
+        return $this->cv_approved_at !== null;
     }
 
     public function assignments(): HasMany

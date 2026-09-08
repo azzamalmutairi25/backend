@@ -174,6 +174,10 @@
 | GET | `/reception/visits/{id}/cv` | `reception.view` + (`reception.record` أو `candidate.cv_view`) | سيرة من أمامك اليوم |
 | GET | `/reception/evaluators` | `reception.assign` | **من يستطيع الاستلام فعلاً** — `?activity`، `?sectorId` |
 | POST | `/reception/visits/{id}/assign` | `reception.assign` | توزيع على `interview`/`discussion`/`measurement` (بعد التوقيع) |
+| PUT | `/reception/visits/{id}/cv` | **تصحيح السيرة عند المكتب** — `{cv:{…}, note?}` ← `{message, version, changed[], cvApproved}`. سبعةُ حقولٍ لا غير (المنصب · الإدارة · الإدارة العامة · سنوات الخبرة · المؤهلات · الخبرات · الشهادات)، وما سواها يُردّ ٤٢٢ لا يُتجاهَل. الوثيقة **تُغطّى لا تُستبدل**، وكل تغييرٍ يقيّد إصداراً، و**التصحيح ينقض الاعتماد**. وبعد الإرسال يُردّ ٤٢٢ — جُمّدت الصورة فلا يصل التصحيح. وفحص التسرّب مطبَّق كما في مسار الإدارة (`reception.cv_edit`) |
+| POST | `/reception/visits/{id}/cv/approve` | **اعتماد السيرة** — بوّابةُ البطاقة والإرسال معاً ← `{approved, approvedAt}`. سيرةٌ فارغة تُردّ ٤٢٢: لا شهادة على فراغ. والاعتماد فعلُ **زيارةِ يومٍ بعينه** لا صفةٌ دائمة في السيرة (`reception.cv_approve`) |
+| GET | `/reception/visits/{id}/cv/revisions` | سجلّ الإصدارات — `revisions[{version, changed[], changedLabels, source, note, by, at}]` (٥٠ الأحدث). **الوثائق نفسها لا تُرسَل**: السطر يقول ماذا تغيّر ومن ومتى، والوثيقة الحيّة تُقرأ من مسارها (صلاحية قراءة سيرة الزيارة) |
+| POST | `/reception/send` | **إرسال قوائم اليوم للمستشارين دفعةً** — `{date?}` ← `{sent, schedulesCreated, blocked[{visitId, code, reason}], message}`. يُرحّل كلَّ من وقّع واعتُمدت سيرته واستُلم إسنادُه، ويُجمّد سيرته، ويختم `sent_at`. **ولا يُخفي ما عجز عنه**: من لم يُرسَل يعود باسمه وسببه (`reception.approve`) |
 | DELETE | `/reception/assignments/{id}` | `reception.assign` | سحب إسناد |
 | GET | `/reception/assignments/{id}/cv` | `reception.decide` | **سيرة بالرمز — بلا اسم ولا هوية أبداً** (قاعدة إجراء لا صلاحية) |
 | POST | `/reception/assignments/{id}/accept` | `reception.decide` | قبول المشارك |

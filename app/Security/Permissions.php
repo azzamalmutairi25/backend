@@ -104,6 +104,13 @@ class Permissions
 
     const RECEPTION_APPROVE = 'reception.approve';  // اعتماد العمليات وترحيل الجلسات إلى الجدول
 
+    // ── السيرة عند مكتب الاستقبال ──
+    // التصحيح والاعتماد فعلان مختلفان: الأوّل يمسّ النصّ، والثاني يفتح بابَ
+    // البطاقة والإرسال. وهما اليوم بيدٍ واحدة، وفصلُهما ممكنٌ غداً بلا شيفرة.
+    const RECEPTION_CV_EDIT = 'reception.cv_edit';       // تصحيح سيرة من يستقبله اليوم
+
+    const RECEPTION_CV_APPROVE = 'reception.cv_approve'; // اعتمادها — بوّابة البطاقة والإرسال
+
     const EVALUATION_VIEW = 'evaluation.view';
 
     const EVALUATION_INPUT = 'evaluation.input';
@@ -292,6 +299,7 @@ class Permissions
                 self::ATTENDANCE_VIEW, self::ATTENDANCE_RECORD, self::ATTENDANCE_RECORD_ANY,
                 self::SEND_INVITATION, self::CHAT_VIEW,
                 self::RECEPTION_VIEW, self::RECEPTION_RECORD, self::RECEPTION_ASSIGN,
+                self::RECEPTION_CV_EDIT, self::RECEPTION_CV_APPROVE,
             ],
 
             // مسؤول العمليات — طرف المسار الآخر: يستقبل المردود من المقيّمين
@@ -444,6 +452,8 @@ class Permissions
         'reception.assign' => 'توزيع المشاركين على الأنشطة',
         'reception.decide' => 'استلام المشارك أو ردّه (للمقيّم)',
         'reception.approve' => 'اعتماد الاستقبال وترحيل الجلسات',
+        'reception.cv_edit' => 'تصحيح السيرة الذاتية عند الاستقبال',
+        'reception.cv_approve' => 'اعتماد السيرة الذاتية عند الاستقبال',
         // الحضور
         'attendance.view' => 'عرض الحضور',
         'attendance.record' => 'تسجيل حضور جلساته',

@@ -33,9 +33,10 @@ class ReceptionFlowTest extends TestCase
     private const NAME = 'سلطان بن فيصل الشهراني';
 
     // ── يصل المشارك ويوقّع، ويعود معرّف زيارته ──
-    private function arrivedAndSigned(string $sectorCode = 'DW'): array
+    private function arrivedAndSigned(string $sectorCode = 'DW', bool $approveCv = true): array
     {
         [$c, $a] = $this->makeCandidate(['sectorCode' => $sectorCode, 'fullName' => self::NAME]);
+        $this->giveCv($c);
 
         $this->actingAsRole('RECEPTIONIST');
         $visitId = $this->postJson('/api/reception/arrive', ['assessmentId' => $a->id])
@@ -43,6 +44,10 @@ class ReceptionFlowTest extends TestCase
         $this->postJson("/api/reception/visits/{$visitId}/sign", [
             'signature' => self::PNG, 'attested' => true,
         ])->assertOk();
+        // الاعتماد صار بوّابةَ البطاقة والإرسال — فهو جزءٌ من «وصل ووقّع»
+        if ($approveCv) {
+            $this->postJson("/api/reception/visits/{$visitId}/cv/approve")->assertOk();
+        }
 
         return [$c, $a, $visitId];
     }

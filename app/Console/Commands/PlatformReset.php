@@ -96,6 +96,8 @@ class PlatformReset extends Command
         'attendance',
         'audit_logs',
         'candidate_cvs',
+        // إصدارات السيرة — تتبع السيرة، وتذهب بذهاب صاحبها
+        'candidate_cv_revisions',
         'candidate_technical_areas',  // وسمُ مشاركٍ بمجاله — يذهب معه
         'candidate_update_requests',
         'candidates',

@@ -94,11 +94,12 @@ class PrivilegeEscalationTest extends TestCase
         $this->postJson('/api/users', $this->makeUserPayload(['roleId' => $this->roleId('RECEPTIONIST')]))
             ->assertStatus(403);
 
-        foreach ([
-            Permissions::ATTENDANCE_RECORD,
-            Permissions::ATTENDANCE_RECORD_ANY,
-            Permissions::RECEPTION_RECORD,
-        ] as $perm) {
+        // النقص يُشتقّ لا يُعدَّد: قائمةٌ مكتوبة بيدٍ تتقادم كلّما كسب دورُ
+        // الاستقبال صلاحيةً جديدة، فينكسر اختبارٌ موضوعه الحارسُ لا القائمة.
+        foreach (Permissions::forRole('RECEPTIONIST') as $perm) {
+            if ($actor->hasPermission($perm)) {
+                continue;
+            }
             UserPermissionOverride::create([
                 'user_id' => $actor->id, 'permission' => $perm, 'granted' => true, 'created_by' => null,
             ]);

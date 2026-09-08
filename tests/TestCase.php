@@ -4,6 +4,7 @@ namespace Tests;
 
 use App\Models\Assessment;
 use App\Models\Candidate;
+use App\Models\CandidateCv;
 use App\Models\Role;
 use App\Models\SchedulingPeriod;
 use App\Models\Sector;
@@ -153,6 +154,23 @@ abstract class TestCase extends BaseTestCase
                 'studyPlace' => 'السعودية',
             ]],
         ], $overrides);
+    }
+
+    /**
+     * سيرةٌ صالحة محفوظة للمشارك — بلا مرورٍ بمسار.
+     *
+     * صارت لازمةً في كل اختبارٍ يبلغ اعتماد الاستقبال: الاعتماد لا يقع على
+     * سيرةٍ فارغة، ونسخُ إنشائها في كل ملفّ يجعل تغيير حدّ «المكتملة» تحريراً
+     * في عشرة مواضع يُنسى أحدها.
+     */
+    protected function giveCv(Candidate $candidate, array $overrides = []): CandidateCv
+    {
+        return CandidateCv::create([
+            'candidate_id' => $candidate->id,
+            'data' => $this->validCvDoc($overrides),
+            'version' => 1,
+            'source' => 'admin',
+        ]);
     }
 
     /**

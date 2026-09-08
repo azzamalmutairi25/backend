@@ -163,6 +163,12 @@ class Candidate extends Model
         return $this->hasOne(CandidateCv::class);
     }
 
+    // إصدارات السيرة — أحدثُها أوّلاً، فسير الأحداث يُقرأ من الأعلى
+    public function cvRevisions(): HasMany
+    {
+        return $this->hasMany(CandidateCvRevision::class)->orderByDesc('version');
+    }
+
     // المجالات الفنية — الأساس الذي تفلتر عليه شاشة الترشيح
     public function technicalAreas(): BelongsToMany
     {
