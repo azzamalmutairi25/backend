@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Candidate;
 use App\Models\DispatchAuthority;
+use App\Models\Schedule;
 use App\Models\ScheduleDispatch;
 use App\Models\SchedulingPeriod;
 use App\Models\Sector;
@@ -263,11 +264,18 @@ class DispatchAndDocumentsTest extends TestCase
 
     public function test_a_date_range_still_dispatches_sessions_with_no_wave(): void
     {
-        // جلسات الاستقبال والتوزيع الآلي بلا موجة — لا موجة لها تُعتمد،
-        // فاشتراطُ الاعتماد عليها يعني ألّا تُسلَّم أبداً
+        // صفوفٌ بلا موجة ما زالت موجودة: ما سبق إلزامَ الفترة، وما يُنشئه
+        // الاستقبال في يومٍ لا فترةَ تغطّيه. لا موجة لها تُعتمد، فاشتراطُ
+        // الاعتماد عليها يعني ألّا تُسلَّم أبداً.
         $date = now()->addDay()->toDateString();
         $this->actingAsRole('SCHEDULER');
-        $this->scheduled('military', 'DW', $date);   // بلا periodId
+        [$c, $a] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
+        $c->forceFill(['personnel_category' => 'military'])->save();
+        Schedule::create([
+            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'period_id' => null,
+            'schedule_date' => $date, 'schedule_time' => '10:15',
+            'activity' => 'interview', 'location' => 'قاعة ١',
+        ]);
 
         $authority = DispatchAuthority::where('code', 'MILITARY_AFFAIRS')->first();
         $this->actingAsRole('CENTER_MANAGER');

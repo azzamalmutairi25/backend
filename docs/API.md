@@ -216,6 +216,9 @@
 | POST | `/scheduling-periods/{id}/close` | `schedule.manage` | إغلاق موجة معتمَدة |
 | GET | `/scheduling-periods/{id}/workflow` | `schedule.view` | خطوات سير العمل وحالة كلٍّ منها على الموجة + نسبة الإنجاز |
 | POST | `/scheduling-periods/{id}/workflow/{stepId}` | `schedule.manage` | تأشير خطوة يدوية — `status=done\|skipped\|pending`، و`note` إلزامية مع `skipped` |
+| GET | `/assessor-absences` | إجازات المستشارين — `?periodId=` يفلتر بالتداخل مع مدى الفترة لا بالمساواة، و`?userId=` بمستشارٍ بعينه. تُرجع `absences[{id, userId, userName, userCode, fromDate, toDate, reason, reasonLabel, note}]` (`schedule.manage`) |
+| POST | `/assessor-absences` | تسجيل غياب — `{userId, fromDate, toDate, reason (leave/training/discussion/other), periodId?, note?}` ← `{message, id}` (٢٠١)؛ التداخل مع غيابٍ مسجَّل ٤٢٢. **ولا بديل يُعيَّن**: المسؤول يعيد توزيع الأعداد بنفسه |
+| DELETE | `/assessor-absences/{id}` | حذف سجلّ غياب ← `{message}`؛ غير الموجود ٤٠٤ |
 | GET | `/schedules` | `schedule.view` | قائمة الجلسات (نافذة متدحرجة + سقف) — `?periodId` يحصرها بموجة |
 | POST | `/schedules` | `schedule.manage` | جدولة جلسة |
 | PUT | `/schedules/{id}` | `schedule.manage` | تعديل (يُبطل الحضور عند تغيّر الموعد) |

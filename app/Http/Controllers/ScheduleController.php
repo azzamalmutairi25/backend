@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Assessment;
+use App\Models\AssessorAbsence;
 use App\Models\Attendance;
 use App\Models\AuditLog;
 use App\Models\Candidate;
 use App\Models\PeriodAssessor;
 use App\Models\Schedule;
+use App\Models\SchedulingPeriod;
 use App\Models\User;
 use App\Security\Permissions;
 use App\Services\EntryPermitService;
@@ -146,9 +148,44 @@ class ScheduleController extends Controller
             'location' => 'nullable|string|max:200',
             'evaluatorId' => 'nullable|integer|exists:users,id',
             'assistantId' => 'nullable|integer|exists:users,id',
-            // الموجة اختيارية: جلسةٌ بلا موجة تُنشأ كما كانت تُنشأ دائماً
+            // الفترة تُذكر أو تُستنبط من التاريخ — انظر `resolvePeriodId`
             'periodId' => 'nullable|integer|exists:scheduling_periods,id',
         ];
+    }
+
+    /**
+     * فترة الجلسة: المذكورة، وإلا التي يقع تاريخها فيها.
+     *
+     * **الضمانُ هو المقصود لا الحقل**: جلسةٌ خارج كل فترة لا تُعتمد أبداً —
+     * ولا يصدر لصاحبها رمز، فيغيب عن الجدول الذهبي وكشف الحضور وبيان
+     * التصاريح والخطابات، وكلّها تعرّفه برمزه.
+     *
+     * فلا يُشترط أن **يكتب** المُجدوِل الفترة، بل أن **توجد** واحدة تشمل
+     * اليوم. واشتراطُ كتابتها لا يضيف شيئاً حين يكون الاستنباط قاطعاً، ويُثقل
+     * كل نداءٍ بحقلٍ يُستخرج من حقلٍ آخر.
+     *
+     * يرجع معرّف الفترة، أو رسالة الخطأ إن لم توجد.
+     *
+     * @return array{id:?int, error:?string}
+     */
+    private function resolvePeriodId(?int $given, ?string $date): array
+    {
+        if ($given) {
+            return ['id' => $given, 'error' => null];
+        }
+        if (! $date) {
+            return ['id' => null, 'error' => null];
+        }
+
+        $period = SchedulingPeriod::coveringDate($date);
+        if (! $period) {
+            return [
+                'id' => null,
+                'error' => 'لا توجد فترة جدولة تشمل '.$date.' — أنشئ فترةً تغطّيه أولاً',
+            ];
+        }
+
+        return ['id' => $period->id, 'error' => null];
     }
 
     // ── حارس الموجة ──
@@ -322,8 +359,16 @@ class ScheduleController extends Controller
             }
         }
 
-        $rows = $people->map(function (User $u) use ($panel, $periodLoad, $dayLoad, $periodId, $candidateAreas) {
+        // الغائبون في هذا اليوم — تُقرأ دفعةً واحدة لا مرّةً لكل اسم.
+        // والغياب مدىً وسببٌ لا بوليان: من في إجازةٍ ثلاثة أيام لا يُشطب من
+        // الفترة كلّها، ومن يدير حلقةً اليوم لا يُعرَض مقعدَ مقابلة.
+        $absentToday = ! empty($validated['date'])
+            ? AssessorAbsence::absentUserIdsOn($validated['date'])
+            : [];
+
+        $rows = $people->map(function (User $u) use ($panel, $periodLoad, $dayLoad, $periodId, $candidateAreas, $absentToday) {
             $seatRow = $panel[$u->id] ?? null;
+            $absent = in_array($u->id, $absentToday, true);
             $matched = array_values(array_intersect_key(
                 $candidateAreas,
                 $u->technicalAreas->keyBy('id')->all()
@@ -338,7 +383,9 @@ class ScheduleController extends Controller
                 // مُدرَجٌ في لوحة الموجة؟ من ليس فيها يظهر ويُختار — اللوحة
                 // ترتيبٌ للأسماء لا قائمةٌ مغلقة، فلا تقف جدولةٌ عاجلة على إدراج.
                 'onPanel' => $periodId ? ($seatRow !== null) : null,
-                'available' => $seatRow?->is_available ?? true,
+                // غائبٌ اليوم ⇒ غير متاح، مهما قالت اللوحة
+                'available' => ! $absent && ($seatRow?->is_available ?? true),
+                'absentToday' => $absent,
                 'dailyQuota' => $seatRow?->dailyQuota(),
                 'periodQuota' => $seatRow?->period_quota,
                 'periodLoad' => (int) ($periodLoad[$u->id] ?? 0),
@@ -401,7 +448,14 @@ class ScheduleController extends Controller
             return response()->json(['error' => 'لا توجد دورة تقييم نشطة للمشارك'], 422);
         }
 
-        if ($err = $this->periodError($validated['periodId'] ?? null, $validated['date'])) {
+        // الفترة: المذكورة أو المستنبَطة من التاريخ — ولا جلسةَ بلا فترة
+        $resolved = $this->resolvePeriodId($validated['periodId'] ?? null, $validated['date']);
+        if ($resolved['error']) {
+            return response()->json(['error' => $resolved['error']], 422);
+        }
+        $periodId = $resolved['id'];
+
+        if ($err = $this->periodError($periodId, $validated['date'])) {
             return response()->json(['error' => $err], 422);
         }
 
@@ -416,7 +470,7 @@ class ScheduleController extends Controller
             $schedule = Schedule::create([
                 'candidate_id' => $candidate->id,
                 'assessment_id' => $assessment->id,
-                'period_id' => $validated['periodId'] ?? null,
+                'period_id' => $periodId,
                 'schedule_date' => $validated['date'],
                 'schedule_time' => $validated['time'],
                 'activity' => $validated['activity'],

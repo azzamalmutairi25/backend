@@ -83,6 +83,8 @@ class PlatformReset extends Command
 
     /** بيانات التشغيل — تُمسح دائماً */
     private const OPERATIONAL = [
+        // إجازات المستشارين — تخصّ فتراتٍ بعينها، فتذهب معها
+        'assessor_absences',
         'assessments',
         'attendance',
         'audit_logs',

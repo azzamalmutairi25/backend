@@ -97,13 +97,17 @@ class WaveGuard
     {
         $d = substr($date, 0, 10);
 
-        $rows = SchedulingPeriod::whereIn('status', ['draft', 'pending_center'])
+        // فترتان تشملان اليوم لا تعنيان غموضاً: **الأضيق مدىً هي المقصودة**.
+        // فترةٌ من ثلاثة أيام وأخرى من ستّة أشهر تشملان التاريخ نفسه —
+        // والثانية مظلّةٌ عامّة، ونسبةُ جلسةٍ إليها تُخرجها من مستندات الفترة
+        // التي تخصّها فعلاً. وكان الغموض يُرجع فراغاً، فتبقى الجلسة بلا فترة
+        // ولا تُعتمد أبداً — وهذا ما لم يعد مقبولاً.
+        return SchedulingPeriod::whereIn('status', ['draft', 'pending_center'])
             ->whereDate('start_date', '<=', $d)
             ->whereDate('end_date', '>=', $d)
-            ->limit(2)
-            ->pluck('id');
-
-        return $rows->count() === 1 ? (int) $rows->first() : null;
+            ->orderByRaw('(end_date - start_date) ASC')
+            ->orderBy('id')
+            ->value('id');
     }
 
     /**

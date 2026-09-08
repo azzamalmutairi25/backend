@@ -9,6 +9,7 @@ use App\Models\ReceptionAssignment;
 use App\Models\ReceptionKiosk;
 use App\Models\ReceptionVisit;
 use App\Models\Schedule;
+use App\Models\SchedulingPeriod;
 use App\Models\User;
 use App\Security\Permissions;
 use App\Services\CvGuard;
@@ -750,6 +751,15 @@ class ReceptionController extends Controller
                 $schedule = Schedule::create([
                     'candidate_id' => $visit->candidate_id,
                     'assessment_id' => $visit->assessment_id,
+                    // الفترة تُستنبط من يوم الزيارة لا تُطلَب: الاستقبال لا
+                    // يختار فترةً، وجلسةٌ بلا فترة لا تُعتمد ولا يصدر رمزها.
+                    // وبلا فترةٍ تغطّي اليوم تبقى فارغةً — لا يُوقَف طابور
+                    // الاستقبال لأجل نقصٍ في التخطيط.
+                    'period_id' => SchedulingPeriod::coveringDate(
+                        $visit->visit_date instanceof \DateTimeInterface
+                            ? $visit->visit_date->format('Y-m-d')
+                            : (string) $visit->visit_date
+                    )?->id,
                     'schedule_date' => $visit->visit_date,
                     'activity' => $a->activity,
                     'evaluator_id' => $a->evaluator_id,

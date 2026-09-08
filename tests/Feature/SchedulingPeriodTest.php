@@ -60,7 +60,7 @@ class SchedulingPeriodTest extends TestCase
 
         $this->assertSame(3, $res->json('period.dayCount'));
         $this->assertSame('draft', $res->json('period.status'));
-        $this->assertCount(3, SchedulingPeriod::first()->days());
+        $this->assertCount(3, SchedulingPeriod::findOrFail($res->json('period.id'))->days());
     }
 
     public function test_end_before_start_is_rejected(): void
@@ -232,19 +232,34 @@ class SchedulingPeriodTest extends TestCase
         ])->assertStatus(422);
     }
 
-    public function test_a_session_without_a_period_still_works_exactly_as_before(): void
+    // العقد انقلب: لا جلسةَ بلا فترة. من لم يذكرها تُستنبَط من تاريخه —
+    // وجلسةٌ خارج كل فترة لا تُعتمد أبداً ولا يصدر لصاحبها رمز.
+    public function test_a_session_without_a_stated_period_takes_the_covering_one(): void
     {
         [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
+        $period = $this->makePeriod();
 
         $this->actingAsRole('SCHEDULER');
         $this->postJson('/api/schedules', [
             'candidateId' => $c->id,
             'activity' => 'interview',
-            'date' => now()->addDay()->toDateString(),
+            'date' => $period->start_date->toDateString(),
             'time' => '10:15',
         ])->assertStatus(201);
 
-        $this->assertDatabaseHas('schedules', ['candidate_id' => $c->id, 'period_id' => null]);
+        $this->assertDatabaseHas('schedules', ['candidate_id' => $c->id, 'period_id' => $period->id]);
+    }
+
+    public function test_a_date_no_period_covers_is_refused(): void
+    {
+        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
+        // الفترة التحتيّة تغطّي ستّة أشهر حول اليوم — فما بعدها لا فترة له
+        $far = now()->addMonths(9)->toDateString();
+
+        $this->actingAsRole('SCHEDULER');
+        $this->postJson('/api/schedules', [
+            'candidateId' => $c->id, 'activity' => 'interview', 'date' => $far, 'time' => '10:15',
+        ])->assertStatus(422);
     }
 
     public function test_narrowing_the_range_over_existing_sessions_is_refused(): void
@@ -498,9 +513,10 @@ class SchedulingPeriodTest extends TestCase
             'candidateId' => $inWave->id, 'activity' => 'interview',
             'date' => $period->start_date->toDateString(), 'time' => '10:15', 'periodId' => $period->id,
         ])->assertStatus(201);
+        // خارج مدى الفترة — تسقط على الفترة التحتيّة، فتغيب عن هذه
         $this->postJson('/api/schedules', [
             'candidateId' => $outside->id, 'activity' => 'interview',
-            'date' => $period->start_date->toDateString(), 'time' => '12:30',
+            'date' => $period->end_date->copy()->addDays(3)->toDateString(), 'time' => '12:30',
         ])->assertStatus(201);
 
         $res = $this->getJson("/api/schedules?periodId={$period->id}")->assertOk();
@@ -547,7 +563,7 @@ class SchedulingPeriodTest extends TestCase
         ])->assertStatus(201);
 
         $created = Schedule::where('candidate_id', $c->id)->where('id', '!=', $schedule->id)->first();
-        $this->assertNull($created->period_id, 'المعتمَدة لا تُزاد جلسةً');
+        $this->assertNotSame($period->id, $created->period_id, 'المعتمَدة لا تُزاد جلسةً');
         $this->assertSame(1, $period->fresh()->schedules()->count());
     }
 
@@ -605,6 +621,6 @@ class SchedulingPeriodTest extends TestCase
         ])->assertStatus(201);
 
         $created = Schedule::where('candidate_id', $c->id)->where('id', '!=', $schedule->id)->first();
-        $this->assertNull($created->period_id, 'جلسة خارج مدى الموجة لا تُنسب إليها');
+        $this->assertNotSame($period->id, $created->period_id, 'جلسة خارج مدى الموجة لا تُنسب إليها');
     }
 }

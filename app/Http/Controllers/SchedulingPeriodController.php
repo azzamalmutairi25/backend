@@ -82,6 +82,12 @@ class SchedulingPeriodController extends Controller
             'startDate' => $p->start_date?->toDateString(),
             'endDate' => $p->end_date?->toDateString(),
             'dayCount' => $p->dayCount(),
+            // أيام العمل هي ما تُبنى عليه الشبكة — لا كل أيام المدى
+            'workDays' => $p->workDayNumbers(),
+            'workingDayCount' => $p->workingDayCount(),
+            'dailyCapacity' => $p->daily_capacity,
+            'excludedDates' => $p->excludedDates(),
+            'targetTotal' => $p->targetTotal(),
             'sessionTimes' => $p->sessionTimes(),
             'sessionTimesOverridden' => trim((string) $p->session_times) !== '',
             'status' => $p->status,
@@ -142,6 +148,14 @@ class SchedulingPeriodController extends Controller
             // أوقات الجلسات: فارغة ⇒ الإعداد العام. تُرسل نصّاً «H:i,H:i»
             'sessionTimes' => 'nullable|string|max:120',
             'notes' => 'nullable|string|max:1000',
+            // أيام العمل: أرقام أيام الأسبوع (0=الأحد). الافتراض الأحد–الخميس
+            'workDays' => 'nullable|array|max:7',
+            'workDays.*' => 'integer|min:0|max:6',
+            // الطاقة اليومية: العدد المستهدف يومياً — به يُقارَن مجموع كل يوم
+            'dailyCapacity' => 'nullable|integer|min:1|max:500',
+            // عطلةٌ رسمية داخل المدى — تواريخ لا قاعدة تُحسب
+            'excludedDates' => 'nullable|array|max:60',
+            'excludedDates.*' => 'date_format:Y-m-d',
         ];
     }
 
@@ -208,6 +222,13 @@ class SchedulingPeriodController extends Controller
                 'start_date' => $validated['startDate'],
                 'end_date' => $validated['endDate'],
                 'session_times' => $times['value'],
+                'work_days' => isset($validated['workDays'])
+                    ? implode(',', $validated['workDays'])
+                    : '0,1,2,3,4',
+                'daily_capacity' => $validated['dailyCapacity'] ?? null,
+                'excluded_dates' => isset($validated['excludedDates'])
+                    ? implode(',', $validated['excludedDates'])
+                    : null,
                 'notes' => $validated['notes'] ?? null,
                 'status' => 'draft',
                 'created_by' => $request->user()->id,
@@ -276,6 +297,18 @@ class SchedulingPeriodController extends Controller
         }
         $period->start_date = $start;
         $period->end_date = $end;
+        // الحقول الثلاثة تُمسّ متى أُرسلت وحدها — تعديلٌ لا يعرضها لا يمحوها
+        if (array_key_exists('workDays', $validated)) {
+            $period->work_days = $validated['workDays'] ? implode(',', $validated['workDays']) : '0,1,2,3,4';
+        }
+        if (array_key_exists('dailyCapacity', $validated)) {
+            $period->daily_capacity = $validated['dailyCapacity'];
+        }
+        if (array_key_exists('excludedDates', $validated)) {
+            $period->excluded_dates = $validated['excludedDates']
+                ? implode(',', $validated['excludedDates'])
+                : null;
+        }
         if (array_key_exists('notes', $validated)) {
             $period->notes = $validated['notes'];
         }

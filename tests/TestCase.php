@@ -5,6 +5,7 @@ namespace Tests;
 use App\Models\Assessment;
 use App\Models\Candidate;
 use App\Models\Role;
+use App\Models\SchedulingPeriod;
 use App\Models\Sector;
 use App\Models\TechnicalArea;
 use App\Models\User;
@@ -13,6 +14,38 @@ use Laravel\Sanctum\Sanctum;
 
 abstract class TestCase extends BaseTestCase
 {
+    /**
+     * فترةُ جدولةٍ تحتيّة تغطّي مدىً واسعاً حول اليوم.
+     *
+     * صارت الجلسة لا تُنشأ خارج فترة — والاختبارات تُجدوِل على «غداً» وما
+     * حوله بلا أن تعني الفترة شيئاً لها. فتُهيَّأ مرّةً هنا بدل أن تُكتب في
+     * ثلاثةٍ وأربعين موضعاً، وتبقى الاختبارات تقيس ما تقيسه.
+     *
+     * ومن أراد فترةً بعينها يُنشئها ويمرّر `periodId` — الاستنباط يفضّل
+     * المعتمَدة، ثم المُرسَلة، ثم المسودّة.
+     */
+    protected function ensureCoveringPeriod(): SchedulingPeriod
+    {
+        return SchedulingPeriod::firstOrCreate(
+            ['name' => 'فترة الاختبارات'],
+            [
+                'start_date' => now()->subMonths(6)->toDateString(),
+                'end_date' => now()->addMonths(6)->toDateString(),
+                'status' => 'draft',
+            ]
+        );
+    }
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // تُهيَّأ للمجموعات التي تبذر القاعدة وحدها: من لا يبذر لا جداول له
+        if (($this->seed ?? false) === true) {
+            $this->ensureCoveringPeriod();
+        }
+    }
+
     // مستخدم بدور محدّد + مصادقة عبر Sanctum (يرجع المستخدم)
     //
     // الأدوار المحصورة بقطاع تُنشأ بقطاع — لا يوجد مقيّم بلا قطاع في النظام،

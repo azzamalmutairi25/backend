@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ActivityCompetencyController;
 use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\AssessorAbsenceController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\AuditController;
 use App\Http\Controllers\AuthController;
@@ -283,6 +284,12 @@ Route::middleware('auth:sanctum')->group(function () {
     // سير عمل الجدولة على هذه الموجة — قراءةٌ بـschedule.view وتأشيرٌ بـschedule.manage
     Route::get('/scheduling-periods/{id}/workflow', [SchedulingWorkflowController::class, 'periodWorkflow']);
     Route::post('/scheduling-periods/{id}/workflow/{stepId}', [SchedulingWorkflowController::class, 'markStep']);
+
+    // إجازات المستشارين — مدىً وسبباً. من في إجازةٍ يسقط من قوائم الإسناد في
+    // تلك الأيام وحدها، ولا بديل يُعيَّن: المسؤول يعيد توزيع الأعداد بنفسه.
+    Route::get('/assessor-absences', [AssessorAbsenceController::class, 'index']);
+    Route::post('/assessor-absences', [AssessorAbsenceController::class, 'store']);
+    Route::delete('/assessor-absences/{id}', [AssessorAbsenceController::class, 'destroy']);
 
     Route::get('/schedules', [ScheduleController::class, 'index']);
     Route::post('/schedules', [ScheduleController::class, 'store']);
