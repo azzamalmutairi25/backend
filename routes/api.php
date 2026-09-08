@@ -11,6 +11,7 @@ use App\Http\Controllers\CandidateUpdateRequestController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\CommunicationController;
 use App\Http\Controllers\CompetencyController;
+use App\Http\Controllers\ConsultantController;
 use App\Http\Controllers\DailyReportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DevelopmentPlanController;
@@ -289,6 +290,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/scheduling-periods/{id}/workflow', [SchedulingWorkflowController::class, 'periodWorkflow']);
     Route::post('/scheduling-periods/{id}/workflow/{stepId}', [SchedulingWorkflowController::class, 'markStep']);
+
+    // ═══ إعدادات المستشارين — بابٌ ضيّق لمسؤول الجدولة ═══
+    // الرمز والقطاعات والمجالات وحدها. إنشاءُ الحساب وإسنادُ الدور وكلمةُ
+    // المرور تبقى في `/users` خلف `user.manage` — الجدولة لا تحتاجها.
+    Route::get('/consultants', [ConsultantController::class, 'index']);
+    Route::put('/consultants/{id}', [ConsultantController::class, 'update']);
 
     // إجازات المستشارين — مدىً وسبباً. من في إجازةٍ يسقط من قوائم الإسناد في
     // تلك الأيام وحدها، ولا بديل يُعيَّن: المسؤول يعيد توزيع الأعداد بنفسه.
