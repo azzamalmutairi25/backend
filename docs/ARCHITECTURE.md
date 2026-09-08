@@ -239,6 +239,15 @@ AuditLog · Notification · ChatThread/ChatMessage · SmsLog/EmailLog · Setting
 
 التشغيل: `php artisan test` مقابل قاعدة `kafaat_test` (PostgreSQL).
 
+البحيرة معزولة كذلك: `phpunit.xml` يُحوّل `DB_LAKE_DATABASE` إلى `kafaat_lake_test`،
+فلا يُحلّ اتصال `pgsql_lake_ddl` — وهو بدور `lake_owner` المالك لـDDL — على بحيرة
+الإنتاج تحت `RefreshDatabase`. لا اختبارَ اليوم يفتح ذلك الاتصال (الشاحن غير مُستدعىً
+في الاختبارات)، فالقاعدة غير لازمة لنجاح المجموعة؛ وأولُ اختبارٍ للشاحن يحتاجها:
+
+```
+createdb -O lake_owner kafaat_lake_test
+```
+
 ---
 
 ## 9. سجلّ الجودة
