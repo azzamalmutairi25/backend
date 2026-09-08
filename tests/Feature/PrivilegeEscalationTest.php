@@ -183,7 +183,9 @@ class PrivilegeEscalationTest extends TestCase
 
     public function test_administrative_permissions_are_never_delegated_by_override(): void
     {
-        $target = $this->actingAsRole('RECEPTIONIST');
+        // دورٌ لا يحمل شيئاً من غير القابل للتفويض: الاستقبال صار يملك
+        // البحث بالهوية وبالاسم بدوره، فلا يصلح هدفاً لهذا المحكّ
+        $target = $this->actingAsRole('EVALUATOR', 'DW');
         $this->actingAsRole('ADMIN'); // حتى مدير النظام لا يفوّضها بالاستثناء
 
         foreach (Permissions::NON_DELEGABLE as $perm) {

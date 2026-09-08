@@ -19,6 +19,7 @@ use App\Services\CvGuard;
 use App\Services\CvSheetService;
 use App\Services\CvValidator;
 use App\Services\IdentityVerificationService;
+use App\Services\NameIndex;
 use App\Services\ParticipantCardService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -50,6 +51,79 @@ class CandidateController extends Controller
                 $dir
             ),
         ];
+    }
+
+    /**
+     * البحث — ثلاث طرق، كلٌّ بصلاحيتها.
+     *
+     * ┌──────────┬────────────────────────┬──────────────────────────────┐
+     * │ بالرمز   │ الافتراض للجميع        │ **بالبداية** فيستعمل الفهرس  │
+     * │ بالهوية  │ صلاحية مستقلّة         │ مطابقةٌ تامّة عبر البصمة      │
+     * │ بالاسم   │ صلاحية مستقلّة ثانية   │ بجزء الكلمة عبر فهرس المقاطع │
+     * └──────────┴────────────────────────┴──────────────────────────────┘
+     *
+     * ── لماذا الرمز بالبداية ──
+     * `LIKE '%…%'` لا يستعمل الفهرس الفريد على العمود، فكل ضغطة حرفٍ تمسح
+     * الجدول كاملاً — وشريط البحث يُطلق بعد ٣٠٠ مللي من آخر حرف. وبالبداية
+     * يصير البحث هرمياً مجاناً: `PV` القطاع، و`PV0007` مشاركاً بعينه.
+     * ومن أراد مقطعاً في الوسط يسبقه بنجمة — صريحٌ ومكلفٌ عن قصد.
+     *
+     * ── والترتيب: الأضيق دلالةً أوّلاً ──
+     * رقمُ هويةٍ كاملٌ لا يحتمل إلا شخصاً واحداً، فيُجرَّب قبل الاسم.
+     */
+    private function applySearch(Request $request, $query, string $raw): void
+    {
+        $term = trim($raw);
+        if ($term === '') {
+            return;
+        }
+
+        $user = $request->user();
+
+        // ── الهوية: عشرة أرقام كاملة ومطابقةٌ تامّة ──
+        if (preg_match('/^\d{10}$/', $term)) {
+            if (! $user->hasPermission(Permissions::CANDIDATE_SEARCH_BY_ID)) {
+                // لا نُفصح بأنّ الرقم هويةٌ صالحة: يُعامَل رمزاً فلا يجد شيئاً،
+                // والردّ نفسه لمن يملك ولمن لا يملك حتى لا يصير سطحَ تعداد
+                $query->where('participant_code', 'like', $term.'%');
+
+                return;
+            }
+
+            $this->log($request, 'SEARCH_BY_NATIONAL_ID', 0);
+            $query->where('national_id_hash', hash('sha256', $term));
+
+            return;
+        }
+
+        // ── الاسم: عربيٌّ بثلاثة أحرف فأكثر ──
+        if (preg_match('/\p{Arabic}/u', $term)) {
+            if (! $user->hasPermission(Permissions::CANDIDATE_SEARCH_BY_NAME)) {
+                $query->whereRaw('1 = 0');   // لا نتيجة، ولا سببٌ يُفصح
+
+                return;
+            }
+            if (mb_strlen(NameIndex::normalise($term)) < NameIndex::GRAM) {
+                $query->whereRaw('1 = 0');
+
+                return;
+            }
+
+            $this->log($request, 'SEARCH_BY_NAME', 0, ['length' => mb_strlen($term)]);
+            $query->whereIn('id', NameIndex::search($term));
+
+            return;
+        }
+
+        // ── الرمز ──
+        // نجمةٌ في الأوّل تعني «في أي موضع» — والكلفة معلَنة لمن كتبها
+        if (str_starts_with($term, '*')) {
+            $query->where('participant_code', 'like', '%'.substr($term, 1).'%');
+
+            return;
+        }
+
+        $query->where('participant_code', 'like', $term.'%');
     }
 
     public function index(Request $request)
@@ -88,7 +162,7 @@ class CandidateController extends Controller
             $query->where('gender', $request->gender);
         }
         if ($request->filled('search')) {
-            $query->where('participant_code', 'like', '%'.$request->search.'%');
+            $this->applySearch($request, $query, (string) $request->search);
         }
 
         // نسخةٌ من الاستعلام المحصور قبل تنفيذه — تُستعمل استعلاماً فرعياً أدناه

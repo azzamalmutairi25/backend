@@ -28,6 +28,16 @@ class Permissions
     // يُنزع هو ومواضعه مع العمود في الخطوة الثانية.
     const CANDIDATE_VIEW_CLASSIFIED = 'candidate.view_classified';
 
+    // ── البحث: ثلاث طرق بثلاث صلاحيات ──
+    // البحث بالرمز افتراضٌ للجميع — الرمز لا يكشف اسماً. أمّا الهوية والاسم
+    // فكلٌّ منهما يبلغ الشخص بعينه، فلكلٍّ صلاحيته.
+    //
+    // ومستقلّتان لا واحدة: من يبحث بهوية يعرف الشخص أصلاً ويريد ملفّه، ومن
+    // يبحث باسم قد يتصفّح. وجمعُهما يمنع منح إحداهما دون الأخرى.
+    const CANDIDATE_SEARCH_BY_ID = 'candidate.search_by_id';
+
+    const CANDIDATE_SEARCH_BY_NAME = 'candidate.search_by_name';
+
     const CANDIDATE_JOURNEY = 'candidate.journey';   // عرض رحلة المشارك (الخط الزمني)
 
     const CANDIDATE_CV_VIEW = 'candidate.cv_view';   // قراءة السيرة الذاتية بمعرّف المشارك (مسار الإدارة)
@@ -182,6 +192,7 @@ class Permissions
             // المقيّم ومساعده وحدهما من يرصد، وهما بلا أسماء (انظر EVALUATOR
             // وASSISTANT). حجبُ الاسم عمّن لا يرصد لم يكن يحمي شيئاً.
             'CENTER_MANAGER' => [
+                self::CANDIDATE_SEARCH_BY_ID, self::CANDIDATE_SEARCH_BY_NAME,
                 self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_NAMES,
                 self::CANDIDATE_JOURNEY, self::CANDIDATE_CV_VIEW,
                 self::CANDIDATE_EDIT, self::CANDIDATE_APPROVE,
@@ -214,6 +225,7 @@ class Permissions
 
             // مسؤول الجدولة — يملك إدارة المشاركين، فله وحده تجاوز حدّ القطاع (بتحذير وتدقيق)
             'SCHEDULER' => [
+                self::CANDIDATE_SEARCH_BY_ID, self::CANDIDATE_SEARCH_BY_NAME,
                 self::CANDIDATE_VIEW, self::CANDIDATE_CREATE, self::CANDIDATE_EDIT,
                 self::CANDIDATE_APPROVE, self::CANDIDATE_VIEW_NAMES, self::CANDIDATE_CV_VIEW, self::CROSS_SECTOR_ASSIGN,
                 // البتّ في طلبات التحديث الواردة من المستخدمين الخارجيين — هو مالك
@@ -241,6 +253,7 @@ class Permissions
             // وهو داخليّ لا خارجيّ: يرى قاعدة المشاركين كلَّها بخلاف
             // EXTERNAL_ADD الذي لا يرى غير ما أضاف.
             'DATA_ENTRY' => [
+                self::CANDIDATE_SEARCH_BY_ID, self::CANDIDATE_SEARCH_BY_NAME,
                 self::CANDIDATE_VIEW, self::CANDIDATE_CREATE, self::CANDIDATE_EDIT,
                 self::CANDIDATE_VIEW_NAMES, self::CANDIDATE_CV_VIEW, self::CANDIDATE_JOURNEY,
                 self::CHAT_VIEW,
@@ -274,6 +287,7 @@ class Permissions
             ],
 
             'RECEPTIONIST' => [
+                self::CANDIDATE_SEARCH_BY_ID, self::CANDIDATE_SEARCH_BY_NAME,
                 self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_NAMES,
                 self::ATTENDANCE_VIEW, self::ATTENDANCE_RECORD, self::ATTENDANCE_RECORD_ANY,
                 self::SEND_INVITATION, self::CHAT_VIEW,
@@ -361,6 +375,10 @@ class Permissions
     // منحها لمستخدم بعينه عبر UserPermissionOverride يكسر حدود المصفوفة:
     // إدارة المستخدمين/الإعدادات/سجل التدقيق سلطات نظام تُسنَد بالدور لا بالاستثناء.
     public const NON_DELEGABLE = [
+        // البحث بالهوية أو بالاسم يبلغ شخصاً بعينه ويكشف بياناته — لا يُفوَّض
+        // بالاستثناء الفردي كما تُفوَّض صلاحيات التشغيل
+        self::CANDIDATE_SEARCH_BY_ID,
+        self::CANDIDATE_SEARCH_BY_NAME,
         self::USER_MANAGE,
         self::SETTINGS_MANAGE,
         self::AUDIT_VIEW,
@@ -406,6 +424,8 @@ class Permissions
         'candidate.edit' => 'تعديل بيانات مشارك',
         'candidate.approve' => 'اعتماد ترشيح',
         'candidate.view_names' => 'رؤية أسماء المشاركين (حسّاسة)',
+        'candidate.search_by_id' => 'البحث برقم الهوية (حسّاسة)',
+        'candidate.search_by_name' => 'البحث بالاسم (حسّاسة)',
         'candidate.journey' => 'عرض رحلة المشارك',
         'candidate.cv_view' => 'قراءة السيرة الذاتية',
         'candidate.update_request' => 'رفع طلب تحديث بيانات',

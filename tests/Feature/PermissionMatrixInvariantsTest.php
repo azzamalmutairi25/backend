@@ -113,9 +113,17 @@ class PermissionMatrixInvariantsTest extends TestCase
             $this->assertContains($p, Permissions::all(), "صلاحية غير مفوَّضة غير معرَّفة: {$p}");
         }
 
-        // سلطات النظام الثلاث — إن أُضيفت رابعة فليكن ذلك قراراً واعياً يُحدَّث هنا
+        // خمسٌ لا تُفوَّض بالاستثناء الفردي — وهي صنفان:
+        //   • سلطات النظام الثلاث: من ملكها ملك المنصّة.
+        //   • وبلوغُ الشخص بعينه: البحث بالهوية وبالاسم. تُمنح بالدور ويُقرَّر
+        //     مَن يحمله، ولا تُدسّ استثناءً فرديّاً على حسابٍ بعينه.
+        //
+        // إن أُضيفت سادسة فليكن ذلك قراراً واعياً يُحدَّث هنا.
         $this->assertEqualsCanonicalizing(
-            [Permissions::USER_MANAGE, Permissions::SETTINGS_MANAGE, Permissions::AUDIT_VIEW],
+            [
+                Permissions::USER_MANAGE, Permissions::SETTINGS_MANAGE, Permissions::AUDIT_VIEW,
+                Permissions::CANDIDATE_SEARCH_BY_ID, Permissions::CANDIDATE_SEARCH_BY_NAME,
+            ],
             Permissions::NON_DELEGABLE
         );
     }

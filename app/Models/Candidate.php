@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\NameIndex;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -123,6 +124,14 @@ class Candidate extends Model
     // (assessments/schedules/evaluations/reports تُحذف تلقائياً عبر cascade، لكن sms/email لا)
     protected static function booted(): void
     {
+        // فهرس البحث بالاسم يتبع الاسم: تعديلٌ لا يُعيد بناءه يترك المشارك
+        // يُوجَد باسمه القديم ولا يُوجَد بالجديد — وهو خطأ صامت لا رسالة له.
+        static::saved(function (Candidate $candidate) {
+            if ($candidate->wasChanged('full_name_enc') || $candidate->wasRecentlyCreated) {
+                NameIndex::reindex($candidate);
+            }
+        });
+
         static::deleting(function (Candidate $candidate) {
             SmsLog::where('candidate_id', $candidate->id)->delete();
             EmailLog::where('candidate_id', $candidate->id)->delete();

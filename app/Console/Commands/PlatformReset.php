@@ -83,6 +83,9 @@ class PlatformReset extends Command
 
     /** بيانات التشغيل — تُمسح دائماً */
     private const OPERATIONAL = [
+        // فهرس البحث بالاسم — يتبع المشارك، ويذهب معه بالتتالي. يُذكر صراحةً
+        // كي لا يبقى جدولٌ غير مصنَّف يوقف الأمر كلَّه.
+        'candidate_name_grams',
         // إجازات المستشارين — تخصّ فتراتٍ بعينها، فتذهب معها
         'assessor_absences',
         'assessments',
