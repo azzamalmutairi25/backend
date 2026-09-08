@@ -25,7 +25,7 @@ class AssessorAbsence extends Model
     ];
 
     protected $fillable = [
-        'period_id', 'user_id', 'from_date', 'to_date', 'reason', 'note', 'created_by',
+        'period_id', 'user_id', 'host_user_id', 'from_date', 'to_date', 'reason', 'note', 'created_by',
     ];
 
     protected $casts = [
@@ -41,6 +41,12 @@ class AssessorAbsence extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    // المستشار المضيف — لمن تحت التدريب: يرافقه ولا يُحتسب له مشاركون
+    public function host(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'host_user_id');
     }
 
     public function period(): BelongsTo

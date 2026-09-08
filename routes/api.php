@@ -23,6 +23,7 @@ use App\Http\Controllers\ImportController;
 use App\Http\Controllers\KioskController;
 use App\Http\Controllers\MeasurementController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\PeriodGridController;
 use App\Http\Controllers\PublicAssessmentController;
 use App\Http\Controllers\RankController;
 use App\Http\Controllers\ReceptionController;
@@ -282,6 +283,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/scheduling-periods/{id}/reject', [SchedulingPeriodController::class, 'reject']);
     Route::post('/scheduling-periods/{id}/close', [SchedulingPeriodController::class, 'close']);
     // سير عمل الجدولة على هذه الموجة — قراءةٌ بـschedule.view وتأشيرٌ بـschedule.manage
+    // شبكة جدولة المستشارين — أيام العمل × المستشارين، والخلية عددٌ مخطَّط
+    Route::get('/scheduling-periods/{id}/grid', [PeriodGridController::class, 'show']);
+    Route::put('/scheduling-periods/{id}/grid', [PeriodGridController::class, 'save']);
+
     Route::get('/scheduling-periods/{id}/workflow', [SchedulingWorkflowController::class, 'periodWorkflow']);
     Route::post('/scheduling-periods/{id}/workflow/{stepId}', [SchedulingWorkflowController::class, 'markStep']);
 

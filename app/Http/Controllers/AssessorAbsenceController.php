@@ -53,7 +53,7 @@ class AssessorAbsenceController extends Controller
             'userId' => 'nullable|integer',
         ]);
 
-        $rows = AssessorAbsence::with('user:id,full_name,code')
+        $rows = AssessorAbsence::with(['user:id,full_name,code', 'host:id,full_name,code'])
             // الفترة تُفلتَر بالتداخل لا بالمساواة: إجازةٌ سُجّلت بلا فترة
             // تنطبق على كل فترةٍ يقع مداها فيها
             ->when(! empty($validated['periodId']), function ($q) use ($validated) {
@@ -77,6 +77,8 @@ class AssessorAbsenceController extends Controller
                 'toDate' => $a->to_date?->toDateString(),
                 'reason' => $a->reason,
                 'reasonLabel' => AssessorAbsence::reasonLabel($a->reason),
+                'hostCode' => $a->host?->code,
+                'hostName' => $a->host?->full_name,
                 'note' => $a->note,
             ]);
 
@@ -96,6 +98,8 @@ class AssessorAbsenceController extends Controller
             'fromDate' => 'required|date_format:Y-m-d',
             'toDate' => 'required|date_format:Y-m-d|after_or_equal:fromDate',
             'reason' => 'required|in:'.implode(',', AssessorAbsence::REASONS),
+            // المضيف للتدريب وحده: «يرافق فلاناً» لا معنى لها في إجازة
+            'hostUserId' => 'nullable|integer|exists:users,id',
             'note' => 'nullable|string|max:300',
         ], [
             'toDate.after_or_equal' => 'تاريخ النهاية قبل تاريخ البداية',
@@ -120,6 +124,8 @@ class AssessorAbsenceController extends Controller
             'from_date' => $validated['fromDate'],
             'to_date' => $validated['toDate'],
             'reason' => $validated['reason'],
+            'host_user_id' => $validated['reason'] === 'training'
+                ? ($validated['hostUserId'] ?? null) : null,
             'note' => $validated['note'] ?? null,
             'created_by' => $request->user()->id,
         ]);

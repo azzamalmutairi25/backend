@@ -214,6 +214,8 @@
 | POST | `/scheduling-periods/{id}/approve` | `schedule.approve` | اعتماد الموجة |
 | POST | `/scheduling-periods/{id}/reject` | `schedule.approve` | إرجاعها مسودّةً بسبب (`reason` إلزامي) |
 | POST | `/scheduling-periods/{id}/close` | `schedule.manage` | إغلاق موجة معتمَدة |
+| GET | `/scheduling-periods/{id}/grid` | **شبكة جدولة المستشارين** — صفٌّ لكل يوم عمل، وعمودٌ لكل من في لوحة الفترة مرتّباً برمزه. كل خلية: `planned` (العدد المخطَّط، و`null` إن كان محجوباً) · `assigned` (المُسنَد فعلاً — الخطّة تُقارَن بالتنفيذ) · `blocked` وسببُه (`leave`/`training`/`discussion`/`other`) · و`hostCode` لمن تحت التدريب. ومعها `total` لكل يوم و`matchesCapacity` (و`null` إن لم تُعلَن طاقة) و`columnTotals` و`grandTotal` (`schedule.view`) |
+| PUT | `/scheduling-periods/{id}/grid` | حفظ الخلايا دفعةً — `{cells:[{userId, date, planned}]}` ← `{message, saved}`؛ خليةٌ خارج أيام العمل أو لمستشارٍ خارج اللوحة تُردّ ٤٢٢، وفترةٌ معتمَدة لا تُعدَّل شبكتها ٤٢٢ (`schedule.manage`) |
 | GET | `/scheduling-periods/{id}/workflow` | `schedule.view` | خطوات سير العمل وحالة كلٍّ منها على الموجة + نسبة الإنجاز |
 | POST | `/scheduling-periods/{id}/workflow/{stepId}` | `schedule.manage` | تأشير خطوة يدوية — `status=done\|skipped\|pending`، و`note` إلزامية مع `skipped` |
 | GET | `/assessor-absences` | إجازات المستشارين — `?periodId=` يفلتر بالتداخل مع مدى الفترة لا بالمساواة، و`?userId=` بمستشارٍ بعينه. تُرجع `absences[{id, userId, userName, userCode, fromDate, toDate, reason, reasonLabel, note}]` (`schedule.manage`) |

@@ -90,6 +90,8 @@ class PlatformReset extends Command
         'candidate_name_grams',
         // إجازات المستشارين — تخصّ فتراتٍ بعينها، فتذهب معها
         'assessor_absences',
+        // خلايا شبكة المستشارين — خطّةُ فترةٍ بعينها، تذهب معها
+        'period_grid_cells',
         'assessments',
         'attendance',
         'audit_logs',
