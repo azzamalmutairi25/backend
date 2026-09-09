@@ -167,8 +167,8 @@
 
 | الطريقة | المسار | الصلاحية | الغرض |
 |---|---|---|---|
-| GET | `/reception` | `reception.view` | كشف اليوم + مهامّي (يتشكّل بالصلاحية) — `?date`، `?q` |
-| POST | `/reception/arrive` | `reception.record` | تسجيل وصول (وقت تلقائي) |
+| GET | `/reception` | كشف اليوم + مهامّي (يتشكّل بالصلاحية) — `?date`، `?q`. **المنتظَرون يُبنون من جلسات ذلك اليوم** لا من قاعدة المشاركين: لكل صفٍّ `sessions[{time,activity}]`، و`offRoster` لمن ظهر بالبحث بلا جلسة. و`isToday` تقول أيقرأ الموظّف يومه أم يوماً مضى (`reception.view`) |
+| POST | `/reception/arrive` | تسجيل وصول (وقت تلقائي). **يُسجَّل في يومه**: تاريخٌ غير اليوم يُردّ ٤٢٢ — «يوماً بيوم كي لا يختلط»، ووصولٌ بتاريخٍ آخر يضع مشاركاً في كشف يومٍ لم يحضر فيه ويُبنى عليه إسنادٌ وجلسةٌ وبطاقة (`reception.record`) |
 | PATCH | `/reception/visits/{id}/arrival` | `reception.record` | تعديل وقت الوصول (`HH:MM`) |
 | POST | `/reception/visits/{id}/sign` | `reception.record` (٦٠/دقيقة) | توقيع المشارك وإقراره — PNG بترميز `data:` ≤٤٠٠ك محرف |
 | GET | `/reception/visits/{id}/cv` | `reception.view` + (`reception.record` أو `candidate.cv_view`) | سيرة من أمامك اليوم |

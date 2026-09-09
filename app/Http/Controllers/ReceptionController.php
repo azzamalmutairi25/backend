@@ -142,6 +142,8 @@ class ReceptionController extends Controller
 
         return response()->json([
             'date' => $date,
+            // يومٌ مضى يُقرأ ولا يُكتب — الواجهة تُخفي أزرار التسجيل عليه
+            'isToday' => $date === now()->toDateString(),
             'can' => $can,
             'activities' => collect(ReceptionAssignment::ACTIVITIES)
                 ->map(fn ($a) => ['key' => $a, 'label' => ReceptionAssignment::label($a)])->values(),
@@ -218,12 +220,38 @@ class ReceptionController extends Controller
         ];
     }
 
-    // الدورات المنتظَرة اليوم — لم تصل بعد
+    /**
+     * كشف اليوم — **من جلسات ذلك اليوم**، لا من قاعدة المشاركين كلّها.
+     *
+     * ── ما كان يقع ──
+     * كانت القائمة تستعلم الدورات بشرطين: ألّا تكون له زيارةٌ اليوم، وألّا
+     * تكون دورتُه منتهية. **بلا أيّ ربطٍ بتاريخ ولا بجلسة.** فمن موعده بعد
+     * شهرين، ومن لم يُجدوَل قطّ، يظهران في «منتظَري اليوم» بالتساوي مع من
+     * موعده اليوم — مقصوصةً عند الأربعين وبترتيب الرمز. أي أنّ الموظّف كان
+     * يستقبل من قائمةٍ لا تعني اليوم في شيء.
+     *
+     * ── ولماذا لا تُشترَط فترةٌ معتمَدة ──
+     * المواصفة تبني الكشف على «الجدولة بعد اعتمادها». وفي القاعدة اليوم
+     * **صفرُ جلسةٍ في فترةٍ معتمَدة**: ٣٤٣ من ٣٤٤ بلا فترة أصلاً، والفترات
+     * الأربع مسوّدات. فاشتراطُ الاعتماد يُفرِغ الشاشة على مركزٍ يعمل. الشرط
+     * هو **الجلسة في ذلك اليوم**، وحالةُ الفترة تُرسَل مع الصفّ ليُرى النقص
+     * لا ليُمنع به العمل.
+     *
+     * ── والبحث يبقى منفذاً للاستثناء ──
+     * حصرُ الشاشة في المجدولين يُعمي الموظّف عمّن حضر بلا جلسة مسجَّلة. فمتى
+     * بحث برمزٍ بعينه تُوسَّع القائمة، ويُوسَم الصفُّ `offRoster` — يُستقبَل
+     * ويُعرَف أنه خارج كشف اليوم.
+     */
     private function expectedList(Request $request, string $date, string $q, array $can): array
     {
         $user = $request->user();
 
         $arrived = ReceptionVisit::whereDate('visit_date', $date)->pluck('assessment_id');
+
+        // من له جلسةٌ في هذا اليوم — هذا هو كشف اليوم
+        $onRoster = Schedule::whereDate('schedule_date', $date)
+            ->whereNotNull('assessment_id')
+            ->pluck('assessment_id')->unique()->values();
 
         $query = Assessment::with('candidate.sector')
             ->whereNotIn('id', $arrived)
@@ -239,6 +267,8 @@ class ReceptionController extends Controller
         // البحث بالرمز على الخادم (الاسم مشفَّر فلا يُبحث فيه بـSQL)
         if ($q !== '') {
             $query->where('participant_code', 'ilike', '%'.$q.'%');
+        } else {
+            $query->whereIn('id', $onRoster);
         }
 
         // حدٌّ صريح: الكشف أداة استقبالٍ لا تصفّحٌ لقاعدة المشاركين كاملة.
@@ -246,6 +276,13 @@ class ReceptionController extends Controller
         // من ينتظر»، فيُصرَف مشاركٌ حاضرٌ لأنه لم يظهر في الشاشة.
         $total = (clone $query)->count();
         $rows = $query->orderBy('participant_code')->limit(self::EXPECTED_LIMIT)->get();
+
+        // بعد القصّ لا قبله: استعلامٌ واحد لأربعين صفّاً، لا أربعون استعلاماً
+        $sessions = Schedule::whereDate('schedule_date', $date)
+            ->whereIn('assessment_id', $rows->pluck('id'))
+            ->orderBy('schedule_time')
+            ->get(['assessment_id', 'schedule_time', 'activity'])
+            ->groupBy('assessment_id');
 
         return [
             'total' => $total,
@@ -256,6 +293,13 @@ class ReceptionController extends Controller
                 'name' => $can['viewNames'] ? $a->candidate?->full_name : null,
                 'sector' => $a->candidate?->sector?->name_ar,
                 'rank' => $a->candidate?->rank_label,
+                // مواعيد اليوم — الموظّف يرى متى ينتظره ولمَ حضر
+                'sessions' => ($sessions[$a->id] ?? collect())->map(fn ($x) => [
+                    'time' => $x->schedule_time ? substr((string) $x->schedule_time, 0, 5) : null,
+                    'activity' => ReceptionAssignment::label($x->activity),
+                ])->values()->all(),
+                // خارج كشف اليوم: ظهر بالبحث لا بجلسة. يُستقبَل ويُعرَف حالُه
+                'offRoster' => ! $onRoster->contains($a->id),
             ])->values()->all(),
         ];
     }
@@ -332,6 +376,16 @@ class ReceptionController extends Controller
             'date' => 'nullable|date_format:Y-m-d',
         ]);
         $date = $validated['date'] ?? now()->toDateString();
+
+        // ── الوصول يُسجَّل في يومه ──
+        // «يوماً بيوم كي لا يختلط»: تسجيلُ وصولٍ بتاريخٍ آخر يضع مشاركاً في
+        // كشف يومٍ لم يحضر فيه، ويُبنى عليه إسنادٌ وجلسةٌ وبطاقة. وقراءةُ يومٍ
+        // مضى تبقى مفتوحة — المراجعة لا تُفسد شيئاً، والكتابة تُفسد.
+        if ($date !== now()->toDateString()) {
+            return response()->json([
+                'error' => 'الوصول يُسجَّل في يومه — كشفُ اليوم لا يقبل تاريخاً آخر',
+            ], 422);
+        }
 
         $assessment = Assessment::with('candidate')->find($validated['assessmentId']);
         if (! $assessment || ! $this->resolveCandidateInScope($request, $assessment->candidate_id)) {

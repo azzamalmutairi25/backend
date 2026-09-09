@@ -757,7 +757,26 @@ class SchedulingPeriodController extends Controller
             );
         }
 
-        $this->log($request, 'APPROVE_PERIOD', $period->id, ['name' => $period->name, 'codesIssued' => $issued]);
+        // ── ويصل الاستقبال خبرُه ──
+        // كشف اليوم يُبنى من جلسات الموجة، فاعتمادُها هو اللحظة التي يصير فيها
+        // للاستقبال ما يستقبله. وبلا إشعارٍ لا يعلم إلا بفتح شاشته يدوياً —
+        // وقد يفتحها قبل الاعتماد فيراها فارغةً ويظنّ أن لا أحد قادم.
+        // بالصلاحية لا بالدور: من مُنِح `reception.view` باستثناءٍ فردي يستقبل
+        // فعلاً، وقصرُها على RECEPTIONIST يُسقطه.
+        $reached = $this->notifications->notifyPermission(
+            Permissions::RECEPTION_VIEW,
+            'info',
+            'اعتُمدت الجدولة — كشوف الأيام جاهزة',
+            'اعتُمدت موجة «'.$period->name.'» ('.$period->start_date->format('Y-m-d')
+                .' — '.$period->end_date->format('Y-m-d').'). كشفُ كل يومٍ يظهر في شاشة الاستقبال في يومه.',
+            'scheduling_period',
+            (string) $period->id,
+            $request->user()->id,
+        );
+
+        $this->log($request, 'APPROVE_PERIOD', $period->id, [
+            'name' => $period->name, 'codesIssued' => $issued, 'receptionNotified' => $reached,
+        ]);
 
         return response()->json([
             'message' => $issued > 0
