@@ -95,6 +95,8 @@ class PlatformReset extends Command
         'assessments',
         // محطّات الدورة — تُولَد معها وتذهب بذهابها
         'assessment_stations',
+        // طلبات التأجيل — تخصّ جلساتٍ بعينها، فتذهب معها
+        'postponement_requests',
         'attendance',
         'audit_logs',
         'candidate_cvs',

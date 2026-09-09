@@ -111,6 +111,13 @@ class Permissions
 
     const RECEPTION_CV_APPROVE = 'reception.cv_approve'; // اعتمادها — بوّابة البطاقة والإرسال
 
+    // ── التأجيل: من يرى السبب ليس من يفكّ الفترة ──
+    // الاستقبال أمامه المشارك فيرى المانع بعينه، والفترة المعتمَدة مقفلةٌ
+    // عليه — فيرفع ولا يبتّ. والبتّ عند صاحب الفترة.
+    const POSTPONE_REQUEST = 'postpone.request';   // رفع طلب تأجيل بسببه
+
+    const POSTPONE_DECIDE = 'postpone.decide';     // قبولُه أو رفضُه أو إعادة جدولته
+
     const EVALUATION_VIEW = 'evaluation.view';
 
     const EVALUATION_INPUT = 'evaluation.input';
@@ -238,6 +245,7 @@ class Permissions
                 // البتّ في طلبات التحديث الواردة من المستخدمين الخارجيين — هو مالك
                 // بيانات المشاركين (CANDIDATE_EDIT)، فالاعتماد امتداد لسلطته لا سلطة جديدة
                 self::CANDIDATE_UPDATE_APPROVE,
+                self::POSTPONE_DECIDE,
                 self::SCHEDULE_VIEW, self::SCHEDULE_MANAGE, self::SCHEDULE_APPROVE,
                 self::DISTRIBUTION_MANAGE, self::ATTENDANCE_VIEW,
                 self::ROSTER_MANAGE,
@@ -300,6 +308,7 @@ class Permissions
                 self::SEND_INVITATION, self::CHAT_VIEW,
                 self::RECEPTION_VIEW, self::RECEPTION_RECORD, self::RECEPTION_ASSIGN,
                 self::RECEPTION_CV_EDIT, self::RECEPTION_CV_APPROVE,
+                self::POSTPONE_REQUEST,
             ],
 
             // مسؤول العمليات — طرف المسار الآخر: يستقبل المردود من المقيّمين
@@ -454,6 +463,8 @@ class Permissions
         'reception.approve' => 'اعتماد الاستقبال وترحيل الجلسات',
         'reception.cv_edit' => 'تصحيح السيرة الذاتية عند الاستقبال',
         'reception.cv_approve' => 'اعتماد السيرة الذاتية عند الاستقبال',
+        'postpone.request' => 'رفع طلب تأجيل',
+        'postpone.decide' => 'البتّ في طلبات التأجيل',
         // الحضور
         'attendance.view' => 'عرض الحضور',
         'attendance.record' => 'تسجيل حضور جلساته',
@@ -511,6 +522,7 @@ class Permissions
             'schedule' => 'الجدولة',
             'roster' => 'مجموعات المشاركين',
             'reception' => 'استقبال الموظفين',
+            'postpone' => 'طلبات التأجيل',
             'attendance' => 'الحضور',
             'evaluation' => 'التقييم',
             'measurement' => 'أدوات القياس',

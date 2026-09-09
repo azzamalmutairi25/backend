@@ -25,6 +25,7 @@ use App\Http\Controllers\KioskController;
 use App\Http\Controllers\MeasurementController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PeriodGridController;
+use App\Http\Controllers\PostponementController;
 use App\Http\Controllers\PublicAssessmentController;
 use App\Http\Controllers\RankController;
 use App\Http\Controllers\ReceptionController;
@@ -315,6 +316,17 @@ Route::middleware('auth:sanctum')->group(function () {
     // تصاريح دخول مشاركي اليوم — الاسم بطلبٍ صريح ولحامل candidate.view_names
     Route::get('/schedules/permits', [ScheduleController::class, 'permits']);
     Route::get('/schedules/absences/{candidateId}', [ScheduleController::class, 'absences']);
+    // قائمة الغائبين — مجمَّعةً لمسؤول الجدولة. الموجود كان مساراً لمشاركٍ
+    // واحدٍ بمعرّفه، فمن أراد أن يعرف من غاب لزمه أن يعرف أسماءهم أوّلاً.
+    Route::get('/schedules/absentees', [ScheduleController::class, 'absentees']);
+    // ── طلبات التأجيل: الاستقبال يرفع، ومسؤول الجدولة يبتّ ──
+    // الفترة المعتمَدة مقفلةٌ على الاستقبال، ومن يفكّها صاحبها. والقرارات
+    // أربعة: قبولٌ · رفضٌ بتعليل · إرجاعٌ للمحطّة الناقصة · إعادةُ جدولةٍ
+    // بتاريخٍ تُنشئ الموعد في القرار نفسه.
+    Route::get('/postponements', [PostponementController::class, 'index']);
+    Route::post('/postponements', [PostponementController::class, 'store']);
+    Route::post('/postponements/{id}/decide', [PostponementController::class, 'decide']);
+
     Route::post('/schedules/{id}/reschedule', [ScheduleController::class, 'reschedule']);
 
     // الجدول الذهبي — سجلُّ (التاريخ × رمز المشارك) لكل موجة. المزامنة تُرحّل
