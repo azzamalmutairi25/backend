@@ -973,4 +973,98 @@ class ScheduleController extends Controller
             })
             ->find($id);
     }
+
+    // ═══════════════════════════════════════════════════════
+    //  قائمة الغائبين — عند مسؤول الجدولة
+    // ═══════════════════════════════════════════════════════
+    //
+    //  لم تكن مجمَّعةً قطّ: الموجود مسارٌ لمشاركٍ واحدٍ بمعرّفه، فمن أراد أن
+    //  يعرف من غاب أمس كان عليه أن يعرف أسماءهم أوّلاً — وهو ما يسأل عنه.
+    //
+    //  والغياب يبقى **على اليوم الذي جُدول فيه** لا يُنقَل: نقلُه يمحو أنّ
+    //  المقعد حُجز ذلك اليوم وتُرك فارغاً، وعليه تُقاس الطاقة المهدورة.
+
+    // GET /schedules/absentees?from=&to=
+    public function absentees(Request $request)
+    {
+        if (! $request->user()->hasPermission(Permissions::SCHEDULE_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض الجدولة'], 403);
+        }
+
+        $validated = $request->validate([
+            'from' => 'nullable|date_format:Y-m-d',
+            'to' => 'nullable|date_format:Y-m-d',
+            'periodId' => 'nullable|integer',
+            'handled' => 'nullable|in:0,1',
+        ]);
+
+        // النافذة الافتراضية أسبوعان للخلف — الغيابُ يُعالَج قريباً من وقوعه،
+        // وفتحُ السجلّ كلّه يجعل ما يحتاج قراراً يضيع في ما عولج
+        $to = $validated['to'] ?? now()->toDateString();
+        $from = $validated['from'] ?? now()->subDays(14)->toDateString();
+
+        $user = $request->user();
+
+        $rows = Schedule::with(['candidate.sector', 'attendance.recordedBy', 'evaluator:id,full_name,code', 'assessment'])
+            ->whereHas('attendance', fn ($a) => $a->whereIn('status', Attendance::ABSENT_STATUSES))
+            ->whereDate('schedule_date', '>=', $from)
+            ->whereDate('schedule_date', '<=', $to)
+            ->when(! empty($validated['periodId']), fn ($q) => $q->where('period_id', $validated['periodId']))
+            ->whereHas('candidate', function ($c) use ($request, $user) {
+                $c->whereIn('classification', $this->allowedClassifications($request));
+                if ($user->isSectorBound()) {
+                    $c->whereIn('sector_id', $user->sectorIds());
+                }
+            })
+            ->orderByDesc('schedule_date')
+            ->limit(300)
+            ->get();
+
+        // هل عولج؟ جلسةٌ تالية للمشارك في النشاط نفسه بعد يوم الغياب
+        $later = Schedule::whereIn('assessment_id', $rows->pluck('assessment_id')->filter()->unique())
+            ->get(['id', 'assessment_id', 'activity', 'schedule_date']);
+
+        $out = $rows->map(function (Schedule $s) use ($later) {
+            $att = $s->attendance;
+            $rescheduled = $later->first(fn ($x) => $x->assessment_id === $s->assessment_id
+                && $x->activity === $s->activity
+                && $x->id !== $s->id
+                && substr((string) $x->schedule_date, 0, 10) > $s->schedule_date->toDateString());
+
+            return [
+                'scheduleId' => $s->id,
+                'candidateId' => $s->candidate_id,
+                'participantCode' => $s->assessment?->participant_code ?? $s->candidate?->participant_code,
+                'sector' => $s->candidate?->sector?->name_ar,
+                'date' => $s->schedule_date->toDateString(),
+                'time' => $s->schedule_time ? substr((string) $s->schedule_time, 0, 5) : null,
+                'activity' => $s->activity,
+                'activityLabel' => Assessment::stationLabel($s->activity),
+                'evaluator' => $s->evaluator?->full_name,
+                'evaluatorCode' => $s->evaluator?->code,
+                'excused' => $att?->status === 'absent_excused',
+                // السبب هو ما يُبنى عليه القرار — يُعرَض لا يُطوى
+                'reason' => $att?->absence_reason,
+                'recordedBy' => $att?->recordedBy?->full_name,
+                // عولج؟ جلسةٌ تالية في النشاط نفسه بعد يوم الغياب
+                'rescheduledTo' => $rescheduled ? substr((string) $rescheduled->schedule_date, 0, 10) : null,
+            ];
+        });
+
+        // المعالَج يُخفى افتراضاً — القائمة أداةُ قرارٍ لا سجلٌّ للقراءة
+        if (($validated['handled'] ?? '0') !== '1') {
+            $out = $out->filter(fn ($r) => $r['rescheduledTo'] === null)->values();
+        }
+
+        return response()->json([
+            'from' => $from,
+            'to' => $to,
+            'absentees' => $out->values(),
+            'totals' => [
+                'shown' => $out->count(),
+                'excused' => $out->where('excused', true)->count(),
+                'unexcused' => $out->where('excused', false)->count(),
+            ],
+        ]);
+    }
 }

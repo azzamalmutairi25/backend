@@ -235,6 +235,7 @@
 | DELETE | `/schedules/{id}` | `schedule.manage` | حذف (يُمنع بعد الحضور) |
 | GET | `/schedules/permits` | `schedule.view` | تصاريح دخول اليوم — `?date`، `?sectorId`، و`&showName=1` لحاملي `candidate.view_names` وحدهم |
 | GET | `/schedules/absences/{candidateId}` | `schedule.view` | جلسات غياب قابلة لإعادة الجدولة |
+| GET | `/schedules/absentees` | **قائمة الغائبين** مجمَّعةً لمسؤول الجدولة — `?from`/`?to` (الافتراضي أسبوعان للخلف) · `?periodId` · `?handled=1`. تُرجع `absentees[{scheduleId,candidateId,participantCode,sector,date,time,activityLabel,evaluator,excused,reason,recordedBy,rescheduledTo}]` و`totals`. **الغياب يبقى على اليوم الذي جُدول فيه** — نقلُه يمحو أن المقعد حُجز وتُرك فارغاً. و**المعالَج يُخفى افتراضاً**: القائمة أداةُ قرارٍ لا سجلٌّ للقراءة (`schedule.view`) |
 | POST | `/schedules/{id}/reschedule` | `candidate.edit` | إعادة جدولة غياب (مرّة واحدة) |
 | GET | `/golden-schedule` | `schedule.view` | الجدول الذهبي — `?periodId` إلزامي، `?sectorId` |
 | POST | `/golden-schedule` | `schedule.manage` | صفّ يدوي (تاريخ + رمز + قطاع) — لا تمحوه المزامنة |

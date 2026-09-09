@@ -209,9 +209,16 @@ class AttendanceController extends Controller
             return response()->json(['error' => 'تم تسجيل حالة هذه الجلسة مسبقاً'], 422);
         }
 
+        // ── والسبب إلزاميّ للغياب بلا عذر ──
+        // كان الإلزام في الواجهة وحدها، فنداءٌ مباشر يسجّل «غياباً بلا عذر»
+        // بلا كلمة. والسبب ليس زينةً: عليه تُبنى قائمةُ الغائبين عند مسؤول
+        // الجدولة، وعليه يُقرَّر أيُعاد جدولتُه أم يُرجَع للقائمة. وغيابٌ
+        // بعذرٍ **مذكورٍ** يختلف عن غيابٍ بلا كلمة — والفرق قرارٌ إداريّ.
         $validated = $request->validate([
             'excused' => 'required|boolean',
-            'reason' => 'nullable|string|max:500',
+            'reason' => 'required_if:excused,false|nullable|string|max:500',
+        ], [
+            'reason.required_if' => 'اكتب سبب الغياب — عليه يُبنى قرارُ إعادة الجدولة',
         ]);
 
         try {
@@ -231,6 +238,7 @@ class AttendanceController extends Controller
         $this->log($request, 'RECORD_ABSENCE', $scheduleId, [
             'candidate' => $schedule->candidate->participant_code,
             'excused' => $validated['excused'],
+            'reason' => $validated['reason'] ?? null,
         ]);
 
         return response()->json(['message' => 'تم تسجيل الغياب']);

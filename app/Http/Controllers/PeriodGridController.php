@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AssessorAbsence;
+use App\Models\Attendance;
 use App\Models\AuditLog;
 use App\Models\PeriodAssessor;
 use App\Models\Schedule;
@@ -101,8 +102,13 @@ class PeriodGridController extends Controller
             ->get();
 
         // ── المُسنَد فعلاً — الخطّة تُقارَن بالتنفيذ ──
+        // والغائب لا يُحتسب مقعداً مشغولاً: مقعدُه تُرك فارغاً فعلاً، وعدُّه
+        // مشغولاً يجعل اليوم يبدو مكتملاً وهو ناقص — فلا يرى مسؤول الجدولة
+        // النقص الذي عليه أن يعالجه. «مقعد المستشار يُترك فارغاً فيظهر اليوم
+        // ناقصاً في الشبكة».
         $assigned = Schedule::where('period_id', $period->id)
             ->whereIn('evaluator_id', $userIds)
+            ->whereDoesntHave('attendance', fn ($a) => $a->whereIn('status', Attendance::ABSENT_STATUSES))
             ->selectRaw('evaluator_id, schedule_date, count(*) c')
             ->groupBy('evaluator_id', 'schedule_date')
             ->get()
