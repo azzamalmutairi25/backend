@@ -118,6 +118,13 @@ class Permissions
 
     const POSTPONE_DECIDE = 'postpone.decide';     // قبولُه أو رفضُه أو إعادة جدولته
 
+    // ── بيان تصاريح الدخول ──
+    // يفتح باب المركز لأسماءٍ بأرقام هوياتهم. فمن يُعدّه ليس من يأذن به:
+    // الاستقبال يجهّزه، ومدير المركز يعتمده، ولا يُطبع بلا اعتماد.
+    const GATE_MANIFEST_MANAGE = 'gate_manifest.manage';   // إعدادُه وطباعتُه
+
+    const GATE_MANIFEST_APPROVE = 'gate_manifest.approve'; // اعتمادُه رقميّاً
+
     const EVALUATION_VIEW = 'evaluation.view';
 
     const EVALUATION_INPUT = 'evaluation.input';
@@ -206,6 +213,7 @@ class Permissions
             // المقيّم ومساعده وحدهما من يرصد، وهما بلا أسماء (انظر EVALUATOR
             // وASSISTANT). حجبُ الاسم عمّن لا يرصد لم يكن يحمي شيئاً.
             'CENTER_MANAGER' => [
+                self::GATE_MANIFEST_APPROVE,
                 self::CANDIDATE_SEARCH_BY_ID, self::CANDIDATE_SEARCH_BY_NAME,
                 self::CANDIDATE_VIEW, self::CANDIDATE_VIEW_NAMES,
                 self::CANDIDATE_JOURNEY, self::CANDIDATE_CV_VIEW,
@@ -308,7 +316,7 @@ class Permissions
                 self::SEND_INVITATION, self::CHAT_VIEW,
                 self::RECEPTION_VIEW, self::RECEPTION_RECORD, self::RECEPTION_ASSIGN,
                 self::RECEPTION_CV_EDIT, self::RECEPTION_CV_APPROVE,
-                self::POSTPONE_REQUEST,
+                self::POSTPONE_REQUEST, self::GATE_MANIFEST_MANAGE,
             ],
 
             // مسؤول العمليات — طرف المسار الآخر: يستقبل المردود من المقيّمين
@@ -465,6 +473,8 @@ class Permissions
         'reception.cv_approve' => 'اعتماد السيرة الذاتية عند الاستقبال',
         'postpone.request' => 'رفع طلب تأجيل',
         'postpone.decide' => 'البتّ في طلبات التأجيل',
+        'gate_manifest.manage' => 'إعداد بيان تصاريح الدخول وطباعته',
+        'gate_manifest.approve' => 'اعتماد بيان تصاريح الدخول',
         // الحضور
         'attendance.view' => 'عرض الحضور',
         'attendance.record' => 'تسجيل حضور جلساته',
@@ -523,6 +533,7 @@ class Permissions
             'roster' => 'مجموعات المشاركين',
             'reception' => 'استقبال الموظفين',
             'postpone' => 'طلبات التأجيل',
+            'gate_manifest' => 'بيان تصاريح الدخول',
             'attendance' => 'الحضور',
             'evaluation' => 'التقييم',
             'measurement' => 'أدوات القياس',

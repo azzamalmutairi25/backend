@@ -62,58 +62,10 @@ class DispatchAndDocumentsTest extends TestCase
 
     // ── الخطوة ٩: تصاريح الدخول ──
 
-    public function test_permits_render_one_card_per_participant(): void
-    {
-        $date = now()->addDay()->toDateString();
-        $this->actingAsRole('SCHEDULER');
-        $a = $this->scheduled('military', 'DW', $date);
-        $this->scheduled('civilian', 'DW', $date);
+    // ── اختبارات التصاريح الفردية سقطت مع مسارها ──
+    // حلّ محلَّها بيان تصاريح الدخول — بيانٌ يوميّ جماعيّ يعتمده مدير
+    // المركز قبل أن يُطبع. انظر GateManifestTest.
 
-        $html = $this->get("/api/schedules/permits?date={$date}")->assertOk()->getContent();
-
-        $this->assertStringContainsString('تصريح دخول', $html);
-        $this->assertSame(2, substr_count($html, 'class="permit"'), 'تصريحٌ لكل مشارك');
-        $this->assertStringContainsString($a->participant_code, $html);
-        $this->assertStringContainsString('window.print()', $html);
-        $this->assertDatabaseHas('audit_logs', ['action' => 'PRINT_ENTRY_PERMITS']);
-    }
-
-    public function test_a_participant_with_two_sessions_gets_one_permit(): void
-    {
-        $date = now()->addDay()->toDateString();
-        $this->actingAsRole('SCHEDULER');
-        $c = $this->scheduled('civilian', 'DW', $date);
-
-        $this->postJson('/api/schedules', [
-            'candidateId' => $c->id, 'activity' => 'discussion',
-            'date' => $date, 'time' => '12:30',
-        ])->assertStatus(201);
-
-        $html = $this->get("/api/schedules/permits?date={$date}")->assertOk()->getContent();
-        $this->assertSame(1, substr_count($html, 'class="permit"'), 'التصريح يُقدَّم مرّة واحدة عند البوّابة');
-        // وأبكر وقتٍ هو موعد الحضور
-        $this->assertStringContainsString('10:15', $html);
-    }
-
-    public function test_the_name_needs_both_a_request_and_the_permission(): void
-    {
-        $date = now()->addDay()->toDateString();
-        $this->actingAsRole('SCHEDULER');   // يملك candidate.view_names
-        $c = $this->scheduled('civilian', 'DW', $date);
-
-        // بلا طلبٍ صريح: الرمز وحده
-        $plain = $this->get("/api/schedules/permits?date={$date}")->assertOk()->getContent();
-        $this->assertStringNotContainsString($c->full_name, $plain);
-
-        // وبطلبٍ صريح ممّن يملك الصلاحية: يظهر
-        $named = $this->get("/api/schedules/permits?date={$date}&showName=1")->assertOk()->getContent();
-        $this->assertStringContainsString($c->full_name, $named);
-
-        // ومن لا يملكها لا يراه ولو طلب
-        $this->actingAsRole('OPERATIONS');   // schedule.view بلا candidate.view_names
-        $denied = $this->get("/api/schedules/permits?date={$date}&showName=1")->assertOk()->getContent();
-        $this->assertStringNotContainsString($c->full_name, $denied);
-    }
 
     // ── الخطوة ١٢: ملفّ لكل قطاع ──
 

@@ -19,6 +19,7 @@ use App\Http\Controllers\DiscussionCircleController;
 use App\Http\Controllers\DispatchController;
 use App\Http\Controllers\DistributionController;
 use App\Http\Controllers\EvaluationController;
+use App\Http\Controllers\GateManifestController;
 use App\Http\Controllers\GoldenScheduleController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\KioskController;
@@ -314,7 +315,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/schedules/{id}', [ScheduleController::class, 'update']);
     Route::delete('/schedules/{id}', [ScheduleController::class, 'destroy']);
     // تصاريح دخول مشاركي اليوم — الاسم بطلبٍ صريح ولحامل candidate.view_names
-    Route::get('/schedules/permits', [ScheduleController::class, 'permits']);
+    // ── التصاريح الفردية سقطت ──
+    // حلّ محلَّها **بيان تصاريح الدخول**: بيانٌ يوميّ جماعيّ يعتمده مدير
+    // المركز قبل أن يُطبع. وأربعون ورقةً تُطبع وتُوزَّع وتُفقَد إحداها،
+    // والبيان ورقةٌ واحدة يقرؤها الحارس ويطابق. المسار محذوف، وتُسقَط
+    // `EntryPermitService` في إصدارٍ تالٍ — تقاعدٌ على خطوتين كعادة المنصّة.
+    Route::get('/gate-manifests', [GateManifestController::class, 'show']);
+    Route::post('/gate-manifests', [GateManifestController::class, 'store']);
+    Route::post('/gate-manifests/{id}/submit', [GateManifestController::class, 'submit']);
+    Route::post('/gate-manifests/{id}/approve', [GateManifestController::class, 'approve']);
+    Route::get('/gate-manifests/{id}/document', [GateManifestController::class, 'document']);
+    Route::delete('/gate-manifests/{id}', [GateManifestController::class, 'destroy']);
     Route::get('/schedules/absences/{candidateId}', [ScheduleController::class, 'absences']);
     // قائمة الغائبين — مجمَّعةً لمسؤول الجدولة. الموجود كان مساراً لمشاركٍ
     // واحدٍ بمعرّفه، فمن أراد أن يعرف من غاب لزمه أن يعرف أسماءهم أوّلاً.

@@ -97,6 +97,9 @@ class PlatformReset extends Command
         'assessment_stations',
         // طلبات التأجيل — تخصّ جلساتٍ بعينها، فتذهب معها
         'postponement_requests',
+        // بيان البوّابة وصفوفه — يخصّ يوماً بعينه، فيذهب معه
+        'gate_manifests',
+        'gate_manifest_entries',
         'attendance',
         'audit_logs',
         'candidate_cvs',

@@ -233,8 +233,13 @@
 | POST | `/schedules` | `schedule.manage` | جدولة جلسة |
 | PUT | `/schedules/{id}` | `schedule.manage` | تعديل (يُبطل الحضور عند تغيّر الموعد) |
 | DELETE | `/schedules/{id}` | `schedule.manage` | حذف (يُمنع بعد الحضور) |
-| GET | `/schedules/permits` | `schedule.view` | تصاريح دخول اليوم — `?date`، `?sectorId`، و`&showName=1` لحاملي `candidate.view_names` وحدهم |
 | GET | `/schedules/absences/{candidateId}` | `schedule.view` | جلسات غياب قابلة لإعادة الجدولة |
+| GET | `/gate-manifests` | **بيان تصاريح الدخول** — `?date` (الافتراضي اليوم) ← `{date, manifest{…rows[{name,nationalId,rank,sector}]…}, scheduledCount, canManage, canApprove}`. **ولا رمز في صفوفه**: أداةٌ داخلية لا يعرفها الحارس، والمطابقة عنده باسمٍ وهوية (`gate_manifest.manage` أو `.approve`) |
+| POST | `/gate-manifests` | **الاستقبال يجهّز** — `{date, gateTime, location?, note?}` ← البيان (٢٠١). الموعد يُكتب بيدٍ ليتّفق مع خطاب القطاع ولا يُشتقّ من أبكر جلسة. **وصفوفُه تُثبَّت لا تُشتقّ**: جلسةٌ تُضاف بعد الإعداد لا تُدخِل من لم يُعتمَد اسمُه. بيانٌ واحدٌ لليوم، ولا بيان بلا أسماء ٤٢٢ (`gate_manifest.manage`) |
+| POST | `/gate-manifests/{id}/submit` | إرسالُه لمدير المركز ويُشعَر أصحابُ `gate_manifest.approve` (`gate_manifest.manage`) |
+| POST | `/gate-manifests/{id}/approve` | **مدير المركز يعتمد** — ويُشعَر مُعِدُّه. لا يُعتمد إلا مُرسَل ٤٢٢، **ومن يُعدّ لا يعتمد** (`gate_manifest.approve`) |
+| GET | `/gate-manifests/{id}/document` | الورقة (HTML) — الاسم · رقم الهوية · الرتبة أو المرتبة، وفي أسفلها **ختمُ مدير المركز وتاريخ اعتماده**. **ولا يخرج بيانٌ غير معتمَد** ٤٢٢، وكلُّ إخراجٍ يُدقَّق (`gate_manifest.manage`) |
+| DELETE | `/gate-manifests/{id}` | حذفُ مسوّدةٍ أو معلّق — **والمعتمَد لا يُحذف** ٤٢٢: أُذِن به وأثرُ الإذن يبقى (`gate_manifest.manage`) |
 | GET | `/schedules/absentees` | **قائمة الغائبين** مجمَّعةً لمسؤول الجدولة — `?from`/`?to` (الافتراضي أسبوعان للخلف) · `?periodId` · `?handled=1`. تُرجع `absentees[{scheduleId,candidateId,participantCode,sector,date,time,activityLabel,evaluator,excused,reason,recordedBy,rescheduledTo}]` و`totals`. **الغياب يبقى على اليوم الذي جُدول فيه** — نقلُه يمحو أن المقعد حُجز وتُرك فارغاً. و**المعالَج يُخفى افتراضاً**: القائمة أداةُ قرارٍ لا سجلٌّ للقراءة (`schedule.view`) |
 | GET | `/postponements` | **طلبات التأجيل** — `?status` (الافتراضي `pending`) · `?candidateId`. تُرجع `requests[{id,participantCode,sessionDate,stationLabel,reason,status,statusLabel,decisionNote,newDate,requestedBy,decidedBy,…}]` و`canDecide` و`pendingCount`. **المعلّقة أوّلاً**: الشاشة أداةُ بتٍّ لا سجلّ (`postpone.request` أو `postpone.decide`) |
 | POST | `/postponements` | **الاستقبال يرفع** — `{scheduleId, reason}` ← الطلب (٢٠١). السبب إلزاميّ: الطلب كلُّه سببٌ يُقرأ عند البتّ. وطلبٌ معلّقٌ ثانٍ على الجلسة نفسها يُردّ ٤٢٢ — البتُّ في أحدهما لا يعني شيئاً للآخر؛ والمبتوت لا يمنع طلباً جديداً. ويُشعَر أصحابُ `postpone.decide` (`postpone.request`) |
