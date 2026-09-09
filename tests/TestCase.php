@@ -11,6 +11,7 @@ use App\Models\Sector;
 use App\Models\TechnicalArea;
 use App\Models\User;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 
 abstract class TestCase extends BaseTestCase
@@ -154,6 +155,21 @@ abstract class TestCase extends BaseTestCase
                 'studyPlace' => 'السعودية',
             ]],
         ], $overrides);
+    }
+
+    /**
+     * حصرُ محطّات الدورة فيما يُختبَر فعلاً.
+     *
+     * الاكتمال صار يُقاس على المحطّات المختارة، والافتراضي ثلاث. فاختبارٌ
+     * يُجري المقابلة وحدها ويتوقّع «تمّ تقييمه» يجب أن يُعلن دورتَه دورةً
+     * ذات محطّةٍ واحدة — وهو **تقييمٌ جزئيّ** يقبله النظام صراحةً، لا حيلةٌ
+     * تلتفّ على القاعدة.
+     */
+    protected function requireStations(Assessment $assessment, array $stations): void
+    {
+        DB::table('assessment_stations')->where('assessment_id', $assessment->id)
+            ->whereNotIn('station', $stations)->delete();
+        $assessment->unsetRelation('stations');
     }
 
     /**

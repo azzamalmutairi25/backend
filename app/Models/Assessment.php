@@ -40,6 +40,29 @@ class Assessment extends Model
         return self::TYPE_LABELS[$type] ?? self::TYPE_LABELS['comprehensive'];
     }
 
+    /**
+     * كل دورةٍ تُولَد بمحطّاتها الثلاث.
+     *
+     * في النموذج لا في المتحكّم: الدورة تُنشأ من ستّة مواضع (الإضافة،
+     * والاستيراد، والبوّابة، والكشك، والاختبارات…)، وافتراضٌ يُكتب في كلٍّ
+     * منها يُنسى في أحدها — فتخرج دورةٌ بلا محطّة، وهي **لا تكتمل أبداً**.
+     */
+    protected static function booted(): void
+    {
+        static::created(function (Assessment $assessment) {
+            $now = now();
+            DB::table('assessment_stations')->insertOrIgnore(
+                collect(self::STATIONS)->map(fn ($s, $i) => [
+                    'assessment_id' => $assessment->id,
+                    'station' => $s,
+                    'sort_order' => $i,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ])->all()
+            );
+        });
+    }
+
     protected $casts = [
         'confirmed_at' => 'datetime',
         'arrived_at' => 'datetime',
@@ -103,6 +126,115 @@ class Assessment extends Model
                 ? json_decode(Crypt::decryptString($this->cv_snapshot_enc), true)
                 : null,
         );
+    }
+
+    // ══════════════════════════════════════════════════════
+    //  المحطّات — والاكتمال يُقاس على ما اختير لا على ثلاثٍ محفورة
+    // ══════════════════════════════════════════════════════
+
+    public const STATIONS = ['interview', 'discussion', 'measurement'];
+
+    public const STATION_LABELS = [
+        'interview' => 'المقابلة الشخصية',
+        'discussion' => 'حلقة النقاش',
+        'measurement' => 'أدوات القياس',
+    ];
+
+    public static function stationLabel(?string $station): string
+    {
+        return self::STATION_LABELS[$station] ?? (string) $station;
+    }
+
+    public function stations(): HasMany
+    {
+        return $this->hasMany(AssessmentStation::class)->orderBy('sort_order')->orderBy('id');
+    }
+
+    /** المحطّات المطلوبة لهذه الدورة — بترتيب المرور */
+    public function chosenStations(): array
+    {
+        return $this->relationLoaded('stations')
+            ? $this->stations->pluck('station')->all()
+            : $this->stations()->pluck('station')->all();
+    }
+
+    /**
+     * المحطّات المُنجَزة — **من مصدرين لا من واحد**.
+     *
+     * المقابلة وحلقة النقاش تُنجَزان بتقييمٍ مُرسَل. أمّا أدوات القياس فلا
+     * تمرّ بالرصد أصلاً: نتيجتها تُدخَل في `measurement_results`، ولا تُكتب
+     * لها `evaluation` قطّ. فقياسُ الاكتمال من التقييمات وحدها كان يجعل
+     * محطّةَ القياس مستحيلةً على الدوام، ودورةً تحملها لا تكتمل أبداً.
+     */
+    public function completedStations(): array
+    {
+        // «مُرسَل فما فوق» لا «مُرسَل» وحدها: التقييم يمضي draft ← submitted ←
+        // approved، فحصرُه في الوسط يُسقط كلَّ ما اعتمده المدير — وهو أتمُّ
+        // الحالات. القياس على «خرج من المسوّدة»، لا على وقوفه في محطّة بعينها.
+        $done = DB::table('evaluations')
+            ->where('assessment_id', $this->id)
+            ->whereIn('status', ['submitted', 'approved'])
+            ->whereIn('activity', self::STATIONS)
+            ->pluck('activity')
+            ->all();
+
+        if (DB::table('measurement_results')->where('assessment_id', $this->id)->exists()) {
+            $done[] = 'measurement';
+        }
+
+        return array_values(array_unique($done));
+    }
+
+    /** ما بقي من محطّاته — يُرفع إنذاراً للاستقبال باسمه */
+    public function missingStations(): array
+    {
+        return array_values(array_diff($this->chosenStations(), $this->completedStations()));
+    }
+
+    /**
+     * أتمّ كلَّ محطّاته؟
+     *
+     * ودورةٌ بلا محطّةٍ واحدة **ليست مكتملة**: صفٌّ ناقصٌ في البيانات لا
+     * يُقرأ كإنجازٍ تامّ. والافتراضي يُكتب عند الإنشاء فلا تقع هذه الحال إلا
+     * بحذفٍ يدويّ.
+     */
+    public function stationsComplete(): bool
+    {
+        $chosen = $this->chosenStations();
+
+        return $chosen !== [] && $this->missingStations() === [];
+    }
+
+    /**
+     * يقلب المشارك إلى «تمّ تقييمه» إن أتمّ محطّاته — وإلا يتركه.
+     *
+     * يُستدعى من كل ما يُنجز محطّة: إرسالُ تقييم، وحفظُ نتيجة قياس، وتغييرُ
+     * قائمة المحطّات نفسها. ونقطةٌ واحدة لا ثلاث: القاعدة تتفرّع عند أوّل
+     * تعديل، فيقلب أحدُ المسارات ما لا يقلبه الآخر.
+     *
+     * **ولا يحطّ أحداً عن حالته**: من صار «تمّ تقييمه» يبقى. الإرجاع يُبطلها
+     * في مساره وحده، حيث يُقرأ السبب ويُكتب.
+     */
+    public function syncAssessedStatus(): bool
+    {
+        if (! $this->stationsComplete()) {
+            return false;
+        }
+
+        $candidate = $this->candidate ?? Candidate::find($this->candidate_id);
+        if ($candidate && $candidate->status === 'scheduled') {
+            $candidate->setStatus('assessed');
+
+            return true;
+        }
+        // الدورة قد تتقدّم وحدها إن كان المشارك في دورةٍ أحدث
+        if ($this->status === 'scheduled') {
+            $this->update(['status' => 'assessed']);
+
+            return true;
+        }
+
+        return false;
     }
 
     // مجمَّدة = التُقِطت لقطة فعلاً أو تجاوزت الدورة مرحلة الرصد. لا نقفل لمجرّد

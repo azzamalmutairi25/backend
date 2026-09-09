@@ -75,6 +75,8 @@ class CorrectnessRegressionTest extends TestCase
     {
         [$c, $a] = $this->makeCandidate(['status' => 'scheduled']);
         $ids = $this->linkCompetencies('interview', 2);
+        // محطّةٌ واحدة — فالمقابلة وحدها تُكمل الدورة، ويبقى الإرجاع هو المُختبَر
+        $this->requireStations($a, ['interview']);
 
         $this->actingAsRole('EVALUATOR');
         $evalId = $this->postJson('/api/evaluations/start', ['candidateId' => $c->id, 'activity' => 'interview'])

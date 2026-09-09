@@ -227,6 +227,8 @@
 | GET | `/assessor-absences` | إجازات المستشارين — `?periodId=` يفلتر بالتداخل مع مدى الفترة لا بالمساواة، و`?userId=` بمستشارٍ بعينه. تُرجع `absences[{id, userId, userName, userCode, fromDate, toDate, reason, reasonLabel, note}]` (`schedule.manage`) |
 | POST | `/assessor-absences` | تسجيل غياب — `{userId, fromDate, toDate, reason (leave/training/discussion/other), periodId?, note?}` ← `{message, id}` (٢٠١)؛ التداخل مع غيابٍ مسجَّل ٤٢٢. **ولا بديل يُعيَّن**: المسؤول يعيد توزيع الأعداد بنفسه |
 | DELETE | `/assessor-absences/{id}` | حذف سجلّ غياب ← `{message}`؛ غير الموجود ٤٠٤ |
+| GET | `/assessments/{id}/stations` | **محطّات الدورة** — `{assessmentId, stations[{key,label,done}], missing[], complete, available[]}`. المحطّات ثلاث (`interview`/`discussion`/`measurement`) والافتراضي كلُّها، و**الاكتمال يُقاس على ما اختير** لا على ثلاثٍ محفورة (`schedule.view`) |
+| PUT | `/assessments/{id}/stations` | تغيير المطلوب — `{stations:[…]}` بالترتيب الذي يُمرَّر به. واحدةٌ على الأقلّ وإلا ٤٢٢: دورةٌ بلا محطّة تكتمل لحظة إنشائها. و**محطّةٌ أُنجزت لا تُنزَع** ٤٢٢ — نزعُها يمحو عملاً وقع وقد يُكمل الدورة بإسقاط ما لم يُؤدَّ. وتقليصُ القائمة قد يُكمل الدورة، فتُعاد الحالة في `completed` (`schedule.manage`) |
 | GET | `/schedules` | `schedule.view` | قائمة الجلسات (نافذة متدحرجة + سقف) — `?periodId` يحصرها بموجة |
 | POST | `/schedules` | `schedule.manage` | جدولة جلسة |
 | PUT | `/schedules/{id}` | `schedule.manage` | تعديل (يُبطل الحضور عند تغيّر الموعد) |

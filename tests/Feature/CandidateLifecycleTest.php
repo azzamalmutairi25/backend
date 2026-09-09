@@ -41,6 +41,9 @@ class CandidateLifecycleTest extends TestCase
     {
         [$c, $a] = $this->makeCandidate(['status' => 'draft', 'assessmentStatus' => 'draft']);
         $ids = $this->linkCompetencies('interview', 2);
+        // دورةٌ بمحطّةٍ واحدة — تقييمٌ جزئيّ يقبله النظام صراحةً. والاكتمال
+        // يُقاس على ما اختير، فلا تُقلَب الحالة بأوّل تقييمٍ من ثلاثة.
+        $this->requireStations($a, ['interview']);
         $this->actingAsRole('ADMIN'); // كل الصلاحيات — فاعل واحد يقود الدورة كاملة
 
         // 1) اعتماد: draft → scheduled (المشارك + الدورة)

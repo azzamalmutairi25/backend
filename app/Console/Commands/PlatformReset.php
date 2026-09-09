@@ -93,6 +93,8 @@ class PlatformReset extends Command
         // خلايا شبكة المستشارين — خطّةُ فترةٍ بعينها، تذهب معها
         'period_grid_cells',
         'assessments',
+        // محطّات الدورة — تُولَد معها وتذهب بذهابها
+        'assessment_stations',
         'attendance',
         'audit_logs',
         'candidate_cvs',

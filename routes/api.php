@@ -303,6 +303,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/assessor-absences', [AssessorAbsenceController::class, 'store']);
     Route::delete('/assessor-absences/{id}', [AssessorAbsenceController::class, 'destroy']);
 
+    // ── محطّات الدورة — تُحدَّد عند الجدولة، والاكتمال يُقاس عليها ──
+    // ولا يصير المشارك «تمّ تقييمه» حتى تتمّ كلُّها، فلا يُكتب تقريرٌ على ثلثِ صورة.
+    Route::get('/assessments/{id}/stations', [ScheduleController::class, 'stations']);
+    Route::put('/assessments/{id}/stations', [ScheduleController::class, 'saveStations']);
+
     Route::get('/schedules', [ScheduleController::class, 'index']);
     Route::post('/schedules', [ScheduleController::class, 'store']);
     Route::put('/schedules/{id}', [ScheduleController::class, 'update']);

@@ -843,4 +843,134 @@ class ScheduleController extends Controller
             'scheduleId' => $new->id,
         ], 201);
     }
+
+    // ═══════════════════════════════════════════════════════
+    //  محطّات الدورة — تُحدَّد عند الجدولة، والاكتمال يُقاس عليها
+    // ═══════════════════════════════════════════════════════
+
+    // GET /assessments/{id}/stations
+    public function stations(Request $request, int $id)
+    {
+        if (! $request->user()->hasPermission(Permissions::SCHEDULE_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض الجدولة'], 403);
+        }
+
+        $assessment = $this->assessmentInScope($request, $id);
+        if (! $assessment) {
+            return response()->json(['error' => 'الدورة غير موجودة'], 404);
+        }
+
+        return response()->json($this->stationsPayload($assessment));
+    }
+
+    /**
+     * PUT /assessments/{id}/stations — تغيير المحطّات المطلوبة.
+     *
+     * الترتيب يُحفظ كما وصل: المرور يُرتَّب لكل مشارك، ولا ترتيب محفور.
+     */
+    public function saveStations(Request $request, int $id)
+    {
+        if (! $request->user()->hasPermission(Permissions::SCHEDULE_MANAGE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية إدارة الجدولة'], 403);
+        }
+
+        $assessment = $this->assessmentInScope($request, $id);
+        if (! $assessment) {
+            return response()->json(['error' => 'الدورة غير موجودة'], 404);
+        }
+
+        $validated = $request->validate([
+            // واحدةٌ على الأقلّ: دورةٌ بلا محطّة تكتمل لحظة إنشائها، فيُفتح
+            // بابُ التقرير على لا شيء
+            'stations' => 'required|array|min:1|max:3',
+            'stations.*' => 'required|string|distinct|in:'.implode(',', Assessment::STATIONS),
+        ], [
+            'stations.required' => 'لكل دورةٍ محطّةٌ واحدة على الأقلّ',
+            'stations.min' => 'لكل دورةٍ محطّةٌ واحدة على الأقلّ',
+        ]);
+
+        $wanted = array_values($validated['stations']);
+
+        // ── ولا تُنزَع محطّةٌ أُنجزت ──
+        // نزعُها يمحو عملاً وقع: التقييم يبقى في القاعدة ويغذّي التقرير،
+        // وقائمةُ المطلوب تُنكره. والأسوأ أنّ نزعها قد يُكمل الدورة فجأةً
+        // بإسقاط ما لم يُؤدَّ بعد.
+        $removedDone = array_intersect(
+            array_diff($assessment->chosenStations(), $wanted),
+            $assessment->completedStations()
+        );
+        if ($removedDone) {
+            return response()->json([
+                'errors' => ['stations' => ['لا تُنزَع محطّةٌ أُنجزت: '
+                    .implode('، ', array_map([Assessment::class, 'stationLabel'], $removedDone))]],
+            ], 422);
+        }
+
+        $before = $assessment->chosenStations();
+        $now = now();
+
+        DB::transaction(function () use ($assessment, $wanted, $now) {
+            DB::table('assessment_stations')->where('assessment_id', $assessment->id)
+                ->whereNotIn('station', $wanted)->delete();
+
+            foreach ($wanted as $i => $station) {
+                DB::table('assessment_stations')->updateOrInsert(
+                    ['assessment_id' => $assessment->id, 'station' => $station],
+                    ['sort_order' => $i, 'updated_at' => $now, 'created_at' => $now]
+                );
+            }
+        });
+
+        // تقليصُ القائمة قد يُكمل الدورة — والحالة تتبع المحطّات لا العكس
+        $assessment->unsetRelation('stations')->loadMissing('candidate');
+        $flipped = $assessment->syncAssessedStatus();
+
+        AuditLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'SET_ASSESSMENT_STATIONS',
+            'entity_type' => 'assessment',
+            'entity_id' => (string) $assessment->id,
+            'details' => ['before' => $before, 'after' => $wanted, 'completed' => $flipped],
+            'ip_address' => $request->ip(),
+            'created_at' => now(),
+        ]);
+
+        return response()->json($this->stationsPayload($assessment->fresh())
+            + ['message' => 'حُفظت محطّات الدورة', 'completed' => $flipped]);
+    }
+
+    private function stationsPayload(Assessment $a): array
+    {
+        $done = $a->completedStations();
+
+        return [
+            'assessmentId' => $a->id,
+            'stations' => collect($a->chosenStations())->map(fn ($s) => [
+                'key' => $s,
+                'label' => Assessment::stationLabel($s),
+                'done' => in_array($s, $done, true),
+            ])->values(),
+            'missing' => collect($a->missingStations())
+                ->map(fn ($s) => Assessment::stationLabel($s))->values(),
+            'complete' => $a->stationsComplete(),
+            'available' => collect(Assessment::STATIONS)->map(fn ($s) => [
+                'key' => $s, 'label' => Assessment::stationLabel($s),
+            ])->values(),
+        ];
+    }
+
+    // نطاق المستخدم كاملاً — الدورة تتبع مشاركها في التصنيف والقطاع
+    private function assessmentInScope(Request $request, int $id): ?Assessment
+    {
+        $user = $request->user();
+
+        return Assessment::with(['stations', 'candidate'])
+            ->whereHas('candidate', function ($q) use ($request, $user) {
+                $q->whereIn('classification', $this->allowedClassifications($request));
+                if ($user->isSectorBound()) {
+                    $q->whereIn('sector_id', $user->sectorIds());
+                }
+            })
+            ->find($id);
+    }
 }

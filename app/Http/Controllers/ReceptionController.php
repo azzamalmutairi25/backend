@@ -115,7 +115,7 @@ class ReceptionController extends Controller
 
         if ($manages) {
             $rows = ReceptionVisit::with([
-                'candidate.sector', 'candidate.cv', 'assessment',
+                'candidate.sector', 'candidate.cv', 'assessment.stations',
                 'assignments.evaluator',
             ])
                 ->whereDate('visit_date', $date)
@@ -193,6 +193,18 @@ class ReceptionController extends Controller
             'cvApprovedAt' => $v->cv_approved_at?->format('H:i'),
             'cvVersion' => $c->cv?->version,
             'sentAt' => $v->sent_at?->format('H:i'),
+            // ── التقدّم على محطّاته المختارة ──
+            // موقعٌ لا نتيجة: الاستقبال يعرف أين وصل ولا يرى درجةً ولا رأياً.
+            // والناقص يُسمّى — «بقيت حلقة النقاش» تُقرأ، و«٢ من ٣» لا تُقرأ.
+            'stations' => $v->assessment ? collect($v->assessment->chosenStations())
+                ->map(fn ($k) => [
+                    'key' => $k,
+                    'label' => Assessment::stationLabel($k),
+                    'done' => in_array($k, $v->assessment->completedStations(), true),
+                ])->values()->all() : [],
+            'missingStations' => $v->assessment
+                ? array_map([Assessment::class, 'stationLabel'], $v->assessment->missingStations())
+                : [],
             'assignments' => $v->assignments->map(fn (ReceptionAssignment $a) => [
                 'id' => $a->id,
                 'activity' => $a->activity,
