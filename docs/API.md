@@ -178,7 +178,7 @@
 | POST | `/reception/visits/{id}/cv/approve` | **اعتماد السيرة** — بوّابةُ البطاقة والإرسال معاً ← `{approved, approvedAt}`. سيرةٌ فارغة تُردّ ٤٢٢: لا شهادة على فراغ. والاعتماد فعلُ **زيارةِ يومٍ بعينه** لا صفةٌ دائمة في السيرة (`reception.cv_approve`) |
 | GET | `/reception/visits/{id}/cv/revisions` | سجلّ الإصدارات — `revisions[{version, changed[], changedLabels, source, note, by, at}]` (٥٠ الأحدث). **الوثائق نفسها لا تُرسَل**: السطر يقول ماذا تغيّر ومن ومتى، والوثيقة الحيّة تُقرأ من مسارها (صلاحية قراءة سيرة الزيارة) |
 | POST | `/reception/send` | **إرسال قوائم اليوم للمستشارين دفعةً** — `{date?}` ← `{sent, schedulesCreated, blocked[{visitId, code, reason}], message}`. يُرحّل كلَّ من وقّع واعتُمدت سيرته واستُلم إسنادُه، ويُجمّد سيرته، ويختم `sent_at`. **ولا يُخفي ما عجز عنه**: من لم يُرسَل يعود باسمه وسببه (`reception.approve`) |
-| DELETE | `/reception/assignments/{id}` | `reception.assign` | سحب إسناد |
+| DELETE | `/reception/assignments/{id}` | **سحب الإسناد — بسببٍ مكتوب** `{reason}` (إلزاميّ ٤٢٢ بدونه): التبديل يقع بلا موافقة أحد، فالسببُ كلُّ ما يبقى من القرار. و**المستلَم يُسحب أيضاً** — من استلم ثم غاب أو انشغل لم يكن لحاله مخرجٌ البتّة. والمردود لا يُسحب ٤٢٢ (سببُه مكتوبٌ أصلاً). **وجلسةٌ رُحّلت باسمه تُخلى منه** فلا يقول الجدولُ شيئاً والاستقبالُ غيرَه ← `{withdrawn, wasAccepted, scheduleCleared}` (`reception.assign`) |
 | GET | `/reception/assignments/{id}/cv` | `reception.decide` | **سيرة بالرمز — بلا اسم ولا هوية أبداً** (قاعدة إجراء لا صلاحية) |
 | POST | `/reception/assignments/{id}/accept` | `reception.decide` | قبول المشارك |
 | POST | `/reception/assignments/{id}/reject` | `reception.decide` | ردّه للعمليات بسبب (٣–٥٠٠ حرف) |
@@ -188,7 +188,7 @@
 | الطريقة | المسار | الصلاحية | الغرض |
 |---|---|---|---|
 | GET | `/candidates/{id}/cv` | `candidate.cv_view` | عرض السيرة (إدارة) |
-| PUT | `/candidates/{id}/cv` | `candidate.edit` | حفظ/تعديل السيرة |
+| PUT | `/candidates/{id}/cv` | `candidate.edit` | حفظ/تعديل السيرة. **وسيرةٌ مجمَّدة تُقال قبل أن تُكتب**: ٤٠٩ مع `frozen{at,version,code}` — اللقطة يقرؤها المستشار والتعديلُ لا يصل إليه. ولا يُمنع: `acknowledgeFrozen` يمضي به (للدورة القادمة) ويُقيَّد `afterFreeze` |
 | GET | `/candidates/{id}/cv/document` | `candidate.cv_view` | نموذج السيرة مطبوعاً (المتصفّح → PDF) |
 | GET | `/evaluations/{id}/cv` | `evaluation.view` | سيرة مُجهّلة للمقيّم (لقطة مجمّدة) |
 

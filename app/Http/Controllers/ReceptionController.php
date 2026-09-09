@@ -838,6 +838,26 @@ class ReceptionController extends Controller
     }
 
     // ── سحب إسناد لم يُبتّ فيه ──
+    /**
+     * سحب الإسناد — **بسببٍ مكتوب دائماً**.
+     *
+     * ── لماذا صار السبب إلزامياً ──
+     * التبديل يقع بلا موافقة أحد: «الاستقبال يبدّل بلا موافقة، ويُدوَّن
+     * السبب». فالسببُ هو كلُّ ما يبقى من القرار. وسحبٌ صامت يجعل مسؤول
+     * الجدولة يرى مستشاراً تغيّر ولا يعرف أمريضٌ كان أم ردّ المشارك أم
+     * انشغل — وهي ثلاثةُ أحوالٍ يُبنى على كلٍّ منها إجراءٌ مختلف.
+     *
+     * ── ولماذا يُسحب المستلَم أيضاً ──
+     * كان السحب مقصوراً على المعلّق، والبتُّ مقصوراً على المعلّق كذلك. فمتى
+     * استلم المستشارُ المشاركَ ثم غاب أو انشغل، لم يكن للحال مخرجٌ البتّة:
+     * لا يُسحب منه ولا يردّه — والمشارك واقفٌ في الردهة. وهي أكثر حالات
+     * التبديل وقوعاً يوم التنفيذ.
+     *
+     * ── والجلسة المُرحَّلة تتبع التبديل ──
+     * مسار الاستقبال كان موازياً لجدول الجلسات لا محرِّراً له: إسنادٌ رُحّل
+     * ثم سُحب كان يترك جلسته باسم المستشار القديم. فالجدول يقول شيئاً
+     * والاستقبال يقول غيره، ويُبنى على المتناقضين حضورٌ وتقييم.
+     */
     public function withdraw(Request $request, int $id)
     {
         $user = $request->user();
@@ -845,19 +865,48 @@ class ReceptionController extends Controller
             return $this->deny('ليس لديك صلاحية سحب الإسناد');
         }
 
-        $assignment = $this->findAssignment($request, $id);
+        $assignment = $this->findAssignment($request, $id, ['visit.assessment', 'evaluator']);
         if (! $assignment) {
             return response()->json(['error' => 'الإسناد غير موجود'], 404);
         }
-        // المستلَم لا يُسحب من تحت المقيّم — يُردّ منه أو يُعتمد
-        if ($assignment->status !== ReceptionAssignment::PENDING) {
-            return response()->json(['error' => 'لا يُسحب إسنادٌ بُتّ فيه'], 422);
+        // المردود انتهى أمرُه — سحبُه لا يعني شيئاً، وسببُه مكتوبٌ أصلاً
+        if ($assignment->status === ReceptionAssignment::REJECTED) {
+            return response()->json(['error' => 'الإسناد مردودٌ أصلاً — أسنِده لغيره'], 422);
         }
 
-        $assignment->delete();
-        $this->log($request, 'RECEPTION_WITHDRAW', $id, ['visit' => $assignment->visit_id]);
+        $validated = $request->validate([
+            'reason' => 'required|string|min:3|max:300',
+        ], [
+            'reason.required' => 'اكتب سبب السحب — التبديل يقع بلا موافقة، فالسببُ كلُّ ما يبقى منه',
+        ]);
 
-        return response()->json(['withdrawn' => true]);
+        $wasAccepted = $assignment->status === ReceptionAssignment::ACCEPTED;
+        $scheduleId = $assignment->schedule_id;
+
+        DB::transaction(function () use ($assignment, $scheduleId) {
+            // جلسةٌ رُحّلت باسم هذا المستشار تُخلى منه: تركُها تجعل الجدول
+            // يقول شيئاً والاستقبال يقول غيره
+            if ($scheduleId) {
+                Schedule::whereKey($scheduleId)->update(['evaluator_id' => null]);
+            }
+            $assignment->delete();
+        });
+
+        $this->log($request, 'RECEPTION_WITHDRAW', $id, [
+            'visit' => $assignment->visit_id,
+            'code' => $assignment->visit?->assessment?->participant_code,
+            'activity' => $assignment->activity,
+            'from' => $assignment->evaluator?->full_name,
+            'wasAccepted' => $wasAccepted,
+            'scheduleCleared' => $scheduleId,
+            'reason' => $validated['reason'],
+        ]);
+
+        return response()->json([
+            'withdrawn' => true,
+            'wasAccepted' => $wasAccepted,
+            'scheduleCleared' => $scheduleId !== null,
+        ]);
     }
 
     private function findAssignment(Request $request, int $id, array $with = []): ?ReceptionAssignment

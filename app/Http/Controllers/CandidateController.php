@@ -371,6 +371,26 @@ class CandidateController extends Controller
             return response()->json(['error' => 'السيرة تحوي اسم المشارك أو معرّفاً — أزِله', 'field' => $hit], 422);
         }
 
+        // ── والسيرة المجمَّدة تُقال قبل أن تُكتب ──
+        // اللقطة تُؤخذ لحظة إرسال الاستقبال، ويقرؤها المستشار. وتعديلُ
+        // الوثيقة الحيّة بعدها لا يصل إليه: تفترق «الحيّة» عن «اللقطة» صامتاً،
+        // فيظنّ المحرِّر أنه صحّح ما يُقيَّم عليه وقد صحّح نسخةً لا تُقرأ.
+        // ولا يُمنع — للدورة القادمة تُكتب السيرة حيّةً — لكنه يُقال صراحةً
+        // ويُطلَب تأكيدُه.
+        $frozen = $candidate->assessments()
+            ->whereNotNull('cv_snapshot_enc')->orderByDesc('id')->first();
+        if ($frozen && ! $request->boolean('acknowledgeFrozen')) {
+            return response()->json([
+                'error' => 'سيرةُ هذه الدورة مجمَّدة — التعديل لا يصل المستشار',
+                'frozen' => [
+                    'at' => $frozen->cv_snapshotted_at?->toIso8601String(),
+                    'version' => $frozen->cv_snapshot_version,
+                    'code' => $frozen->participant_code,
+                ],
+                'hint' => 'أعد الإرسال مع acknowledgeFrozen لتعديل الوثيقة الحيّة (للدورة القادمة)',
+            ], 409);
+        }
+
         $result = DB::transaction(function () use ($candidate, $clean, $request, $user) {
             Candidate::whereKey($candidate->id)->lockForUpdate()->first();
             $cv = CandidateCv::firstOrNew(['candidate_id' => $candidate->id]);
@@ -395,7 +415,12 @@ class CandidateController extends Controller
             return response()->json(['error' => 'عُدّلت السيرة، أعد التحميل'], 409);
         }
 
-        $this->log($request, 'CV_UPDATE', $id, ['code' => $candidate->participant_code]);
+        $this->log($request, 'CV_UPDATE', $id, [
+            'code' => $candidate->participant_code,
+            // تعديلٌ بعد التجميد يُقيَّد بصفته: يُسأل عنه حين يختلف ما قرأه
+            // المستشار عمّا في الملفّ
+            'afterFreeze' => $frozen !== null,
+        ]);
 
         return response()->json(['message' => 'تم حفظ السيرة', 'version' => $result->version]);
     }
