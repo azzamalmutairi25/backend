@@ -76,7 +76,7 @@
 | PATCH | `/candidates/{id}/employment` | `candidate.approve` | الحالة الوظيفية: على رأس العمل أو متقاعد — بيد مسؤول الجدولة وحده، لا ضمن التعديل العامّ |
 | PATCH | `/candidates/{id}/notes` | `candidate.edit` | حفظ ملاحظات المشارك وحدها — لا تشترط الهوية والاسم كما يشترطهما التعديل الكامل، فيكتبها من يرى المشارك بلا بياناته الشخصية |
 | GET | `/candidates/{id}/assessments` | `candidate.view` | دورات المشارك |
-| GET | `/candidates/{id}/journey` | `candidate.journey` | رحلة المشارك |
+| GET | `/candidates/{id}/journey` | **سير أحداث المشارك** — `journey[{type,at,title,meta,cycle,actor,status,icon}]` مرتّباً زمنياً. يجمع: أثرَ الكتابة على المشارك (الإضافة · الاعتماد · **صدور الرمز** بموجته · **تغيّر الحالة الوظيفية** بقيمتها العربية)، وأثرَ الاستقبال من قيود الزيارة (**حضر المركز** · صُحّحت سيرته بأسماء الحقول · **اعتمد الاستقبال سيرته** · طُبعت بطاقته · أُرسل للمستشارين)، و**إصدارات السيرة** برقمها وحقولها، والجلسات والحضور والتقييمات والتقرير، و**إتمام أدوات القياس** (لا تمرّ بالرصد فلا تظهر بتقييم). ومعه `stations{chosen,done,missing[],complete}` و`centreVisit{date,arrivedAt,signed,cvApproved,badgePrinted,sent}` (`candidate.journey` — **ولا يملكها الاستقبال**: الخطّ يحمل أحداث التقرير) |
 | POST | `/candidates/{id}/reassess` | `candidate.edit` | دورة تقييم جديدة |
 | GET | `/candidates/{id}/history` | `audit.view` | سجل تدقيق المشارك |
 | GET | `/candidates/{id}/interviewers` | `schedule.manage` | مستشارو المقابلة المؤهّلون |

@@ -696,9 +696,22 @@ class SchedulingPeriodController extends Controller
             // متى دخل صاحبه المنصّة، لا متى صدر
             $code = Assessment::generateParticipantCode($candidate->sector, $candidate->created_at);
 
-            DB::transaction(function () use ($assessment, $candidate, $code) {
+            DB::transaction(function () use ($assessment, $candidate, $code, $period) {
                 $assessment->forceFill(['participant_code' => $code])->save();
                 $candidate->forceFill(['participant_code' => $code])->save();
+
+                // ── ويُقيَّد باسم صاحبه ──
+                // كان الإصدار يُعَدّ في قيدٍ واحد لاعتماد الموجة: «صدر ٤٠ رمزاً».
+                // فلا يُعرف متى صدر رمزُ فلانٍ بعينه ولا في أي موجة — وهو أوّل
+                // ما يُسأل عنه حين يُنازَع في رمز.
+                AuditLog::create([
+                    'user_id' => auth()->id(),
+                    'action' => 'ISSUE_PARTICIPANT_CODE',
+                    'entity_type' => 'candidate',
+                    'entity_id' => (string) $candidate->id,
+                    'details' => ['code' => $code, 'period' => $period->name],
+                    'created_at' => now(),
+                ]);
             });
             $issued++;
         }

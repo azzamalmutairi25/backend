@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Models\Notification;
 use App\Models\Schedule;
 use App\Models\SchedulingPeriod;
-use App\Models\User;
 use App\Security\Permissions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;

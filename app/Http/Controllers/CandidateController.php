@@ -7,7 +7,9 @@ use App\Models\Assessment;
 use App\Models\AuditLog;
 use App\Models\Candidate;
 use App\Models\CandidateCv;
+use App\Models\CandidateCvRevision;
 use App\Models\CandidateUpdateRequest;
+use App\Models\MeasurementResult;
 use App\Models\ReceptionVisit;
 use App\Models\Schedule;
 use App\Models\Sector;
@@ -1046,6 +1048,23 @@ class CandidateController extends Controller
         'APPROVE_CANDIDATE' => ['اعتُمد المشارك', 'check'],
         'RECLASSIFY_CANDIDATE' => ['غُيّرت الدرجة', 'lock'],
         'CV_UPDATE' => ['عُدّلت السيرة الذاتية', 'file'],
+        // ── ثلاثةٌ كانت تُقيَّد ولا تُعرَض ──
+        // القيدُ موجودٌ في القاعدة منذ بُنيت مساراتُه، والقائمة البيضاء وحدها
+        // كانت تحجبه. وأثرٌ يُكتب ولا يُقرأ كأنه لم يُكتب.
+        'ISSUE_PARTICIPANT_CODE' => ['صدر رمز المشارك', 'award'],
+        'UPDATE_EMPLOYMENT_STATUS' => ['تغيّرت الحالة الوظيفية', 'user'],
+        'DELETE_CANDIDATE_NOTE' => ['حُذفت ملاحظة', 'trash'],
+    ];
+
+    // أحداث الاستقبال — قيودُها على الزيارة لا على المشارك، فتُجمَع بمعرّفات
+    // زياراته. وهي من أكثر ما يُسأل عنه: متى دخل المركز، ومتى طُبعت بطاقته،
+    // ومن اعتمد سيرته قبل أن تصل المستشار.
+    private const VISIT_ACTIONS = [
+        'RECEPTION_ARRIVE' => ['حضر إلى المركز', 'check'],
+        'RECEPTION_CV_UPDATE' => ['صُحّحت سيرته عند الاستقبال', 'edit'],
+        'RECEPTION_CV_APPROVE' => ['اعتمد الاستقبال سيرته', 'check'],
+        'RECEPTION_BADGE_PRINTED' => ['طُبعت بطاقته', 'printer'],
+        'RECEPTION_APPROVE' => ['أرسله الاستقبال للمستشارين', 'send'],
     ];
 
     private function writeTrail(Candidate $candidate): array
@@ -1064,9 +1083,59 @@ class CandidateController extends Controller
             [$title, $icon] = self::WRITE_ACTIONS[$log->action];
             $events[] = [
                 'type' => 'audit', 'at' => optional($log->created_at)->toIso8601String(),
-                'title' => $title, 'meta' => null, 'cycle' => null,
+                'title' => $title,
+                // تفصيلُ القيد يُعرَض حين يحمل معنىً: أيُّ موجةٍ أصدرت الرمز،
+                // وإلى أيّ حالٍ تغيّرت الحالة الوظيفية. قيدٌ بلا تفصيلٍ يُقرأ
+                // «حدث شيء» ولا يُجيب عن سؤالٍ واحد.
+                'meta' => $log->action === 'UPDATE_EMPLOYMENT_STATUS'
+                    ? Candidate::employmentStatusLabel($log->details['to'] ?? null)
+                    : ($log->details['period'] ?? null),
+                'cycle' => $log->details['code'] ?? null,
                 'actor' => $log->user_id ? ($names[$log->user_id] ?? 'مستخدم محذوف') : 'النظام',
                 'status' => null, 'icon' => $icon,
+            ];
+        }
+
+        // ── أثر الاستقبال ──
+        // قيودُه معلّقةٌ على الزيارة لا على المشارك، فتُجمَع بمعرّفات زياراته.
+        $visitIds = DB::table('reception_visits')->where('candidate_id', $candidate->id)->pluck('id');
+        if ($visitIds->isNotEmpty()) {
+            $visitLogs = AuditLog::where('entity_type', 'reception')
+                ->whereIn('entity_id', $visitIds->map(fn ($i) => (string) $i))
+                ->whereIn('action', array_keys(self::VISIT_ACTIONS))
+                ->orderBy('created_at')
+                ->get();
+
+            $visitNames = User::whereIn('id', $visitLogs->pluck('user_id')->filter()->unique())
+                ->pluck('full_name', 'id');
+
+            foreach ($visitLogs as $log) {
+                [$title, $icon] = self::VISIT_ACTIONS[$log->action];
+                // تصحيحُ السيرة يقول **ماذا** تغيّر — لا «عُدّلت» وحدها
+                $changed = $log->details['changed'] ?? null;
+                $events[] = [
+                    'type' => 'reception', 'at' => optional($log->created_at)->toIso8601String(),
+                    'title' => $title,
+                    'meta' => $changed
+                        ? collect($changed)->map(fn ($k) => CandidateCvRevision::fieldLabel($k))->implode('، ')
+                        : null,
+                    'cycle' => $log->details['code'] ?? null,
+                    'actor' => $log->user_id ? ($visitNames[$log->user_id] ?? 'مستخدم محذوف') : 'النظام',
+                    'status' => null, 'icon' => $icon,
+                ];
+            }
+        }
+
+        // ── إصدارات السيرة ──
+        // من الجدول لا من التدقيق: التدقيق يقول «عُدّلت»، والإصدار يقول رقمَه
+        // والحقولَ التي تغيّرت — وهو ما يُسأل عنه حين يُنازَع في سيرة.
+        foreach ($candidate->cvRevisions()->with('createdBy:id,full_name')->get()->reverse() as $rev) {
+            $events[] = [
+                'type' => 'cv_revision', 'at' => optional($rev->created_at)->toIso8601String(),
+                'title' => 'إصدار السيرة رقم '.$rev->version,
+                'meta' => $rev->changedLabels() ?: null,
+                'cycle' => null, 'actor' => $rev->createdBy?->full_name, 'status' => null,
+                'icon' => 'file',
             ];
         }
 
@@ -1207,6 +1276,20 @@ class CandidateController extends Controller
             }
         }
 
+        // ── أدوات القياس: إنجازٌ بلا تقييم ──
+        // المحطّتان الأُخريان تظهران بتسليم التقييم، وهذه لا تمرّ بالرصد أصلاً.
+        // فبلا هذا السطر يبقى في الخطّ الزمني ثقبٌ لا يُفسَّر: دورةٌ اكتملت
+        // وثُلثها لا أثر له.
+        foreach (MeasurementResult::whereIn('assessment_id', $assessments->pluck('id'))->get() as $m) {
+            $events[] = [
+                'type' => 'station_done',
+                'at' => optional($m->created_at)->toIso8601String(),
+                'title' => 'أتمّ أدوات القياس', 'meta' => null,
+                'cycle' => $assessments->firstWhere('id', $m->assessment_id)?->participant_code,
+                'actor' => $nameOf($m->uploaded_by), 'status' => null, 'icon' => 'clipboard',
+            ];
+        }
+
         // ترتيب زمني تصاعدي؛ الأحداث بلا وقت تُوضع في النهاية
         usort($events, function ($x, $y) {
             if ($x['at'] === $y['at']) {
@@ -1224,8 +1307,37 @@ class CandidateController extends Controller
 
         $this->log($request, 'VIEW_CANDIDATE_JOURNEY', $candidate->id);
 
+        // الدورة الحالية — أحدثُها. عدّادُ المحطّات يُقرأ منها لا من مجموع الدورات
+        $current = $assessments->last();
+        $lastVisit = ReceptionVisit::where('candidate_id', $candidate->id)
+            ->orderByDesc('visit_date')->first();
+
         return response()->json([
-            'candidate' => ['code' => $candidate->participant_code, 'status' => $candidate->status],
+            'candidate' => [
+                'code' => $candidate->participant_code,
+                'status' => $candidate->status,
+                // صفةُ الشخص لا حالتُه في المسار — تُقرأ مع الخطّ الزمني لأن
+                // تغيّرها حدثٌ فيه
+                'employmentStatus' => $candidate->employment_status,
+                'employmentStatusLabel' => Candidate::employmentStatusLabel($candidate->employment_status),
+            ],
+            // ── التقدّم على المحطّات المختارة ──
+            // «٢ من ٣» وحدها لا تُقرأ، فيُسمّى الناقص معها
+            'stations' => $current ? [
+                'chosen' => count($current->chosenStations()),
+                'done' => count(array_intersect($current->chosenStations(), $current->completedStations())),
+                'missing' => array_map([Assessment::class, 'stationLabel'], $current->missingStations()),
+                'complete' => $current->stationsComplete(),
+            ] : null,
+            // حضورُ المركز — غير حضور الجلسة، ويُخلَط بينهما كثيراً
+            'centreVisit' => $lastVisit ? [
+                'date' => $lastVisit->visit_date?->toDateString(),
+                'arrivedAt' => $lastVisit->arrived_at?->format('H:i'),
+                'signed' => $lastVisit->isSigned(),
+                'cvApproved' => $lastVisit->cv_approved_at !== null,
+                'badgePrinted' => $lastVisit->badge_printed_at !== null,
+                'sent' => $lastVisit->sent_at !== null,
+            ] : null,
             'journey' => $events,
         ]);
     }
