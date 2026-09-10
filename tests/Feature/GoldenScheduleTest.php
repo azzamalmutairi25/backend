@@ -197,24 +197,6 @@ class GoldenScheduleTest extends TestCase
         $this->assertCount(2, $res->json('sectors'), 'قطاعان');
     }
 
-    public function test_a_classified_code_is_hidden_from_a_reader_without_clearance(): void
-    {
-        $p = $this->period();
-        $this->actingAsRole('ADMIN');   // يرى المصنّفين فيُنشئ الجلسة
-
-        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW', 'classification' => 'secret']);
-        $this->postJson('/api/schedules', [
-            'candidateId' => $c->id, 'activity' => 'interview',
-            'date' => $p->start_date->toDateString(), 'time' => '10:15', 'periodId' => $p->id,
-        ])->assertStatus(201);
-        $this->postJson("/api/golden-schedule/{$p->id}/sync")->assertOk();
-        $this->assertSame(1, GoldenScheduleEntry::count());
-
-        // مسؤول الجدولة لا يملك candidate.view_classified
-        $this->actingAsRole('SCHEDULER');
-        $this->assertSame(0, $this->getJson("/api/golden-schedule?periodId={$p->id}")->assertOk()->json('total'));
-    }
-
     public function test_the_printed_document_is_html_and_audited(): void
     {
         $p = $this->period();

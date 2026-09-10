@@ -27,6 +27,7 @@ class SchedulingPeriod extends Model
 
     protected $fillable = [
         'name', 'start_date', 'end_date', 'session_times', 'status', 'notes',
+        'work_days', 'daily_capacity', 'excluded_dates',
         'submitted_by', 'submitted_at', 'approved_by', 'approved_at', 'reject_reason',
         'created_by',
     ];
@@ -66,8 +67,7 @@ class SchedulingPeriod extends Model
     /**
      * أيام الموجة — قائمة Carbon من البداية إلى النهاية.
      *
-     * كل الأيام لا أيام العمل: العطلة داخل الموجة قرارُ من يحدّد التواريخ، ولا
-     * تقويم إجازاتٍ موثوق في المنصّة يُستأنس به. من لا يريد الجمعة يبني موجتين.
+     * **كل** الأيام — بما فيها غير العاملة. لأيام العمل وحدها `workingDays()`.
      */
     public function days(): array
     {
@@ -86,6 +86,90 @@ class SchedulingPeriod extends Model
     public function dayCount(): int
     {
         return count($this->days());
+    }
+
+    // ── أيام العمل ──
+    // أرقام أيام الأسبوع العاملة (0=الأحد). الافتراض الأحد–الخميس، وهو جدول
+    // المركز — والجمعة والسبت خارجه.
+    public function workDayNumbers(): array
+    {
+        $raw = trim((string) ($this->work_days ?? ''));
+        if ($raw === '') {
+            return [0, 1, 2, 3, 4];
+        }
+
+        $nums = array_values(array_unique(array_map(
+            'intval',
+            array_filter(array_map('trim', explode(',', $raw)), fn ($v) => $v !== '')
+        )));
+        sort($nums);
+
+        return array_values(array_filter($nums, fn ($n) => $n >= 0 && $n <= 6));
+    }
+
+    /** التواريخ المستثناة صراحةً — عطلةٌ رسمية داخل المدى */
+    public function excludedDates(): array
+    {
+        $raw = trim((string) ($this->excluded_dates ?? ''));
+
+        return $raw === ''
+            ? []
+            : array_values(array_filter(array_map('trim', explode(',', $raw))));
+    }
+
+    /**
+     * أيام العمل الفعلية: داخل المدى، ويومُها من أيام العمل، وليست مستثناة.
+     *
+     * هي ما يُبنى عليه صفوف شبكة المستشارين — لا كل أيام المدى: عمودُ جمعةٍ
+     * فارغ في الشبكة يُقرأ نقصاً في التخطيط لا يوماً غير عامل.
+     */
+    public function workingDays(): array
+    {
+        $work = $this->workDayNumbers();
+        $skip = $this->excludedDates();
+
+        return array_values(array_filter(
+            $this->days(),
+            fn ($d) => in_array((int) $d->dayOfWeek, $work, true)
+                && ! in_array($d->toDateString(), $skip, true)
+        ));
+    }
+
+    public function workingDayCount(): int
+    {
+        return count($this->workingDays());
+    }
+
+    /**
+     * الإجمالي المستهدف: أيام العمل × الطاقة اليومية.
+     *
+     * يُحسب ولا يُخزَّن: قيمةٌ مخزَّنة تتقادم عند أول تعديلٍ للمدى أو للطاقة،
+     * فتُقرأ هدفاً وهي أثرُ إعدادٍ سابق.
+     */
+    public function targetTotal(): ?int
+    {
+        return $this->daily_capacity
+            ? $this->workingDayCount() * (int) $this->daily_capacity
+            : null;
+    }
+
+    /**
+     * الفترة التي يقع فيها هذا التاريخ.
+     *
+     * الترتيب: المعتمَدة أولاً، ثم **الأضيق مدىً**، ثم الأقدم.
+     *
+     * والأضيق أدقّ دلالةً: فترتان تشملان اليوم — واحدةٌ من ثلاثة أيام وأخرى
+     * من ستّة أشهر — والمقصودة هي الأولى قطعاً. الثانيةُ مظلّةٌ عامّة، ونسبةُ
+     * جلسةٍ إليها تُخرجها من مستندات الفترة التي تخصّها فعلاً.
+     */
+    public static function coveringDate(string $date): ?self
+    {
+        return static::whereDate('start_date', '<=', $date)
+            ->whereDate('end_date', '>=', $date)
+            ->orderByRaw("CASE status WHEN 'approved' THEN 0 WHEN 'pending_center' THEN 1 ELSE 2 END")
+            ->orderByRaw('(end_date - start_date) ASC')
+            ->orderBy('id')
+            ->first();
     }
 
     /**

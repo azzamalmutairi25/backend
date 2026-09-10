@@ -209,6 +209,7 @@ class KioskTest extends TestCase
     public function test_badge_request_appears_in_the_officer_print_queue_then_clears(): void
     {
         [$c, $a] = $this->makeCandidate();
+        $this->giveCv($c);
         $k = $this->kiosk();
         $token = $this->postJson("/api/kiosk/{$k->token}/identify", ['nationalId' => $c->national_id])
             ->json('accessToken');
@@ -223,6 +224,11 @@ class KioskTest extends TestCase
         $queue->assertJsonPath('queue.0.participantCode', $a->participant_code);
 
         $visitId = $queue->json('queue.0.visitId');
+        // الطلب يدخل الطابور من الكشك، والطباعة تنتظر اعتماد السيرة عند المكتب
+        $queue->assertJsonPath('queue.0.cvApproved', false);
+        $this->postJson("/api/reception/visits/{$visitId}/badge-printed")->assertStatus(422);
+
+        $this->postJson("/api/reception/visits/{$visitId}/cv/approve")->assertOk();
         $this->postJson("/api/reception/visits/{$visitId}/badge-printed")->assertOk();
         $this->getJson('/api/reception/print-queue')->assertJsonCount(0, 'queue');
 

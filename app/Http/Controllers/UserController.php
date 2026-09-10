@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\Role;
 use App\Models\User;
+use App\Rules\SaudiNationalId;
 use App\Rules\StrongPassword;
 use App\Security\Permissions;
 use Illuminate\Http\Request;
@@ -22,7 +23,7 @@ class UserController extends Controller
 
         $request->validate($this->listPagingRules($this->sortable()));
 
-        $query = User::with(['role', 'sector', 'manager', 'expertiseAreas']);
+        $query = User::with(['role', 'sector', 'manager', 'technicalAreas']);
         $meta = $this->applyListPaging($request, $query, $this->sortable(), 'name', 'id');
 
         $users = $query->get()->map(fn ($u) => [
@@ -33,9 +34,11 @@ class UserController extends Controller
             'roleCode' => $u->role->code,
             'roleName' => $u->role->name_ar,
             'sectorId' => $u->sector_id,
+            'sectorIds' => $u->sectorIds(),
             // مجالات الخبرة — تقرأها نافذة الوسم لتبدأ بما هو مسجَّل فعلاً.
             // بدونها كانت النافذة تفتح فارغةً فيمحو الحفظُ وسماً قائماً.
-            'expertiseAreaIds' => $u->expertiseAreas->pluck('id')->all(),
+            'code' => $u->code,
+            'technicalAreaIds' => $u->technicalAreas->pluck('id')->all(),
             'sectorName' => $u->sector?->name_ar,
             'sectorBound' => $u->isSectorBound(),
             'managerId' => $u->manager_id,
@@ -549,6 +552,24 @@ class UserController extends Controller
         return false;
     }
 
+    /**
+     * مزامنة قطاعات المستخدم.
+     *
+     * الأساسي يبقى في العمود ويُدرَج في الجدول معه — فقراءةٌ واحدة تكفي
+     * لمعرفة ما يغطّيه، ولا يُنسى الأساسي حين تُقرأ القائمة وحدها.
+     *
+     * وإرسالُ `sectorIds` فارغةً يعني «الأساسي وحده» لا «لا شيء»: محصورٌ بلا
+     * قطاعٍ واحد لا يغطّي شيئاً، وذاك خللٌ في البيانات لا حالةٌ تُطلَب.
+     */
+    private function syncSectors(User $user, array $validated): void
+    {
+        $ids = $validated['sectorIds'] ?? [];
+        if ($user->sector_id) {
+            $ids[] = $user->sector_id;
+        }
+        $user->sectors()->sync(array_values(array_unique(array_map('intval', $ids))));
+    }
+
     public function store(Request $request)
     {
         if (! $request->user()->hasPermission(Permissions::USER_MANAGE)) {
@@ -559,9 +580,20 @@ class UserController extends Controller
         $rules = [
             'username' => 'required|string|max:80|unique:users,username',
             'fullName' => 'required|string|max:200',
+            // رمز المستشار — حرفٌ إلى حرفين لاتينيّين كبيرين، فريدٌ على
+            // مستوى المنصّة: يُعرَف به في شبكة الجدولة كما يُعرَف المشارك برمزه
+            'code' => ['nullable', 'string', 'regex:/^[A-Z]{1,2}$/', 'unique:users,code'],
+            // هوية المستشار — تُخزَّن مشفَّرة كهوية المشارك
+            'nationalId' => ['nullable', 'string', new SaudiNationalId],
+
             'email' => 'nullable|email',
             'roleId' => 'required|exists:roles,id',
             'sectorId' => 'nullable|exists:sectors,id',
+            // قطاعاتٌ إضافية: المستشار قد يخدم أكثر من قطاع. الأساسي أوّلها
+            // ويبقى في `sectorId` — هو ما يُعرض في بطاقته وما تسقط إليه
+            // الشاشات التي تعرض قطاعاً واحداً.
+            'sectorIds' => 'nullable|array|max:25',
+            'sectorIds.*' => 'integer|distinct|exists:sectors,id',
             'managerId' => 'nullable|exists:users,id',
         ];
         if ($userType === 'internal') {
@@ -589,7 +621,9 @@ class UserController extends Controller
 
         $user = new User;
         $user->username = $validated['username'];
+        $user->code = $validated['code'] ?? null;
         $user->full_name = $validated['fullName'];
+        $user->national_id = $validated['nationalId'] ?? null;   // mutator: تشفير + بصمة
         $user->email = $validated['email'] ?? null;
         $user->role_id = $validated['roleId'];
         $user->sector_id = $validated['sectorId'] ?? null;
@@ -606,6 +640,7 @@ class UserController extends Controller
             $user->must_change_password = true;
         }
         $user->save();
+        $this->syncSectors($user, $validated);
 
         $this->log($request, 'CREATE_USER', $user->id, ['username' => $user->username]);
 
@@ -625,7 +660,11 @@ class UserController extends Controller
             'email' => 'nullable|email',
             'roleId' => 'required|exists:roles,id',
             'sectorId' => 'nullable|exists:sectors,id',
+            'sectorIds' => 'nullable|array|max:25',
+            'sectorIds.*' => 'integer|distinct|exists:sectors,id',
             'managerId' => 'nullable|exists:users,id',
+            'code' => ['nullable', 'string', 'regex:/^[A-Z]{1,2}$/', 'unique:users,code,'.$id],
+            'nationalId' => ['nullable', 'string', new SaudiNationalId],
         ]);
 
         if ($user->id === $request->user()->id && $user->role_id != $validated['roleId']) {
@@ -655,11 +694,18 @@ class UserController extends Controller
         $roleChanged = $user->role_id != $validated['roleId'];
         $sectorChanged = $user->sector_id != ($validated['sectorId'] ?? null);
         $user->full_name = $validated['fullName'];
+        $user->code = $validated['code'] ?? null;
         $user->email = $validated['email'] ?? null;
+        // الهوية تُمسّ متى أُرسلت: إرسال فراغٍ يمحوها صراحةً، وعدمُ إرسالها
+        // يُبقيها — فتعديلٌ لا يعرض الحقل لا يمحو ما لم يقصد محوه
+        if (array_key_exists('nationalId', $validated)) {
+            $user->national_id = $validated['nationalId'];
+        }
         $user->role_id = $validated['roleId'];
         $user->sector_id = $validated['sectorId'] ?? null;
         $user->manager_id = $validated['managerId'] ?? null;
         $user->save();
+        $this->syncSectors($user, $validated);
 
         // تغيير الدور أو القطاع يغيّر ما يراه ويقيّمه — أبطل جلساته ليعيد الدخول بنطاقه الجديد
         if ($roleChanged || $sectorChanged) {

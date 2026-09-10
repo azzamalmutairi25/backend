@@ -110,16 +110,16 @@ class ScheduleConflictTest extends TestCase
         $ev = $this->person('EVALUATOR');
         $date = now()->addDay()->toDateString();
 
-        // أدوات القياس والتمرين التكاملي جلستان جماعيّتان: مشرفٌ واحد وعدّة
-        // مشاركين في القاعة نفسها، ولكلٍّ صفُّه. قيدٌ يشملهما يمنع إدخالاً سليماً.
+        // أدوات القياس جلسةٌ جماعيّة: مشرفٌ واحد وعدّة مشاركين في القاعة
+        // نفسها، ولكلٍّ صفُّه. قيدٌ يشملها يمنع إدخالاً سليماً.
         $this->actingAsRole('SCHEDULER');
         $this->makeSession($a->id, 'measurement', $date, '10:15', ['evaluatorId' => $ev->id])->assertStatus(201);
         $this->makeSession($b->id, 'measurement', $date, '10:15', ['evaluatorId' => $ev->id])->assertStatus(201);
 
-        $this->makeSession($a->id, 'integration', $date, '12:30', ['evaluatorId' => $ev->id])->assertStatus(201);
-        $this->makeSession($b->id, 'integration', $date, '12:30', ['evaluatorId' => $ev->id])->assertStatus(201);
+        $this->makeSession($a->id, 'measurement', $date, '12:30', ['evaluatorId' => $ev->id])->assertStatus(201);
+        $this->makeSession($b->id, 'measurement', $date, '12:30', ['evaluatorId' => $ev->id])->assertStatus(201);
 
-        $this->assertSame(4, Schedule::whereIn('activity', ['measurement', 'integration'])->count());
+        $this->assertSame(4, Schedule::where('activity', 'measurement')->count());
     }
 
     public function test_two_evaluators_share_an_instant(): void

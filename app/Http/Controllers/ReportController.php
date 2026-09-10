@@ -347,7 +347,7 @@ class ReportController extends Controller
         $candidates = Candidate::with(['sector', 'assessments' => fn ($q) => $q->orderByDesc('id'), 'assessments.report'])
             ->whereIn('classification', $allowed)
             // المحصور بقطاع لا يكتب تقريراً لمشارك من قطاع آخر — القائمة تطابق ما يُسمح به
-            ->when($user->isSectorBound(), fn ($q) => $q->where('sector_id', $user->sector_id))
+            ->when($user->isSectorBound(), fn ($q) => $q->whereIn('sector_id', $user->sectorIds()))
             ->where('status', 'assessed')
             ->get()
             ->filter(function ($c) {

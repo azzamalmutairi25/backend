@@ -155,7 +155,6 @@ class DispatchController extends Controller
             'interview' => 'المقابلة الشخصية',
             'discussion' => 'حلقة النقاش',
             'measurement' => 'أدوات القياس',
-            'integration' => 'التمرين التكاملي',
         ];
 
         $rows = [];

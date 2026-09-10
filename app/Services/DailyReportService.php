@@ -172,7 +172,7 @@ HTML;
 
     private const ACTIVITY = [
         'interview' => 'مقابلة', 'discussion' => 'حلقة نقاش',
-        'measurement' => 'أدوات قياس', 'integration' => 'جلسة تكامل',
+        'measurement' => 'أدوات قياس',
     ];
 
     private function activity(string $a): string

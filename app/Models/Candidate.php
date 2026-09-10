@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\NameIndex;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,7 +16,8 @@ class Candidate extends Model
     protected $fillable = [
         'participant_code', 'national_id_enc', 'national_id_hash',
         'full_name_enc', 'mobile_enc', 'email_enc', 'military_number_enc',
-        'sector_id', 'gender', 'rank_label', 'personnel_category', 'tier', 'assessment_type', 'status',
+        'sector_id', 'employer', 'employment_status', 'gender', 'rank_label', 'rank_id',
+        'personnel_category', 'tier', 'assessment_type', 'status',
         'classification', 'notes',
     ];
 
@@ -31,6 +33,14 @@ class Candidate extends Model
         };
     }
 
+    // الحالة الوظيفية — صفةُ الشخص، لا حالتُه في مسار التقييم
+    public const EMPLOYMENT_STATUSES = ['active', 'retired'];
+
+    public static function employmentStatusLabel(?string $status): string
+    {
+        return $status === 'retired' ? 'متقاعد' : 'على رأس العمل';
+    }
+
     // فئة المنسوب — صفةُ الشخص لا صفةُ قطاعه
     public const CATEGORIES = ['civilian', 'military', 'contractor'];
 
@@ -41,7 +51,10 @@ class Candidate extends Model
     {
         return match ($category) {
             'military' => 'عسكري',
-            'contractor' => 'متعاقد',
+            // القيمة تبقى 'contractor' والتسمية تتغيّر: تغييرُ القيمة يوجب
+            // ترحيل صفوف المشاركين وعمود `ranks.category` وكل ما يقارنهما،
+            // ولا يكسب شيئاً — التسمية هي ما يُقرأ.
+            'contractor' => 'قطاع خاص',
             default => 'مدني',
         };
     }
@@ -111,6 +124,14 @@ class Candidate extends Model
     // (assessments/schedules/evaluations/reports تُحذف تلقائياً عبر cascade، لكن sms/email لا)
     protected static function booted(): void
     {
+        // فهرس البحث بالاسم يتبع الاسم: تعديلٌ لا يُعيد بناءه يترك المشارك
+        // يُوجَد باسمه القديم ولا يُوجَد بالجديد — وهو خطأ صامت لا رسالة له.
+        static::saved(function (Candidate $candidate) {
+            if ($candidate->wasChanged('full_name_enc') || $candidate->wasRecentlyCreated) {
+                NameIndex::reindex($candidate);
+            }
+        });
+
         static::deleting(function (Candidate $candidate) {
             SmsLog::where('candidate_id', $candidate->id)->delete();
             EmailLog::where('candidate_id', $candidate->id)->delete();
@@ -120,6 +141,14 @@ class Candidate extends Model
     public function sector(): BelongsTo
     {
         return $this->belongsTo(Sector::class);
+    }
+
+    // الرتبة المُدارة — مفتاحُ مصفوفة (رتبة × كفاءة) في تحليل الفجوة.
+    // قد تكون فارغة: `rank_label` نصٌّ حرّ يَرِد فيه أحياناً مسمّى وظيفة لا
+    // رتبة، وتحليلُ الفجوة يسقط حينها على عمودَي الفئة.
+    public function rank(): BelongsTo
+    {
+        return $this->belongsTo(Rank::class);
     }
 
     // دورات التقييم لهذا الشخص (شخص واحد ← عدة دورات/رموز)
@@ -132,6 +161,12 @@ class Candidate extends Model
     public function cv(): HasOne
     {
         return $this->hasOne(CandidateCv::class);
+    }
+
+    // إصدارات السيرة — أحدثُها أوّلاً، فسير الأحداث يُقرأ من الأعلى
+    public function cvRevisions(): HasMany
+    {
+        return $this->hasMany(CandidateCvRevision::class)->orderByDesc('version');
     }
 
     // المجالات الفنية — الأساس الذي تفلتر عليه شاشة الترشيح
@@ -198,7 +233,7 @@ class Candidate extends Model
     public static function classifyTier(string $rankLabel, string $category): string
     {
         if ($category === self::CATEGORY_CONTRACTOR) {
-            throw new \InvalidArgumentException('طبقة المتعاقد تُختار صراحةً لا تُستنتج');
+            throw new \InvalidArgumentException('طبقة القطاع الخاص تُختار صراحةً لا تُستنتج');
         }
 
         $isMilitary = $category === 'military';

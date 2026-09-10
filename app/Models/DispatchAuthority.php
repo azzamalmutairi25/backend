@@ -13,7 +13,7 @@ class DispatchAuthority extends Model
     public const CATEGORY_LABEL = [
         'civilian' => 'مدني',
         'military' => 'عسكري',
-        'contractor' => 'متعاقد',
+        'contractor' => 'قطاع خاص',
     ];
 
     protected $fillable = ['code', 'name_ar', 'categories', 'email', 'is_active', 'sort_order'];

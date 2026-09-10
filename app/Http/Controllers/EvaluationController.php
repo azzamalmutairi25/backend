@@ -436,10 +436,11 @@ class EvaluationController extends Controller
             Assessment::with('candidate.cv')->find($evaluation->assessment_id)?->freezeCvSnapshot();
         }
 
-        // المشارك: scheduled -> assessed (تمّ تقييمه)
-        if ($evaluation->candidate->status === 'scheduled') {
-            $evaluation->candidate->setStatus('assessed');
-        }
+        // ── «تمّ تقييمه» بعد إتمام محطّاته كلّها ──
+        // كان أوّلُ تقييمٍ يُرسَل يقلبه، فيُفتح بابُ التقرير لمن أدّى المقابلة
+        // وحدها — ويُكتب تقريرُه على ثلثِ صورة. والاكتمال الآن يُقاس على ما
+        // اختير له وحده، فمن طُلب له تقييمٌ جزئيّ لا يبقى ناقصاً للأبد.
+        Assessment::with('candidate')->find($evaluation->assessment_id)?->syncAssessedStatus();
 
         $this->notify->notifyRole('ASSESS_MANAGER', 'approval',
             'تقييم بانتظار الاعتماد',

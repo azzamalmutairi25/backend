@@ -103,6 +103,12 @@ class MeasurementController extends Controller
             $m->update($attrs);
         }
 
+        // ── وأدوات القياس محطّةٌ كسائرها ──
+        // نتيجتُها لا تمرّ بالرصد ولا تُكتب لها `evaluation`، فلولا هذا
+        // السطر لبقيت دورةٌ تحمل محطّة القياس ناقصةً وإن أُدخلت درجاتُها.
+        $assessment->loadMissing('candidate');
+        $assessment->syncAssessedStatus();
+
         $this->log($request, 'UPLOAD_MEASUREMENT', $m->id, ['candidate' => $candidate->participant_code]);
 
         return response()->json(['message' => 'تم حفظ نتيجة القياس', 'measurement' => $this->present($m->fresh())]);

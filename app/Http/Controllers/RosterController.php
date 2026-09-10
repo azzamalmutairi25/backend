@@ -55,7 +55,7 @@ class RosterController extends Controller
     {
         $user = $request->user();
 
-        return $user->isSectorBound() ? $user->sector_id : $asked;
+        return $user->resolveSectorFilter($asked);
     }
 
     // GET /roster/sectors — قطاعات اليوم وأعدادها، لفتح ملفٍّ لكل قطاع

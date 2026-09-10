@@ -2,19 +2,25 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\CvTooLargeException;
 use App\Models\Assessment;
 use App\Models\AuditLog;
+use App\Models\Candidate;
 use App\Models\CandidateCv;
+use App\Models\CandidateCvRevision;
 use App\Models\ReceptionAssignment;
 use App\Models\ReceptionKiosk;
 use App\Models\ReceptionVisit;
 use App\Models\Schedule;
+use App\Models\SchedulingPeriod;
 use App\Models\User;
 use App\Security\Permissions;
 use App\Services\CvGuard;
+use App\Services\CvValidator;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 // ════════════════════════════════════════════════════════════
 //  استقبال الموظفين — مسار المشارك من باب المركز إلى جدول المقابلات.
@@ -68,7 +74,7 @@ class ReceptionController extends Controller
             ->whereHas('candidate', function ($q) use ($request, $user) {
                 $q->whereIn('classification', $this->allowedClassifications($request));
                 if ($user->isSectorBound()) {
-                    $q->where('sector_id', $user->sector_id);
+                    $q->whereIn('sector_id', $user->sectorIds());
                 }
             })
             ->find($id);
@@ -109,14 +115,14 @@ class ReceptionController extends Controller
 
         if ($manages) {
             $rows = ReceptionVisit::with([
-                'candidate.sector', 'candidate.cv', 'assessment',
+                'candidate.sector', 'candidate.cv', 'assessment.stations',
                 'assignments.evaluator',
             ])
                 ->whereDate('visit_date', $date)
                 ->whereHas('candidate', function ($c) use ($request, $user) {
                     $c->whereIn('classification', $this->allowedClassifications($request));
                     if ($user->isSectorBound()) {
-                        $c->where('sector_id', $user->sector_id);
+                        $c->whereIn('sector_id', $user->sectorIds());
                     }
                 })
                 ->orderBy('arrived_at')
@@ -136,6 +142,8 @@ class ReceptionController extends Controller
 
         return response()->json([
             'date' => $date,
+            // يومٌ مضى يُقرأ ولا يُكتب — الواجهة تُخفي أزرار التسجيل عليه
+            'isToday' => $date === now()->toDateString(),
             'can' => $can,
             'activities' => collect(ReceptionAssignment::ACTIVITIES)
                 ->map(fn ($a) => ['key' => $a, 'label' => ReceptionAssignment::label($a)])->values(),
@@ -180,6 +188,25 @@ class ReceptionController extends Controller
             'badgePrinted' => $v->badge_printed_at !== null,
             'badgePending' => $v->badgePending(),
             'hasCv' => $doc !== null && ! CandidateCv::isEmptyDoc($doc),
+            // ── بوّابة البطاقة والإرسال ──
+            // اعتماد السيرة فعلُ يومٍ بعينه: هذا ما رآه الموظّف وأقرّه اليوم.
+            // بلا اعتماد لا تُطبع بطاقة ولا يصل المستشار شيء.
+            'cvApproved' => $v->cv_approved_at !== null,
+            'cvApprovedAt' => $v->cv_approved_at?->format('H:i'),
+            'cvVersion' => $c->cv?->version,
+            'sentAt' => $v->sent_at?->format('H:i'),
+            // ── التقدّم على محطّاته المختارة ──
+            // موقعٌ لا نتيجة: الاستقبال يعرف أين وصل ولا يرى درجةً ولا رأياً.
+            // والناقص يُسمّى — «بقيت حلقة النقاش» تُقرأ، و«٢ من ٣» لا تُقرأ.
+            'stations' => $v->assessment ? collect($v->assessment->chosenStations())
+                ->map(fn ($k) => [
+                    'key' => $k,
+                    'label' => Assessment::stationLabel($k),
+                    'done' => in_array($k, $v->assessment->completedStations(), true),
+                ])->values()->all() : [],
+            'missingStations' => $v->assessment
+                ? array_map([Assessment::class, 'stationLabel'], $v->assessment->missingStations())
+                : [],
             'assignments' => $v->assignments->map(fn (ReceptionAssignment $a) => [
                 'id' => $a->id,
                 'activity' => $a->activity,
@@ -193,12 +220,38 @@ class ReceptionController extends Controller
         ];
     }
 
-    // الدورات المنتظَرة اليوم — لم تصل بعد
+    /**
+     * كشف اليوم — **من جلسات ذلك اليوم**، لا من قاعدة المشاركين كلّها.
+     *
+     * ── ما كان يقع ──
+     * كانت القائمة تستعلم الدورات بشرطين: ألّا تكون له زيارةٌ اليوم، وألّا
+     * تكون دورتُه منتهية. **بلا أيّ ربطٍ بتاريخ ولا بجلسة.** فمن موعده بعد
+     * شهرين، ومن لم يُجدوَل قطّ، يظهران في «منتظَري اليوم» بالتساوي مع من
+     * موعده اليوم — مقصوصةً عند الأربعين وبترتيب الرمز. أي أنّ الموظّف كان
+     * يستقبل من قائمةٍ لا تعني اليوم في شيء.
+     *
+     * ── ولماذا لا تُشترَط فترةٌ معتمَدة ──
+     * المواصفة تبني الكشف على «الجدولة بعد اعتمادها». وفي القاعدة اليوم
+     * **صفرُ جلسةٍ في فترةٍ معتمَدة**: ٣٤٣ من ٣٤٤ بلا فترة أصلاً، والفترات
+     * الأربع مسوّدات. فاشتراطُ الاعتماد يُفرِغ الشاشة على مركزٍ يعمل. الشرط
+     * هو **الجلسة في ذلك اليوم**، وحالةُ الفترة تُرسَل مع الصفّ ليُرى النقص
+     * لا ليُمنع به العمل.
+     *
+     * ── والبحث يبقى منفذاً للاستثناء ──
+     * حصرُ الشاشة في المجدولين يُعمي الموظّف عمّن حضر بلا جلسة مسجَّلة. فمتى
+     * بحث برمزٍ بعينه تُوسَّع القائمة، ويُوسَم الصفُّ `offRoster` — يُستقبَل
+     * ويُعرَف أنه خارج كشف اليوم.
+     */
     private function expectedList(Request $request, string $date, string $q, array $can): array
     {
         $user = $request->user();
 
         $arrived = ReceptionVisit::whereDate('visit_date', $date)->pluck('assessment_id');
+
+        // من له جلسةٌ في هذا اليوم — هذا هو كشف اليوم
+        $onRoster = Schedule::whereDate('schedule_date', $date)
+            ->whereNotNull('assessment_id')
+            ->pluck('assessment_id')->unique()->values();
 
         $query = Assessment::with('candidate.sector')
             ->whereNotIn('id', $arrived)
@@ -207,13 +260,15 @@ class ReceptionController extends Controller
             ->whereHas('candidate', function ($c) use ($request, $user) {
                 $c->whereIn('classification', $this->allowedClassifications($request));
                 if ($user->isSectorBound()) {
-                    $c->where('sector_id', $user->sector_id);
+                    $c->whereIn('sector_id', $user->sectorIds());
                 }
             });
 
         // البحث بالرمز على الخادم (الاسم مشفَّر فلا يُبحث فيه بـSQL)
         if ($q !== '') {
             $query->where('participant_code', 'ilike', '%'.$q.'%');
+        } else {
+            $query->whereIn('id', $onRoster);
         }
 
         // حدٌّ صريح: الكشف أداة استقبالٍ لا تصفّحٌ لقاعدة المشاركين كاملة.
@@ -221,6 +276,13 @@ class ReceptionController extends Controller
         // من ينتظر»، فيُصرَف مشاركٌ حاضرٌ لأنه لم يظهر في الشاشة.
         $total = (clone $query)->count();
         $rows = $query->orderBy('participant_code')->limit(self::EXPECTED_LIMIT)->get();
+
+        // بعد القصّ لا قبله: استعلامٌ واحد لأربعين صفّاً، لا أربعون استعلاماً
+        $sessions = Schedule::whereDate('schedule_date', $date)
+            ->whereIn('assessment_id', $rows->pluck('id'))
+            ->orderBy('schedule_time')
+            ->get(['assessment_id', 'schedule_time', 'activity'])
+            ->groupBy('assessment_id');
 
         return [
             'total' => $total,
@@ -231,6 +293,13 @@ class ReceptionController extends Controller
                 'name' => $can['viewNames'] ? $a->candidate?->full_name : null,
                 'sector' => $a->candidate?->sector?->name_ar,
                 'rank' => $a->candidate?->rank_label,
+                // مواعيد اليوم — الموظّف يرى متى ينتظره ولمَ حضر
+                'sessions' => ($sessions[$a->id] ?? collect())->map(fn ($x) => [
+                    'time' => $x->schedule_time ? substr((string) $x->schedule_time, 0, 5) : null,
+                    'activity' => ReceptionAssignment::label($x->activity),
+                ])->values()->all(),
+                // خارج كشف اليوم: ظهر بالبحث لا بجلسة. يُستقبَل ويُعرَف حالُه
+                'offRoster' => ! $onRoster->contains($a->id),
             ])->values()->all(),
         ];
     }
@@ -307,6 +376,16 @@ class ReceptionController extends Controller
             'date' => 'nullable|date_format:Y-m-d',
         ]);
         $date = $validated['date'] ?? now()->toDateString();
+
+        // ── الوصول يُسجَّل في يومه ──
+        // «يوماً بيوم كي لا يختلط»: تسجيلُ وصولٍ بتاريخٍ آخر يضع مشاركاً في
+        // كشف يومٍ لم يحضر فيه، ويُبنى عليه إسنادٌ وجلسةٌ وبطاقة. وقراءةُ يومٍ
+        // مضى تبقى مفتوحة — المراجعة لا تُفسد شيئاً، والكتابة تُفسد.
+        if ($date !== now()->toDateString()) {
+            return response()->json([
+                'error' => 'الوصول يُسجَّل في يومه — كشفُ اليوم لا يقبل تاريخاً آخر',
+            ], 422);
+        }
 
         $assessment = Assessment::with('candidate')->find($validated['assessmentId']);
         if (! $assessment || ! $this->resolveCandidateInScope($request, $assessment->candidate_id)) {
@@ -465,6 +544,214 @@ class ReceptionController extends Controller
     // ═══════════════════════════════════════════════════════
     //  ٣) التوزيع على نشاط ومقيّم
     // ═══════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════
+    //  السيرة عند المكتب — تُصحَّح، ثم تُعتمد، ثم تُرسَل
+    // ═══════════════════════════════════════════════════════
+
+    // الحقول السبعة التي يصحّحها موظّف الاستقبال — ولا شيء غيرها.
+    //
+    // ما خرج منها خرج بسبب: تاريخ الميلاد والتعيين والرتبة تقود تصنيف الفئة
+    // القيادية وتُقرأ من سجلّات الجهة، فتصحيحُها عند مكتب الاستقبال يُغيّر
+    // تصنيفاً بُني عليه ترشيحٌ واعتماد. وهذه السبعة وصفُ عملٍ يُراجَع بالنظر
+    // مع صاحبه في دقيقة.
+    private const RECEPTION_CV_FIELDS = [
+        'currentPosition', 'department', 'generalDepartment',
+        'totalYearsExperience', 'qualifications', 'experiences', 'certifications',
+    ];
+
+    // PUT /reception/visits/{id}/cv — تصحيحٌ مباشر عند المكتب
+    public function updateCv(Request $request, int $id)
+    {
+        $user = $request->user();
+        if (! $user->hasPermission(Permissions::RECEPTION_CV_EDIT)) {
+            return $this->deny('ليس لديك صلاحية تصحيح السيرة عند الاستقبال');
+        }
+
+        $visit = $this->findVisit($request, $id, ['candidate.cv', 'assessment']);
+        if (! $visit) {
+            return response()->json(['error' => 'الزيارة غير موجودة'], 404);
+        }
+        // بعد الإرسال جُمّدت الصورة التي يقرؤها المستشار: تصحيحٌ بعدها يغيّر
+        // الملفّ الحيّ ولا يغيّر ما يُقيَّم عليه — فيظنّ الموظّف أنه صحّح شيئاً
+        if ($visit->sent_at !== null) {
+            return response()->json([
+                'error' => 'أُرسِلت القوائم وجُمّدت السيرة — التصحيح بعدها لا يصل المستشار',
+            ], 422);
+        }
+
+        $input = $request->input('cv');
+        if (! is_array($input) || $input === []) {
+            return response()->json(['error' => 'بيانات غير صحيحة'], 422);
+        }
+        // ما لا يُصحَّح من هنا لا يُقبل صامتاً: تجاهلُه يجعل الموظّف يظنّ أنه
+        // غيّر تاريخ ميلادٍ وقد سقط في الطريق
+        $extra = array_diff(array_keys($input), self::RECEPTION_CV_FIELDS);
+        if ($extra) {
+            return response()->json([
+                'error' => 'حقولٌ لا تُصحَّح من الاستقبال: '.implode('، ', array_slice($extra, 0, 4)),
+            ], 422);
+        }
+
+        $candidate = $visit->candidate;
+
+        $result = DB::transaction(function () use ($candidate, $input, $request, $user) {
+            Candidate::whereKey($candidate->id)->lockForUpdate()->first();
+            $cv = CandidateCv::firstOrNew(['candidate_id' => $candidate->id]);
+            $before = $cv->exists ? $cv->data : CandidateCv::emptyDoc();
+
+            // الوثيقة تُغطّى لا تُستبدل: الاستقبال يصحّح سبعة حقول، والباقي
+            // يبقى كما أدخلته الجهة — وإرسالُ وثيقةٍ كاملة من نموذجٍ جزئي
+            // كان يمحو ما لم يُعرَض على الشاشة أصلاً
+            $merged = array_merge($before, $input);
+
+            try {
+                $clean = app(CvValidator::class)->clean($merged);
+            } catch (CvTooLargeException $e) {
+                return 'too_large';
+            } catch (ValidationException $e) {
+                return ['invalid' => $e->errors()];
+            }
+
+            // الاستقبال ليس معفىً من فحص التسرّب: المستشار يقرأ هذه الوثيقة
+            // بلا اسم، واسمٌ يتسلّل في «المنصب» يهدم إخفاء الهوية كلَّه
+            if ($hit = CvGuard::directIdentifierHit($clean, $candidate)) {
+                return ['leak' => $hit];
+            }
+
+            // ── الفرق يُقاس بين مُطبَّعَين ──
+            // `clean` تُسوّي الوثيقة: تُكمل المفاتيح الغائبة، وتُجرّد التشكيل،
+            // وتُرتّب عناصر المصفوفات. فمقارنة المحفوظ الخام بالمُنظَّف تُظهر
+            // التطبيع تغييراً، فيُقيَّد إصدارٌ لحفظٍ لم يمسّه أحد — و**يُنقَض
+            // اعتمادٌ قائم** بلا سبب. والمقصود ما غيّره الموظّف لا ما سوّاه
+            // المدقّق. ووثيقةٌ قديمة تأبى التنظيف تسقط على مفاتيح الوثيقة
+            // الفارغة — تطبيعٌ أخفّ خيرٌ من مقارنةٍ كاذبة.
+            try {
+                $baseline = app(CvValidator::class)->clean($before);
+            } catch (\Throwable $e) {
+                $baseline = array_merge(CandidateCv::emptyDoc(), $before);
+            }
+
+            $version = ($cv->version ?? 0) + 1;
+            $cv->data = $clean;
+            $cv->version = $version;
+            $cv->source = 'reception';
+            $cv->updated_by = $user->id;
+            $cv->save();
+
+            CandidateCvRevision::record(
+                $candidate, $baseline, $clean, $version, 'reception', $user->id,
+                $request->input('note')
+            );
+
+            return ['version' => $version, 'changed' => CandidateCvRevision::diffKeys($baseline, $clean)];
+        });
+
+        if ($result === 'too_large') {
+            return response()->json(['error' => 'عناصر أكثر من المسموح'], 413);
+        }
+        if (isset($result['invalid'])) {
+            return response()->json(['error' => 'بيانات غير صحيحة', 'fields' => $result['invalid']], 422);
+        }
+        if (isset($result['leak'])) {
+            return response()->json([
+                'error' => 'السيرة تحوي اسم المشارك أو معرّفاً — أزِله',
+                'field' => $result['leak'],
+            ], 422);
+        }
+
+        // ── والتصحيح ينقض الاعتماد ──
+        // اعتمادٌ يبقى بعد تغيير ما اعتُمد يشهد على نصٍّ لم يُقرأ.
+        $wasApproved = $visit->cv_approved_at !== null;
+        if ($wasApproved && $result['changed']) {
+            $visit->update(['cv_approved_at' => null, 'cv_approved_by' => null]);
+        }
+
+        $this->log($request, 'RECEPTION_CV_UPDATE', $visit->id, [
+            'code' => $visit->assessment?->participant_code,
+            'version' => $result['version'],
+            'changed' => $result['changed'],
+            'unapproved' => $wasApproved && (bool) $result['changed'],
+        ]);
+
+        return response()->json([
+            'message' => $result['changed'] ? 'حُفظ التصحيح' : 'لا تغيير',
+            'version' => $result['version'],
+            'changed' => $result['changed'],
+            'cvApproved' => $visit->fresh()->cv_approved_at !== null,
+        ]);
+    }
+
+    // POST /reception/visits/{id}/cv/approve — البوّابة
+    public function approveCv(Request $request, int $id)
+    {
+        $user = $request->user();
+        if (! $user->hasPermission(Permissions::RECEPTION_CV_APPROVE)) {
+            return $this->deny('ليس لديك صلاحية اعتماد السيرة عند الاستقبال');
+        }
+
+        $visit = $this->findVisit($request, $id, ['candidate.cv', 'assessment']);
+        if (! $visit) {
+            return response()->json(['error' => 'الزيارة غير موجودة'], 404);
+        }
+        if ($visit->cv_approved_at !== null) {
+            return response()->json(['error' => 'السيرة معتمدة من قبل'], 422);
+        }
+
+        // ── سيرةٌ فارغة لا تُعتمَد ──
+        // الاعتماد شهادةٌ أنّ ما فيها صحيح، ولا شهادة على فراغ. والمستشار
+        // يستقبل ورقةً بيضاء ولا يعرف أهي كذلك أم انقطع شيء في الطريق.
+        $doc = $visit->candidate->cv?->data;
+        if ($doc === null || CandidateCv::isEmptyDoc($doc)) {
+            return response()->json([
+                'error' => 'السيرة فارغة — صحّحها مع المشارك قبل اعتمادها',
+            ], 422);
+        }
+
+        $visit->update([
+            'cv_approved_at' => now(),
+            'cv_approved_by' => $user->id,
+        ]);
+
+        $this->log($request, 'RECEPTION_CV_APPROVE', $visit->id, [
+            'code' => $visit->assessment?->participant_code,
+            'version' => $visit->candidate->cv?->version,
+        ]);
+
+        return response()->json([
+            'approved' => true,
+            'approvedAt' => $visit->cv_approved_at->format('H:i'),
+        ]);
+    }
+
+    // GET /reception/visits/{id}/cv/revisions — ما تغيّر ومن غيّره
+    public function cvRevisions(Request $request, int $id)
+    {
+        if (! $this->canReadVisitCv($request->user())) {
+            return $this->deny('ليس لديك صلاحية قراءة السيرة');
+        }
+
+        $visit = $this->findVisit($request, $id, ['candidate']);
+        if (! $visit) {
+            return response()->json(['error' => 'الزيارة غير موجودة'], 404);
+        }
+
+        // الوثائق نفسها لا تُرسَل — السطر يقول ماذا تغيّر ومن ومتى، والوثيقة
+        // الحيّة تُقرأ من مسارها. إرسال كل إصدارٍ كاملاً يضاعف سطح التسرّب
+        // بلا حاجةٍ يعرفها أحد.
+        $rows = $visit->candidate->cvRevisions()->with('createdBy:id,full_name')->limit(50)->get()
+            ->map(fn (CandidateCvRevision $r) => [
+                'version' => $r->version,
+                'changed' => $r->changed_fields ?? [],
+                'changedLabels' => $r->changedLabels(),
+                'source' => $r->source,
+                'note' => $r->note,
+                'by' => $r->createdBy?->full_name,
+                'at' => $r->created_at?->format('Y-m-d H:i'),
+            ]);
+
+        return response()->json(['revisions' => $rows]);
+    }
+
     public function assign(Request $request, int $id)
     {
         $user = $request->user();
@@ -551,6 +838,26 @@ class ReceptionController extends Controller
     }
 
     // ── سحب إسناد لم يُبتّ فيه ──
+    /**
+     * سحب الإسناد — **بسببٍ مكتوب دائماً**.
+     *
+     * ── لماذا صار السبب إلزامياً ──
+     * التبديل يقع بلا موافقة أحد: «الاستقبال يبدّل بلا موافقة، ويُدوَّن
+     * السبب». فالسببُ هو كلُّ ما يبقى من القرار. وسحبٌ صامت يجعل مسؤول
+     * الجدولة يرى مستشاراً تغيّر ولا يعرف أمريضٌ كان أم ردّ المشارك أم
+     * انشغل — وهي ثلاثةُ أحوالٍ يُبنى على كلٍّ منها إجراءٌ مختلف.
+     *
+     * ── ولماذا يُسحب المستلَم أيضاً ──
+     * كان السحب مقصوراً على المعلّق، والبتُّ مقصوراً على المعلّق كذلك. فمتى
+     * استلم المستشارُ المشاركَ ثم غاب أو انشغل، لم يكن للحال مخرجٌ البتّة:
+     * لا يُسحب منه ولا يردّه — والمشارك واقفٌ في الردهة. وهي أكثر حالات
+     * التبديل وقوعاً يوم التنفيذ.
+     *
+     * ── والجلسة المُرحَّلة تتبع التبديل ──
+     * مسار الاستقبال كان موازياً لجدول الجلسات لا محرِّراً له: إسنادٌ رُحّل
+     * ثم سُحب كان يترك جلسته باسم المستشار القديم. فالجدول يقول شيئاً
+     * والاستقبال يقول غيره، ويُبنى على المتناقضين حضورٌ وتقييم.
+     */
     public function withdraw(Request $request, int $id)
     {
         $user = $request->user();
@@ -558,19 +865,48 @@ class ReceptionController extends Controller
             return $this->deny('ليس لديك صلاحية سحب الإسناد');
         }
 
-        $assignment = $this->findAssignment($request, $id);
+        $assignment = $this->findAssignment($request, $id, ['visit.assessment', 'evaluator']);
         if (! $assignment) {
             return response()->json(['error' => 'الإسناد غير موجود'], 404);
         }
-        // المستلَم لا يُسحب من تحت المقيّم — يُردّ منه أو يُعتمد
-        if ($assignment->status !== ReceptionAssignment::PENDING) {
-            return response()->json(['error' => 'لا يُسحب إسنادٌ بُتّ فيه'], 422);
+        // المردود انتهى أمرُه — سحبُه لا يعني شيئاً، وسببُه مكتوبٌ أصلاً
+        if ($assignment->status === ReceptionAssignment::REJECTED) {
+            return response()->json(['error' => 'الإسناد مردودٌ أصلاً — أسنِده لغيره'], 422);
         }
 
-        $assignment->delete();
-        $this->log($request, 'RECEPTION_WITHDRAW', $id, ['visit' => $assignment->visit_id]);
+        $validated = $request->validate([
+            'reason' => 'required|string|min:3|max:300',
+        ], [
+            'reason.required' => 'اكتب سبب السحب — التبديل يقع بلا موافقة، فالسببُ كلُّ ما يبقى منه',
+        ]);
 
-        return response()->json(['withdrawn' => true]);
+        $wasAccepted = $assignment->status === ReceptionAssignment::ACCEPTED;
+        $scheduleId = $assignment->schedule_id;
+
+        DB::transaction(function () use ($assignment, $scheduleId) {
+            // جلسةٌ رُحّلت باسم هذا المستشار تُخلى منه: تركُها تجعل الجدول
+            // يقول شيئاً والاستقبال يقول غيره
+            if ($scheduleId) {
+                Schedule::whereKey($scheduleId)->update(['evaluator_id' => null]);
+            }
+            $assignment->delete();
+        });
+
+        $this->log($request, 'RECEPTION_WITHDRAW', $id, [
+            'visit' => $assignment->visit_id,
+            'code' => $assignment->visit?->assessment?->participant_code,
+            'activity' => $assignment->activity,
+            'from' => $assignment->evaluator?->full_name,
+            'wasAccepted' => $wasAccepted,
+            'scheduleCleared' => $scheduleId,
+            'reason' => $validated['reason'],
+        ]);
+
+        return response()->json([
+            'withdrawn' => true,
+            'wasAccepted' => $wasAccepted,
+            'scheduleCleared' => $scheduleId !== null,
+        ]);
     }
 
     private function findAssignment(Request $request, int $id, array $with = []): ?ReceptionAssignment
@@ -581,7 +917,7 @@ class ReceptionController extends Controller
             ->whereHas('visit.candidate', function ($c) use ($request, $user) {
                 $c->whereIn('classification', $this->allowedClassifications($request));
                 if ($user->isSectorBound()) {
-                    $c->where('sector_id', $user->sector_id);
+                    $c->whereIn('sector_id', $user->sectorIds());
                 }
             })
             ->find($id);
@@ -728,6 +1064,13 @@ class ReceptionController extends Controller
         if (! $visit->isSigned()) {
             return response()->json(['error' => 'لم يوقّع المشارك ولم يُقرّ بصحّة بياناته'], 422);
         }
+        // ── وسيرةٌ لم تُعتمَد لا تُرسَل للمستشار ──
+        // الاعتماد هو البوّابة: ما يصل المستشار قرأه موظّفٌ وأقرّه مع صاحبه.
+        if ($visit->cv_approved_at === null) {
+            return response()->json([
+                'error' => 'لم تُعتمَد السيرة بعد — راجِعها مع المشارك ثم اعتمِدها',
+            ], 422);
+        }
 
         $accepted = $visit->assignments->where('status', ReceptionAssignment::ACCEPTED);
         if ($accepted->isEmpty()) {
@@ -741,15 +1084,122 @@ class ReceptionController extends Controller
             ], 422);
         }
 
+        $created = $this->routeVisit($visit, $user);
+        $code = $visit->assessment?->participant_code ?? '—';
+
+        $this->log($request, 'RECEPTION_APPROVE', $visit->id, [
+            'code' => $code, 'schedules' => $created,
+        ]);
+
+        return response()->json(['approved' => true, 'schedulesCreated' => $created]);
+    }
+
+    // ═══════════════════════════════════════════════════════
+    //  إرسال قوائم اليوم للمستشارين — دفعةً واحدة
+    // ═══════════════════════════════════════════════════════
+    //
+    //  الموظّف يسجّل الكلّ أوّلاً، ثم يُرسل مرّةً واحدة. والزرّ لا يُخفي ما
+    //  عجز عنه: يعود بأسماء من لم يُرسَل وبسبب كلٍّ منهم، فيُعالَج ما بقي
+    //  ويُعاد الضغط. إرسالٌ صامت يترك مشاركاً واقفاً بلا مستشارٍ ينتظره.
+
+    // POST /reception/send — يعتمد ويُرحّل ويُجمّد كلَّ من اكتمل
+    public function send(Request $request)
+    {
+        $user = $request->user();
+        if (! $user->hasPermission(Permissions::RECEPTION_APPROVE)) {
+            return $this->deny('ليس لديك صلاحية اعتماد بيانات الاستقبال');
+        }
+
+        $validated = $request->validate(['date' => 'nullable|date_format:Y-m-d']);
+        $date = $validated['date'] ?? now()->toDateString();
+
+        $visits = ReceptionVisit::with(['assignments', 'assessment', 'candidate.cv'])
+            ->whereDate('visit_date', $date)
+            ->where('status', '!=', ReceptionVisit::APPROVED)
+            ->whereHas('candidate', function ($c) use ($request, $user) {
+                $c->whereIn('classification', $this->allowedClassifications($request));
+                if ($user->isSectorBound()) {
+                    $c->whereIn('sector_id', $user->sectorIds());
+                }
+            })
+            ->get();
+
+        $sent = 0;
+        $created = 0;
+        $blocked = [];
+
+        foreach ($visits as $visit) {
+            if ($reason = $this->sendBlocker($visit)) {
+                $blocked[] = [
+                    'visitId' => $visit->id,
+                    'code' => $visit->assessment?->participant_code ?? '—',
+                    'reason' => $reason,
+                ];
+
+                continue;
+            }
+
+            $created += $this->routeVisit($visit, $user);
+            $sent++;
+        }
+
+        $this->log($request, 'RECEPTION_SEND_BATCH', $date, [
+            'sent' => $sent, 'schedules' => $created, 'blocked' => count($blocked),
+        ]);
+
+        return response()->json([
+            'sent' => $sent,
+            'schedulesCreated' => $created,
+            'blocked' => $blocked,
+            'message' => $sent
+                ? "أُرسِل {$sent} مشاركاً للمستشارين"
+                : 'لا مشارك جاهزاً للإرسال',
+        ]);
+    }
+
+    // ما يمنع إرسال هذه الزيارة — أو null إن كانت جاهزة
+    private function sendBlocker(ReceptionVisit $visit): ?string
+    {
+        if (! $visit->isSigned()) {
+            return 'لم يوقّع ولم يُقرّ';
+        }
+        if ($visit->cv_approved_at === null) {
+            return 'لم تُعتمَد سيرته';
+        }
+        if ($visit->assignments->where('status', ReceptionAssignment::PENDING)->isNotEmpty()) {
+            return 'إسنادٌ بانتظار قرار المستشار';
+        }
+        if ($visit->assignments->where('status', ReceptionAssignment::ACCEPTED)->isEmpty()) {
+            return 'لا إسناد مستلَم';
+        }
+
+        return null;
+    }
+
+    /**
+     * ترحيل زيارةٍ واحدة: جلساتٌ للمقبول، وتجميدٌ للسيرة، وختمُ إرسال.
+     *
+     * مشتركةٌ بين `approve` (زيارةً زيارة) و`send` (دفعةً واحدة) — نسختان من
+     * الترحيل تتفرّعان عند أوّل تعديل، فتُرسِل إحداهما ما لا تُرسله الأخرى.
+     */
+    private function routeVisit(ReceptionVisit $visit, User $user): int
+    {
+        $accepted = $visit->assignments->where('status', ReceptionAssignment::ACCEPTED);
+
         $created = DB::transaction(function () use ($visit, $accepted, $user) {
             $n = 0;
             foreach ($accepted as $a) {
                 if ($a->schedule_id) {
                     continue;
-                }   // مُرحَّل من قبل — لا تكرار
+                }
                 $schedule = Schedule::create([
                     'candidate_id' => $visit->candidate_id,
                     'assessment_id' => $visit->assessment_id,
+                    'period_id' => SchedulingPeriod::coveringDate(
+                        $visit->visit_date instanceof \DateTimeInterface
+                            ? $visit->visit_date->format('Y-m-d')
+                            : (string) $visit->visit_date
+                    )?->id,
                     'schedule_date' => $visit->visit_date,
                     'activity' => $a->activity,
                     'evaluator_id' => $a->evaluator_id,
@@ -758,10 +1208,16 @@ class ReceptionController extends Controller
                 Assessment::refreshDatesFor($visit->assessment_id);
                 $n++;
             }
+
+            $visit->assessment?->loadMissing('candidate.cv');
+            $visit->assessment?->freezeCvSnapshot();
+
             $visit->update([
                 'status' => ReceptionVisit::APPROVED,
                 'approved_at' => now(),
                 'approved_by' => $user->id,
+                'sent_at' => now(),
+                'sent_by' => $user->id,
             ]);
 
             return $n;
@@ -784,11 +1240,7 @@ class ReceptionController extends Controller
             );
         }
 
-        $this->log($request, 'RECEPTION_APPROVE', $visit->id, [
-            'code' => $code, 'schedules' => $created,
-        ]);
-
-        return response()->json(['approved' => true, 'schedulesCreated' => $created]);
+        return $created;
     }
 
     // ═══════════════════════════════════════════════════════
@@ -897,7 +1349,7 @@ class ReceptionController extends Controller
             ->whereHas('candidate', function ($c) use ($request, $user) {
                 $c->whereIn('classification', $this->allowedClassifications($request));
                 if ($user->isSectorBound()) {
-                    $c->where('sector_id', $user->sector_id);
+                    $c->whereIn('sector_id', $user->sectorIds());
                 }
             })
             ->orderBy('badge_requested_at')   // ترتيب الطابور هو ترتيب الوصول
@@ -922,6 +1374,14 @@ class ReceptionController extends Controller
         $visit = $this->findVisit($request, $id, ['assessment']);
         if (! $visit) {
             return response()->json(['error' => 'الزيارة غير موجودة'], 404);
+        }
+        // ── والاعتماد يسبق البطاقة ──
+        // البطاقة تُخرِج المشارك من المكتب إلى المحطّات، وبها يُعرَف عند
+        // المستشار. طبعُها قبل مراجعة سيرته يُرسله وقد بقي في ورقته خطأ.
+        if ($visit->cv_approved_at === null) {
+            return response()->json([
+                'error' => 'اعتمِد السيرة أوّلاً — البطاقة تُطبع بعد المراجعة',
+            ], 422);
         }
 
         $visit->update(['badge_printed_at' => now(), 'badge_printed_by' => $user->id]);
@@ -970,6 +1430,9 @@ class ReceptionController extends Controller
             'sector' => $v->candidate?->sector?->name_ar,
             'assessmentType' => Assessment::typeLabel($a?->assessment_type),
             'requestedAt' => $v->badge_requested_at?->format('H:i'),
+            // الزرّ يُخفى قبل الاعتماد بدل أن يُضغط فيُردّ — الردّ عند
+            // الطابعة والمشارك واقفٌ ليس مكان اكتشاف القاعدة
+            'cvApproved' => $v->cv_approved_at !== null,
             'schedules' => collect($a?->schedules ?? [])
                 ->sortBy(fn ($s) => substr((string) $s->schedule_date, 0, 10).' '.$s->schedule_time)
                 ->values()

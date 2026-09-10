@@ -60,7 +60,7 @@ class SchedulingPeriodTest extends TestCase
 
         $this->assertSame(3, $res->json('period.dayCount'));
         $this->assertSame('draft', $res->json('period.status'));
-        $this->assertCount(3, SchedulingPeriod::first()->days());
+        $this->assertCount(3, SchedulingPeriod::findOrFail($res->json('period.id'))->days());
     }
 
     public function test_end_before_start_is_rejected(): void
@@ -232,19 +232,34 @@ class SchedulingPeriodTest extends TestCase
         ])->assertStatus(422);
     }
 
-    public function test_a_session_without_a_period_still_works_exactly_as_before(): void
+    // العقد انقلب: لا جلسةَ بلا فترة. من لم يذكرها تُستنبَط من تاريخه —
+    // وجلسةٌ خارج كل فترة لا تُعتمد أبداً ولا يصدر لصاحبها رمز.
+    public function test_a_session_without_a_stated_period_takes_the_covering_one(): void
     {
         [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
+        $period = $this->makePeriod();
 
         $this->actingAsRole('SCHEDULER');
         $this->postJson('/api/schedules', [
             'candidateId' => $c->id,
             'activity' => 'interview',
-            'date' => now()->addDay()->toDateString(),
+            'date' => $period->start_date->toDateString(),
             'time' => '10:15',
         ])->assertStatus(201);
 
-        $this->assertDatabaseHas('schedules', ['candidate_id' => $c->id, 'period_id' => null]);
+        $this->assertDatabaseHas('schedules', ['candidate_id' => $c->id, 'period_id' => $period->id]);
+    }
+
+    public function test_a_date_no_period_covers_is_refused(): void
+    {
+        [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
+        // الفترة التحتيّة تغطّي ستّة أشهر حول اليوم — فما بعدها لا فترة له
+        $far = now()->addMonths(9)->toDateString();
+
+        $this->actingAsRole('SCHEDULER');
+        $this->postJson('/api/schedules', [
+            'candidateId' => $c->id, 'activity' => 'interview', 'date' => $far, 'time' => '10:15',
+        ])->assertStatus(422);
     }
 
     public function test_narrowing_the_range_over_existing_sessions_is_refused(): void
@@ -329,12 +344,14 @@ class SchedulingPeriodTest extends TestCase
 
     // ── فصل المهام: من يبني لا يعتمد ──
 
-    public function test_scheduler_cannot_approve_but_center_manager_can(): void
+    // الباني لا يعتمد — والفصل انتقل داخل الإدارة: موظّف الإعداد يبني
+    // ويُرسل، ومسؤول الجدولة يعتمد. ومدير المركز لم يعد طرفاً.
+    public function test_the_clerk_cannot_approve_but_the_officer_can(): void
     {
         [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
         $period = $this->makePeriod();
 
-        $this->actingAsRole('SCHEDULER');
+        $this->actingAsRole('SCHEDULE_CLERK');
         $this->postJson('/api/schedules', [
             'candidateId' => $c->id, 'activity' => 'interview',
             'date' => $period->start_date->toDateString(), 'time' => '10:15', 'periodId' => $period->id,
@@ -346,19 +363,19 @@ class SchedulingPeriodTest extends TestCase
         // الباني لا يعتمد
         $this->postJson("/api/scheduling-periods/{$period->id}/approve")->assertStatus(403);
 
-        $this->actingAsRole('CENTER_MANAGER');
+        $this->actingAsRole('SCHEDULER');
         $this->postJson("/api/scheduling-periods/{$period->id}/approve")->assertOk();
         $this->assertSame('approved', $period->fresh()->status);
     }
 
-    public function test_a_center_manager_cannot_approve_a_wave_they_submitted(): void
+    public function test_an_officer_cannot_approve_a_period_they_submitted(): void
     {
         [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
         $period = $this->makePeriod();
 
-        // مدير المركز يحمل schedule.manage وschedule.approve_center معاً، فكان
-        // يبني ويرسل ويعتمد وحده — وخطوة «الإرسال للاعتماد» بلا معنى.
-        $this->actingAsRole('CENTER_MANAGER');
+        // مسؤول الجدولة يحمل schedule.manage وschedule.approve معاً، فلولا
+        // الفحص لَبنى وأرسل واعتمد وحده — وخطوة «الإرسال للاعتماد» بلا معنى.
+        $this->actingAsRole('SCHEDULER');
         $this->postJson('/api/schedules', [
             'candidateId' => $c->id, 'activity' => 'interview',
             'date' => $period->start_date->toDateString(), 'time' => '10:15', 'periodId' => $period->id,
@@ -368,8 +385,8 @@ class SchedulingPeriodTest extends TestCase
         $this->postJson("/api/scheduling-periods/{$period->id}/approve")->assertStatus(422);
         $this->assertSame('pending_center', $period->fresh()->status);
 
-        // ومديرٌ آخر يعتمدها — المنع على الشخص لا على الدور
-        $other = $this->person('CENTER_MANAGER');
+        // ومسؤولٌ آخر يعتمدها — المنع على الشخص لا على الدور
+        $other = $this->person('SCHEDULER');
         $this->actingAs($other);
         $this->postJson("/api/scheduling-periods/{$period->id}/approve")->assertOk();
         $this->assertSame('approved', $period->fresh()->status);
@@ -414,8 +431,8 @@ class SchedulingPeriodTest extends TestCase
         [$c] = $this->makeCandidate(['status' => 'scheduled', 'sectorCode' => 'DW']);
         $period = $this->makePeriod();
 
-        $manager = $this->person('CENTER_MANAGER');
-        $submitter = $this->actingAsRole('SCHEDULER');
+        $officer = $this->person('SCHEDULER');
+        $submitter = $this->actingAsRole('SCHEDULE_CLERK');
 
         $this->postJson('/api/schedules', [
             'candidateId' => $c->id, 'activity' => 'interview',
@@ -424,9 +441,9 @@ class SchedulingPeriodTest extends TestCase
         $this->postJson("/api/scheduling-periods/{$period->id}/submit")->assertOk();
 
         $this->assertTrue(
-            Notification::where('recipient_id', $manager->id)
+            Notification::where('recipient_id', $officer->id)
                 ->where('entity_type', 'scheduling_period')->exists(),
-            'مدير المركز يُشعَر'
+            'مسؤول الجدولة يُشعَر'
         );
         $this->assertFalse(
             Notification::where('recipient_id', $submitter->id ?? 0)
@@ -447,7 +464,7 @@ class SchedulingPeriodTest extends TestCase
         ])->assertStatus(201);
         $this->postJson("/api/scheduling-periods/{$period->id}/submit")->assertOk();
 
-        $this->actingAsRole('CENTER_MANAGER');
+        $this->actingAsRole('SCHEDULER', null, null);
         $this->postJson("/api/scheduling-periods/{$period->id}/reject", [])->assertStatus(422);
         $this->postJson("/api/scheduling-periods/{$period->id}/reject", ['reason' => 'ينقص مقيّم'])->assertOk();
 
@@ -498,9 +515,10 @@ class SchedulingPeriodTest extends TestCase
             'candidateId' => $inWave->id, 'activity' => 'interview',
             'date' => $period->start_date->toDateString(), 'time' => '10:15', 'periodId' => $period->id,
         ])->assertStatus(201);
+        // خارج مدى الفترة — تسقط على الفترة التحتيّة، فتغيب عن هذه
         $this->postJson('/api/schedules', [
             'candidateId' => $outside->id, 'activity' => 'interview',
-            'date' => $period->start_date->toDateString(), 'time' => '12:30',
+            'date' => $period->end_date->copy()->addDays(3)->toDateString(), 'time' => '12:30',
         ])->assertStatus(201);
 
         $res = $this->getJson("/api/schedules?periodId={$period->id}")->assertOk();
@@ -547,7 +565,7 @@ class SchedulingPeriodTest extends TestCase
         ])->assertStatus(201);
 
         $created = Schedule::where('candidate_id', $c->id)->where('id', '!=', $schedule->id)->first();
-        $this->assertNull($created->period_id, 'المعتمَدة لا تُزاد جلسةً');
+        $this->assertNotSame($period->id, $created->period_id, 'المعتمَدة لا تُزاد جلسةً');
         $this->assertSame(1, $period->fresh()->schedules()->count());
     }
 
@@ -605,6 +623,6 @@ class SchedulingPeriodTest extends TestCase
         ])->assertStatus(201);
 
         $created = Schedule::where('candidate_id', $c->id)->where('id', '!=', $schedule->id)->first();
-        $this->assertNull($created->period_id, 'جلسة خارج مدى الموجة لا تُنسب إليها');
+        $this->assertNotSame($period->id, $created->period_id, 'جلسة خارج مدى الموجة لا تُنسب إليها');
     }
 }

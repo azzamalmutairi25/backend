@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\Assessment;
 use App\Models\Candidate;
+use App\Models\Schedule;
+use App\Models\SchedulingPeriod;
 use App\Models\Sector;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -63,7 +65,8 @@ class ParticipantCodeTest extends TestCase
 
         $this->assertCount(200, array_unique($codes), 'تكرّر رمز خلال ٢٠٠ توليد');
 
-        $numbers = array_map(fn ($c) => (int) substr($c, strrpos($c, '-') + 1), $codes);
+        // الصيغة: بادئة + تسلسل رباعي + شهر + سنتان (DW0007Aug26)
+        $numbers = array_map(fn ($c) => (int) substr($c, 2, 4), $codes);
         $sorted = $numbers;
         sort($sorted);
         $this->assertSame($sorted, $numbers, 'الترقيم غير تصاعدي');
@@ -82,7 +85,8 @@ class ParticipantCodeTest extends TestCase
             'prefix' => 'DW', 'last_number' => 42, 'created_at' => now(), 'updated_at' => now(),
         ]);
 
-        $this->assertSame('DW-043', Assessment::generateParticipantCode($this->sector()));
+        $expected = 'DW0043'.now()->format('My');
+        $this->assertSame($expected, Assessment::generateParticipantCode($this->sector()));
     }
 
     public function test_the_counter_advances_by_exactly_one_per_call(): void
@@ -101,8 +105,8 @@ class ParticipantCodeTest extends TestCase
         $ed = Assessment::generateParticipantCode($this->sector('DW'));
         $ho = Assessment::generateParticipantCode($this->sector('PR'));
 
-        $this->assertStringStartsWith('DW-', $ed);
-        $this->assertStringStartsWith('PR-', $ho);
+        $this->assertStringStartsWith('DW0001', $ed);
+        $this->assertStringStartsWith('PR0001', $ho);
         // قطاعٌ لا يُحرّك عدّاد قطاعٍ آخر — التنافس محصور بالبادئة
         $this->assertSame(1, $this->counter('PR'));
     }
@@ -111,12 +115,13 @@ class ParticipantCodeTest extends TestCase
     public function test_a_code_that_already_exists_is_skipped_not_collided_with(): void
     {
         $sector = $this->sector();
-        // العدّاد عند صفر، لكن الرمز DW-001 محجوز مسبقاً
-        $this->makeCandidate(['sectorCode' => 'DW', 'code' => 'DW-001']);
+        // العدّاد عند صفر، لكن أوّل رمزٍ سيولّده محجوزٌ مسبقاً
+        $taken = 'DW0001'.now()->format('My');
+        $this->makeCandidate(['sectorCode' => 'DW', 'code' => $taken]);
 
         $code = Assessment::generateParticipantCode($sector);
 
-        $this->assertNotSame('DW-001', $code, 'أُرجِع رمز محجوز');
+        $this->assertNotSame($taken, $code, 'أُرجِع رمز محجوز');
         $this->assertFalse(
             Candidate::where('participant_code', $code)->exists()
             || Assessment::where('participant_code', $code)->exists()
@@ -125,50 +130,129 @@ class ParticipantCodeTest extends TestCase
 
     // ═══ التدفّق الكامل ═══
 
-    // ما كان يفشل فعلاً: عدّة ترشيحات متلاحقة في القطاع نفسه
-    public function test_repeated_nominations_in_one_sector_all_succeed(): void
+    // الرمز لم يعد يُصدَر عند الترشيح: من دخل القاعدة ولم تُجدوَل جلساته بعد
+    // يبقى بلا رمز، ويُعرَف باسمه أو هويته. والعدّاد لا يُستهلَك لأجله.
+    public function test_nomination_issues_no_code_and_does_not_touch_the_counter(): void
     {
         $this->actingAsRole('EXTERNAL_ADD');
         $sectorId = $this->sector()->id;
-
-        // الجنس والمجالات الفنية والسيرة صارت إلزامية عند الإضافة، وهي ثابتة
-        // عبر الدورة — الهوية وحدها تتغيّر، فالمقصود هنا تلاحق الترشيحات لا تنوّعها
         $required = $this->candidateRequired();
 
-        $codes = [];
+        $before = $this->counter('DW');
+
         for ($i = 0; $i < 12; $i++) {
-            $res = $this->postJson('/api/candidates', array_replace($required, [
+            $this->postJson('/api/candidates', array_replace($required, [
                 'nationalId' => $this->validNationalId(),
                 'fullName' => "مشارك {$i}",
                 'sectorId' => $sectorId,
                 'personnelCategory' => 'military',
                 'rankLabel' => 'عميد',
-            ]))->assertStatus(201);
-            $codes[] = $res->json('participantCode');
+            ]))->assertStatus(201)->assertJsonPath('participantCode', null);
         }
 
-        $this->assertCount(12, array_unique($codes), 'تكرّر رمز بين الترشيحات');
-        $this->assertSame(12, Candidate::whereIn('participant_code', $codes)->count());
+        $this->assertSame(12, Candidate::whereNull('participant_code')->count());
+        $this->assertSame($before, $this->counter('DW'), 'الترشيح لا يستهلك من عدّاد القطاع');
     }
 
-    public function test_the_import_path_uses_the_same_series(): void
+    // ولا الاستيراد: كشفٌ من عشرة آلاف صفّ كان يستهلك عشرة آلاف رقم
+    public function test_the_import_path_issues_no_codes_either(): void
     {
         $this->actingAsRole('SCHEDULER');
+        $before = $this->counter('DW');
 
         $rows = [];
         for ($i = 0; $i < 5; $i++) {
             $rows[] = $this->importRow([
                 'nationalId' => $this->validNationalId(), 'fullName' => "مستورد {$i}",
-                'mobile' => '', 'email' => '', 'sectorCode' => 'DW', 'personnelCategory' => 'civilian', 'rankLabel' => 'الرابعة عشرة',
+                'mobile' => '', 'email' => '', 'sectorCode' => 'DW',
+                'personnelCategory' => 'civilian', 'rankLabel' => 'الرابعة عشرة',
             ]);
         }
 
         $this->postJson('/api/candidates/import', ['rows' => $rows])->assertOk()
             ->assertJsonPath('imported', 5);
 
-        // خمسة رموز فريدة، والعدّاد يعكسها — لا مسار جانبي يتجاوزه
-        $this->assertSame(5, Candidate::where('participant_code', 'like', 'DW-%')->distinct('participant_code')->count());
-        $this->assertGreaterThanOrEqual(5, $this->counter('DW'));
+        $this->assertSame(5, Candidate::whereNull('participant_code')->count());
+        $this->assertSame($before, $this->counter('DW'));
+    }
+
+    // ═══ الإصدار عند اعتماد الفترة ═══
+
+    public function test_approving_a_period_issues_codes_for_its_participants(): void
+    {
+        [$c, $a] = $this->makeCandidate(['sectorCode' => 'DW', 'status' => 'scheduled', 'code' => null]);
+        $this->assertNull($c->participant_code);
+
+        $period = SchedulingPeriod::create([
+            'name' => 'فترة '.uniqid(),
+            'start_date' => now()->addDay()->toDateString(),
+            'end_date' => now()->addDays(3)->toDateString(),
+            'status' => 'pending_center',
+        ]);
+        Schedule::create([
+            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'period_id' => $period->id,
+            'activity' => 'interview', 'schedule_date' => now()->addDay()->toDateString(),
+            'schedule_time' => '09:00',
+        ]);
+
+        $this->actingAsRole('SCHEDULER');
+        $this->postJson("/api/scheduling-periods/{$period->id}/approve")
+            ->assertOk()->assertJsonPath('codesIssued', 1);
+
+        $code = $c->fresh()->participant_code;
+        $this->assertNotNull($code, 'الاعتماد يُصدر الرمز');
+        $this->assertStringStartsWith('DW', $code);
+        // والرمز نفسه على الدورة — سجلٌّ تاريخي لا يُعاد كتابته
+        $this->assertSame($code, $a->fresh()->participant_code);
+    }
+
+    // الشهر والسنة من تاريخ إضافة المشارك لا من يوم الاعتماد: الرمز يقول
+    // متى دخل صاحبه المنصّة
+    public function test_the_stamp_follows_the_add_date_not_the_approval_date(): void
+    {
+        [$c, $a] = $this->makeCandidate(['sectorCode' => 'DW', 'status' => 'scheduled', 'code' => null]);
+        $c->forceFill(['created_at' => now()->subMonths(3)])->save();
+
+        $period = SchedulingPeriod::create([
+            'name' => 'فترة '.uniqid(),
+            'start_date' => now()->addDay()->toDateString(),
+            'end_date' => now()->addDays(3)->toDateString(),
+            'status' => 'pending_center',
+        ]);
+        Schedule::create([
+            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'period_id' => $period->id,
+            'activity' => 'interview', 'schedule_date' => now()->addDay()->toDateString(),
+            'schedule_time' => '09:00',
+        ]);
+
+        $this->actingAsRole('SCHEDULER');
+        $this->postJson("/api/scheduling-periods/{$period->id}/approve")->assertOk();
+
+        $this->assertStringEndsWith(now()->subMonths(3)->format('My'), $c->fresh()->participant_code);
+    }
+
+    // من حمل رمزاً من قبل لا يُمسّ: إعادةُ اعتمادٍ لا تغيّر رمزاً طُبع على تصريح
+    public function test_an_existing_code_is_never_reissued(): void
+    {
+        [$c, $a] = $this->makeCandidate(['sectorCode' => 'DW', 'status' => 'scheduled', 'code' => 'DW-042']);
+
+        $period = SchedulingPeriod::create([
+            'name' => 'فترة '.uniqid(),
+            'start_date' => now()->addDay()->toDateString(),
+            'end_date' => now()->addDays(3)->toDateString(),
+            'status' => 'pending_center',
+        ]);
+        Schedule::create([
+            'candidate_id' => $c->id, 'assessment_id' => $a->id, 'period_id' => $period->id,
+            'activity' => 'interview', 'schedule_date' => now()->addDay()->toDateString(),
+            'schedule_time' => '09:00',
+        ]);
+
+        $this->actingAsRole('SCHEDULER');
+        $this->postJson("/api/scheduling-periods/{$period->id}/approve")
+            ->assertOk()->assertJsonPath('codesIssued', 0);
+
+        $this->assertSame('DW-042', $c->fresh()->participant_code, 'الرمز القديم يبقى بصيغته');
     }
 
     // ═══ التكلفة ═══

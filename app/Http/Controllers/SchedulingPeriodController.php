@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Assessment;
 use App\Models\AuditLog;
 use App\Models\PeriodAssessor;
 use App\Models\Schedule;
@@ -29,13 +30,12 @@ use Illuminate\Support\Facades\DB;
 // لحظتين)، وهو خطأ إدخال لا قرار إداري — وموضعه شاشة الجدولة لا هذه.
 class SchedulingPeriodController extends Controller
 {
-    private const ACTIVITIES = ['interview', 'discussion', 'measurement', 'integration'];
+    private const ACTIVITIES = ['interview', 'discussion', 'measurement'];
 
     private const ACTIVITY_LABEL = [
         'interview' => 'المقابلة الشخصية',
         'discussion' => 'حلقة النقاش',
         'measurement' => 'أدوات القياس',
-        'integration' => 'التمرين التكاملي',
     ];
 
     public function __construct(private NotificationService $notifications) {}
@@ -69,9 +69,9 @@ class SchedulingPeriodController extends Controller
 
     private function denyApprove(Request $request): ?JsonResponse
     {
-        return $request->user()->hasPermission(Permissions::SCHEDULE_APPROVE_CENTER)
+        return $request->user()->hasPermission(Permissions::SCHEDULE_APPROVE)
             ? null
-            : response()->json(['error' => 'اعتماد الجدولة لمدير المركز'], 403);
+            : response()->json(['error' => 'اعتماد الجدولة لمسؤول الجدولة'], 403);
     }
 
     private function row(SchedulingPeriod $p, array $counts = []): array
@@ -82,6 +82,12 @@ class SchedulingPeriodController extends Controller
             'startDate' => $p->start_date?->toDateString(),
             'endDate' => $p->end_date?->toDateString(),
             'dayCount' => $p->dayCount(),
+            // أيام العمل هي ما تُبنى عليه الشبكة — لا كل أيام المدى
+            'workDays' => $p->workDayNumbers(),
+            'workingDayCount' => $p->workingDayCount(),
+            'dailyCapacity' => $p->daily_capacity,
+            'excludedDates' => $p->excludedDates(),
+            'targetTotal' => $p->targetTotal(),
             'sessionTimes' => $p->sessionTimes(),
             'sessionTimesOverridden' => trim((string) $p->session_times) !== '',
             'status' => $p->status,
@@ -129,7 +135,7 @@ class SchedulingPeriodController extends Controller
         return response()->json([
             'periods' => $rows,
             'canManage' => $request->user()->hasPermission(Permissions::SCHEDULE_MANAGE),
-            'canApprove' => $request->user()->hasPermission(Permissions::SCHEDULE_APPROVE_CENTER),
+            'canApprove' => $request->user()->hasPermission(Permissions::SCHEDULE_APPROVE),
         ]);
     }
 
@@ -142,6 +148,14 @@ class SchedulingPeriodController extends Controller
             // أوقات الجلسات: فارغة ⇒ الإعداد العام. تُرسل نصّاً «H:i,H:i»
             'sessionTimes' => 'nullable|string|max:120',
             'notes' => 'nullable|string|max:1000',
+            // أيام العمل: أرقام أيام الأسبوع (0=الأحد). الافتراض الأحد–الخميس
+            'workDays' => 'nullable|array|max:7',
+            'workDays.*' => 'integer|min:0|max:6',
+            // الطاقة اليومية: العدد المستهدف يومياً — به يُقارَن مجموع كل يوم
+            'dailyCapacity' => 'nullable|integer|min:1|max:500',
+            // عطلةٌ رسمية داخل المدى — تواريخ لا قاعدة تُحسب
+            'excludedDates' => 'nullable|array|max:60',
+            'excludedDates.*' => 'date_format:Y-m-d',
         ];
     }
 
@@ -208,6 +222,13 @@ class SchedulingPeriodController extends Controller
                 'start_date' => $validated['startDate'],
                 'end_date' => $validated['endDate'],
                 'session_times' => $times['value'],
+                'work_days' => isset($validated['workDays'])
+                    ? implode(',', $validated['workDays'])
+                    : '0,1,2,3,4',
+                'daily_capacity' => $validated['dailyCapacity'] ?? null,
+                'excluded_dates' => isset($validated['excludedDates'])
+                    ? implode(',', $validated['excludedDates'])
+                    : null,
                 'notes' => $validated['notes'] ?? null,
                 'status' => 'draft',
                 'created_by' => $request->user()->id,
@@ -276,6 +297,18 @@ class SchedulingPeriodController extends Controller
         }
         $period->start_date = $start;
         $period->end_date = $end;
+        // الحقول الثلاثة تُمسّ متى أُرسلت وحدها — تعديلٌ لا يعرضها لا يمحوها
+        if (array_key_exists('workDays', $validated)) {
+            $period->work_days = $validated['workDays'] ? implode(',', $validated['workDays']) : '0,1,2,3,4';
+        }
+        if (array_key_exists('dailyCapacity', $validated)) {
+            $period->daily_capacity = $validated['dailyCapacity'];
+        }
+        if (array_key_exists('excludedDates', $validated)) {
+            $period->excluded_dates = $validated['excludedDates']
+                ? implode(',', $validated['excludedDates'])
+                : null;
+        }
         if (array_key_exists('notes', $validated)) {
             $period->notes = $validated['notes'];
         }
@@ -450,7 +483,7 @@ class SchedulingPeriodController extends Controller
             // بحكم UserController) يبقى ظاهراً للجميع: حصرُه بقطاعٍ لا ينتمي
             // إليه يُخفيه عن كل مُجدوِل محصور.
             ->when($request->user()->isSectorBound(),
-                fn ($q) => $q->where(fn ($w) => $w->where('sector_id', $request->user()->sector_id)
+                fn ($q) => $q->where(fn ($w) => $w->whereIn('sector_id', $request->user()->sectorIds())
                     ->orWhereHas('role', fn ($r) => $r->whereNotIn('code', User::SECTOR_BOUND_ROLES))))
             ->orderBy('full_name')
             ->get()
@@ -603,10 +636,10 @@ class SchedulingPeriodController extends Controller
         $period->reject_reason = null;   // إرسالٌ جديد يمسح سبب رفضٍ سابق
         $period->save();
 
-        // بالصلاحية لا بالدور: مركزٌ لم يُنشئ دور مدير المركز كان الإشعار
-        // فيه يذهب إلى لا أحد فتقف الموجة بلا أن يعلم أحد.
+        // بالصلاحية لا بالدور: مركزٌ لم يُنشئ الدور المعتمِد كان الإشعار فيه
+        // يذهب إلى لا أحد فتقف الفترة بلا أن يعلم أحد.
         $reached = $this->notifications->notifyPermission(
-            Permissions::SCHEDULE_APPROVE_CENTER,
+            Permissions::SCHEDULE_APPROVE,
             'approval',
             'جدولة بانتظار اعتمادك',
             'موجة «'.$period->name.'» ('.$period->start_date->toDateString()
@@ -632,6 +665,60 @@ class SchedulingPeriodController extends Controller
     }
 
     // POST /scheduling-periods/{id}/approve — اعتماد مدير المركز
+    /**
+     * إصدار رموز المشاركين لفترةٍ اعتُمدت.
+     *
+     * صفٌّ واحد لكل دورةٍ لها جلسة في الفترة ولا رمز لها بعد. والرمز يُكتب على
+     * الدورة وعلى المشارك معاً — الأولى سجلٌّ تاريخي لا يُعاد كتابته، والثاني
+     * «رمزه الحالي» الذي تعرضه الشاشات.
+     *
+     * والتوليد **خارج المعاملة**: العدّاد ذرّيٌّ بعبارةٍ واحدة، وحبسُه داخل
+     * معاملةٍ تمرّ على مئة دورة يُسلسل كل إضافةٍ في المنصّة خلفها.
+     *
+     * ومن حمل رمزاً من قبل لا يُمسّ: إعادةُ اعتمادٍ أو فترةٌ ثانية تشمله لا
+     * تغيّر رمزاً طُبع على تصريحٍ أو خطاب.
+     */
+    private function issueParticipantCodes(SchedulingPeriod $period): int
+    {
+        $assessments = Assessment::with('candidate.sector')
+            ->whereNull('participant_code')
+            ->whereIn('id', Schedule::where('period_id', $period->id)->select('assessment_id'))
+            ->get();
+
+        $issued = 0;
+        foreach ($assessments as $assessment) {
+            $candidate = $assessment->candidate;
+            if (! $candidate || ! $candidate->sector) {
+                continue;
+            }
+
+            // الشهر والسنة من تاريخ إضافة المشارك لا من اليوم — الرمز يقول
+            // متى دخل صاحبه المنصّة، لا متى صدر
+            $code = Assessment::generateParticipantCode($candidate->sector, $candidate->created_at);
+
+            DB::transaction(function () use ($assessment, $candidate, $code, $period) {
+                $assessment->forceFill(['participant_code' => $code])->save();
+                $candidate->forceFill(['participant_code' => $code])->save();
+
+                // ── ويُقيَّد باسم صاحبه ──
+                // كان الإصدار يُعَدّ في قيدٍ واحد لاعتماد الموجة: «صدر ٤٠ رمزاً».
+                // فلا يُعرف متى صدر رمزُ فلانٍ بعينه ولا في أي موجة — وهو أوّل
+                // ما يُسأل عنه حين يُنازَع في رمز.
+                AuditLog::create([
+                    'user_id' => auth()->id(),
+                    'action' => 'ISSUE_PARTICIPANT_CODE',
+                    'entity_type' => 'candidate',
+                    'entity_id' => (string) $candidate->id,
+                    'details' => ['code' => $code, 'period' => $period->name],
+                    'created_at' => now(),
+                ]);
+            });
+            $issued++;
+        }
+
+        return $issued;
+    }
+
     public function approve(Request $request, int $id)
     {
         if ($deny = $this->denyApprove($request)) {
@@ -646,14 +733,14 @@ class SchedulingPeriodController extends Controller
             return response()->json(['error' => 'لا تُعتمد إلا موجة مُرسَلة للاعتماد'], 422);
         }
         // ── من يبني الجدول لا يعتمده ──
-        // الهجرة التي منحت هذه الصلاحية كتبت غرضها صراحةً: «فصل مهام لا صلاحية
-        // تجميلية». لكنها فصلت الأدوار ولم تفصل الأشخاص — ومدير المركز يحمل
-        // schedule.manage وschedule.approve_center معاً، فكان يبني ويرسل ويعتمد
-        // وحده، وخطوة «إرسال الجدولة إلى مدير المركز» بلا معنى.
+        // الاعتماد انتقل من مدير المركز إلى مسؤول الجدولة، وفصلُ المهامّ لم
+        // يسقط بل انتقل داخل الإدارة: موظّف الإعداد يبني ويُرسل، والمسؤول
+        // يعتمد. ولولا هذا الفحص لَعاد المسؤول يبني ويعتمد وحده، وصارت خطوة
+        // «إرسال الجدولة للاعتماد» بلا معنى تقني.
         //
         // والفحص على المُرسِل لا على المُنشِئ ولا على من مسّ اللوحة: الإرسال هو
-        // فعل «أُعلنُها جاهزة»، وهو ما يقابله الاعتماد. ومديرٌ صحّح نصاب اسمٍ في
-        // لوحة موجةٍ بناها غيره لا يفقد حقّه في اعتمادها.
+        // فعل «أُعلنُها جاهزة»، وهو ما يقابله الاعتماد. ومسؤولٌ صحّح نصاب اسمٍ
+        // في لوحة فترةٍ بناها غيره لا يفقد حقّه في اعتمادها.
         if ($period->submitted_by === $request->user()->id) {
             return response()->json([
                 'error' => 'لا تعتمد موجةً أرسلتَها بنفسك — الاعتماد لمن لم يبنِها',
@@ -664,6 +751,12 @@ class SchedulingPeriodController extends Controller
         $period->approved_by = $request->user()->id;
         $period->approved_at = now();
         $period->save();
+
+        // ── هنا تُصدَر رموز المشاركين ──
+        // الرمز مُعرِّفُ من صار له موعد، لا من دخل القاعدة. فمن جُدولت جلساته
+        // في هذه الفترة واعتُمدت، يأخذ رمزه الآن. ومن أُضيف ولم يُجدوَل بعد
+        // يبقى بلا رمز يُعرَف باسمه أو هويته.
+        $issued = $this->issueParticipantCodes($period);
 
         if ($period->submitted_by) {
             $this->notifications->notify(
@@ -677,10 +770,32 @@ class SchedulingPeriodController extends Controller
             );
         }
 
-        $this->log($request, 'APPROVE_PERIOD', $period->id, ['name' => $period->name]);
+        // ── ويصل الاستقبال خبرُه ──
+        // كشف اليوم يُبنى من جلسات الموجة، فاعتمادُها هو اللحظة التي يصير فيها
+        // للاستقبال ما يستقبله. وبلا إشعارٍ لا يعلم إلا بفتح شاشته يدوياً —
+        // وقد يفتحها قبل الاعتماد فيراها فارغةً ويظنّ أن لا أحد قادم.
+        // بالصلاحية لا بالدور: من مُنِح `reception.view` باستثناءٍ فردي يستقبل
+        // فعلاً، وقصرُها على RECEPTIONIST يُسقطه.
+        $reached = $this->notifications->notifyPermission(
+            Permissions::RECEPTION_VIEW,
+            'info',
+            'اعتُمدت الجدولة — كشوف الأيام جاهزة',
+            'اعتُمدت موجة «'.$period->name.'» ('.$period->start_date->format('Y-m-d')
+                .' — '.$period->end_date->format('Y-m-d').'). كشفُ كل يومٍ يظهر في شاشة الاستقبال في يومه.',
+            'scheduling_period',
+            (string) $period->id,
+            $request->user()->id,
+        );
+
+        $this->log($request, 'APPROVE_PERIOD', $period->id, [
+            'name' => $period->name, 'codesIssued' => $issued, 'receptionNotified' => $reached,
+        ]);
 
         return response()->json([
-            'message' => 'اعتُمدت موجة الجدولة',
+            'message' => $issued > 0
+                ? "اعتُمدت موجة الجدولة — وصدر {$issued} رمز مشارك"
+                : 'اعتُمدت موجة الجدولة',
+            'codesIssued' => $issued,
             'period' => $this->row($period->fresh(['creator', 'approver'])),
         ]);
     }

@@ -3,15 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\Assessment;
+use App\Models\AssessorAbsence;
 use App\Models\Attendance;
 use App\Models\AuditLog;
 use App\Models\Candidate;
 use App\Models\PeriodAssessor;
 use App\Models\Schedule;
+use App\Models\SchedulingPeriod;
 use App\Models\User;
 use App\Security\Permissions;
 use App\Services\EntryPermitService;
-use App\Services\ExpertiseMatcher;
 use App\Services\WaveGuard;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
@@ -28,7 +29,6 @@ class ScheduleController extends Controller
         'interview' => 'المقابلة الشخصية',
         'discussion' => 'حلقة النقاش',
         'measurement' => 'أدوات القياس',
-        'integration' => 'التمرين التكاملي',
     ];
 
     public function __construct(private WaveGuard $waves) {}
@@ -56,7 +56,7 @@ class ScheduleController extends Controller
             return true;
         }
 
-        return $user->isSectorBound() && $schedule->candidate->sector_id !== $user->sector_id;
+        return ! $user->coversSector($schedule->candidate->sector_id);
     }
 
     // GET /schedules — قائمة الجلسات (فلترة بالتاريخ/النشاط/المشارك/المُقيّم)
@@ -68,7 +68,7 @@ class ScheduleController extends Controller
 
         $validated = $request->validate([
             'date' => 'nullable|date',
-            'activity' => 'nullable|in:interview,discussion,measurement,integration',
+            'activity' => 'nullable|in:interview,discussion,measurement',
             'candidateId' => 'nullable|integer',
             'evaluatorId' => 'nullable|integer',
             'periodId' => 'nullable|integer',
@@ -83,7 +83,7 @@ class ScheduleController extends Controller
         // المحصور بقطاع يرى جلسات قطاعه وحدها
         $user = $request->user();
         if ($user->isSectorBound()) {
-            $query->whereHas('candidate', fn ($q) => $q->where('sector_id', $user->sector_id));
+            $query->whereHas('candidate', fn ($q) => $q->whereIn('sector_id', $user->sectorIds()));
         }
 
         if (! empty($validated['date'])) {
@@ -139,7 +139,7 @@ class ScheduleController extends Controller
     {
         return [
             // النشاط إلزامي عند الإنشاء، واختياري عند التعديل الجزئي (يُطبَّق فقط إن أُرسل)
-            'activity' => ($creating ? 'required|' : 'sometimes|').'in:interview,discussion,measurement,integration',
+            'activity' => ($creating ? 'required|' : 'sometimes|').'in:interview,discussion,measurement',
             'date' => ($creating ? 'required|' : 'nullable|').'date|after_or_equal:today',
             // الوقت إلزامي عند الإنشاء: كشف الحضور المطبوع يوزّع الجلسات على أعمدة
             // الأوقات المعتمدة، وجلسة بلا وقت لا مكان لها فيه. وعند التعديل الجزئي
@@ -148,9 +148,44 @@ class ScheduleController extends Controller
             'location' => 'nullable|string|max:200',
             'evaluatorId' => 'nullable|integer|exists:users,id',
             'assistantId' => 'nullable|integer|exists:users,id',
-            // الموجة اختيارية: جلسةٌ بلا موجة تُنشأ كما كانت تُنشأ دائماً
+            // الفترة تُذكر أو تُستنبط من التاريخ — انظر `resolvePeriodId`
             'periodId' => 'nullable|integer|exists:scheduling_periods,id',
         ];
+    }
+
+    /**
+     * فترة الجلسة: المذكورة، وإلا التي يقع تاريخها فيها.
+     *
+     * **الضمانُ هو المقصود لا الحقل**: جلسةٌ خارج كل فترة لا تُعتمد أبداً —
+     * ولا يصدر لصاحبها رمز، فيغيب عن الجدول الذهبي وكشف الحضور وبيان
+     * التصاريح والخطابات، وكلّها تعرّفه برمزه.
+     *
+     * فلا يُشترط أن **يكتب** المُجدوِل الفترة، بل أن **توجد** واحدة تشمل
+     * اليوم. واشتراطُ كتابتها لا يضيف شيئاً حين يكون الاستنباط قاطعاً، ويُثقل
+     * كل نداءٍ بحقلٍ يُستخرج من حقلٍ آخر.
+     *
+     * يرجع معرّف الفترة، أو رسالة الخطأ إن لم توجد.
+     *
+     * @return array{id:?int, error:?string}
+     */
+    private function resolvePeriodId(?int $given, ?string $date): array
+    {
+        if ($given) {
+            return ['id' => $given, 'error' => null];
+        }
+        if (! $date) {
+            return ['id' => null, 'error' => null];
+        }
+
+        $period = SchedulingPeriod::coveringDate($date);
+        if (! $period) {
+            return [
+                'id' => null,
+                'error' => 'لا توجد فترة جدولة تشمل '.$date.' — أنشئ فترةً تغطّيه أولاً',
+            ];
+        }
+
+        return ['id' => $period->id, 'error' => null];
     }
 
     // ── حارس الموجة ──
@@ -251,7 +286,7 @@ class ScheduleController extends Controller
         }
 
         $validated = $request->validate([
-            'activity' => 'nullable|in:interview,discussion,measurement,integration',
+            'activity' => 'nullable|in:interview,discussion,measurement',
             'seat' => 'nullable|in:evaluator,assistant',
             'periodId' => 'nullable|integer|exists:scheduling_periods,id',
             'date' => 'nullable|date_format:Y-m-d',
@@ -259,7 +294,7 @@ class ScheduleController extends Controller
         $activity = $validated['activity'] ?? 'interview';
         $seat = $validated['seat'] ?? 'evaluator';
 
-        $candidate = $this->resolveCandidateInScope($request, $id);
+        $candidate = $this->resolveCandidateInScope($request, $id, ['technicalAreas']);
         if (! $candidate) {
             $this->log($request, 'DENIED_CANDIDATE_OUT_OF_SCOPE', $id);
 
@@ -267,7 +302,7 @@ class ScheduleController extends Controller
         }
 
         $roles = PeriodAssessor::eligibleRoles($activity, $seat);
-        $people = User::with('expertiseAreas')
+        $people = User::with('technicalAreas')
             ->whereHas('role', fn ($q) => $q->whereIn('code', $roles))
             ->where('is_active', true)
             // ── من لا يحصره قطاع يخدم القطاعات كلّها ──
@@ -284,10 +319,15 @@ class ScheduleController extends Controller
             ->orderBy('full_name')
             ->get();
 
-        // «حسب الخبرات»: المجالات التي تذكرها سيرة المشارك، تُقارَن بوسم كل مقيّم.
-        // اقتراح ترتيبٍ لا حجب: من درجته صفر يبقى في القائمة قابلاً للاختيار.
-        $matcher = new ExpertiseMatcher;
-        $candidateAreas = $matcher->areasInText($matcher->candidateText($candidate));
+        // ── المطابقة بالمجالات الفنية ──
+        // كانت بحثاً نصّياً في نثر السيرة (المنصب والنبذة والإدارة) عن اسم
+        // مجال خبرة المقيّم بعد تطبيع الهمزات — تُصيب وتُخطئ بلا أن يعرف أحدٌ
+        // أيّهما وقع. وصارت **تقاطعاً صريحاً**: وسمُ المشارك ووسمُ المستشار من
+        // مرجعٍ واحد، فالدرجة تُعدّ وتُعرَض ويُراجَع سببها.
+        //
+        // وترتيبٌ لا حجب: لا يُلزَم الإسناد بها، فقد يختلف المجال بين
+        // المقيّمين. من تقاطعه صفر يبقى في القائمة قابلاً للاختيار.
+        $candidateAreas = $candidate->technicalAreas->pluck('label_ar', 'id')->all();
 
         // لوحة الموجة وحملها — تُقرأ مرّة واحدة لا مرّة لكل اسم
         $panel = [];
@@ -319,23 +359,33 @@ class ScheduleController extends Controller
             }
         }
 
-        $rows = $people->map(function (User $u) use ($panel, $periodLoad, $dayLoad, $periodId, $candidateAreas) {
+        // الغائبون في هذا اليوم — تُقرأ دفعةً واحدة لا مرّةً لكل اسم.
+        // والغياب مدىً وسببٌ لا بوليان: من في إجازةٍ ثلاثة أيام لا يُشطب من
+        // الفترة كلّها، ومن يدير حلقةً اليوم لا يُعرَض مقعدَ مقابلة.
+        $absentToday = ! empty($validated['date'])
+            ? AssessorAbsence::absentUserIdsOn($validated['date'])
+            : [];
+
+        $rows = $people->map(function (User $u) use ($panel, $periodLoad, $dayLoad, $periodId, $candidateAreas, $absentToday) {
             $seatRow = $panel[$u->id] ?? null;
+            $absent = in_array($u->id, $absentToday, true);
             $matched = array_values(array_intersect_key(
                 $candidateAreas,
-                $u->expertiseAreas->keyBy('id')->all()
+                $u->technicalAreas->keyBy('id')->all()
             ));
 
             return [
                 'id' => $u->id,
                 'name' => $u->full_name,
-                // مجالات هذا المقيّم التي تذكرها سيرة المشارك — تُعرض للمُجدوِل
+                // المجالات المشتركة بينه وبين المشارك — تُعرض للمُجدوِل ليرى سبب الترتيب
                 'matchedAreas' => $matched,
                 'matchScore' => count($matched),
                 // مُدرَجٌ في لوحة الموجة؟ من ليس فيها يظهر ويُختار — اللوحة
                 // ترتيبٌ للأسماء لا قائمةٌ مغلقة، فلا تقف جدولةٌ عاجلة على إدراج.
                 'onPanel' => $periodId ? ($seatRow !== null) : null,
-                'available' => $seatRow?->is_available ?? true,
+                // غائبٌ اليوم ⇒ غير متاح، مهما قالت اللوحة
+                'available' => ! $absent && ($seatRow?->is_available ?? true),
+                'absentToday' => $absent,
                 'dailyQuota' => $seatRow?->dailyQuota(),
                 'periodQuota' => $seatRow?->period_quota,
                 'periodLoad' => (int) ($periodLoad[$u->id] ?? 0),
@@ -398,7 +448,14 @@ class ScheduleController extends Controller
             return response()->json(['error' => 'لا توجد دورة تقييم نشطة للمشارك'], 422);
         }
 
-        if ($err = $this->periodError($validated['periodId'] ?? null, $validated['date'])) {
+        // الفترة: المذكورة أو المستنبَطة من التاريخ — ولا جلسةَ بلا فترة
+        $resolved = $this->resolvePeriodId($validated['periodId'] ?? null, $validated['date']);
+        if ($resolved['error']) {
+            return response()->json(['error' => $resolved['error']], 422);
+        }
+        $periodId = $resolved['id'];
+
+        if ($err = $this->periodError($periodId, $validated['date'])) {
             return response()->json(['error' => $err], 422);
         }
 
@@ -413,7 +470,7 @@ class ScheduleController extends Controller
             $schedule = Schedule::create([
                 'candidate_id' => $candidate->id,
                 'assessment_id' => $assessment->id,
-                'period_id' => $validated['periodId'] ?? null,
+                'period_id' => $periodId,
                 'schedule_date' => $validated['date'],
                 'schedule_time' => $validated['time'],
                 'activity' => $validated['activity'],
@@ -609,7 +666,7 @@ class ScheduleController extends Controller
         $this->scopeViaCandidate($request, $query);
 
         // المحصور بقطاع يُشدّ إلى قطاعه مهما طلب — والحرّ يختار
-        $sectorId = $user->isSectorBound() ? $user->sector_id : ($validated['sectorId'] ?? null);
+        $sectorId = $user->resolveSectorFilter($validated['sectorId'] ?? null);
         if ($sectorId) {
             $query->whereHas('candidate', fn ($q) => $q->where('sector_id', $sectorId));
         }
@@ -664,7 +721,7 @@ class ScheduleController extends Controller
         }
         // المحصور بقطاع لا يرى غياب قطاع آخر
         $user = $request->user();
-        if ($user->isSectorBound() && $candidate->sector_id !== $user->sector_id) {
+        if (! $user->coversSector($candidate->sector_id)) {
             return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
 
@@ -785,5 +842,229 @@ class ScheduleController extends Controller
             'message' => 'تمت إعادة جدولة الجلسة',
             'scheduleId' => $new->id,
         ], 201);
+    }
+
+    // ═══════════════════════════════════════════════════════
+    //  محطّات الدورة — تُحدَّد عند الجدولة، والاكتمال يُقاس عليها
+    // ═══════════════════════════════════════════════════════
+
+    // GET /assessments/{id}/stations
+    public function stations(Request $request, int $id)
+    {
+        if (! $request->user()->hasPermission(Permissions::SCHEDULE_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض الجدولة'], 403);
+        }
+
+        $assessment = $this->assessmentInScope($request, $id);
+        if (! $assessment) {
+            return response()->json(['error' => 'الدورة غير موجودة'], 404);
+        }
+
+        return response()->json($this->stationsPayload($assessment));
+    }
+
+    /**
+     * PUT /assessments/{id}/stations — تغيير المحطّات المطلوبة.
+     *
+     * الترتيب يُحفظ كما وصل: المرور يُرتَّب لكل مشارك، ولا ترتيب محفور.
+     */
+    public function saveStations(Request $request, int $id)
+    {
+        if (! $request->user()->hasPermission(Permissions::SCHEDULE_MANAGE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية إدارة الجدولة'], 403);
+        }
+
+        $assessment = $this->assessmentInScope($request, $id);
+        if (! $assessment) {
+            return response()->json(['error' => 'الدورة غير موجودة'], 404);
+        }
+
+        $validated = $request->validate([
+            // واحدةٌ على الأقلّ: دورةٌ بلا محطّة تكتمل لحظة إنشائها، فيُفتح
+            // بابُ التقرير على لا شيء
+            'stations' => 'required|array|min:1|max:3',
+            'stations.*' => 'required|string|distinct|in:'.implode(',', Assessment::STATIONS),
+        ], [
+            'stations.required' => 'لكل دورةٍ محطّةٌ واحدة على الأقلّ',
+            'stations.min' => 'لكل دورةٍ محطّةٌ واحدة على الأقلّ',
+        ]);
+
+        $wanted = array_values($validated['stations']);
+
+        // ── ولا تُنزَع محطّةٌ أُنجزت ──
+        // نزعُها يمحو عملاً وقع: التقييم يبقى في القاعدة ويغذّي التقرير،
+        // وقائمةُ المطلوب تُنكره. والأسوأ أنّ نزعها قد يُكمل الدورة فجأةً
+        // بإسقاط ما لم يُؤدَّ بعد.
+        $removedDone = array_intersect(
+            array_diff($assessment->chosenStations(), $wanted),
+            $assessment->completedStations()
+        );
+        if ($removedDone) {
+            return response()->json([
+                'errors' => ['stations' => ['لا تُنزَع محطّةٌ أُنجزت: '
+                    .implode('، ', array_map([Assessment::class, 'stationLabel'], $removedDone))]],
+            ], 422);
+        }
+
+        $before = $assessment->chosenStations();
+        $now = now();
+
+        DB::transaction(function () use ($assessment, $wanted, $now) {
+            DB::table('assessment_stations')->where('assessment_id', $assessment->id)
+                ->whereNotIn('station', $wanted)->delete();
+
+            foreach ($wanted as $i => $station) {
+                DB::table('assessment_stations')->updateOrInsert(
+                    ['assessment_id' => $assessment->id, 'station' => $station],
+                    ['sort_order' => $i, 'updated_at' => $now, 'created_at' => $now]
+                );
+            }
+        });
+
+        // تقليصُ القائمة قد يُكمل الدورة — والحالة تتبع المحطّات لا العكس
+        $assessment->unsetRelation('stations')->loadMissing('candidate');
+        $flipped = $assessment->syncAssessedStatus();
+
+        AuditLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'SET_ASSESSMENT_STATIONS',
+            'entity_type' => 'assessment',
+            'entity_id' => (string) $assessment->id,
+            'details' => ['before' => $before, 'after' => $wanted, 'completed' => $flipped],
+            'ip_address' => $request->ip(),
+            'created_at' => now(),
+        ]);
+
+        return response()->json($this->stationsPayload($assessment->fresh())
+            + ['message' => 'حُفظت محطّات الدورة', 'completed' => $flipped]);
+    }
+
+    private function stationsPayload(Assessment $a): array
+    {
+        $done = $a->completedStations();
+
+        return [
+            'assessmentId' => $a->id,
+            'stations' => collect($a->chosenStations())->map(fn ($s) => [
+                'key' => $s,
+                'label' => Assessment::stationLabel($s),
+                'done' => in_array($s, $done, true),
+            ])->values(),
+            'missing' => collect($a->missingStations())
+                ->map(fn ($s) => Assessment::stationLabel($s))->values(),
+            'complete' => $a->stationsComplete(),
+            'available' => collect(Assessment::STATIONS)->map(fn ($s) => [
+                'key' => $s, 'label' => Assessment::stationLabel($s),
+            ])->values(),
+        ];
+    }
+
+    // نطاق المستخدم كاملاً — الدورة تتبع مشاركها في التصنيف والقطاع
+    private function assessmentInScope(Request $request, int $id): ?Assessment
+    {
+        $user = $request->user();
+
+        return Assessment::with(['stations', 'candidate'])
+            ->whereHas('candidate', function ($q) use ($request, $user) {
+                $q->whereIn('classification', $this->allowedClassifications($request));
+                if ($user->isSectorBound()) {
+                    $q->whereIn('sector_id', $user->sectorIds());
+                }
+            })
+            ->find($id);
+    }
+
+    // ═══════════════════════════════════════════════════════
+    //  قائمة الغائبين — عند مسؤول الجدولة
+    // ═══════════════════════════════════════════════════════
+    //
+    //  لم تكن مجمَّعةً قطّ: الموجود مسارٌ لمشاركٍ واحدٍ بمعرّفه، فمن أراد أن
+    //  يعرف من غاب أمس كان عليه أن يعرف أسماءهم أوّلاً — وهو ما يسأل عنه.
+    //
+    //  والغياب يبقى **على اليوم الذي جُدول فيه** لا يُنقَل: نقلُه يمحو أنّ
+    //  المقعد حُجز ذلك اليوم وتُرك فارغاً، وعليه تُقاس الطاقة المهدورة.
+
+    // GET /schedules/absentees?from=&to=
+    public function absentees(Request $request)
+    {
+        if (! $request->user()->hasPermission(Permissions::SCHEDULE_VIEW)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض الجدولة'], 403);
+        }
+
+        $validated = $request->validate([
+            'from' => 'nullable|date_format:Y-m-d',
+            'to' => 'nullable|date_format:Y-m-d',
+            'periodId' => 'nullable|integer',
+            'handled' => 'nullable|in:0,1',
+        ]);
+
+        // النافذة الافتراضية أسبوعان للخلف — الغيابُ يُعالَج قريباً من وقوعه،
+        // وفتحُ السجلّ كلّه يجعل ما يحتاج قراراً يضيع في ما عولج
+        $to = $validated['to'] ?? now()->toDateString();
+        $from = $validated['from'] ?? now()->subDays(14)->toDateString();
+
+        $user = $request->user();
+
+        $rows = Schedule::with(['candidate.sector', 'attendance.recordedBy', 'evaluator:id,full_name,code', 'assessment'])
+            ->whereHas('attendance', fn ($a) => $a->whereIn('status', Attendance::ABSENT_STATUSES))
+            ->whereDate('schedule_date', '>=', $from)
+            ->whereDate('schedule_date', '<=', $to)
+            ->when(! empty($validated['periodId']), fn ($q) => $q->where('period_id', $validated['periodId']))
+            ->whereHas('candidate', function ($c) use ($request, $user) {
+                $c->whereIn('classification', $this->allowedClassifications($request));
+                if ($user->isSectorBound()) {
+                    $c->whereIn('sector_id', $user->sectorIds());
+                }
+            })
+            ->orderByDesc('schedule_date')
+            ->limit(300)
+            ->get();
+
+        // هل عولج؟ جلسةٌ تالية للمشارك في النشاط نفسه بعد يوم الغياب
+        $later = Schedule::whereIn('assessment_id', $rows->pluck('assessment_id')->filter()->unique())
+            ->get(['id', 'assessment_id', 'activity', 'schedule_date']);
+
+        $out = $rows->map(function (Schedule $s) use ($later) {
+            $att = $s->attendance;
+            $rescheduled = $later->first(fn ($x) => $x->assessment_id === $s->assessment_id
+                && $x->activity === $s->activity
+                && $x->id !== $s->id
+                && substr((string) $x->schedule_date, 0, 10) > $s->schedule_date->toDateString());
+
+            return [
+                'scheduleId' => $s->id,
+                'candidateId' => $s->candidate_id,
+                'participantCode' => $s->assessment?->participant_code ?? $s->candidate?->participant_code,
+                'sector' => $s->candidate?->sector?->name_ar,
+                'date' => $s->schedule_date->toDateString(),
+                'time' => $s->schedule_time ? substr((string) $s->schedule_time, 0, 5) : null,
+                'activity' => $s->activity,
+                'activityLabel' => Assessment::stationLabel($s->activity),
+                'evaluator' => $s->evaluator?->full_name,
+                'evaluatorCode' => $s->evaluator?->code,
+                'excused' => $att?->status === 'absent_excused',
+                // السبب هو ما يُبنى عليه القرار — يُعرَض لا يُطوى
+                'reason' => $att?->absence_reason,
+                'recordedBy' => $att?->recordedBy?->full_name,
+                // عولج؟ جلسةٌ تالية في النشاط نفسه بعد يوم الغياب
+                'rescheduledTo' => $rescheduled ? substr((string) $rescheduled->schedule_date, 0, 10) : null,
+            ];
+        });
+
+        // المعالَج يُخفى افتراضاً — القائمة أداةُ قرارٍ لا سجلٌّ للقراءة
+        if (($validated['handled'] ?? '0') !== '1') {
+            $out = $out->filter(fn ($r) => $r['rescheduledTo'] === null)->values();
+        }
+
+        return response()->json([
+            'from' => $from,
+            'to' => $to,
+            'absentees' => $out->values(),
+            'totals' => [
+                'shown' => $out->count(),
+                'excused' => $out->where('excused', true)->count(),
+                'unexcused' => $out->where('excused', false)->count(),
+            ],
+        ]);
     }
 }

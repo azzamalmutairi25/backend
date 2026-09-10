@@ -7,7 +7,9 @@ use App\Models\Assessment;
 use App\Models\AuditLog;
 use App\Models\Candidate;
 use App\Models\CandidateCv;
+use App\Models\CandidateCvRevision;
 use App\Models\CandidateUpdateRequest;
+use App\Models\MeasurementResult;
 use App\Models\ReceptionVisit;
 use App\Models\Schedule;
 use App\Models\Sector;
@@ -19,6 +21,7 @@ use App\Services\CvGuard;
 use App\Services\CvSheetService;
 use App\Services\CvValidator;
 use App\Services\IdentityVerificationService;
+use App\Services\NameIndex;
 use App\Services\ParticipantCardService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -41,7 +44,6 @@ class CandidateController extends Controller
             'rank' => 'rank_label',
             'tier' => 'tier',
             'status' => 'status',
-            'classification' => 'classification',
             'created' => 'created_at',
             // اسم القطاع لا معرّفه — الترتيب الهجائي هو ما يراه المستخدم.
             // استعلامٌ مرتبط لا انضمام: الانضمام يُدخِل أعمدة sectors في
@@ -51,6 +53,79 @@ class CandidateController extends Controller
                 $dir
             ),
         ];
+    }
+
+    /**
+     * البحث — ثلاث طرق، كلٌّ بصلاحيتها.
+     *
+     * ┌──────────┬────────────────────────┬──────────────────────────────┐
+     * │ بالرمز   │ الافتراض للجميع        │ **بالبداية** فيستعمل الفهرس  │
+     * │ بالهوية  │ صلاحية مستقلّة         │ مطابقةٌ تامّة عبر البصمة      │
+     * │ بالاسم   │ صلاحية مستقلّة ثانية   │ بجزء الكلمة عبر فهرس المقاطع │
+     * └──────────┴────────────────────────┴──────────────────────────────┘
+     *
+     * ── لماذا الرمز بالبداية ──
+     * `LIKE '%…%'` لا يستعمل الفهرس الفريد على العمود، فكل ضغطة حرفٍ تمسح
+     * الجدول كاملاً — وشريط البحث يُطلق بعد ٣٠٠ مللي من آخر حرف. وبالبداية
+     * يصير البحث هرمياً مجاناً: `PV` القطاع، و`PV0007` مشاركاً بعينه.
+     * ومن أراد مقطعاً في الوسط يسبقه بنجمة — صريحٌ ومكلفٌ عن قصد.
+     *
+     * ── والترتيب: الأضيق دلالةً أوّلاً ──
+     * رقمُ هويةٍ كاملٌ لا يحتمل إلا شخصاً واحداً، فيُجرَّب قبل الاسم.
+     */
+    private function applySearch(Request $request, $query, string $raw): void
+    {
+        $term = trim($raw);
+        if ($term === '') {
+            return;
+        }
+
+        $user = $request->user();
+
+        // ── الهوية: عشرة أرقام كاملة ومطابقةٌ تامّة ──
+        if (preg_match('/^\d{10}$/', $term)) {
+            if (! $user->hasPermission(Permissions::CANDIDATE_SEARCH_BY_ID)) {
+                // لا نُفصح بأنّ الرقم هويةٌ صالحة: يُعامَل رمزاً فلا يجد شيئاً،
+                // والردّ نفسه لمن يملك ولمن لا يملك حتى لا يصير سطحَ تعداد
+                $query->where('participant_code', 'like', $term.'%');
+
+                return;
+            }
+
+            $this->log($request, 'SEARCH_BY_NATIONAL_ID', 0);
+            $query->where('national_id_hash', hash('sha256', $term));
+
+            return;
+        }
+
+        // ── الاسم: عربيٌّ بثلاثة أحرف فأكثر ──
+        if (preg_match('/\p{Arabic}/u', $term)) {
+            if (! $user->hasPermission(Permissions::CANDIDATE_SEARCH_BY_NAME)) {
+                $query->whereRaw('1 = 0');   // لا نتيجة، ولا سببٌ يُفصح
+
+                return;
+            }
+            if (mb_strlen(NameIndex::normalise($term)) < NameIndex::GRAM) {
+                $query->whereRaw('1 = 0');
+
+                return;
+            }
+
+            $this->log($request, 'SEARCH_BY_NAME', 0, ['length' => mb_strlen($term)]);
+            $query->whereIn('id', NameIndex::search($term));
+
+            return;
+        }
+
+        // ── الرمز ──
+        // نجمةٌ في الأوّل تعني «في أي موضع» — والكلفة معلَنة لمن كتبها
+        if (str_starts_with($term, '*')) {
+            $query->where('participant_code', 'like', '%'.substr($term, 1).'%');
+
+            return;
+        }
+
+        $query->where('participant_code', 'like', $term.'%');
     }
 
     public function index(Request $request)
@@ -69,7 +144,7 @@ class CandidateController extends Controller
         // فلا يوسّعه بتمرير sectorId لقطاع آخر
         $user = $request->user();
         if ($user->isSectorBound()) {
-            $query->where('sector_id', $user->sector_id);
+            $query->whereIn('sector_id', $user->sectorIds());
         }
 
         if ($request->filled('status')) {
@@ -82,11 +157,14 @@ class CandidateController extends Controller
         if ($request->filled('tier')) {
             $query->where('tier', $request->tier);
         }
-        if ($request->filled('classification')) {
-            $query->where('classification', $request->classification);
+        if ($request->filled('employmentStatus')) {
+            $query->where('employment_status', $request->employmentStatus);
+        }
+        if ($request->filled('gender')) {
+            $query->where('gender', $request->gender);
         }
         if ($request->filled('search')) {
-            $query->where('participant_code', 'like', '%'.$request->search.'%');
+            $this->applySearch($request, $query, (string) $request->search);
         }
 
         // نسخةٌ من الاستعلام المحصور قبل تنفيذه — تُستعمل استعلاماً فرعياً أدناه
@@ -116,10 +194,10 @@ class CandidateController extends Controller
             'gender' => $c->gender,
             'rankLabel' => $c->rank_label,
             'personnelCategory' => $c->personnel_category,
+            'employmentStatus' => $c->employment_status,
             'tier' => $c->tier,
             'assessmentType' => $c->assessment_type,
             'status' => $c->status,
-            'classification' => $c->classification,
             'technicalAreas' => $c->technicalAreas->map(fn ($a) => [
                 'id' => $a->id, 'label' => $a->label_ar,
             ])->values(),
@@ -175,10 +253,11 @@ class CandidateController extends Controller
             ])->values(),
             'rankLabel' => $candidate->rank_label,
             'personnelCategory' => $candidate->personnel_category,
+            'employer' => $candidate->employer,
+            'employmentStatus' => $candidate->employment_status,
             'tier' => $candidate->tier,
             'assessmentType' => $candidate->assessment_type,
             'status' => $candidate->status,
-            'classification' => $candidate->classification,
             'createdAt' => $candidate->created_at,
             'trail' => array_slice(array_reverse($this->writeTrail($candidate)), 0, 6),
             'canSeeNames' => $canSeeNames,
@@ -292,6 +371,26 @@ class CandidateController extends Controller
             return response()->json(['error' => 'السيرة تحوي اسم المشارك أو معرّفاً — أزِله', 'field' => $hit], 422);
         }
 
+        // ── والسيرة المجمَّدة تُقال قبل أن تُكتب ──
+        // اللقطة تُؤخذ لحظة إرسال الاستقبال، ويقرؤها المستشار. وتعديلُ
+        // الوثيقة الحيّة بعدها لا يصل إليه: تفترق «الحيّة» عن «اللقطة» صامتاً،
+        // فيظنّ المحرِّر أنه صحّح ما يُقيَّم عليه وقد صحّح نسخةً لا تُقرأ.
+        // ولا يُمنع — للدورة القادمة تُكتب السيرة حيّةً — لكنه يُقال صراحةً
+        // ويُطلَب تأكيدُه.
+        $frozen = $candidate->assessments()
+            ->whereNotNull('cv_snapshot_enc')->orderByDesc('id')->first();
+        if ($frozen && ! $request->boolean('acknowledgeFrozen')) {
+            return response()->json([
+                'error' => 'سيرةُ هذه الدورة مجمَّدة — التعديل لا يصل المستشار',
+                'frozen' => [
+                    'at' => $frozen->cv_snapshotted_at?->toIso8601String(),
+                    'version' => $frozen->cv_snapshot_version,
+                    'code' => $frozen->participant_code,
+                ],
+                'hint' => 'أعد الإرسال مع acknowledgeFrozen لتعديل الوثيقة الحيّة (للدورة القادمة)',
+            ], 409);
+        }
+
         $result = DB::transaction(function () use ($candidate, $clean, $request, $user) {
             Candidate::whereKey($candidate->id)->lockForUpdate()->first();
             $cv = CandidateCv::firstOrNew(['candidate_id' => $candidate->id]);
@@ -316,7 +415,12 @@ class CandidateController extends Controller
             return response()->json(['error' => 'عُدّلت السيرة، أعد التحميل'], 409);
         }
 
-        $this->log($request, 'CV_UPDATE', $id, ['code' => $candidate->participant_code]);
+        $this->log($request, 'CV_UPDATE', $id, [
+            'code' => $candidate->participant_code,
+            // تعديلٌ بعد التجميد يُقيَّد بصفته: يُسأل عنه حين يختلف ما قرأه
+            // المستشار عمّا في الملفّ
+            'afterFreeze' => $frozen !== null,
+        ]);
 
         return response()->json(['message' => 'تم حفظ السيرة', 'version' => $result->version]);
     }
@@ -397,7 +501,8 @@ class CandidateController extends Controller
             'email' => 'nullable|email|max:200',
             'militaryNumber' => 'nullable|string|max:30',
             'assessmentType' => 'nullable|in:'.implode(',', Assessment::TYPES),
-            'classification' => 'nullable|in:normal,secret,top_secret',
+            // جهة العمل — للقطاع الخاص وحده، وتُهمَل لغيره
+            'employer' => 'nullable|string|max:200',
             // ── المجالات الفنية: تُحدَّد بعد الإضافة لا معها ──
             // كانت شرطاً هنا، وهي أبطأ قرارٍ في النموذج: المُدخِل يعرف الهوية
             // والرتبة والقطاع فوراً، ولا يعرف مجالات المشارك إلا بعد مراجعة
@@ -488,7 +593,7 @@ class CandidateController extends Controller
                 ], 422);
             }
 
-            // تحديث بيانات الشخص للأحدث (قد يكون تغيّر قطاعه/رتبته). التصنيف يُدار عبر reclassify فقط.
+            // تحديث بيانات الشخص للأحدث (قد يكون تغيّر قطاعه/رتبته).
             $candidate->full_name = $validated['fullName'];
             $candidate->mobile = $validated['mobile'] ?? null;
             $candidate->sector_id = $sector->id;
@@ -520,6 +625,10 @@ class CandidateController extends Controller
             $candidate->full_name = $validated['fullName'];
             $candidate->mobile = $validated['mobile'] ?? null;
             $candidate->sector_id = $sector->id;
+            // جهة العمل للقطاع الخاص وحده — تُهمَل لغيره كي لا يبقى نصٌّ
+            // يقرؤه الخطاب لمشاركٍ صار مدنياً أو عسكرياً بعد تصحيح فئته
+            $candidate->employer = $category === Candidate::CATEGORY_CONTRACTOR
+                ? ($validated['employer'] ?? null) : null;
             $candidate->gender = $validated['gender'] ?? null;
             // مُعرِّفان مشفّران كالجوال — mutator يتولّى التشفير
             $candidate->email = $validated['email'] ?? null;
@@ -528,12 +637,7 @@ class CandidateController extends Controller
             $candidate->personnel_category = $category;
             $candidate->tier = $tier;
             $candidate->notes = $validated['notes'] ?? null;
-            // تعيين تصنيف أمني يتطلب صلاحية VIEW_CLASSIFIED — منع التصعيد
-            $requestedClass = $validated['classification'] ?? 'normal';
-            if ($requestedClass !== 'normal' && ! $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
-                return response()->json(['error' => 'ليس لديك صلاحية تعيين تصنيف أمني'], 403);
-            }
-            $candidate->classification = $requestedClass;
+            $candidate->classification = 'normal';
         }
 
         // فحص تسرّب هوية المشارك داخل السيرة — يحتاج بياناته، فيقع بعد تعبئتها.
@@ -548,9 +652,9 @@ class CandidateController extends Controller
         // مصدر السيرة: من لا يملك التعديل جهةٌ خارجية لا إدارة — يُعلَن للمراجع
         $cvSource = $request->user()->hasPermission(Permissions::CANDIDATE_EDIT) ? 'admin' : 'external';
 
-        // دورة تقييم جديدة برمز فريد + مزامنة الحقول «الحالية» على سجل الشخص
-        $code = Assessment::generateParticipantCode($sector);
-        $candidate->participant_code = $code;
+        // دورة تقييم جديدة **بلا رمز**: الرمز يُصدَر عند اعتماد الفترة التي
+        // تُجدوَل فيها جلساته، لا عند دخوله القاعدة. ومن أُضيف ولم يُجدوَل بعد
+        // يُعرَف باسمه أو هويته — والرمز مُعرِّفُ من صار له موعد.
         $candidate->status = 'draft';
         $candidate->assessment_type = $assessmentType;
 
@@ -559,7 +663,7 @@ class CandidateController extends Controller
         // null ⇒ لا تُمسّ، ومصفوفةٌ ⇒ تحلّ محلّها.
         $areaIds = $validated['technicalAreaIds'] ?? null;
 
-        $assessment = DB::transaction(function () use ($candidate, $code, $assessmentType, $request, $cleanCv, $cvSource, $areaIds) {
+        $assessment = DB::transaction(function () use ($candidate, $assessmentType, $request, $cleanCv, $cvSource, $areaIds) {
             $candidate->save();
 
             // السيرة تُحفظ داخل المعاملة متى وردت: إمّا مشارك بسيرته أو لا
@@ -584,7 +688,6 @@ class CandidateController extends Controller
 
             return Assessment::create([
                 'candidate_id' => $candidate->id,
-                'participant_code' => $code,
                 'assessment_type' => $assessmentType,
                 'status' => 'draft',
                 'created_by' => $request->user()->id,
@@ -592,7 +695,7 @@ class CandidateController extends Controller
             ]);
         });
 
-        $this->log($request, $isReturning ? 'REASSESS_CANDIDATE' : 'CREATE_CANDIDATE', $candidate->id, ['code' => $code]);
+        $this->log($request, $isReturning ? 'REASSESS_CANDIDATE' : 'CREATE_CANDIDATE', $candidate->id);
 
         // التحقق من الهوية عبر البوّابة الخارجية — فقط إن كانت مُعَدّة (وإلا لا أثر).
         // fail-open: نتيجة سلبية/فشل لا توقف الإضافة (الدورة أُنشئت)، بل تُسجَّل وتُبلَّغ.
@@ -607,7 +710,8 @@ class CandidateController extends Controller
 
         return response()->json([
             'message' => $isReturning ? 'تمّت إضافة دورة تقييم جديدة لمشارك موجود' : 'تمت إضافة المشارك',
-            'participantCode' => $code,
+            // بلا رمز — يُصدَر عند اعتماد الفترة التي تُجدوَل فيها جلساته
+            'participantCode' => null,
             'candidateId' => $candidate->id,
             'tier' => $tier,
             'isReturning' => $isReturning,
@@ -630,8 +734,10 @@ class CandidateController extends Controller
             return false; // لا جوّال مسجّل — لا رسالة
         }
         $name = $candidate->full_name ?: 'المشارك';
+        // الرمز يُذكر متى صدر — ورسالةُ التسجيل تسبق اعتماد الجدولة، فلا رمز
+        // فيها غالباً. وذِكرُ فراغٍ باسم «رمز المشارك» أسوأ من السكوت عنه.
         $message = "عزيزي {$name}، تم تسجيلك في مركز تمكين الكفاءات لتقييم القيادات."
-            ." رمز المشارك: {$assessment->participant_code}.";
+            .($assessment->participant_code ? " رمز المشارك: {$assessment->participant_code}." : '');
 
         // رابط البوّابة يُضاف متى كانت مُشغَّلة وحدها. مع تعطيلها يبقى رمزُ
         // المشارك — وهو المفيد فعلاً عند الاستقبال — ويسقط رابطٌ يفتح صفحة
@@ -691,7 +797,7 @@ class CandidateController extends Controller
             'email' => 'nullable|email|max:200',
             'militaryNumber' => 'nullable|string|max:30',
             'assessmentType' => 'nullable|in:'.implode(',', Assessment::TYPES),
-            'classification' => 'nullable|in:normal,secret,top_secret',
+            'employer' => 'nullable|string|max:200',
             // كانت إلزاميةً في التعديل وحده (مقبولةً فارغةً في الإضافة) — تفاوتٌ
             // مقصودٌ حينها، ورُفع الآن ضمن القرار العامّ. وثمنُه مُعلَن كما كان:
             // مشاركٌ بلا مجال لا يظهر في أي قائمة ترشيح، ولذلك تبقى الشاشة
@@ -732,16 +838,8 @@ class CandidateController extends Controller
         $candidate->tier = $tier;
         $candidate->notes = $validated['notes'] ?? null;
         $candidate->assessment_type = $validated['assessmentType'] ?? 'comprehensive';
-        // تغيير التصنيف الأمني حوكمة حسّاسة — يتطلب صلاحية VIEW_CLASSIFIED (كما في reclassify) ويُسجَّل
-        $classChanged = false;
-        $oldClass = $candidate->classification;
-        if (isset($validated['classification']) && $validated['classification'] !== $candidate->classification) {
-            if (! $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
-                return response()->json(['error' => 'ليس لديك صلاحية تغيير التصنيف الأمني'], 403);
-            }
-            $candidate->classification = $validated['classification'];
-            $classChanged = true;
-        }
+        $candidate->employer = $candidate->personnel_category === Candidate::CATEGORY_CONTRACTOR
+            ? ($validated['employer'] ?? null) : null;
 
         // نوع التقييم سمة للدورة الحالية — زامن الدورة الأحدث «غير المكتملة» فقط.
         // دورة مكتملة سجلٌّ تاريخي لما جرى فعلاً؛ إعادة كتابة نوعها تُفسد التاريخ (لا نمسّها)
@@ -758,11 +856,6 @@ class CandidateController extends Controller
         });
 
         $this->log($request, 'UPDATE_CANDIDATE', $candidate->id, ['code' => $candidate->participant_code]);
-        if ($classChanged) {
-            $this->log($request, 'RECLASSIFY_CANDIDATE', $candidate->id, [
-                'code' => $candidate->participant_code, 'from' => $oldClass, 'to' => $candidate->classification,
-            ]);
-        }
 
         return response()->json(['message' => 'تم تحديث بيانات المشارك', 'tier' => $tier]);
     }
@@ -827,32 +920,44 @@ class CandidateController extends Controller
         return response()->json(['message' => 'تم اعتماد المشارك']);
     }
 
-    public function reclassify(Request $request, int $id)
+    // PATCH /candidates/{id}/employment — الحالة الوظيفية: على رأس العمل أو متقاعد
+    //
+    // مسارٌ مستقلّ لا حقلٌ في التعديل العامّ: يضبطه مسؤول الجدولة وحده
+    // (CANDIDATE_APPROVE)، وهو من يقرّر من يدخل الجدولة ومن يخرج منها.
+    // ولو كان حقلاً في نموذج التعديل لَملَكه كلُّ من يملك `candidate.edit`،
+    // ومنهم موظّف الإدخال الذي يملأ البيانات ولا يبتّ في شيء.
+    public function updateEmployment(Request $request, int $id)
     {
-        if (! $request->user()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED)) {
-            return response()->json(['error' => 'ليس لديك صلاحية تغيير التصنيف'], 403);
+        if (! $request->user()->hasPermission(Permissions::CANDIDATE_APPROVE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية تعديل الحالة الوظيفية'], 403);
         }
 
         $validated = $request->validate([
-            'classification' => 'required|in:normal,secret,top_secret',
+            'employmentStatus' => 'required|in:'.implode(',', Candidate::EMPLOYMENT_STATUSES),
         ]);
 
-        // النطاق: حامل VIEW_CLASSIFIED يرى كل التصنيفات، لكن حدّ القطاع يبقى
-        // قائماً — لا يُصنَّف مشارك خارج قطاع من يصنّفه
+        // النطاق كاملاً — 404 موحّد لغير الموجود ولغير المصرَّح
         $candidate = $this->resolveCandidateInScope($request, $id);
         if (! $candidate) {
             return response()->json(['error' => 'المشارك غير موجود'], 404);
         }
-        $old = $candidate->classification;
-        $candidate->update(['classification' => $validated['classification']]);
 
-        $this->log($request, 'RECLASSIFY_CANDIDATE', $id, [
+        $from = $candidate->employment_status;
+        if ($from === $validated['employmentStatus']) {
+            return response()->json(['message' => 'لا تغيير']);
+        }
+
+        $candidate->update(['employment_status' => $validated['employmentStatus']]);
+        $this->log($request, 'UPDATE_EMPLOYMENT_STATUS', $id, [
             'code' => $candidate->participant_code,
-            'from' => $old,
-            'to' => $validated['classification'],
+            'from' => $from,
+            'to' => $validated['employmentStatus'],
         ]);
 
-        return response()->json(['message' => 'تم تحديث التصنيف']);
+        return response()->json([
+            'message' => 'تم تحديث الحالة الوظيفية',
+            'employmentStatus' => $candidate->employment_status,
+        ]);
     }
 
     // سجل دورات المشارك مع تقييماتها وتفاصيلها (لعرض التاريخ + التقييم السابق)
@@ -925,15 +1030,15 @@ class CandidateController extends Controller
             ], 422);
         }
 
-        $code = Assessment::generateParticipantCode($candidate->sector);
-        $assessment = DB::transaction(function () use ($candidate, $code, $request) {
-            $candidate->participant_code = $code;
+        // الدورة الجديدة بلا رمز — يُصدَر عند اعتماد الفترة كما في الدورة
+        // الأولى. والرمز القديم يبقى على دورته المنتهية وتقريرها.
+        $assessment = DB::transaction(function () use ($candidate, $request) {
+            $candidate->participant_code = null;
             $candidate->status = 'draft';
             $candidate->save();
 
             return Assessment::create([
                 'candidate_id' => $candidate->id,
-                'participant_code' => $code,
                 'assessment_type' => $candidate->assessment_type ?? 'comprehensive',
                 'status' => 'draft',
                 'created_by' => $request->user()->id,
@@ -941,10 +1046,10 @@ class CandidateController extends Controller
             ]);
         });
 
-        $this->log($request, 'REASSESS_CANDIDATE', $candidate->id, ['code' => $code]);
+        $this->log($request, 'REASSESS_CANDIDATE', $candidate->id);
         $smsQueued = $this->sendConfirmationSms($candidate, $assessment, $request->user()->id);
 
-        return response()->json(['message' => 'تمّت إضافة دورة تقييم جديدة', 'participantCode' => $code, 'smsQueued' => $smsQueued], 201);
+        return response()->json(['message' => 'تمّت إضافة دورة تقييم جديدة', 'participantCode' => null, 'smsQueued' => $smsQueued], 201);
     }
 
     // ── رحلة المشارك: خط زمني كامل (إضافة → جدولة → حضور → تقييم → تقرير → اعتماد) ──
@@ -968,6 +1073,23 @@ class CandidateController extends Controller
         'APPROVE_CANDIDATE' => ['اعتُمد المشارك', 'check'],
         'RECLASSIFY_CANDIDATE' => ['غُيّرت الدرجة', 'lock'],
         'CV_UPDATE' => ['عُدّلت السيرة الذاتية', 'file'],
+        // ── ثلاثةٌ كانت تُقيَّد ولا تُعرَض ──
+        // القيدُ موجودٌ في القاعدة منذ بُنيت مساراتُه، والقائمة البيضاء وحدها
+        // كانت تحجبه. وأثرٌ يُكتب ولا يُقرأ كأنه لم يُكتب.
+        'ISSUE_PARTICIPANT_CODE' => ['صدر رمز المشارك', 'award'],
+        'UPDATE_EMPLOYMENT_STATUS' => ['تغيّرت الحالة الوظيفية', 'user'],
+        'DELETE_CANDIDATE_NOTE' => ['حُذفت ملاحظة', 'trash'],
+    ];
+
+    // أحداث الاستقبال — قيودُها على الزيارة لا على المشارك، فتُجمَع بمعرّفات
+    // زياراته. وهي من أكثر ما يُسأل عنه: متى دخل المركز، ومتى طُبعت بطاقته،
+    // ومن اعتمد سيرته قبل أن تصل المستشار.
+    private const VISIT_ACTIONS = [
+        'RECEPTION_ARRIVE' => ['حضر إلى المركز', 'check'],
+        'RECEPTION_CV_UPDATE' => ['صُحّحت سيرته عند الاستقبال', 'edit'],
+        'RECEPTION_CV_APPROVE' => ['اعتمد الاستقبال سيرته', 'check'],
+        'RECEPTION_BADGE_PRINTED' => ['طُبعت بطاقته', 'printer'],
+        'RECEPTION_APPROVE' => ['أرسله الاستقبال للمستشارين', 'send'],
     ];
 
     private function writeTrail(Candidate $candidate): array
@@ -986,9 +1108,59 @@ class CandidateController extends Controller
             [$title, $icon] = self::WRITE_ACTIONS[$log->action];
             $events[] = [
                 'type' => 'audit', 'at' => optional($log->created_at)->toIso8601String(),
-                'title' => $title, 'meta' => null, 'cycle' => null,
+                'title' => $title,
+                // تفصيلُ القيد يُعرَض حين يحمل معنىً: أيُّ موجةٍ أصدرت الرمز،
+                // وإلى أيّ حالٍ تغيّرت الحالة الوظيفية. قيدٌ بلا تفصيلٍ يُقرأ
+                // «حدث شيء» ولا يُجيب عن سؤالٍ واحد.
+                'meta' => $log->action === 'UPDATE_EMPLOYMENT_STATUS'
+                    ? Candidate::employmentStatusLabel($log->details['to'] ?? null)
+                    : ($log->details['period'] ?? null),
+                'cycle' => $log->details['code'] ?? null,
                 'actor' => $log->user_id ? ($names[$log->user_id] ?? 'مستخدم محذوف') : 'النظام',
                 'status' => null, 'icon' => $icon,
+            ];
+        }
+
+        // ── أثر الاستقبال ──
+        // قيودُه معلّقةٌ على الزيارة لا على المشارك، فتُجمَع بمعرّفات زياراته.
+        $visitIds = DB::table('reception_visits')->where('candidate_id', $candidate->id)->pluck('id');
+        if ($visitIds->isNotEmpty()) {
+            $visitLogs = AuditLog::where('entity_type', 'reception')
+                ->whereIn('entity_id', $visitIds->map(fn ($i) => (string) $i))
+                ->whereIn('action', array_keys(self::VISIT_ACTIONS))
+                ->orderBy('created_at')
+                ->get();
+
+            $visitNames = User::whereIn('id', $visitLogs->pluck('user_id')->filter()->unique())
+                ->pluck('full_name', 'id');
+
+            foreach ($visitLogs as $log) {
+                [$title, $icon] = self::VISIT_ACTIONS[$log->action];
+                // تصحيحُ السيرة يقول **ماذا** تغيّر — لا «عُدّلت» وحدها
+                $changed = $log->details['changed'] ?? null;
+                $events[] = [
+                    'type' => 'reception', 'at' => optional($log->created_at)->toIso8601String(),
+                    'title' => $title,
+                    'meta' => $changed
+                        ? collect($changed)->map(fn ($k) => CandidateCvRevision::fieldLabel($k))->implode('، ')
+                        : null,
+                    'cycle' => $log->details['code'] ?? null,
+                    'actor' => $log->user_id ? ($visitNames[$log->user_id] ?? 'مستخدم محذوف') : 'النظام',
+                    'status' => null, 'icon' => $icon,
+                ];
+            }
+        }
+
+        // ── إصدارات السيرة ──
+        // من الجدول لا من التدقيق: التدقيق يقول «عُدّلت»، والإصدار يقول رقمَه
+        // والحقولَ التي تغيّرت — وهو ما يُسأل عنه حين يُنازَع في سيرة.
+        foreach ($candidate->cvRevisions()->with('createdBy:id,full_name')->get()->reverse() as $rev) {
+            $events[] = [
+                'type' => 'cv_revision', 'at' => optional($rev->created_at)->toIso8601String(),
+                'title' => 'إصدار السيرة رقم '.$rev->version,
+                'meta' => $rev->changedLabels() ?: null,
+                'cycle' => null, 'actor' => $rev->createdBy?->full_name, 'status' => null,
+                'icon' => 'file',
             ];
         }
 
@@ -1044,7 +1216,6 @@ class CandidateController extends Controller
             'interview' => 'المقابلة الشخصية',
             'discussion' => 'حلقة النقاش',
             'measurement' => 'أدوات القياس',
-            'integration' => 'التمرين التكاملي',
         ];
         $act = fn ($a) => $activityLabel[$a] ?? $a;
 
@@ -1130,6 +1301,20 @@ class CandidateController extends Controller
             }
         }
 
+        // ── أدوات القياس: إنجازٌ بلا تقييم ──
+        // المحطّتان الأُخريان تظهران بتسليم التقييم، وهذه لا تمرّ بالرصد أصلاً.
+        // فبلا هذا السطر يبقى في الخطّ الزمني ثقبٌ لا يُفسَّر: دورةٌ اكتملت
+        // وثُلثها لا أثر له.
+        foreach (MeasurementResult::whereIn('assessment_id', $assessments->pluck('id'))->get() as $m) {
+            $events[] = [
+                'type' => 'station_done',
+                'at' => optional($m->created_at)->toIso8601String(),
+                'title' => 'أتمّ أدوات القياس', 'meta' => null,
+                'cycle' => $assessments->firstWhere('id', $m->assessment_id)?->participant_code,
+                'actor' => $nameOf($m->uploaded_by), 'status' => null, 'icon' => 'clipboard',
+            ];
+        }
+
         // ترتيب زمني تصاعدي؛ الأحداث بلا وقت تُوضع في النهاية
         usort($events, function ($x, $y) {
             if ($x['at'] === $y['at']) {
@@ -1147,8 +1332,37 @@ class CandidateController extends Controller
 
         $this->log($request, 'VIEW_CANDIDATE_JOURNEY', $candidate->id);
 
+        // الدورة الحالية — أحدثُها. عدّادُ المحطّات يُقرأ منها لا من مجموع الدورات
+        $current = $assessments->last();
+        $lastVisit = ReceptionVisit::where('candidate_id', $candidate->id)
+            ->orderByDesc('visit_date')->first();
+
         return response()->json([
-            'candidate' => ['code' => $candidate->participant_code, 'status' => $candidate->status],
+            'candidate' => [
+                'code' => $candidate->participant_code,
+                'status' => $candidate->status,
+                // صفةُ الشخص لا حالتُه في المسار — تُقرأ مع الخطّ الزمني لأن
+                // تغيّرها حدثٌ فيه
+                'employmentStatus' => $candidate->employment_status,
+                'employmentStatusLabel' => Candidate::employmentStatusLabel($candidate->employment_status),
+            ],
+            // ── التقدّم على المحطّات المختارة ──
+            // «٢ من ٣» وحدها لا تُقرأ، فيُسمّى الناقص معها
+            'stations' => $current ? [
+                'chosen' => count($current->chosenStations()),
+                'done' => count(array_intersect($current->chosenStations(), $current->completedStations())),
+                'missing' => array_map([Assessment::class, 'stationLabel'], $current->missingStations()),
+                'complete' => $current->stationsComplete(),
+            ] : null,
+            // حضورُ المركز — غير حضور الجلسة، ويُخلَط بينهما كثيراً
+            'centreVisit' => $lastVisit ? [
+                'date' => $lastVisit->visit_date?->toDateString(),
+                'arrivedAt' => $lastVisit->arrived_at?->format('H:i'),
+                'signed' => $lastVisit->isSigned(),
+                'cvApproved' => $lastVisit->cv_approved_at !== null,
+                'badgePrinted' => $lastVisit->badge_printed_at !== null,
+                'sent' => $lastVisit->sent_at !== null,
+            ] : null,
             'journey' => $events,
         ]);
     }
@@ -1177,14 +1391,13 @@ class CandidateController extends Controller
         $base = Candidate::whereIn('classification', $allowed)
             // نفس حصر index — وإلا أفشى المؤشّر حجم ما تخفيه القائمة:
             // مقيّم يرى ٥ مشاركين ومؤشّرٌ يقول ٤٤ يكشف اتساع القطاعات الأخرى
-            ->when($user->isSectorBound(), fn ($q) => $q->where('sector_id', $user->sector_id));
+            ->when($user->isSectorBound(), fn ($q) => $q->whereIn('sector_id', $user->sectorIds()));
 
         $total = (clone $base)->count();
         $upper = (clone $base)->where('tier', 'upper')->count();
         $middle = (clone $base)->where('tier', 'middle')->count();
 
         $byStatus = (clone $base)->selectRaw('status, count(*) as c')->groupBy('status')->pluck('c', 'status');
-        $byClass = (clone $base)->selectRaw('classification, count(*) as c')->groupBy('classification')->pluck('c', 'classification');
 
         return response()->json([
             'total' => $total,
@@ -1196,11 +1409,6 @@ class CandidateController extends Controller
                 'assessed' => $byStatus['assessed'] ?? 0,
                 'approved' => $byStatus['approved'] ?? 0,
                 'completed' => $byStatus['completed'] ?? 0,
-            ],
-            'byClassification' => [
-                'normal' => $byClass['normal'] ?? 0,
-                'secret' => $byClass['secret'] ?? 0,
-                'top_secret' => $byClass['top_secret'] ?? 0,
             ],
         ]);
     }
@@ -1228,9 +1436,6 @@ class CandidateController extends Controller
         if ($request->filled('tier')) {
             $query->where('tier', $request->tier);
         }
-        if ($request->filled('classification')) {
-            $query->where('classification', $request->classification);
-        }
 
         $candidates = $query->orderBy('participant_code')->get();
 
@@ -1247,7 +1452,6 @@ class CandidateController extends Controller
                 'الرتبة / المرتبة' => $c->rank_label,
                 'الفئة القيادية' => $c->tier === 'upper' ? 'قيادة عليا' : 'قيادة وسطى',
                 'الحالة' => $c->status,
-                'التصنيف' => $c->classification,
             ];
             if ($canSeeNames) {
                 $row['الاسم'] = $c->full_name;

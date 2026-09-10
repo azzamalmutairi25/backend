@@ -3,10 +3,13 @@
 namespace App\Models;
 
 use App\Security\Permissions;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\HasApiTokens;
 
 // ════════════════════════════════════════════════════════════
@@ -21,13 +24,38 @@ class User extends Authenticatable
     public const SECTOR_BOUND_ROLES = ['EVALUATOR', 'DISCUSSION_EVAL', 'ASSISTANT'];
 
     protected $fillable = [
-        'username', 'full_name', 'email', 'password',
+        'username', 'code', 'full_name', 'national_id_enc', 'national_id_hash', 'email', 'password',
         'role_id', 'sector_id', 'manager_id', 'is_active', 'must_change_password', 'last_login_at',
         'failed_attempts', 'locked_until',
         'user_type', 'ad_username',
     ];
 
-    protected $hidden = ['password', 'remember_token'];
+    protected $hidden = ['password', 'remember_token', 'national_id_enc', 'national_id_hash'];
+
+    // هوية المستشار — معرّفٌ شخصيّ مباشر، يُشفَّر كهوية المشارك حرفاً بحرف.
+    // والبصمة للبحث بمطابقةٍ تامّة لا للعرض: التشفير لا يُبحث فيه.
+    protected function nationalId(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => $this->national_id_enc
+                ? Crypt::decryptString($this->national_id_enc)
+                : null,
+            set: fn ($value) => $value
+                ? [
+                    'national_id_enc' => Crypt::encryptString($value),
+                    'national_id_hash' => hash('sha256', $value),
+                ]
+                : ['national_id_enc' => null, 'national_id_hash' => null],
+        );
+    }
+
+    // المجالات الفنية التي يقيّم عليها — من مرجع المشاركين نفسه، فالمطابقة
+    // تقاطعٌ صريح لا بحثٌ نصّيّ في نثر السيرة
+    public function technicalAreas()
+    {
+        return $this->belongsToMany(TechnicalArea::class, 'user_technical_areas', 'user_id', 'technical_area_id')
+            ->withTimestamps();
+    }
 
     protected function casts(): array
     {
@@ -50,14 +78,6 @@ class User extends Authenticatable
         return $this->belongsTo(Sector::class);
     }
 
-    // مجالات خبرة المقيّم — تُطابَق بسيرة المشارك عند اختيار المستشار
-    public function expertiseAreas()
-    {
-        return $this->belongsToMany(ExpertiseArea::class, 'user_expertise', 'user_id', 'expertise_area_id')
-            ->withTimestamps();
-    }
-
-    // مدير المستخدم — للمساعد: مدير إدارة التقييم الذي يعتمد تقاريره
     public function manager(): BelongsTo
     {
         return $this->belongsTo(User::class, 'manager_id');
@@ -82,6 +102,34 @@ class User extends Authenticatable
         return in_array($this->role->code, self::SECTOR_BOUND_ROLES, true);
     }
 
+    /** القطاعات التي يغطّيها — الجدول إن وُجد، وإلا العمود الأساسي وحده */
+    public function sectors()
+    {
+        return $this->belongsToMany(Sector::class, 'user_sectors', 'user_id', 'sector_id')
+            ->withTimestamps();
+    }
+
+    /**
+     * معرّفات قطاعاته — الأساسي أوّلها.
+     *
+     * العمود `sector_id` هو **القطاع الأساسي**: ما يُعرض في بطاقته، وما تسقط
+     * إليه الشاشات التي تعرض قطاعاً واحداً. والجدول يُضيف ولا يستبدل — فحسابٌ
+     * لم يُمنح قطاعاتٍ إضافية يعمل كما كان يعمل حرفاً بحرف.
+     */
+    public function sectorIds(): array
+    {
+        $ids = $this->relationLoaded('sectors')
+            ? $this->sectors->pluck('id')->all()
+            : DB::table('user_sectors')
+                ->where('user_id', $this->id)->pluck('sector_id')->all();
+
+        if ($this->sector_id !== null) {
+            array_unshift($ids, $this->sector_id);
+        }
+
+        return array_values(array_unique(array_map('intval', $ids)));
+    }
+
     // ── هل يجوز لهذا المستخدم أن يتعامل مع مشارك هذا القطاع؟ ──
     // غير المحصور (مدير النظام، الجدولة…) يمرّ. والمحصور بلا قطاع مضبوط
     // يُمنع لا يُسمح: بيانات ناقصة لا تُقرأ كإذن مفتوح.
@@ -91,7 +139,25 @@ class User extends Authenticatable
             return true;
         }
 
-        return $this->sector_id !== null && $this->sector_id === $sectorId;
+        return $sectorId !== null && in_array((int) $sectorId, $this->sectorIds(), true);
+    }
+
+    /**
+     * القطاع الذي تعرضه شاشةٌ ذات قطاعٍ واحد.
+     *
+     * غيرُ المحصور يختار ما يشاء. والمحصور يُشدّ إلى قطاعاته: يأخذ ما طلبه إن
+     * كان يغطّيه، وإلا فأساسيَّه — لا يُردّ بخطأ، فطلبُ قطاعٍ لا يغطّيه خطأُ
+     * تصفّحٍ لا محاولةَ تجاوز.
+     */
+    public function resolveSectorFilter(?int $asked): ?int
+    {
+        if (! $this->isSectorBound()) {
+            return $asked;
+        }
+
+        return $asked !== null && $this->coversSector($asked)
+            ? (int) $asked
+            : ($this->sectorIds()[0] ?? null);
     }
 
     public function permissionOverrides(): HasMany

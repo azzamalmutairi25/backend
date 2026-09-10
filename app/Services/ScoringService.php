@@ -7,6 +7,7 @@ use App\Models\Competency;
 use App\Models\Evaluation;
 use App\Models\EvaluationScore;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 // ════════════════════════════════════════════════════════════
 //  خدمة الاحتساب — تجميع درجات الكفاءات إلى توافق (متوسط موزون)
@@ -79,7 +80,21 @@ class ScoringService
         }
 
         $targetCol = $tier === 'upper' ? 'target_upper' : 'target_middle';
-        $competencies = Competency::whereNotNull($targetCol)->orderBy('sort_order')->get();
+
+        // المستوى المطلوب حسب رتبة المشارك إن كانت مضبوطة، وإلّا حسب فئته.
+        //
+        // الفئة رقمان لا غير: كلّ من في «العليا» يُحاسَب بسقفٍ واحد، فيُقاس
+        // اللواء بمعيار العقيد وهما درجتان متباعدتان في نموذج المركز. مصفوفةُ
+        // الرتبة أدقّ، فتُقدَّم متى وُجدت؛ ويبقى عمودا الفئة ارتداداً لرتبةٍ
+        // لم تُضبط بعد أو مشاركٍ بلا رتبة مُدارة.
+        $rankId = $assessment->candidate?->rank_id;
+        $byRank = $rankId
+            ? DB::table('rank_competency_targets')->where('rank_id', $rankId)
+                ->pluck('target', 'competency_id')
+            : collect();
+
+        $competencies = Competency::orderBy('sort_order')->get()
+            ->filter(fn ($c) => $byRank->has($c->id) || $c->{$targetCol} !== null);
 
         $evalIds = Evaluation::where('assessment_id', $assessment->id)
             ->whereIn('status', ['submitted', 'approved'])->pluck('id');
@@ -87,8 +102,9 @@ class ScoringService
             ->groupBy('competency_id')
             ->map(fn ($rows) => round((float) $rows->avg('score'), 2));
 
-        $items = $competencies->map(function ($c) use ($achieved, $targetCol) {
-            $target = (int) $c->{$targetCol};
+        $items = $competencies->map(function ($c) use ($achieved, $targetCol, $byRank) {
+            $fromRank = $byRank->has($c->id);
+            $target = (int) ($fromRank ? $byRank[$c->id] : $c->{$targetCol});
             $ach = $achieved->get($c->id); // null إن لم تُرصد بعد
 
             return [
@@ -96,6 +112,9 @@ class ScoringService
                 'type' => $c->type,
                 'maxLevel' => (int) $c->max_level,
                 'target' => $target,
+                // مصدرُ السقف يُعرَض لا يُخمَّن: مراجعُ التقرير يحتاج أن يعرف
+                // أنّ هذه الكفاءة قيست بمعيار الرتبة وتلك بمعيار الفئة.
+                'targetSource' => $fromRank ? 'rank' : 'tier',
                 'achieved' => $ach,
                 'gap' => $ach === null ? null : round($ach - $target, 2),
                 'met' => $ach !== null && $ach >= $target,
@@ -104,6 +123,8 @@ class ScoringService
 
         return [
             'tier' => $tier,
+            'rankLabel' => $assessment->candidate?->rank?->label,
+            'targetSource' => $byRank->isNotEmpty() ? 'rank' : 'tier',
             'total' => $items->count(),
             'met' => $items->where('met', true)->count(),
             'items' => $items->all(),

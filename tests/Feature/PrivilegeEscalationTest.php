@@ -94,11 +94,12 @@ class PrivilegeEscalationTest extends TestCase
         $this->postJson('/api/users', $this->makeUserPayload(['roleId' => $this->roleId('RECEPTIONIST')]))
             ->assertStatus(403);
 
-        foreach ([
-            Permissions::ATTENDANCE_RECORD,
-            Permissions::ATTENDANCE_RECORD_ANY,
-            Permissions::RECEPTION_RECORD,
-        ] as $perm) {
+        // النقص يُشتقّ لا يُعدَّد: قائمةٌ مكتوبة بيدٍ تتقادم كلّما كسب دورُ
+        // الاستقبال صلاحيةً جديدة، فينكسر اختبارٌ موضوعه الحارسُ لا القائمة.
+        foreach (Permissions::forRole('RECEPTIONIST') as $perm) {
+            if ($actor->hasPermission($perm)) {
+                continue;
+            }
             UserPermissionOverride::create([
                 'user_id' => $actor->id, 'permission' => $perm, 'granted' => true, 'created_by' => null,
             ]);
@@ -175,15 +176,17 @@ class PrivilegeEscalationTest extends TestCase
         $actor = $this->userManagerWithoutAdmin('SCHEDULER');
 
         $this->putJson("/api/users/{$actor->id}/permissions", [
-            'overrides' => [['permission' => Permissions::CANDIDATE_VIEW_CLASSIFIED, 'granted' => true]],
+            'overrides' => [['permission' => Permissions::REPORT_APPROVE, 'granted' => true]],
         ])->assertStatus(422);
 
-        $this->assertFalse($actor->fresh()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED));
+        $this->assertFalse($actor->fresh()->hasPermission(Permissions::REPORT_APPROVE));
     }
 
     public function test_administrative_permissions_are_never_delegated_by_override(): void
     {
-        $target = $this->actingAsRole('RECEPTIONIST');
+        // دورٌ لا يحمل شيئاً من غير القابل للتفويض: الاستقبال صار يملك
+        // البحث بالهوية وبالاسم بدوره، فلا يصلح هدفاً لهذا المحكّ
+        $target = $this->actingAsRole('EVALUATOR', 'DW');
         $this->actingAsRole('ADMIN'); // حتى مدير النظام لا يفوّضها بالاستثناء
 
         foreach (Permissions::NON_DELEGABLE as $perm) {
@@ -198,13 +201,13 @@ class PrivilegeEscalationTest extends TestCase
     public function test_you_cannot_grant_a_permission_you_do_not_hold(): void
     {
         $target = $this->actingAsRole('RECEPTIONIST');
-        $this->userManagerWithoutAdmin('SCHEDULER'); // لا يملك رؤية المصنّفين
+        $this->userManagerWithoutAdmin('SCHEDULER'); // لا يملك اعتماد التقارير
 
         $this->putJson("/api/users/{$target->id}/permissions", [
-            'overrides' => [['permission' => Permissions::CANDIDATE_VIEW_CLASSIFIED, 'granted' => true]],
+            'overrides' => [['permission' => Permissions::REPORT_APPROVE, 'granted' => true]],
         ])->assertStatus(403);
 
-        $this->assertFalse($target->fresh()->hasPermission(Permissions::CANDIDATE_VIEW_CLASSIFIED));
+        $this->assertFalse($target->fresh()->hasPermission(Permissions::REPORT_APPROVE));
     }
 
     public function test_a_non_administrator_cannot_strip_an_administrator(): void

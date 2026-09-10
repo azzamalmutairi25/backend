@@ -113,9 +113,17 @@ class PermissionMatrixInvariantsTest extends TestCase
             $this->assertContains($p, Permissions::all(), "صلاحية غير مفوَّضة غير معرَّفة: {$p}");
         }
 
-        // سلطات النظام الثلاث — إن أُضيفت رابعة فليكن ذلك قراراً واعياً يُحدَّث هنا
+        // خمسٌ لا تُفوَّض بالاستثناء الفردي — وهي صنفان:
+        //   • سلطات النظام الثلاث: من ملكها ملك المنصّة.
+        //   • وبلوغُ الشخص بعينه: البحث بالهوية وبالاسم. تُمنح بالدور ويُقرَّر
+        //     مَن يحمله، ولا تُدسّ استثناءً فرديّاً على حسابٍ بعينه.
+        //
+        // إن أُضيفت سادسة فليكن ذلك قراراً واعياً يُحدَّث هنا.
         $this->assertEqualsCanonicalizing(
-            [Permissions::USER_MANAGE, Permissions::SETTINGS_MANAGE, Permissions::AUDIT_VIEW],
+            [
+                Permissions::USER_MANAGE, Permissions::SETTINGS_MANAGE, Permissions::AUDIT_VIEW,
+                Permissions::CANDIDATE_SEARCH_BY_ID, Permissions::CANDIDATE_SEARCH_BY_NAME,
+            ],
             Permissions::NON_DELEGABLE
         );
     }
@@ -152,16 +160,22 @@ class PermissionMatrixInvariantsTest extends TestCase
         };
 
         $this->assertEqualsCanonicalizing(
-            ['ADMIN', 'CENTER_MANAGER', 'SCHEDULER', 'RECEPTIONIST', 'ASSESS_MANAGER'],
+            ['ADMIN', 'CENTER_MANAGER', 'SCHEDULER', 'SCHEDULE_CLERK', 'DATA_ENTRY',
+                'RECEPTIONIST', 'ASSESS_MANAGER'],
             $holders(Permissions::CANDIDATE_VIEW_NAMES),
             'رؤية أسماء المشاركين — أي توسيع قرارٌ أمني'
         );
 
-        $this->assertEqualsCanonicalizing(
-            ['ADMIN', 'CENTER_MANAGER', 'ASSESS_MANAGER', 'DEV_MANAGER'],
-            $holders(Permissions::CANDIDATE_VIEW_CLASSIFIED),
-            'رؤية المشاركين المصنّفين — أي توسيع قرارٌ أمني'
-        );
+        // «رؤية المشاركين المصنّفين» تقاعدت: لا يملكها دورٌ ولا تُمنَح، وكل
+        // صفٍّ صار 'normal'. فالقائمة المغلقة صارت فارغة، والمحكّ الحيّ عليها
+        // هو أنها ليست في `all()` — يمسكه اختبار الصلاحيات اليتيمة.
+        $this->assertSame(['ADMIN'], $holders(Permissions::CANDIDATE_VIEW_CLASSIFIED),
+            'صلاحية متقاعدة: لا يملكها دورٌ مسمّى — و«ADMIN» يظهر لأنه يحمل النجمة');
+
+        // اعتماد الفترة انتقل من مدير المركز إلى مسؤول الجدولة
+        $this->assertEqualsCanonicalizing(['ADMIN', 'SCHEDULER'],
+            $holders(Permissions::SCHEDULE_APPROVE),
+            'اعتماد فترة الجدولة — أي توسيع قرارٌ أمني');
 
         $this->assertEqualsCanonicalizing(
             ['ADMIN'],

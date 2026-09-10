@@ -4,15 +4,50 @@ namespace Tests;
 
 use App\Models\Assessment;
 use App\Models\Candidate;
+use App\Models\CandidateCv;
 use App\Models\Role;
+use App\Models\SchedulingPeriod;
 use App\Models\Sector;
 use App\Models\TechnicalArea;
 use App\Models\User;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 
 abstract class TestCase extends BaseTestCase
 {
+    /**
+     * فترةُ جدولةٍ تحتيّة تغطّي مدىً واسعاً حول اليوم.
+     *
+     * صارت الجلسة لا تُنشأ خارج فترة — والاختبارات تُجدوِل على «غداً» وما
+     * حوله بلا أن تعني الفترة شيئاً لها. فتُهيَّأ مرّةً هنا بدل أن تُكتب في
+     * ثلاثةٍ وأربعين موضعاً، وتبقى الاختبارات تقيس ما تقيسه.
+     *
+     * ومن أراد فترةً بعينها يُنشئها ويمرّر `periodId` — الاستنباط يفضّل
+     * المعتمَدة، ثم المُرسَلة، ثم المسودّة.
+     */
+    protected function ensureCoveringPeriod(): SchedulingPeriod
+    {
+        return SchedulingPeriod::firstOrCreate(
+            ['name' => 'فترة الاختبارات'],
+            [
+                'start_date' => now()->subMonths(6)->toDateString(),
+                'end_date' => now()->addMonths(6)->toDateString(),
+                'status' => 'draft',
+            ]
+        );
+    }
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // تُهيَّأ للمجموعات التي تبذر القاعدة وحدها: من لا يبذر لا جداول له
+        if (($this->seed ?? false) === true) {
+            $this->ensureCoveringPeriod();
+        }
+    }
+
     // مستخدم بدور محدّد + مصادقة عبر Sanctum (يرجع المستخدم)
     //
     // الأدوار المحصورة بقطاع تُنشأ بقطاع — لا يوجد مقيّم بلا قطاع في النظام،
@@ -67,7 +102,12 @@ abstract class TestCase extends BaseTestCase
     {
         $sector = Sector::where('code', $attrs['sectorCode'] ?? 'DW')->firstOrFail();
         $status = $attrs['status'] ?? 'draft';
-        $code = $attrs['code'] ?? ('T'.random_int(1000, 999999));
+        // `null` صراحةً تعني مشاركاً بلا رمز — وهو حاله قبل اعتماد جدولته.
+        // `??` وحدها لا تفرّق بين «لم يُمرَّر» و«مُرِّر فارغاً»، والثانية صارت
+        // حالةً حقيقية تُختبَر منذ صار الرمز يُصدَر عند الاعتماد.
+        $code = array_key_exists('code', $attrs)
+            ? $attrs['code']
+            : ('T'.random_int(1000, 999999));
 
         $c = new Candidate;
         $c->national_id = $attrs['nationalId'] ?? $this->validNationalId();
@@ -115,6 +155,38 @@ abstract class TestCase extends BaseTestCase
                 'studyPlace' => 'السعودية',
             ]],
         ], $overrides);
+    }
+
+    /**
+     * حصرُ محطّات الدورة فيما يُختبَر فعلاً.
+     *
+     * الاكتمال صار يُقاس على المحطّات المختارة، والافتراضي ثلاث. فاختبارٌ
+     * يُجري المقابلة وحدها ويتوقّع «تمّ تقييمه» يجب أن يُعلن دورتَه دورةً
+     * ذات محطّةٍ واحدة — وهو **تقييمٌ جزئيّ** يقبله النظام صراحةً، لا حيلةٌ
+     * تلتفّ على القاعدة.
+     */
+    protected function requireStations(Assessment $assessment, array $stations): void
+    {
+        DB::table('assessment_stations')->where('assessment_id', $assessment->id)
+            ->whereNotIn('station', $stations)->delete();
+        $assessment->unsetRelation('stations');
+    }
+
+    /**
+     * سيرةٌ صالحة محفوظة للمشارك — بلا مرورٍ بمسار.
+     *
+     * صارت لازمةً في كل اختبارٍ يبلغ اعتماد الاستقبال: الاعتماد لا يقع على
+     * سيرةٍ فارغة، ونسخُ إنشائها في كل ملفّ يجعل تغيير حدّ «المكتملة» تحريراً
+     * في عشرة مواضع يُنسى أحدها.
+     */
+    protected function giveCv(Candidate $candidate, array $overrides = []): CandidateCv
+    {
+        return CandidateCv::create([
+            'candidate_id' => $candidate->id,
+            'data' => $this->validCvDoc($overrides),
+            'version' => 1,
+            'source' => 'admin',
+        ]);
     }
 
     /**

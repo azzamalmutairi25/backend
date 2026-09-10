@@ -34,7 +34,7 @@ abstract class Controller
 
         return Candidate::with($with)
             ->whereIn('classification', $this->allowedClassifications($request))
-            ->when($user->isSectorBound(), fn ($q) => $q->where('sector_id', $user->sector_id))
+            ->when($user->isSectorBound(), fn ($q) => $q->whereIn('sector_id', $user->sectorIds()))
             ->find($id);
     }
 
@@ -44,7 +44,7 @@ abstract class Controller
         $user = $request->user();
         $query->whereIn('classification', $this->allowedClassifications($request));
         if ($user->isSectorBound()) {
-            $query->where('sector_id', $user->sector_id);
+            $query->whereIn('sector_id', $user->sectorIds());
         }
     }
 
@@ -56,7 +56,7 @@ abstract class Controller
 
         $query->whereHas('candidate', fn ($q) => $q->whereIn('classification', $allowed));
         if ($user->isSectorBound()) {
-            $query->whereHas('candidate', fn ($q) => $q->where('sector_id', $user->sector_id));
+            $query->whereHas('candidate', fn ($q) => $q->whereIn('sector_id', $user->sectorIds()));
         }
     }
 

@@ -6,6 +6,7 @@ use App\Models\Candidate;
 use App\Models\DistributionItem;
 use App\Models\DistributionProposal;
 use App\Models\Schedule;
+use App\Models\SchedulingPeriod;
 use App\Models\Setting;
 use App\Models\User;
 use App\Security\Permissions;
@@ -181,6 +182,10 @@ class DistributionService
                 $schedule = Schedule::create([
                     'candidate_id' => $item->candidate_id,
                     'assessment_id' => $assessment->id,
+                    // كالاستقبال: الفترة من التاريخ لا من اختيارٍ صريح
+                    'period_id' => SchedulingPeriod::coveringDate(
+                        $item->scheduled_date->format('Y-m-d')
+                    )?->id,
                     'schedule_date' => $item->scheduled_date,
                     'activity' => $item->activity,
                     'evaluator_id' => $item->evaluator_id,

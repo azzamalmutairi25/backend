@@ -61,7 +61,7 @@
 ### المشاركون (Candidates)
 | الطريقة | المسار | الصلاحية | الغرض |
 |---|---|---|---|
-| GET | `/candidates` | `candidate.view` | قائمة المشاركين (محصورة بالنطاق) — انظر **الترقيم والفرز** أدناه |
+| GET | `/candidates` | `candidate.view` **والبحث ثلاث طرق بثلاث صلاحيات**: `?search=` بالرمز **بالبداية** للجميع (ونجمةٌ في أوّله تطلب الاحتواء، وكلفتُها معلَنة) · وبعشرة أرقامٍ كاملة يصير بحثاً بالهوية بمطابقةٍ تامّة لحامل `candidate.search_by_id` — ولغيره يُعامَل رمزاً فلا يُفصح بأنه هوية · وبنصٍّ عربيّ من ثلاثة أحرف فأكثر يصير بحثاً بالاسم لحامل `candidate.search_by_name`، عبر فهرسٍ أعمى بمقاطع ثلاثية يضيّق ثم يؤكّد بفكّ تشفير المرشَّحين وحدهم. والاسم لا يُخزَّن صريحاً في أي موضع. | قائمة المشاركين (محصورة بالنطاق) — انظر **الترقيم والفرز** أدناه |
 | GET | `/candidates/stats` | `candidate.view` | إحصاءات مطابقة لحصر القائمة |
 | POST | `/candidates` | `candidate.create` | إضافة مشارك (+ دورة تقييم). `assessmentType`: `comprehensive` أو `special_request`. السيرة (`cv`) إلزامية. `technicalAreaIds` اختيارية هنا وإلزامية في التعديل — والاستجابة تردّ `needsTechnicalAreas` و`candidateId` لسَوق الشاشة إلى استكمالها |
 | POST | `/candidates/lookup` | `candidate.create` | فحص تكرار الهوية قبل ملء النموذج — يرجع `exists` وحدها، والرمز لحاملي `candidate.edit` فقط. مخنوق ٢٠/دقيقة ومُقيَّد في السجلّ |
@@ -73,10 +73,10 @@
 | PUT | `/candidates/{id}` | `candidate.edit` | تعديل |
 | DELETE | `/candidates/{id}` | `candidate.edit` | حذف |
 | POST | `/candidates/{id}/approve` | `candidate.edit` | اعتماد للتقييم |
-| PATCH | `/candidates/{id}/classify` | `candidate.view_classified` | تغيير تصنيف السرّية |
+| PATCH | `/candidates/{id}/employment` | `candidate.approve` | الحالة الوظيفية: على رأس العمل أو متقاعد — بيد مسؤول الجدولة وحده، لا ضمن التعديل العامّ |
 | PATCH | `/candidates/{id}/notes` | `candidate.edit` | حفظ ملاحظات المشارك وحدها — لا تشترط الهوية والاسم كما يشترطهما التعديل الكامل، فيكتبها من يرى المشارك بلا بياناته الشخصية |
 | GET | `/candidates/{id}/assessments` | `candidate.view` | دورات المشارك |
-| GET | `/candidates/{id}/journey` | `candidate.journey` | رحلة المشارك |
+| GET | `/candidates/{id}/journey` | **سير أحداث المشارك** — `journey[{type,at,title,meta,cycle,actor,status,icon}]` مرتّباً زمنياً. يجمع: أثرَ الكتابة على المشارك (الإضافة · الاعتماد · **صدور الرمز** بموجته · **تغيّر الحالة الوظيفية** بقيمتها العربية)، وأثرَ الاستقبال من قيود الزيارة (**حضر المركز** · صُحّحت سيرته بأسماء الحقول · **اعتمد الاستقبال سيرته** · طُبعت بطاقته · أُرسل للمستشارين)، و**إصدارات السيرة** برقمها وحقولها، والجلسات والحضور والتقييمات والتقرير، و**إتمام أدوات القياس** (لا تمرّ بالرصد فلا تظهر بتقييم). ومعه `stations{chosen,done,missing[],complete}` و`centreVisit{date,arrivedAt,signed,cvApproved,badgePrinted,sent}` (`candidate.journey` — **ولا يملكها الاستقبال**: الخطّ يحمل أحداث التقرير) |
 | POST | `/candidates/{id}/reassess` | `candidate.edit` | دورة تقييم جديدة |
 | GET | `/candidates/{id}/history` | `audit.view` | سجل تدقيق المشارك |
 | GET | `/candidates/{id}/interviewers` | `schedule.manage` | مستشارو المقابلة المؤهّلون |
@@ -167,14 +167,18 @@
 
 | الطريقة | المسار | الصلاحية | الغرض |
 |---|---|---|---|
-| GET | `/reception` | `reception.view` | كشف اليوم + مهامّي (يتشكّل بالصلاحية) — `?date`، `?q` |
-| POST | `/reception/arrive` | `reception.record` | تسجيل وصول (وقت تلقائي) |
+| GET | `/reception` | كشف اليوم + مهامّي (يتشكّل بالصلاحية) — `?date`، `?q`. **المنتظَرون يُبنون من جلسات ذلك اليوم** لا من قاعدة المشاركين: لكل صفٍّ `sessions[{time,activity}]`، و`offRoster` لمن ظهر بالبحث بلا جلسة. و`isToday` تقول أيقرأ الموظّف يومه أم يوماً مضى (`reception.view`) |
+| POST | `/reception/arrive` | تسجيل وصول (وقت تلقائي). **يُسجَّل في يومه**: تاريخٌ غير اليوم يُردّ ٤٢٢ — «يوماً بيوم كي لا يختلط»، ووصولٌ بتاريخٍ آخر يضع مشاركاً في كشف يومٍ لم يحضر فيه ويُبنى عليه إسنادٌ وجلسةٌ وبطاقة (`reception.record`) |
 | PATCH | `/reception/visits/{id}/arrival` | `reception.record` | تعديل وقت الوصول (`HH:MM`) |
 | POST | `/reception/visits/{id}/sign` | `reception.record` (٦٠/دقيقة) | توقيع المشارك وإقراره — PNG بترميز `data:` ≤٤٠٠ك محرف |
 | GET | `/reception/visits/{id}/cv` | `reception.view` + (`reception.record` أو `candidate.cv_view`) | سيرة من أمامك اليوم |
 | GET | `/reception/evaluators` | `reception.assign` | **من يستطيع الاستلام فعلاً** — `?activity`، `?sectorId` |
 | POST | `/reception/visits/{id}/assign` | `reception.assign` | توزيع على `interview`/`discussion`/`measurement` (بعد التوقيع) |
-| DELETE | `/reception/assignments/{id}` | `reception.assign` | سحب إسناد |
+| PUT | `/reception/visits/{id}/cv` | **تصحيح السيرة عند المكتب** — `{cv:{…}, note?}` ← `{message, version, changed[], cvApproved}`. سبعةُ حقولٍ لا غير (المنصب · الإدارة · الإدارة العامة · سنوات الخبرة · المؤهلات · الخبرات · الشهادات)، وما سواها يُردّ ٤٢٢ لا يُتجاهَل. الوثيقة **تُغطّى لا تُستبدل**، وكل تغييرٍ يقيّد إصداراً، و**التصحيح ينقض الاعتماد**. وبعد الإرسال يُردّ ٤٢٢ — جُمّدت الصورة فلا يصل التصحيح. وفحص التسرّب مطبَّق كما في مسار الإدارة (`reception.cv_edit`) |
+| POST | `/reception/visits/{id}/cv/approve` | **اعتماد السيرة** — بوّابةُ البطاقة والإرسال معاً ← `{approved, approvedAt}`. سيرةٌ فارغة تُردّ ٤٢٢: لا شهادة على فراغ. والاعتماد فعلُ **زيارةِ يومٍ بعينه** لا صفةٌ دائمة في السيرة (`reception.cv_approve`) |
+| GET | `/reception/visits/{id}/cv/revisions` | سجلّ الإصدارات — `revisions[{version, changed[], changedLabels, source, note, by, at}]` (٥٠ الأحدث). **الوثائق نفسها لا تُرسَل**: السطر يقول ماذا تغيّر ومن ومتى، والوثيقة الحيّة تُقرأ من مسارها (صلاحية قراءة سيرة الزيارة) |
+| POST | `/reception/send` | **إرسال قوائم اليوم للمستشارين دفعةً** — `{date?}` ← `{sent, schedulesCreated, blocked[{visitId, code, reason}], message}`. يُرحّل كلَّ من وقّع واعتُمدت سيرته واستُلم إسنادُه، ويُجمّد سيرته، ويختم `sent_at`. **ولا يُخفي ما عجز عنه**: من لم يُرسَل يعود باسمه وسببه (`reception.approve`) |
+| DELETE | `/reception/assignments/{id}` | **سحب الإسناد — بسببٍ مكتوب** `{reason}` (إلزاميّ ٤٢٢ بدونه): التبديل يقع بلا موافقة أحد، فالسببُ كلُّ ما يبقى من القرار. و**المستلَم يُسحب أيضاً** — من استلم ثم غاب أو انشغل لم يكن لحاله مخرجٌ البتّة. والمردود لا يُسحب ٤٢٢ (سببُه مكتوبٌ أصلاً). **وجلسةٌ رُحّلت باسمه تُخلى منه** فلا يقول الجدولُ شيئاً والاستقبالُ غيرَه ← `{withdrawn, wasAccepted, scheduleCleared}` (`reception.assign`) |
 | GET | `/reception/assignments/{id}/cv` | `reception.decide` | **سيرة بالرمز — بلا اسم ولا هوية أبداً** (قاعدة إجراء لا صلاحية) |
 | POST | `/reception/assignments/{id}/accept` | `reception.decide` | قبول المشارك |
 | POST | `/reception/assignments/{id}/reject` | `reception.decide` | ردّه للعمليات بسبب (٣–٥٠٠ حرف) |
@@ -184,7 +188,7 @@
 | الطريقة | المسار | الصلاحية | الغرض |
 |---|---|---|---|
 | GET | `/candidates/{id}/cv` | `candidate.cv_view` | عرض السيرة (إدارة) |
-| PUT | `/candidates/{id}/cv` | `candidate.edit` | حفظ/تعديل السيرة |
+| PUT | `/candidates/{id}/cv` | `candidate.edit` | حفظ/تعديل السيرة. **وسيرةٌ مجمَّدة تُقال قبل أن تُكتب**: ٤٠٩ مع `frozen{at,version,code}` — اللقطة يقرؤها المستشار والتعديلُ لا يصل إليه. ولا يُمنع: `acknowledgeFrozen` يمضي به (للدورة القادمة) ويُقيَّد `afterFreeze` |
 | GET | `/candidates/{id}/cv/document` | `candidate.cv_view` | نموذج السيرة مطبوعاً (المتصفّح → PDF) |
 | GET | `/evaluations/{id}/cv` | `evaluation.view` | سيرة مُجهّلة للمقيّم (لقطة مجمّدة) |
 
@@ -211,17 +215,35 @@
 | GET | `/scheduling-periods/{id}/assessors` | `schedule.view` | لوحة المقيّمين والمساعدين ونصابهم وحملهم |
 | PUT | `/scheduling-periods/{id}/assessors` | `schedule.manage` | حفظ اللوحة كاملةً (استبدال ذرّي) |
 | POST | `/scheduling-periods/{id}/submit` | `schedule.manage` | إرسال الجدولة لمدير المركز |
-| POST | `/scheduling-periods/{id}/approve` | `schedule.approve_center` | اعتماد الموجة |
-| POST | `/scheduling-periods/{id}/reject` | `schedule.approve_center` | إرجاعها مسودّةً بسبب (`reason` إلزامي) |
+| POST | `/scheduling-periods/{id}/approve` | `schedule.approve` | اعتماد الموجة |
+| POST | `/scheduling-periods/{id}/reject` | `schedule.approve` | إرجاعها مسودّةً بسبب (`reason` إلزامي) |
 | POST | `/scheduling-periods/{id}/close` | `schedule.manage` | إغلاق موجة معتمَدة |
+| GET | `/scheduling-periods/{id}/grid` | **شبكة جدولة المستشارين** — صفٌّ لكل يوم عمل، وعمودٌ لكل من في لوحة الفترة مرتّباً برمزه. كل خلية: `planned` (العدد المخطَّط، و`null` إن كان محجوباً) · `assigned` (المُسنَد فعلاً — الخطّة تُقارَن بالتنفيذ) · `blocked` وسببُه (`leave`/`training`/`discussion`/`other`) · و`hostCode` لمن تحت التدريب. ومعها `total` لكل يوم و`matchesCapacity` (و`null` إن لم تُعلَن طاقة) و`columnTotals` و`grandTotal` (`schedule.view`) |
+| PUT | `/scheduling-periods/{id}/grid` | حفظ الخلايا دفعةً — `{cells:[{userId, date, planned}]}` ← `{message, saved}`؛ خليةٌ خارج أيام العمل أو لمستشارٍ خارج اللوحة تُردّ ٤٢٢، وفترةٌ معتمَدة لا تُعدَّل شبكتها ٤٢٢ (`schedule.manage`) |
 | GET | `/scheduling-periods/{id}/workflow` | `schedule.view` | خطوات سير العمل وحالة كلٍّ منها على الموجة + نسبة الإنجاز |
 | POST | `/scheduling-periods/{id}/workflow/{stepId}` | `schedule.manage` | تأشير خطوة يدوية — `status=done\|skipped\|pending`، و`note` إلزامية مع `skipped` |
+| GET | `/consultants` | **إعدادات المستشارين** — كل من دوره مقيّمٌ أو مقيّم حلقةٍ أو مساعد، مرتّبين بالرمز (وبلا رمزٍ في الآخر). لكلٍّ: `code` · `sectorIds` و`primarySectorId` · `areaIds` و`areaLabels` · `hasNationalId` (وجوداً لا قيمة) · `periodCount` · و`absence` أقربُ غيابٍ قائمٍ أو قادم مع `current`. ومعها `sectors[]` و`areas[]` مرجعاً في الطلب نفسه، و`gaps{noCode, noAreas}` — ما يترك عموداً بلا ترويسة في الشبكة أو مستشاراً لا يُطابق مشاركاً (`schedule.manage` أو `user.manage`) |
+| PUT | `/consultants/{id}` | حفظ الرمز والقطاعات والمجالات — `{code, sectorIds, areaIds}` ← `{message, code, sectorIds, areaIds}`. **بابٌ ضيّق**: لا يُنشئ حساباً ولا يغيّر دوراً ولا يمسّ كلمة مرور، وحسابٌ ليس مستشاراً يُردّ ٤٢٢. والقطاع الأساسي يُضاف دائماً ولا يُبدَّل من هنا. ومجالٌ خارج قطاعات المستشار يُردّ ٤٢٢ — لا يصل به إلى مشاركٍ أبداً (`schedule.manage`) |
+| GET | `/assessor-absences` | إجازات المستشارين — `?periodId=` يفلتر بالتداخل مع مدى الفترة لا بالمساواة، و`?userId=` بمستشارٍ بعينه. تُرجع `absences[{id, userId, userName, userCode, fromDate, toDate, reason, reasonLabel, note}]` (`schedule.manage`) |
+| POST | `/assessor-absences` | تسجيل غياب — `{userId, fromDate, toDate, reason (leave/training/discussion/other), periodId?, note?}` ← `{message, id}` (٢٠١)؛ التداخل مع غيابٍ مسجَّل ٤٢٢. **ولا بديل يُعيَّن**: المسؤول يعيد توزيع الأعداد بنفسه |
+| DELETE | `/assessor-absences/{id}` | حذف سجلّ غياب ← `{message}`؛ غير الموجود ٤٠٤ |
+| GET | `/assessments/{id}/stations` | **محطّات الدورة** — `{assessmentId, stations[{key,label,done}], missing[], complete, available[]}`. المحطّات ثلاث (`interview`/`discussion`/`measurement`) والافتراضي كلُّها، و**الاكتمال يُقاس على ما اختير** لا على ثلاثٍ محفورة (`schedule.view`) |
+| PUT | `/assessments/{id}/stations` | تغيير المطلوب — `{stations:[…]}` بالترتيب الذي يُمرَّر به. واحدةٌ على الأقلّ وإلا ٤٢٢: دورةٌ بلا محطّة تكتمل لحظة إنشائها. و**محطّةٌ أُنجزت لا تُنزَع** ٤٢٢ — نزعُها يمحو عملاً وقع وقد يُكمل الدورة بإسقاط ما لم يُؤدَّ. وتقليصُ القائمة قد يُكمل الدورة، فتُعاد الحالة في `completed` (`schedule.manage`) |
 | GET | `/schedules` | `schedule.view` | قائمة الجلسات (نافذة متدحرجة + سقف) — `?periodId` يحصرها بموجة |
 | POST | `/schedules` | `schedule.manage` | جدولة جلسة |
 | PUT | `/schedules/{id}` | `schedule.manage` | تعديل (يُبطل الحضور عند تغيّر الموعد) |
 | DELETE | `/schedules/{id}` | `schedule.manage` | حذف (يُمنع بعد الحضور) |
-| GET | `/schedules/permits` | `schedule.view` | تصاريح دخول اليوم — `?date`، `?sectorId`، و`&showName=1` لحاملي `candidate.view_names` وحدهم |
 | GET | `/schedules/absences/{candidateId}` | `schedule.view` | جلسات غياب قابلة لإعادة الجدولة |
+| GET | `/gate-manifests` | **بيان تصاريح الدخول** — `?date` (الافتراضي اليوم) ← `{date, manifest{…rows[{name,nationalId,rank,sector}]…}, scheduledCount, canManage, canApprove}`. **ولا رمز في صفوفه**: أداةٌ داخلية لا يعرفها الحارس، والمطابقة عنده باسمٍ وهوية (`gate_manifest.manage` أو `.approve`) |
+| POST | `/gate-manifests` | **الاستقبال يجهّز** — `{date, gateTime, location?, note?}` ← البيان (٢٠١). الموعد يُكتب بيدٍ ليتّفق مع خطاب القطاع ولا يُشتقّ من أبكر جلسة. **وصفوفُه تُثبَّت لا تُشتقّ**: جلسةٌ تُضاف بعد الإعداد لا تُدخِل من لم يُعتمَد اسمُه. بيانٌ واحدٌ لليوم، ولا بيان بلا أسماء ٤٢٢ (`gate_manifest.manage`) |
+| POST | `/gate-manifests/{id}/submit` | إرسالُه لمدير المركز ويُشعَر أصحابُ `gate_manifest.approve` (`gate_manifest.manage`) |
+| POST | `/gate-manifests/{id}/approve` | **مدير المركز يعتمد** — ويُشعَر مُعِدُّه. لا يُعتمد إلا مُرسَل ٤٢٢، **ومن يُعدّ لا يعتمد** (`gate_manifest.approve`) |
+| GET | `/gate-manifests/{id}/document` | الورقة (HTML) — الاسم · رقم الهوية · الرتبة أو المرتبة، وفي أسفلها **ختمُ مدير المركز وتاريخ اعتماده**. **ولا يخرج بيانٌ غير معتمَد** ٤٢٢، وكلُّ إخراجٍ يُدقَّق (`gate_manifest.manage`) |
+| DELETE | `/gate-manifests/{id}` | حذفُ مسوّدةٍ أو معلّق — **والمعتمَد لا يُحذف** ٤٢٢: أُذِن به وأثرُ الإذن يبقى (`gate_manifest.manage`) |
+| GET | `/schedules/absentees` | **قائمة الغائبين** مجمَّعةً لمسؤول الجدولة — `?from`/`?to` (الافتراضي أسبوعان للخلف) · `?periodId` · `?handled=1`. تُرجع `absentees[{scheduleId,candidateId,participantCode,sector,date,time,activityLabel,evaluator,excused,reason,recordedBy,rescheduledTo}]` و`totals`. **الغياب يبقى على اليوم الذي جُدول فيه** — نقلُه يمحو أن المقعد حُجز وتُرك فارغاً. و**المعالَج يُخفى افتراضاً**: القائمة أداةُ قرارٍ لا سجلٌّ للقراءة (`schedule.view`) |
+| GET | `/postponements` | **طلبات التأجيل** — `?status` (الافتراضي `pending`) · `?candidateId`. تُرجع `requests[{id,participantCode,sessionDate,stationLabel,reason,status,statusLabel,decisionNote,newDate,requestedBy,decidedBy,…}]` و`canDecide` و`pendingCount`. **المعلّقة أوّلاً**: الشاشة أداةُ بتٍّ لا سجلّ (`postpone.request` أو `postpone.decide`) |
+| POST | `/postponements` | **الاستقبال يرفع** — `{scheduleId, reason}` ← الطلب (٢٠١). السبب إلزاميّ: الطلب كلُّه سببٌ يُقرأ عند البتّ. وطلبٌ معلّقٌ ثانٍ على الجلسة نفسها يُردّ ٤٢٢ — البتُّ في أحدهما لا يعني شيئاً للآخر؛ والمبتوت لا يمنع طلباً جديداً. ويُشعَر أصحابُ `postpone.decide` (`postpone.request`) |
+| POST | `/postponements/{id}/decide` | **مسؤول الجدولة يبتّ** — `{decision, newDate?, note?}` بأربعة قرارات: `accepted` · `rejected` (التعليل إلزاميّ — من رفع الطلب يعتذر به) · `returned` (للمحطّة الناقصة بلا تاريخ) · `rescheduled` (التاريخ إلزاميّ و**تُنشأ الجلسة الجديدة في القرار نفسه**، ويعود `newScheduleId`). المبتوت لا يُبتّ فيه مرّتين ٤٢٢، ويُشعَر رافعُ الطلب بالنتيجة (`postpone.decide`) |
 | POST | `/schedules/{id}/reschedule` | `candidate.edit` | إعادة جدولة غياب (مرّة واحدة) |
 | GET | `/golden-schedule` | `schedule.view` | الجدول الذهبي — `?periodId` إلزامي، `?sectorId` |
 | POST | `/golden-schedule` | `schedule.manage` | صفّ يدوي (تاريخ + رمز + قطاع) — لا تمحوه المزامنة |
@@ -352,7 +374,7 @@
 | GET | `/users` | `user.manage` | قائمة المستخدمين |
 | GET | `/users/roles` | `user.manage` | الأدوار |
 | GET | `/users/role-permissions` | `user.manage` | مصفوفة الدور↔الصلاحية |
-| POST | `/users` | `user.manage` | إنشاء (بسقف امتياز) |
+| POST | `/users` | `user.manage` ويقبل `sectorIds[]` — المستشار قد يغطّي أكثر من قطاع، والأساسي يبقى في `sectorId` ويُدرَج في القائمة دائماً. | إنشاء (بسقف امتياز) |
 | PUT | `/users/{id}` | `user.manage` | تعديل (لا تعديل من يفوقك) |
 | PATCH | `/users/{id}/toggle` | `user.manage` | تفعيل/تعطيل |
 | PATCH | `/users/{id}/password` | `user.manage` | إعادة تعيين كلمة المرور |
@@ -386,13 +408,11 @@
 | GET · PUT | `/settings/distribution` | ضوابط التوزيع الأسبوعي |
 | GET · PUT | `/settings/tier` | حدود الفئات القيادية |
 | GET · PUT | `/settings/session-times` | أوقات جلسات اليوم (خيارات الحقل وأعمدة الكشف) |
-| GET | `/expertise-areas` | مجالات الخبرة — مرجعٌ للجميع، وغير الفعّالة لحاملي `settings.manage` |
-| POST · PUT · DELETE | `/expertise-areas` · `/expertise-areas/{id}` | إدارة المجالات (`settings.manage`) |
-| PUT | `/users/{id}/expertise` | وسم حساب بمجالاته — `areaIds[]` (`user.manage`) |
-| GET | `/technical-areas` | المجالات الفنية — مرجعٌ يُوسَم به المشارك ويُرشَّح عليه. قراءتها أوسع من مجالات الخبرة: تكفيها `candidate.view` أو `candidate.create` لأن نموذج الإضافة يعرضها وشاشة الترشيح تفلتر بها. تُرجع `areas[{id, label, sortOrder, isActive, participantCount}]` و`canManage`؛ وغير الفعّالة لحاملي `settings.manage` وحدهم ليعيدوا تفعيلها |
-| POST | `/technical-areas` | إضافة مجال — `{label, sortOrder?}` ← `{message, areaId}` (٢٠١)؛ الاسم المكرّر ٤٢٢ في `errors.label` (`settings.manage`) |
-| PUT | `/technical-areas/{id}` | تعديل مجال — `{label, sortOrder?, isActive?}` ← `{message}`؛ غير الموجود ٤٠٤ والاسم المكرّر ٤٢٢ (`settings.manage`) |
+| GET | `/technical-areas` | المجالات الفنية — مرجعٌ يُوسَم به المشارك ويُرشَّح عليه. قراءتها أوسع من مجالات الخبرة: تكفيها `candidate.view` أو `candidate.create` لأن نموذج الإضافة يعرضها وشاشة الترشيح تفلتر بها. تقبل `?sectorId=` فتُرجع مجالات ذلك القطاع وحدها — نموذج المشارك يطلب مجالات قطاعه لا مجالات الجهات كلّها. تُرجع `areas[{id, label, sortOrder, isActive, sectorIds, sectorNames, participantCount}]` و`canManage`؛ وغير الفعّالة لحاملي `settings.manage` وحدهم ليعيدوا تفعيلها |
+| POST | `/technical-areas` | إضافة مجال — `{label, sectorIds[] (قطاعٌ واحد على الأقلّ), sortOrder?}` ← `{message, areaId}` (٢٠١)؛ الاسم المكرّر ٤٢٢ في `errors.label` (`settings.manage`) |
+| PUT | `/technical-areas/{id}` | تعديل مجال — `{label, sectorIds[], sortOrder?, isActive?}` ← `{message}`؛ غير الموجود ٤٠٤ والاسم المكرّر ٤٢٢ (`settings.manage`) |
 | DELETE | `/technical-areas/{id}` | حذف مجال ← `{message}`؛ **مجالٌ موصوفٌ به مشاركون لا يُحذف** — ٤٢٢ تدلّ على تعطيله ليبقى وسمهم مقروءاً (`settings.manage`) |
+| PUT | `/users/{id}/technical-areas` | وسم المستشار بمجالاته الفنية — `{areaIds[]}` ← `{message, areaIds}`؛ عليها تقوم مطابقته بالمشارك (تقاطعٌ صريح لا بحثٌ نصّيّ). بـ`user.manage` أو `schedule.manage` |
 | GET · POST | `/settings/scheduling-workflow` | خطوات سير عمل الجدولة — القراءة تكفيها `schedule.view`، والإضافة `settings.manage` |
 | PUT · DELETE | `/settings/scheduling-workflow/{id}` | تعديل/حذف خطوة (`settings.manage`) |
 | PUT | `/settings/scheduling-workflow/reorder` | إعادة الترتيب — `ids[]` كاملةً لا جزئية (`settings.manage`) |

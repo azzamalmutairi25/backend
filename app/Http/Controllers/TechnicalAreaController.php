@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\TechnicalArea;
+use App\Models\User;
 use App\Security\Permissions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -48,9 +49,16 @@ class TechnicalAreaController extends Controller
             return response()->json(['error' => 'ليس لديك صلاحية عرض المجالات الفنية'], 403);
         }
 
-        $q = TechnicalArea::ordered();
+        $validated = $request->validate(['sectorId' => 'nullable|integer']);
+
+        $q = TechnicalArea::ordered()->with('sectors:id,name_ar');
         if (! $canManage) {
             $q->active();
+        }
+        // نموذج المشارك يطلب مجالات قطاعه وحدها: عرضُ مجالات كل الجهات في
+        // كل نموذج يجعل القائمة بلا معنى — والمجال يُنسَب لقطاعه لهذا.
+        if (! empty($validated['sectorId'])) {
+            $q->whereHas('sectors', fn ($s) => $s->where('sectors.id', $validated['sectorId']));
         }
 
         return response()->json([
@@ -59,6 +67,8 @@ class TechnicalAreaController extends Controller
                 'label' => $a->label_ar,
                 'sortOrder' => $a->sort_order,
                 'isActive' => $a->is_active,
+                'sectorIds' => $a->sectors->pluck('id')->all(),
+                'sectorNames' => $a->sectors->pluck('name_ar')->all(),
                 'participantCount' => $a->candidates()->count(),
             ]),
             'canManage' => $canManage,
@@ -75,6 +85,10 @@ class TechnicalAreaController extends Controller
         $validated = $request->validate([
             'label' => 'required|string|max:120',
             'sortOrder' => 'nullable|integer|min:0|max:999',
+            // قطاعٌ واحد على الأقلّ — مجالٌ بلا قطاع لا يظهر في أي نموذج،
+            // فيصير سجلاًّ ميتاً لا يُوسَم به مشاركٌ ولا مستشار
+            'sectorIds' => 'required|array|min:1|max:50',
+            'sectorIds.*' => 'required|integer|distinct|exists:sectors,id',
         ]);
 
         if (TechnicalArea::where('label_ar', $validated['label'])->exists()) {
@@ -86,7 +100,11 @@ class TechnicalAreaController extends Controller
             'sort_order' => $validated['sortOrder'] ?? 0,
             'is_active' => true,
         ]);
-        $this->audit($request, 'CREATE_TECHNICAL_AREA', $area->id, ['label' => $area->label_ar]);
+        $area->sectors()->sync($validated['sectorIds']);
+        $this->audit($request, 'CREATE_TECHNICAL_AREA', $area->id, [
+            'label' => $area->label_ar,
+            'sectors' => count($validated['sectorIds']),
+        ]);
 
         return response()->json(['message' => 'أُضيف المجال الفني', 'areaId' => $area->id], 201);
     }
@@ -107,6 +125,8 @@ class TechnicalAreaController extends Controller
             'label' => 'required|string|max:120',
             'sortOrder' => 'nullable|integer|min:0|max:999',
             'isActive' => 'boolean',
+            'sectorIds' => 'required|array|min:1|max:50',
+            'sectorIds.*' => 'required|integer|distinct|exists:sectors,id',
         ]);
 
         if (TechnicalArea::where('label_ar', $validated['label'])->where('id', '!=', $id)->exists()) {
@@ -118,9 +138,46 @@ class TechnicalAreaController extends Controller
             'sort_order' => $validated['sortOrder'] ?? $area->sort_order,
             'is_active' => $request->boolean('isActive', $area->is_active),
         ]);
-        $this->audit($request, 'UPDATE_TECHNICAL_AREA', $area->id, ['label' => $area->label_ar]);
+        $area->sectors()->sync($validated['sectorIds']);
+        $this->audit($request, 'UPDATE_TECHNICAL_AREA', $area->id, [
+            'label' => $area->label_ar,
+            'sectors' => count($validated['sectorIds']),
+        ]);
 
         return response()->json(['message' => 'حُدّث المجال الفني']);
+    }
+
+    // PUT /users/{id}/technical-areas — مجالات المستشار الفنية
+    //
+    // انتقلت من «مجالات الخبرة»: كان المقيّم يُوسَم من مرجعٍ والمشارك من آخر،
+    // والمطابقة بينهما بحثاً نصّياً في نثر السيرة. صار الوسمان من مرجعٍ واحد،
+    // فالمطابقة تقاطعٌ يُعدّ ويُعرَض ويُراجَع سببه.
+    public function setUserAreas(Request $request, int $id)
+    {
+        if (! $request->user()->hasPermission(Permissions::USER_MANAGE)
+            && ! $request->user()->hasPermission(Permissions::SCHEDULE_MANAGE)) {
+            return response()->json(['error' => 'ليس لديك صلاحية إدارة المستشارين'], 403);
+        }
+
+        $user = User::find($id);
+        if (! $user) {
+            return response()->json(['error' => 'المستخدم غير موجود'], 404);
+        }
+
+        $validated = $request->validate([
+            'areaIds' => 'present|array|max:60',
+            'areaIds.*' => 'required|integer|distinct|exists:technical_areas,id',
+        ]);
+
+        $user->technicalAreas()->sync($validated['areaIds']);
+        $this->audit($request, 'SET_USER_TECHNICAL_AREAS', $user->id, [
+            'count' => count($validated['areaIds']),
+        ]);
+
+        return response()->json([
+            'message' => 'حُفظت المجالات الفنية للمستشار',
+            'areaIds' => $user->technicalAreas()->pluck('technical_areas.id'),
+        ]);
     }
 
     // DELETE /technical-areas/{id}
