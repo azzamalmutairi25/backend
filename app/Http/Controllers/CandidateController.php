@@ -10,6 +10,7 @@ use App\Models\CandidateCv;
 use App\Models\CandidateCvRevision;
 use App\Models\CandidateUpdateRequest;
 use App\Models\MeasurementResult;
+use App\Models\PostponementRequest;
 use App\Models\ReceptionVisit;
 use App\Models\Schedule;
 use App\Models\Sector;
@@ -1147,6 +1148,30 @@ class CandidateController extends Controller
                     'cycle' => $log->details['code'] ?? null,
                     'actor' => $log->user_id ? ($visitNames[$log->user_id] ?? 'مستخدم محذوف') : 'النظام',
                     'status' => null, 'icon' => $icon,
+                ];
+            }
+        }
+
+        // ── طلبات التأجيل ──
+        // حدثان لا واحد: الرفع والبتّ. وعرضُ البتّ وحده يُخفي **من طلب**
+        // ولماذا — وهو نصف القصّة، وأكثرُ ما يُسأل عنه بعد شهور.
+        foreach (PostponementRequest::with(['requestedBy:id,full_name', 'decidedBy:id,full_name'])
+            ->where('candidate_id', $candidate->id)->orderBy('id')->get() as $req) {
+            $events[] = [
+                'type' => 'postponement', 'at' => optional($req->created_at)->toIso8601String(),
+                'title' => 'رُفع طلب تأجيل'.($req->station ? ': '.Assessment::stationLabel($req->station) : ''),
+                'meta' => $req->reason, 'cycle' => null,
+                'actor' => $req->requestedBy?->full_name, 'status' => null, 'icon' => 'undo',
+            ];
+            if ($req->decided_at) {
+                $events[] = [
+                    'type' => 'postponement_decided',
+                    'at' => optional($req->decided_at)->toIso8601String(),
+                    'title' => PostponementRequest::statusLabel($req->status),
+                    // التاريخ الجديد أو تعليل الرفض — أيُّهما وقع
+                    'meta' => $req->new_date?->toDateString() ?? $req->decision_note,
+                    'cycle' => null, 'actor' => $req->decidedBy?->full_name,
+                    'status' => $req->status, 'icon' => 'check',
                 ];
             }
         }

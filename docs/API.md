@@ -167,7 +167,7 @@
 
 | الطريقة | المسار | الصلاحية | الغرض |
 |---|---|---|---|
-| GET | `/reception` | كشف اليوم + مهامّي (يتشكّل بالصلاحية) — `?date`، `?q`. **المنتظَرون يُبنون من جلسات ذلك اليوم** لا من قاعدة المشاركين: لكل صفٍّ `sessions[{time,activity}]`، و`offRoster` لمن ظهر بالبحث بلا جلسة. و`isToday` تقول أيقرأ الموظّف يومه أم يوماً مضى (`reception.view`) |
+| GET | `/reception` | كشف اليوم + مهامّي (يتشكّل بالصلاحية) — `?date`، `?q`. **المنتظَرون يُبنون من جلسات ذلك اليوم** لا من قاعدة المشاركين: لكل صفٍّ `sessions[{time,activity}]`، و`offRoster` لمن ظهر بالبحث بلا جلسة. و`isToday` تقول أيقرأ الموظّف يومه أم يوماً مضى (`reception.view`). ولكل حاضرٍ `waitedMinutes` — مدّةُ انتظاره تُحسب في الخادم وتتوقّف عند الإرسال |
 | POST | `/reception/arrive` | تسجيل وصول (وقت تلقائي). **يُسجَّل في يومه**: تاريخٌ غير اليوم يُردّ ٤٢٢ — «يوماً بيوم كي لا يختلط»، ووصولٌ بتاريخٍ آخر يضع مشاركاً في كشف يومٍ لم يحضر فيه ويُبنى عليه إسنادٌ وجلسةٌ وبطاقة (`reception.record`) |
 | PATCH | `/reception/visits/{id}/arrival` | `reception.record` | تعديل وقت الوصول (`HH:MM`) |
 | POST | `/reception/visits/{id}/sign` | `reception.record` (٦٠/دقيقة) | توقيع المشارك وإقراره — PNG بترميز `data:` ≤٤٠٠ك محرف |
@@ -450,7 +450,7 @@
 | DELETE | `/reception/kiosks/{id}` | `reception.record` | إبطال الرابط فوراً |
 | GET | `/reception/print-queue` | `reception.record` | البطاقات المطلوبة ولم تُطبع — `?date` |
 | POST | `/reception/visits/{id}/badge-printed` | `reception.record` | تعليم البطاقة مطبوعة |
-| POST | `/reception/visits/{id}/badge-reprint` | `reception.record` | إعادتها إلى الطابور |
+| POST | `/reception/visits/{id}/badge-reprint` | `reception.record` | إعادتها إلى الطابور. **وتشترط ما تشترطه الطباعة الأولى**: التوقيع واعتماد السيرة ٤٢٢ — وإلا صارت طريقاً ثانياً إلى بطاقةٍ والباب الأمامي مقفل |
 
 ### البوّابة العامة (Public Portal) — بلا مصادقة، ٢٠/دقيقة
 > **مُعطَّلة حتى إشعار آخر.** المسارات لا تُسجَّل ما لم يُشغَّل `features.candidate_portal` (وقرينه `candidatePortal` في `frontend/src/services/features.js`). الشيفرة والاختبارات باقية لإعادتها.

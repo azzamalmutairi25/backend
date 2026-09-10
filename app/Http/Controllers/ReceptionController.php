@@ -179,6 +179,13 @@ class ReceptionController extends Controller
             'rank' => $c->rank_label,
             'tier' => $c->tier,
             'arrivedAt' => $v->arrived_at?->format('H:i'),
+            // ── مدّة الانتظار بالدقائق ──
+            // «وصل ٠٩:١٥» تُقرأ ويُطرَح منها الوقتُ الحاليّ في الرأس، وذاك
+            // حسابٌ لا يقع في زحمة الردهة. والرقم يُقاس من الوصول إلى الإرسال،
+            // فمن أُرسِل توقّف عدّاده — انتظارُه انتهى.
+            'waitedMinutes' => $v->arrived_at
+                ? (int) $v->arrived_at->diffInMinutes($v->sent_at ?? now())
+                : null,
             'signed' => $v->isSigned(),
             'attested' => $v->attested,
             'status' => $v->status,
@@ -1404,6 +1411,18 @@ class ReceptionController extends Controller
         $visit = $this->findVisit($request, $id, ['assessment']);
         if (! $visit) {
             return response()->json(['error' => 'الزيارة غير موجودة'], 404);
+        }
+
+        // ── وإعادة الطباعة تحترم ما تحترمه الطباعة الأولى ──
+        // كانت تُدخل الزيارة الطابورَ بلا فحص، فيخرج طريقٌ ثانٍ إلى بطاقةٍ
+        // لمن لم يوقّع ولم تُعتمَد سيرتُه — والباب الأمامي مقفلٌ عليهما.
+        if (! $visit->isSigned()) {
+            return response()->json(['error' => 'لم يوقّع المشارك ولم يُقرّ بصحّة بياناته'], 422);
+        }
+        if ($visit->cv_approved_at === null) {
+            return response()->json([
+                'error' => 'اعتمِد السيرة أوّلاً — البطاقة تُطبع بعد المراجعة',
+            ], 422);
         }
 
         $visit->update([

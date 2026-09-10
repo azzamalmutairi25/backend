@@ -66,7 +66,6 @@ class DispatchAndDocumentsTest extends TestCase
     // حلّ محلَّها بيان تصاريح الدخول — بيانٌ يوميّ جماعيّ يعتمده مدير
     // المركز قبل أن يُطبع. انظر GateManifestTest.
 
-
     // ── الخطوة ١٢: ملفّ لكل قطاع ──
 
     public function test_an_unbound_manager_can_ask_for_one_sector(): void
