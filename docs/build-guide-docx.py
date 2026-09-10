@@ -354,6 +354,8 @@ md = re.sub(r'\A\s*---\s*\n', '', md)
 lines = md.split('\n')
 i = 0
 img_ok = img_missing = 0
+# أسطرُ جداولٍ يتيمة — تُعرَض نصّاً ويُنبَّه عليها: مصدرُها عطبٌ في المصدر
+orphan_rows = []
 chapters = []
 
 cells_of = lambda ln: [c.strip() for c in ln.strip().strip('|').split('|')]
@@ -441,10 +443,25 @@ while i < len(lines):
         i += 1
         continue
 
+    # ── الفقرة العادية: آخرُ فرعٍ يمرّ عليه السطر ──
+    start = i
     buf = []
     while i < len(lines) and lines[i].strip() and not re.match(
             r'^(#{2,4}\s|```|>|\s*([-*]|\d+[.)])\s|---+\s*$)', lines[i]) and not lines[i].strip().startswith('|'):
         buf.append(lines[i].strip()); i += 1
+
+    # ── ولا يُغادَر السطر إلا وقد استُهلك ──
+    # صفُّ جدولٍ يتيم — شقّه سطرٌ فارغ عن ترويسته — كان يسقط من كل الفروع:
+    # فرعُ الجدول يشترط فاصلاً بعد الترويسة فلا يلتقطه، وشرطُ جمع الفقرة
+    # يستثني ما يبدأ بـ«|» فلا يجمعه. فلا يتقدّم المؤشّر، وتدور الحلقة أبداً
+    # **بلا رسالة ولا مخرَج**: سطرٌ واحدٌ معطوب في سبعة آلاف يُعلّق البناء
+    # ساعاتٍ فيبدو بطئاً لا عطلاً. والتقدّم مضمونٌ الآن مهما كان السطر،
+    # ومحتواه يُعرَض نصّاً بدل أن يسقط صامتاً.
+    if i == start:
+        buf.append(re.sub(r'^\s*\|\s*|\s*\|\s*$', '', lines[i]).replace('|', ' — ').strip())
+        orphan_rows.append(i + 1)
+        i += 1
+
     text = ' '.join(buf)
     inline_img = re.search(r'!\[([^\]]*)\]\(guide-images/([^)]+)\.png\)', text)
     if inline_img:
@@ -464,3 +481,9 @@ size = os.path.getsize(OUT) / 1048576
 print(f'✓ {OUT} — {size:.1f} ميغابايت')
 print(f'  {len(chapters)} فصلاً · {img_ok} صورة مضمَّنة'
       + (f' · {img_missing} مفقودة' if img_missing else ''))
+if orphan_rows:
+    # يُقال ولا يُسكَت عنه: صفٌّ يتيم يعني جدولاً شقّه سطرٌ فارغ في المصدر،
+    # ويُعرَض هنا نصّاً — وهو ليس ما أراده الكاتب.
+    print(f'  ⚠ {len(orphan_rows)} صفَّ جدولٍ يتيماً (جدولٌ شقّه سطرٌ فارغ): '
+          + '، '.join(f'سطر {n}' for n in orphan_rows[:8])
+          + (' …' if len(orphan_rows) > 8 else ''))
