@@ -11,6 +11,46 @@ use Illuminate\Http\Request;
 class AuditController extends Controller
 {
     private array $actionLabels = [
+        // ── مسار الاستقبال ──
+        // ثلاثون فعلاً كانت تُقيَّد وتُعرَض برموزها الخام: سطرُ تدقيقٍ يقول
+        // «RECEPTION_CV_APPROVE» لا يُقرأ، وسجلٌّ لا يُقرأ لا يُراجَع.
+        'RECEPTION_ARRIVE' => 'تسجيل وصول المشارك',
+        'RECEPTION_ARRIVAL_EDIT' => 'تعديل وقت الوصول',
+        'RECEPTION_SIGN' => 'أخذ التوقيع والإقرار',
+        'RECEPTION_VIEW_CV' => 'الاطلاع على السيرة عند الاستقبال',
+        'RECEPTION_EVAL_VIEW_CV' => 'اطّلاع المستشار على سيرة المُسنَد إليه',
+        'RECEPTION_CV_UPDATE' => 'تصحيح السيرة عند الاستقبال',
+        'RECEPTION_CV_APPROVE' => 'اعتماد السيرة عند الاستقبال',
+        'RECEPTION_ASSIGN' => 'إسناد المشارك لمستشار',
+        'RECEPTION_WITHDRAW' => 'سحب الإسناد',
+        'RECEPTION_ACCEPT' => 'استلام المستشار للمشارك',
+        'RECEPTION_REJECT' => 'ردّ المستشار للمشارك',
+        'RECEPTION_REJECT_UNROUTED' => 'ردّ المشارك قبل الترحيل',
+        'RECEPTION_APPROVE' => 'اعتماد الاستقبال وترحيل الجلسات',
+        'RECEPTION_SEND_BATCH' => 'إرسال قوائم اليوم للمستشارين',
+        'RECEPTION_BADGE_PRINTED' => 'طباعة بطاقة المشارك',
+        'RECEPTION_BADGE_REPRINT' => 'إعادة بطاقة للطابور',
+
+        // ── بيان تصاريح الدخول ──
+        'CREATE_GATE_MANIFEST' => 'إعداد بيان تصاريح الدخول',
+        'SUBMIT_GATE_MANIFEST' => 'إرسال البيان لاعتماد مدير المركز',
+        'APPROVE_GATE_MANIFEST' => 'اعتماد بيان تصاريح الدخول',
+        'PRINT_GATE_MANIFEST' => 'طباعة بيان تصاريح الدخول',
+        'DELETE_GATE_MANIFEST' => 'حذف بيان تصاريح الدخول',
+
+        // ── التأجيل والغياب ──
+        'CREATE_POSTPONEMENT' => 'رفع طلب تأجيل',
+        'DECIDE_POSTPONEMENT' => 'البتّ في طلب تأجيل',
+        'CREATE_ASSESSOR_ABSENCE' => 'تسجيل غياب مستشار',
+        'DELETE_ASSESSOR_ABSENCE' => 'حذف غياب مستشار',
+
+        // ── الجدولة والمستشارون ──
+        'ISSUE_PARTICIPANT_CODE' => 'إصدار رمز المشارك',
+        'SET_ASSESSMENT_STATIONS' => 'تحديد محطّات الدورة',
+        'SAVE_PERIOD_GRID' => 'حفظ شبكة جدولة المستشارين',
+        'UPDATE_CONSULTANT_SETUP' => 'تعديل إعدادات المستشار',
+        'SET_USER_TECHNICAL_AREAS' => 'تحديد المجالات الفنية للمستشار',
+
         'CREATE_CANDIDATE' => 'إضافة المشارك',
         'UPDATE_CANDIDATE' => 'تعديل البيانات',
         'DELETE_CANDIDATE' => 'حذف المشارك',
