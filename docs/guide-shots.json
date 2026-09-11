@@ -96,7 +96,7 @@
       "id": "executive",
       "route": "/executive",
       "wait": "main",
-      "title": "لوحة القيادة التنفيذية"
+      "title": "القيادة التنفيذية للمركز — تفتح على «بانتظار قرارك»"
     },
     {
       "id": "daily-report",
@@ -2580,6 +2580,10 @@
       "clip": ".kpis",
       "steps": [
         {
+          "action": "click",
+          "selector": ".tab:has-text(\"المؤشرات التنفيذية\")"
+        },
+        {
           "action": "waitFor",
           "selector": ".kpis"
         }
@@ -2593,6 +2597,10 @@
       "clip": ".ins-grid",
       "steps": [
         {
+          "action": "click",
+          "selector": ".tab:has-text(\"المؤشرات التنفيذية\")"
+        },
+        {
           "action": "waitFor",
           "selector": ".ins-title"
         }
@@ -2602,9 +2610,13 @@
       "id": "executive-heatmap",
       "route": "/executive",
       "wait": "main",
-      "title": "الخريطة الحرارية لإتقان الكفاءات حسب القطاع مع وسيلة ٠٪–١٠٠٪",
+      "title": "خريطة الكفاءات حسب القطاع بمقياس الإتقان مع وسيلة ٠٪–١٠٠٪",
       "clip": ".hm-root",
       "steps": [
+        {
+          "action": "click",
+          "selector": ".tab:has-text(\"المؤشرات التنفيذية\")"
+        },
         {
           "action": "waitFor",
           "selector": ".hm-cell"
@@ -2619,6 +2631,10 @@
       "clip": ".tc",
       "steps": [
         {
+          "action": "click",
+          "selector": ".tab:has-text(\"المؤشرات التنفيذية\")"
+        },
+        {
           "action": "waitFor",
           "selector": ".tc-svg"
         }
@@ -2631,6 +2647,10 @@
       "title": "مجموعة نافذة الاتجاه في ترويسة «الاتجاه الشهري» بعد اختيار «آخر سنة»",
       "clip": ".card-head",
       "steps": [
+        {
+          "action": "click",
+          "selector": ".tab:has-text(\"المؤشرات التنفيذية\")"
+        },
         {
           "action": "waitFor",
           "selector": ".seg-btn"
@@ -2657,6 +2677,10 @@
       "clip": ".sectors",
       "steps": [
         {
+          "action": "click",
+          "selector": ".tab:has-text(\"المؤشرات التنفيذية\")"
+        },
+        {
           "action": "waitFor",
           "selector": ".sec-row"
         }
@@ -2670,6 +2694,10 @@
       "clip": ".two-col:last-child",
       "steps": [
         {
+          "action": "click",
+          "selector": ".tab:has-text(\"المؤشرات التنفيذية\")"
+        },
+        {
           "action": "waitFor",
           "selector": ".tiers"
         },
@@ -2678,6 +2706,177 @@
           "selector": ".dist-row"
         }
       ]
+    },
+    {
+      "id": "executive-today",
+      "route": "/executive",
+      "wait": "main",
+      "title": "«اليوم في المركز»: جلسات اليوم وحضورها والبهو وبيان تصاريح اليوم",
+      "clip": "section.card:has-text(\"اليوم في المركز\")",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".today-grid"
+        }
+      ]
+    },
+    {
+      "id": "executive-queue",
+      "route": "/executive",
+      "wait": "main",
+      "title": "«بانتظار قرارك»: صفٌّ لكل ما ينتظر التوقيع بعدده وعمره وزرّ «افتح»",
+      "clip": "section.card:has-text(\"بانتظار قرارك\")",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".today-grid"
+        }
+      ]
+    },
+    {
+      "id": "executive-blockers",
+      "route": "/executive",
+      "wait": "main",
+      "title": "«ما تعطّل ويحتاج متابعتك»: ما توقّف عند غيره بعمره وصاحب قراره",
+      "clip": "section.card:has-text(\"ما تعطّل ويحتاج متابعتك\")",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".today-grid"
+        }
+      ]
+    },
+    {
+      "id": "executive-gap",
+      "route": "/executive",
+      "wait": "main",
+      "title": "الخريطة بمقياس «الفجوة عن المستهدف» — الأحمر دون مستهدف الرتبة والأخضر فوقه",
+      "clip": "section.card:has(.hm-root)",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".tab:has-text(\"المؤشرات التنفيذية\")"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".hm-cell"
+        },
+        {
+          "action": "click",
+          "selector": "button.seg-btn:has-text(\"الفجوة عن المستهدف\")"
+        },
+        {
+          "action": "wait",
+          "value": "600"
+        }
+      ]
+    },
+    {
+      "id": "executive-reports-kpis",
+      "route": "/executive",
+      "wait": "main",
+      "title": "تبويب التقارير: البطاقات الخمس ومعها «معدّل الإعادة»",
+      "clip": ".kpis.five",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".tab:has-text(\"التقارير\")"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".kpis.five"
+        }
+      ]
+    },
+    {
+      "id": "executive-cycle",
+      "route": "/executive",
+      "wait": "main",
+      "title": "«زمن الدورة»: الوسيط من الترشيح إلى الاعتماد النهائي وأشرطة المراحل",
+      "clip": "section.card:has-text(\"زمن الدورة\")",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".tab:has-text(\"التقارير\")"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".kpis.five"
+        }
+      ]
+    },
+    {
+      "id": "executive-exec-pending",
+      "route": "/executive",
+      "wait": "main",
+      "title": "«معتمدة بلا ملخّص تنفيذي»: أقدم عشرة بالرمز ورابطٌ مفلتر",
+      "clip": "section.card:has-text(\"معتمدة بلا ملخّص تنفيذي\")",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".tab:has-text(\"التقارير\")"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".kpis.five"
+        }
+      ]
+    },
+    {
+      "id": "executive-overview-capacity",
+      "route": "/executive",
+      "wait": "main",
+      "title": "نظرة شاملة: بطاقة «طاقة الجدولة» — المستهدف والمخطَّط والمجدول والمنعقد",
+      "clip": ".ov-card:has-text(\"طاقة الجدولة\")",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".tab:has-text(\"نظرة شاملة على المنصّة\")"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".ov-grid"
+        }
+      ]
+    },
+    {
+      "id": "executive-overview-reports",
+      "route": "/executive",
+      "wait": "main",
+      "title": "نظرة شاملة: عدّادات التقارير التي تُفتح مفلترةً (بسهمٍ بجانب تسميتها)",
+      "clip": ".ov-card:has-text(\"في سلسلة الاعتماد\")",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".tab:has-text(\"نظرة شاملة على المنصّة\")"
+        },
+        {
+          "action": "waitFor",
+          "selector": ".ov-grid"
+        }
+      ]
+    },
+    {
+      "id": "reports-center-filter",
+      "route": "/reports",
+      "wait": "main",
+      "role": "center",
+      "title": "شاشة التقارير بحساب مدير المركز: فلتر «مدير المركز» بين مراحل السلسلة",
+      "clip": ".filters",
+      "steps": [
+        {
+          "action": "waitFor",
+          "selector": ".filters"
+        }
+      ]
+    },
+    {
+      "id": "gate-manifest-center",
+      "route": "/gate-manifest",
+      "wait": "main",
+      "role": "center",
+      "title": "بيان تصاريح الدخول يُفتح لمدير المركز ليعتمده",
+      "steps": []
     },
     {
       "id": "daily-report-kpis",
