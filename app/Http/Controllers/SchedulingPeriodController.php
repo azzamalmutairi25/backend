@@ -612,7 +612,7 @@ class SchedulingPeriodController extends Controller
     //  مسار الاعتماد: إرسال ← اعتماد/رفض ← إغلاق
     // ════════════════════════════════════════════════════════
 
-    // POST /scheduling-periods/{id}/submit — إرسال الجدولة لمدير المركز
+    // POST /scheduling-periods/{id}/submit — إرسال الجدولة لمسؤول الجدولة
     public function submit(Request $request, int $id)
     {
         if ($deny = $this->denyManage($request)) {
@@ -657,7 +657,7 @@ class SchedulingPeriodController extends Controller
 
         return response()->json([
             'message' => $reached > 0
-                ? 'أُرسلت الموجة لمدير المركز للاعتماد'
+                ? 'أُرسلت الموجة لمسؤول الجدولة للاعتماد'
                 : 'أُرسلت الموجة — لا يوجد حاملٌ لصلاحية الاعتماد لإشعاره',
             'notified' => $reached,
             'period' => $this->row($period->fresh(['creator', 'approver'])),

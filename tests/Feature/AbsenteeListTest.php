@@ -172,7 +172,10 @@ class AbsenteeListTest extends TestCase
             'name' => 'موجة المقعد',
             'start_date' => $start->toDateString(),
             'end_date' => $start->copy()->addDays(13)->toDateString(),
-            'status' => 'draft', 'work_days' => '0,1,2,3,4', 'daily_capacity' => 4,
+            // أيامُ الأسبوع كلُّها أيامُ عمل في هذه الموجة: الغيابُ لا يُسجَّل إلا لجلسة
+            // اليوم، والشبكةُ لا تعرض إلا أيام العمل. فبأيام الأحد–الخميس كان الاختبار
+            // يسقط كلَّ جمعةٍ وسبت — اليومُ لا صفَّ له، فيُقرأ الصفُّ فارغاً.
+            'status' => 'draft', 'work_days' => '0,1,2,3,4,5,6', 'daily_capacity' => 4,
         ]);
         PeriodAssessor::create(['period_id' => $period->id, 'user_id' => $ev->id,
             'activity' => 'interview', 'seat' => 'evaluator']);

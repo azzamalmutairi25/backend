@@ -9,14 +9,16 @@ use Illuminate\Database\Eloquent\Model;
 class SchedulingPeriod extends Model
 {
     // ── الحالات ──
-    // draft: تُبنى. pending_center: أُرسلت لمدير المركز. approved: معتمَدة.
+    // draft: تُبنى. pending_center: أُرسلت لمسؤول الجدولة. approved: معتمَدة.
+    // والقيمة تبقى pending_center من يوم كان الاعتماد لمدير المركز: تغييرُها يوجب
+    // ترحيل الصفوف وكلِّ ما يقارنها ولا يكسب شيئاً — التسمية هي ما يُقرأ.
     // closed: انتهت وأُرشفت. الرفض يعيدها draft بسببٍ مكتوب لا حالةً ثالثة —
     // الحالة الميّتة تُخفي الموجة عن صاحبها بدل أن تعيدها إليه.
     public const STATUSES = ['draft', 'pending_center', 'approved', 'closed'];
 
     public const STATUS_LABEL = [
         'draft' => 'مسودّة',
-        'pending_center' => 'بانتظار اعتماد مدير المركز',
+        'pending_center' => 'بانتظار اعتماد مسؤول الجدولة',
         'approved' => 'معتمَدة',
         'closed' => 'مغلقة',
     ];

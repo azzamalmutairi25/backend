@@ -274,7 +274,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ═══ الجدولة ═══
     // موجات الجدولة — التواريخ ولوحة المقيّمين والنصاب ومسار اعتماد مدير المركز.
     // العرض بـschedule.view، والبناء بـschedule.manage، والاعتماد والرفض
-    // بـschedule.approve_center وحدها (فصل مهام: من يبني لا يعتمد).
+    // بـschedule.approve وحدها (فصل مهام: من يبني لا يعتمد).
     Route::get('/scheduling-periods', [SchedulingPeriodController::class, 'index']);
     Route::post('/scheduling-periods', [SchedulingPeriodController::class, 'store']);
     Route::put('/scheduling-periods/{id}', [SchedulingPeriodController::class, 'update']);

@@ -214,7 +214,7 @@
 | GET | `/scheduling-periods/{id}/eligible` | `schedule.manage` | من يصلح للإدراج — `?activity`، `?seat` (بلا فتح `/users`) |
 | GET | `/scheduling-periods/{id}/assessors` | `schedule.view` | لوحة المقيّمين والمساعدين ونصابهم وحملهم |
 | PUT | `/scheduling-periods/{id}/assessors` | `schedule.manage` | حفظ اللوحة كاملةً (استبدال ذرّي) |
-| POST | `/scheduling-periods/{id}/submit` | `schedule.manage` | إرسال الجدولة لمدير المركز |
+| POST | `/scheduling-periods/{id}/submit` | `schedule.manage` | إرسال الجدولة لمسؤول الجدولة |
 | POST | `/scheduling-periods/{id}/approve` | `schedule.approve` | اعتماد الموجة |
 | POST | `/scheduling-periods/{id}/reject` | `schedule.approve` | إرجاعها مسودّةً بسبب (`reason` إلزامي) |
 | POST | `/scheduling-periods/{id}/close` | `schedule.manage` | إغلاق موجة معتمَدة |
