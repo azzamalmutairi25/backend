@@ -103,15 +103,17 @@ class ExecutiveLeadershipTest extends TestCase
 
         $keys = array_column($sections, 'key');
         foreach ([
-            'candidates', 'waves', 'sessions', 'reception', 'attendance', 'evaluation',
-            'measurement', 'reports', 'development_plans', 'competencies',
-            'update_requests', 'people', 'audit',
+            'candidates', 'waves', 'capacity', 'sessions', 'dispatch', 'reception', 'attendance',
+            'evaluation', 'measurement', 'reports', 'development_plans', 'competencies', 'audit',
         ] as $expected) {
             $this->assertContains($expected, $keys, "القسم «{$expected}» غائب عن النظرة الشاملة");
         }
 
         // الإعدادات خارج الشاشة بقرارٍ صريح — ضبط النظام سلطةٌ لا اطّلاع
         $this->assertNotContains('settings', $keys);
+        // وخارجها ما ليس من قرار مدير المركز: شاشةٌ مُطفأة، وأرقامُ إدارة الحسابات
+        $this->assertNotContains('update_requests', $keys);
+        $this->assertNotContains('people', $keys);
 
         // كل قسم بالشكل نفسه كي يعرضه مُصيِّرٌ واحد
         foreach ($sections as $s) {

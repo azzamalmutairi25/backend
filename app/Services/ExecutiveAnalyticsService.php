@@ -380,7 +380,9 @@ class ExecutiveAnalyticsService
             'sections' => [
                 $this->ovCandidates($allowed),
                 $this->ovWaves(),
+                $this->ovCapacity($allowed),
                 $this->ovSessions($allowed),
+                $this->ovDispatch($allowed),
                 $this->ovReception($allowed),
                 $this->ovAttendance($allowed),
                 $this->ovEvaluation($allowed),
@@ -388,8 +390,10 @@ class ExecutiveAnalyticsService
                 $this->ovReports($allowed),
                 $this->ovDevelopmentPlans($allowed),
                 $this->ovCompetencies(),
-                $this->ovUpdateRequests($allowed),
-                $this->ovPeople(),
+                // خرج قسما «طلبات تحديث البيانات» و«الفريق والأدوار» — ليسا من قرار مدير
+                // المركز: الأول شاشةٌ مُطفأة بمفتاح تشغيل وصلاحيتها لمسؤول الجدولة، والثاني
+                // أرقامُ إدارة الحسابات، سلطة مدير النظام. الدالّتان باقيتان، وإعادةُ أيٍّ
+                // منهما سطرٌ هنا.
                 $this->ovAudit(),
             ],
         ];
@@ -413,7 +417,8 @@ class ExecutiveAnalyticsService
             'metrics' => [
                 ['label' => 'الإجمالي', 'value' => (clone $cand())->count()],
                 ['label' => 'قيد التقييم', 'value' => (clone $cand())->whereIn('status', ['scheduled', 'assessed'])->count(), 'tone' => 'info'],
-                ['label' => 'مكتمل', 'value' => (int) ($byStatus['completed'] ?? 0), 'tone' => 'ok'],
+                ['label' => 'مكتمل', 'value' => (int) ($byStatus['completed'] ?? 0), 'tone' => 'ok',
+                    'to' => ['path' => '/candidates', 'query' => ['status' => 'completed']]],
                 ['label' => 'جدد (٣٠ يوماً)', 'value' => (clone $cand())->where('created_at', '>=', now()->subDays(30))->count()],
             ],
             'bars' => $this->bars($labels, $byStatus),
@@ -443,6 +448,44 @@ class ExecutiveAnalyticsService
         ];
     }
 
+    // ── طاقة الجدولة: المستهدف مقابل المخطَّط مقابل المجدول مقابل المنفَّذ ──
+    //
+    // الموجة تُعلن طاقةً يومية، والشبكة تخطّط لكل مستشار، ثم تُجدوَل جلسات ويحضر
+    // من يحضر. الفرق بين الأربعة هو المعنى: طاقةٌ لا تُملأ موجةٌ تُهدر، وجلساتٌ
+    // فوقها ضغطٌ على المستشارين. على الموجات غير المغلقة وحدها.
+    private function ovCapacity(array $allowed): array
+    {
+        $periods = SchedulingPeriod::whereIn('status', ['draft', 'pending_center', 'approved'])->get();
+        $ids = $periods->pluck('id');
+        $target = (int) $periods->sum(fn ($p) => $p->targetTotal() ?? 0);
+        $planned = (int) DB::table('period_grid_cells')->whereIn('period_id', $ids)->sum('planned');
+        $sessionIds = $this->inScope(Schedule::whereIn('period_id', $ids), $allowed)->pluck('id');
+        $held = Attendance::whereIn('schedule_id', $sessionIds)->where('status', 'present')->count();
+        // النسبة من المستهدف — ولا نسبة لموجاتٍ بلا طاقةٍ معلنة
+        $ofTarget = fn (int $v) => $target > 0 ? (int) round($v / $target * 100) : null;
+        $scheduledPct = $ofTarget($sessionIds->count());
+
+        return [
+            'key' => 'capacity',
+            'label' => 'طاقة الجدولة (الموجات المفتوحة)',
+            'icon' => 'calendar',
+            'route' => '/scheduling-periods',
+            'metrics' => [
+                ['label' => 'المستهدف', 'value' => $target],
+                ['label' => 'مخطَّط في الشبكة', 'value' => $planned, 'tone' => 'info'],
+                ['label' => 'مجدول من المستهدف', 'value' => $scheduledPct, 'suffix' => '%',
+                    'tone' => $scheduledPct === null ? 'neutral' : ($scheduledPct >= 80 ? 'ok' : 'warn')],
+                ['label' => 'انعقد من المستهدف', 'value' => $ofTarget($held), 'suffix' => '%'],
+            ],
+            'bars' => [
+                ['label' => 'المستهدف', 'value' => $target],
+                ['label' => 'مخطَّط', 'value' => $planned],
+                ['label' => 'مجدول', 'value' => $sessionIds->count()],
+                ['label' => 'انعقد', 'value' => $held],
+            ],
+        ];
+    }
+
     // ── الجلسات والتسليم ──
     private function ovSessions(array $allowed): array
     {
@@ -462,6 +505,50 @@ class ExecutiveAnalyticsService
                 ['label' => 'تسليمات للجهات', 'value' => ScheduleDispatch::count()],
             ],
             'bars' => $this->bars(ReceptionAssignment::ACTIVITY_LABEL, $byActivity),
+        ];
+    }
+
+    // ── التسليم للجهات: ما وُعدت به الجهة مقابل ما انعقد فعلاً ──
+    //
+    // «تسليمات للجهات: ٧» عددُ مرّاتٍ لا عددُ وعود. هنا لكل تسليمٍ جلساتُه المُرسلة
+    // (rows_count) مقابل ما حضره أصحابها فعلاً في المدى نفسه ولفئات الجهة نفسها —
+    // وهو ما يُسأل عنه المركز في اجتماع الجهة. على تسليمات آخر ١٨٠ يوماً.
+    private function ovDispatch(array $allowed): array
+    {
+        $dispatches = ScheduleDispatch::with('authority')
+            ->whereDate('date_to', '>=', now()->subDays(180)->toDateString())->get();
+
+        $sent = 0;
+        $held = 0;
+        $byAuthority = [];
+        foreach ($dispatches as $d) {
+            $categories = $d->authority?->categoryList() ?: [];
+            $sessions = $this->inScope(Schedule::whereDate('schedule_date', '>=', $d->date_from->toDateString())
+                ->whereDate('schedule_date', '<=', $d->date_to->toDateString())
+                ->whereHas('candidate', fn ($c) => $c->whereIn('personnel_category', $categories)), $allowed);
+            if ($d->period_id) {
+                $sessions->where('period_id', $d->period_id);
+            }
+            $sent += (int) $d->rows_count;
+            $held += Attendance::whereIn('schedule_id', $sessions->pluck('id'))->where('status', 'present')->count();
+            $name = $d->authority?->name_ar ?? '—';
+            $byAuthority[$name] = ($byAuthority[$name] ?? 0) + (int) $d->rows_count;
+        }
+        $rate = $sent > 0 ? (int) round($held / $sent * 100) : null;
+
+        return [
+            'key' => 'dispatch',
+            'label' => 'التسليم للجهات (١٨٠ يوماً)',
+            'icon' => 'file',
+            'route' => '/dispatch',
+            'metrics' => [
+                ['label' => 'تسليمات', 'value' => $dispatches->count()],
+                ['label' => 'جلسات مُسلَّمة', 'value' => $sent, 'tone' => 'info'],
+                ['label' => 'انعقدت بحضور', 'value' => $held, 'tone' => 'ok'],
+                ['label' => 'نسبة الانعقاد', 'value' => $rate, 'suffix' => '%',
+                    'tone' => $rate === null ? 'neutral' : ($rate >= 85 ? 'ok' : 'warn')],
+            ],
+            'bars' => collect($byAuthority)->map(fn ($v, $k) => ['label' => $k, 'value' => $v])->values()->all(),
         ];
     }
 
@@ -575,8 +662,12 @@ class ExecutiveAnalyticsService
             'metrics' => [
                 ['label' => 'دورات لها نتائج', 'value' => $withResults, 'tone' => 'ok'],
                 ['label' => 'بلا نتائج', 'value' => $missing, 'tone' => $missing > 0 ? 'warn' : 'neutral'],
+                // المقياس الشخصي كان يُحسب في الجملة نفسها ويُرمى — أداةٌ من ثلاث بصورةٍ ناقصة
+                ['label' => 'متوسط المقياس الشخصي', 'value' => $r1($avg->p ?? null)],
                 ['label' => 'متوسط التحليلي', 'value' => $r1($avg->a ?? null)],
                 ['label' => 'متوسط الإنجليزي', 'value' => $r1($avg->e ?? null)],
+                ['label' => 'نتائج ٣٠ يوماً', 'value' => $scoped(MeasurementResult::query())
+                    ->where('created_at', '>=', now()->subDays(30))->count(), 'tone' => 'info'],
             ],
             'bars' => [],
         ];
@@ -597,9 +688,13 @@ class ExecutiveAnalyticsService
             'route' => '/reports',
             'metrics' => [
                 ['label' => 'الإجمالي', 'value' => (int) $byStatus->sum()],
-                ['label' => 'معتمدة', 'value' => (int) ($byStatus['approved'] ?? 0), 'tone' => 'ok'],
-                ['label' => 'في سلسلة الاعتماد', 'value' => $inChain, 'tone' => $inChain > 0 ? 'info' : 'neutral'],
-                ['label' => 'مُعادة للتعديل', 'value' => $returned, 'tone' => $returned > 0 ? 'warn' : 'neutral'],
+                // العدّاد الذي تقبل شاشتُه فلترَه يُفتح منه على صفوفه لا على الشاشة كلها
+                ['label' => 'معتمدة', 'value' => (int) ($byStatus['approved'] ?? 0), 'tone' => 'ok',
+                    'to' => ['path' => '/reports', 'query' => ['status' => 'approved']]],
+                ['label' => 'في سلسلة الاعتماد', 'value' => $inChain, 'tone' => $inChain > 0 ? 'info' : 'neutral',
+                    'to' => ['path' => '/reports', 'query' => ['status' => 'pending']]],
+                ['label' => 'مُعادة للتعديل', 'value' => $returned, 'tone' => $returned > 0 ? 'warn' : 'neutral',
+                    'to' => ['path' => '/reports', 'query' => ['status' => 'returned']]],
             ],
             'bars' => $this->bars(self::REPORT_STATUS_LABEL, $byStatus),
         ];
