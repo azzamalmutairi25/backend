@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-23T05:28:02.040Z",
+  "updatedAt": "2026-09-11T15:16:02.923Z",
   "base": "http://localhost:5173",
   "screens": [
     {
@@ -128,7 +128,7 @@
       "file": "executive.png",
       "route": "/executive",
       "role": "admin",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-09-11T15:12:28.656Z"
     },
     {
       "id": "daily-report",
@@ -1132,11 +1132,11 @@
     },
     {
       "id": "executive-kpis",
-      "title": "بطاقات المؤشرات الأربع مع شارات فرق الفترة",
+      "title": "بطاقات المؤشرات الأربع مع سطر المقارنة تحت كلٍّ منها",
       "file": "executive-kpis.png",
       "route": "/executive",
       "role": "admin",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-09-11T15:12:28.656Z"
     },
     {
       "id": "executive-insights",
@@ -1144,15 +1144,15 @@
       "file": "executive-insights.png",
       "route": "/executive",
       "role": "admin",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-09-11T15:12:28.656Z"
     },
     {
       "id": "executive-heatmap",
-      "title": "الخريطة الحرارية لإتقان الكفاءات × القطاع مع وسيلة «أضعف ← أقوى»",
+      "title": "الخريطة الحرارية لإتقان الكفاءات حسب القطاع مع وسيلة ٠٪–١٠٠٪",
       "file": "executive-heatmap.png",
       "route": "/executive",
       "role": "admin",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-09-11T15:16:02.923Z"
     },
     {
       "id": "executive-trend",
@@ -1160,15 +1160,15 @@
       "file": "executive-trend.png",
       "route": "/executive",
       "role": "admin",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-09-11T15:12:28.656Z"
     },
     {
       "id": "executive-period",
-      "title": "مجموعة نافذة الاتجاه وزرّ «تصدير PDF» بعد اختيار «آخر سنة»",
+      "title": "مجموعة نافذة الاتجاه في ترويسة «الاتجاه الشهري» بعد اختيار «آخر سنة»",
       "file": "executive-period.png",
       "route": "/executive",
       "role": "admin",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-09-11T15:12:28.656Z"
     },
     {
       "id": "executive-sectors",
@@ -1176,7 +1176,7 @@
       "file": "executive-sectors.png",
       "route": "/executive",
       "role": "admin",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-09-11T15:12:28.656Z"
     },
     {
       "id": "executive-tiers-dist",
@@ -1184,7 +1184,7 @@
       "file": "executive-tiers-dist.png",
       "route": "/executive",
       "role": "admin",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-09-11T15:12:28.656Z"
     },
     {
       "id": "daily-report-kpis",

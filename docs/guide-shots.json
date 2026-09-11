@@ -2576,7 +2576,7 @@
       "id": "executive-kpis",
       "route": "/executive",
       "wait": "main",
-      "title": "بطاقات المؤشرات الأربع مع شارات فرق الفترة",
+      "title": "بطاقات المؤشرات الأربع مع سطر المقارنة تحت كلٍّ منها",
       "clip": ".kpis",
       "steps": [
         {
@@ -2602,8 +2602,8 @@
       "id": "executive-heatmap",
       "route": "/executive",
       "wait": "main",
-      "title": "الخريطة الحرارية لإتقان الكفاءات × القطاع مع وسيلة «أضعف ← أقوى»",
-      "clip": ".hm-wrap",
+      "title": "الخريطة الحرارية لإتقان الكفاءات حسب القطاع مع وسيلة ٠٪–١٠٠٪",
+      "clip": ".hm-root",
       "steps": [
         {
           "action": "waitFor",
@@ -2628,8 +2628,8 @@
       "id": "executive-period",
       "route": "/executive",
       "wait": "main",
-      "title": "مجموعة نافذة الاتجاه وزرّ «تصدير PDF» بعد اختيار «آخر سنة»",
-      "clip": ".head-actions",
+      "title": "مجموعة نافذة الاتجاه في ترويسة «الاتجاه الشهري» بعد اختيار «آخر سنة»",
+      "clip": ".card-head",
       "steps": [
         {
           "action": "waitFor",
