@@ -283,7 +283,7 @@
 | الطريقة | المسار | الصلاحية | الغرض |
 |---|---|---|---|
 | GET | `/reports` | `report.view` | قائمة التقارير |
-| GET | `/reports/stats` | `report.view` | إحصاءات |
+| GET | `/reports/stats` | `report.view` | إحصاءات بالحالة ومراحل السلسلة، ومنها `pendingCenter`، و`chain`: مراحل سلسلة الاعتماد **المفعّلة** بترتيبها (آخرها هو «الاعتماد النهائي») |
 | GET | `/reports/eligible-candidates` | `report.create` | مشاركون جاهزون لتقرير |
 | GET | `/reports/score-preview` | `report.view` | معاينة الدرجات |
 | GET | `/reports/competency-gap` | `report.view` | فجوة الكفاءات لمشارك |

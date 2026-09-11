@@ -32,6 +32,15 @@ use Illuminate\Support\Facades\DB;
 
 class ExecutiveAnalyticsService
 {
+    // مراحل سلسلة اعتماد التقرير بترتيبها، ومنها مرحلة مدير المركز. كانت ثلاثاً
+    // هنا، فالتقرير الواقف عند مدير المركز يُحسب في «الإجمالي» ويختفي من خطّ
+    // الاعتماد وأطول انتظار و«في سلسلة الاعتماد».
+    private const REPORT_CHAIN = ['pending_evaluator', 'pending_manager', 'pending_dev_approval', 'pending_center'];
+
+    // الجاهزية من الدرجة الموجودة لا بصفرٍ مكان الناقصة: تقريرٌ سلوكيّه ٨٠ وفنّيه
+    // لم يُرصد كان يدخل المتوسط بـ٤٠. وحين تغيب الدرجتان معاً يُستبعد التقرير.
+    private const READINESS_SQL = '(coalesce(behavioral_fit, technical_fit) + coalesce(technical_fit, behavioral_fit)) / 2';
+
     // الحمولة الكاملة للوحة التنفيذية في نداء واحد
     public function executive(array $allowed, int $trendMonths = 6): array
     {
@@ -74,7 +83,7 @@ class ExecutiveAnalyticsService
     // ── توزيع جاهزية التقارير المعتمدة على شرائح (صحّة خطّ الكفاءات) ──
     public function readinessDistribution(array $allowed): array
     {
-        $r = '(coalesce(behavioral_fit,0) + coalesce(technical_fit,0)) / 2';
+        $r = self::READINESS_SQL;
         $row = FinalReport::where('status', 'approved')
             ->whereHas('candidate', fn ($q) => $q->whereIn('classification', $allowed))
             ->selectRaw("
@@ -210,7 +219,7 @@ class ExecutiveAnalyticsService
             ->whereHas('candidate', fn ($q) => $q->whereIn('classification', $allowed))
             ->where('updated_at', '>=', $since)
             ->selectRaw("to_char(updated_at, 'YYYY-MM') ym, count(*) c,
-                         avg((coalesce(behavioral_fit,0) + coalesce(technical_fit,0)) / 2) readiness")
+                         avg(".self::READINESS_SQL.') readiness')
             ->groupBy('ym')->orderBy('ym')->get()
             ->keyBy('ym');
 
@@ -373,8 +382,9 @@ class ExecutiveAnalyticsService
             'metrics' => [
                 ['label' => 'الموجات', 'value' => (int) $byStatus->sum()],
                 ['label' => 'معتمَدة', 'value' => (int) ($byStatus['approved'] ?? 0), 'tone' => 'ok'],
-                // قرارٌ ينتظر مدير المركز نفسه — يُبرز لأنه الوحيد الذي يرفعه
-                ['label' => 'بانتظار اعتمادك', 'value' => $pending, 'tone' => $pending > 0 ? 'warn' : 'neutral'],
+                // اعتماد الموجة لمسؤول الجدولة (schedule.approve) منذ فُصل من يبني عمّن
+                // يعتمد. كانت تُسمّى «بانتظار اعتمادك» فتَعِد مدير المركز بقرارٍ ليس له.
+                ['label' => 'بانتظار اعتماد مسؤول الجدولة', 'value' => $pending, 'tone' => $pending > 0 ? 'info' : 'neutral'],
                 ['label' => 'مغلقة', 'value' => (int) ($byStatus['closed'] ?? 0)],
             ],
             'bars' => $this->bars(SchedulingPeriod::STATUS_LABEL, $byStatus),
@@ -524,7 +534,7 @@ class ExecutiveAnalyticsService
     private function ovReports(array $allowed): array
     {
         $byStatus = $this->reportStatusCounts($allowed);
-        $chain = ['pending_evaluator', 'pending_manager', 'pending_dev_approval'];
+        $chain = self::REPORT_CHAIN;
         $inChain = collect($chain)->sum(fn ($s) => (int) ($byStatus[$s] ?? 0));
         $returned = (int) ($byStatus['returned'] ?? 0);
 
@@ -675,7 +685,9 @@ class ExecutiveAnalyticsService
         'draft' => 'مسودّة',
         'pending_evaluator' => 'بانتظار اعتماد المقيّم',
         'pending_manager' => 'بانتظار مدير التقييم',
-        'pending_dev_approval' => 'بانتظار الاعتماد النهائي',
+        // بصاحب المرحلة لا بموقعها: «النهائي» لم يعد تطوير الكفاءات حين تُفعَّل مرحلة المركز
+        'pending_dev_approval' => 'بانتظار تطوير الكفاءات',
+        'pending_center' => 'بانتظار مدير المركز',
         'returned' => 'مُعاد للتعديل',
         'approved' => 'معتمد',
         'cancelled' => 'ملغى',
@@ -689,7 +701,7 @@ class ExecutiveAnalyticsService
         $byStatus = $this->reportStatusCounts($allowed);
         $approved = (clone $scoped())->where('status', 'approved');
 
-        $chain = ['pending_evaluator', 'pending_manager', 'pending_dev_approval'];
+        $chain = self::REPORT_CHAIN;
         $inChain = collect($chain)->sum(fn ($s) => (int) ($byStatus[$s] ?? 0));
 
         // عمر أقدم تقرير في كل مرحلة — الرقم الذي يقول أين يقف الخطّ فعلاً
@@ -721,9 +733,10 @@ class ExecutiveAnalyticsService
             ->map(function ($r) {
                 $behavioral = $r->behavioral_fit;
                 $technical = $r->technical_fit;
+                // كـREADINESS_SQL: الناقصة تأخذ قيمة الموجودة لا الصفر
                 $readiness = ($behavioral === null && $technical === null)
                     ? null
-                    : round(((float) ($behavioral ?? 0) + (float) ($technical ?? 0)) / 2, 1);
+                    : round(((float) ($behavioral ?? $technical) + (float) ($technical ?? $behavioral)) / 2, 1);
 
                 return [
                     'id' => $r->id,
@@ -785,10 +798,11 @@ class ExecutiveAnalyticsService
         return $out;
     }
 
-    // متوسط الجاهزية = متوسط (السلوكي + الفنّي) / ٢ على استعلام تقارير معتمدة
+    // متوسط الجاهزية = متوسط (السلوكي + الفنّي) / ٢ على استعلام تقارير معتمدة،
+    // والدرجة الناقصة تأخذ قيمة الموجودة (READINESS_SQL) لا الصفر
     private function avgReadiness($approvedQuery): ?float
     {
-        $v = $approvedQuery->selectRaw('avg((coalesce(behavioral_fit,0) + coalesce(technical_fit,0)) / 2) r')->value('r');
+        $v = $approvedQuery->selectRaw('avg('.self::READINESS_SQL.') r')->value('r');
 
         return $v === null ? null : round((float) $v, 1);
     }
@@ -830,6 +844,7 @@ class ExecutiveAnalyticsService
             'pending_evaluator' => 'اعتماد المقيّم',
             'pending_manager' => 'اعتماد مدير التقييم',
             'pending_dev_approval' => 'اعتماد تطوير الكفاءات',
+            'pending_center' => 'اعتماد مدير المركز',
             'returned' => 'إعادة للتعديل',
         ];
         $counts = FinalReport::whereIn('status', array_keys($labels))

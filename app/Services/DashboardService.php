@@ -489,11 +489,13 @@ class DashboardService
         ];
     }
 
-    // متوسط الجاهزية = متوسط (السلوكي + الفنّي) / ٢ على استعلام تقارير معتمدة محصور
+    // متوسط الجاهزية = متوسط (السلوكي + الفنّي) / ٢ على استعلام تقارير معتمدة محصور.
+    // الدرجة الناقصة تأخذ قيمة الموجودة لا الصفر — كما في لوحة القيادة التنفيذية،
+    // وإلا قرأ مدير المركز رقمين مختلفين للجاهزية نفسها في شاشتين.
     private function avgReadiness($approvedQuery): ?float
     {
         $v = $approvedQuery
-            ->selectRaw('avg((coalesce(behavioral_fit,0) + coalesce(technical_fit,0)) / 2) r')
+            ->selectRaw('avg((coalesce(behavioral_fit, technical_fit) + coalesce(technical_fit, behavioral_fit)) / 2) r')
             ->value('r');
 
         return $v === null ? null : round((float) $v, 1);

@@ -60,6 +60,8 @@ class DailyMaintenance extends Command
             'pending_evaluator' => 'EVALUATOR',
             'pending_manager' => 'ASSESS_MANAGER',
             'pending_dev_approval' => 'DEV_MANAGER',
+            // مرحلة مدير المركز — كانت غائبة، فالتقرير العالق عنده لا يُذكَّر به أحد
+            'pending_center' => 'CENTER_MANAGER',
         ];
         // مرّة واحدة لكل حالة تأخّر (whereNull escalated_at) — يمنع إعادة الإشعار يومياً بلا حدّ
         foreach (FinalReport::whereIn('status', array_keys($owners))
