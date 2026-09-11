@@ -151,6 +151,19 @@ class AnalyticsController extends Controller
         return response()->json($svc->reportsBoard($this->allowedClassifications($request), $limit));
     }
 
+    // GET /analytics/executive/today — بانتظار قرارك: الطابور والمتوقّف ويوم المركز
+    //
+    // نداءٌ مستقلّ لأنه التبويب الأوّل: يُفتح عليه كل صباح، فلا تُحمَّل معه
+    // الخريطة والاتجاه ومقارنة القطاعات. والطابور يُبنى بصلاحيات القارئ نفسه.
+    public function executiveToday(Request $request, ExecutiveAnalyticsService $svc)
+    {
+        if (! $this->executiveGate($request)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض القيادة التنفيذية'], 403);
+        }
+
+        return response()->json($svc->decisionDesk($this->allowedClassifications($request), $request->user()));
+    }
+
     private function executiveGate(Request $request): bool
     {
         return $request->user()->hasPermission(Permissions::ANALYTICS_EXECUTIVE);

@@ -12,7 +12,9 @@ use App\Models\DevelopmentPlanItem;
 use App\Models\DiscussionCircle;
 use App\Models\Evaluation;
 use App\Models\FinalReport;
+use App\Models\GateManifest;
 use App\Models\MeasurementResult;
+use App\Models\PostponementRequest;
 use App\Models\ReceptionAssignment;
 use App\Models\ReceptionVisit;
 use App\Models\Role;
@@ -21,6 +23,7 @@ use App\Models\ScheduleDispatch;
 use App\Models\SchedulingPeriod;
 use App\Models\Sector;
 use App\Models\User;
+use App\Security\Permissions;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -777,7 +780,199 @@ class ExecutiveAnalyticsService
         ];
     }
 
+    // ════════════════════════════════════════════════════════
+    //  بانتظار قرارك — ما يبتّ فيه القارئ، وما توقّف عند غيره، ويومُ المركز
+    // ════════════════════════════════════════════════════════
+    //
+    // النظرة الشاملة عدّاداتٌ لا يقول أيٌّ منها «هذا أنت من يبتّ فيه». هنا يُفصل
+    // ما يوقّعه القارئ (الطابور) عمّا وقف عند غيره ولا يرفعه إليه أحد (المتوقّف)،
+    // والعمرُ هو الخبر لا العدد: طلبان من أمس ليسا كطلبين من أسبوعين.
+    //
+    // صفوف الطابور تُبنى بصلاحية البتّ لا بالدور: من سُحبت منه صلاحيةٌ في شاشة
+    // الأدوار يختفي صفُّها، فلا يُعرض عليه قرارٌ سيرفضه الخادم.
+    public function decisionDesk(array $allowed, User $user): array
+    {
+        $today = now()->toDateString();
+
+        return [
+            'date' => $today,
+            'today' => $this->centerToday($allowed, $today),
+            'queue' => $this->decisionQueue($allowed, $user, $today),
+            'blockers' => $this->blockers($allowed, $today),
+        ];
+    }
+
+    // ── اليوم في المركز: الجلسات وحضورها، والبهو، وبيان البوّابة ──
+    private function centerToday(array $allowed, string $today): array
+    {
+        $sessionIds = $this->inScope(Schedule::whereDate('schedule_date', $today), $allowed)->pluck('id');
+        $att = Attendance::whereIn('schedule_id', $sessionIds)
+            ->selectRaw('status, count(*) c')->groupBy('status')->pluck('c', 'status');
+        $present = (int) ($att['present'] ?? 0);
+        $absent = (int) ($att['absent_excused'] ?? 0) + (int) ($att['absent_unexcused'] ?? 0);
+
+        $visits = $this->inScope(ReceptionVisit::whereDate('visit_date', $today), $allowed)
+            ->selectRaw('status, count(*) c')->groupBy('status')->pluck('c', 'status');
+
+        $manifest = GateManifest::whereDate('manifest_date', $today)->withCount('candidates')->first();
+
+        return [
+            'sessions' => $sessionIds->count(),
+            'present' => $present,
+            'absent' => $absent,
+            // جلسةٌ لم يُرصد حضورها بعد ليست غياباً
+            'notRecorded' => max(0, $sessionIds->count() - $present - $absent),
+            'visits' => (int) $visits->sum(),
+            'arrived' => (int) ($visits[ReceptionVisit::ARRIVED] ?? 0),
+            'distributed' => (int) ($visits[ReceptionVisit::DISTRIBUTED] ?? 0),
+            'approvedVisits' => (int) ($visits[ReceptionVisit::APPROVED] ?? 0),
+            'waitingOnEvaluator' => $this->waitingOnEvaluator($allowed, $today)->count(),
+            'gateManifest' => $manifest ? [
+                'status' => $manifest->status,
+                'label' => GateManifest::statusLabel($manifest->status),
+                'names' => (int) $manifest->candidates_count,
+            ] : null,
+        ];
+    }
+
+    // ── الطابور: ما يحمل توقيع القارئ ──
+    private function decisionQueue(array $allowed, User $user, string $today): array
+    {
+        $rows = [];
+
+        if ($user->hasPermission(Permissions::GATE_MANIFEST_APPROVE)) {
+            $pending = GateManifest::where('status', GateManifest::PENDING);
+            $next = (clone $pending)->orderBy('manifest_date')->withCount('candidates')->first();
+            $rows[] = $this->deskRow('gate_manifest', 'بيان تصاريح دخول بانتظار اعتمادك', $pending, 'updated_at',
+                '/gate-manifest', null, Permissions::GATE_MANIFEST_APPROVE, [
+                    'hint' => $next ? 'أقربها ليوم '.$next->manifest_date->toDateString().' — الأسماء: '.$next->candidates_count : null,
+                ]);
+        }
+
+        if ($user->hasPermission(Permissions::REPORT_APPROVE_CENTER)) {
+            $rows[] = $this->deskRow('reports_center', 'تقارير بانتظار اعتمادك النهائي',
+                $this->inScope(FinalReport::where('status', 'pending_center'), $allowed), 'updated_at',
+                '/reports', ['status' => 'pending_center'], Permissions::REPORT_VIEW);
+        }
+
+        if ($user->hasPermission(Permissions::REPORT_EXEC_SUMMARY)) {
+            // آخر ما يُكتب في التقرير قبل أن يخرج من المركز — ويكتبه القارئ نفسه
+            $rows[] = $this->deskRow('exec_summary', 'تقارير معتمدة بلا ملخّص تنفيذي',
+                $this->inScope(FinalReport::where('status', 'approved')->whereNull('executive_summary'), $allowed),
+                'updated_at', '/reports', ['status' => 'approved'], Permissions::REPORT_VIEW);
+        }
+
+        if ($user->hasPermission(Permissions::CANDIDATE_APPROVE)) {
+            $rows[] = $this->deskRow('candidates_draft', 'مشاركون بمسودّة بانتظار الاعتماد',
+                Candidate::where('status', 'draft')->whereIn('classification', $allowed), 'created_at',
+                '/candidates', ['status' => 'draft'], Permissions::CANDIDATE_VIEW);
+        }
+
+        if ($user->hasPermission(Permissions::RECEPTION_APPROVE)) {
+            // جاهزةٌ للاعتماد بشروط الخادم نفسها: موقَّعة ومُقَرّة، وسيرتها معتمدة،
+            // وفيها إسنادٌ مستلَم — لا كلُّ زيارةٍ لم تُعتمد بعد
+            $ready = $this->inScope(ReceptionVisit::whereDate('visit_date', $today)
+                ->where('status', '!=', ReceptionVisit::APPROVED)
+                ->whereNotNull('signature_enc')->where('attested', true)
+                ->whereNotNull('cv_approved_at')
+                ->whereHas('assignments', fn ($a) => $a->where('status', ReceptionAssignment::ACCEPTED)), $allowed);
+            $rows[] = $this->deskRow('reception_ready', 'زيارات اليوم جاهزة للاعتماد والترحيل', $ready, 'updated_at',
+                '/reception', null, Permissions::RECEPTION_VIEW);
+        }
+
+        if ($user->hasPermission(Permissions::EVALUATION_APPROVE)) {
+            $rows[] = $this->deskRow('evaluations_submitted', 'تقييمات مُرسلة بانتظار الاعتماد',
+                $this->inScope(Evaluation::where('status', 'submitted'), $allowed), DB::raw('coalesce(submitted_at, updated_at)'),
+                '/assessment', null, Permissions::EVALUATION_VIEW);
+        }
+
+        return $rows;
+    }
+
+    // ── المتوقّف: ليس قرار القارئ، لكنه وقف ولا أحد يرفعه إليه ──
+    private function blockers(array $allowed, string $today): array
+    {
+        $beforeCenter = array_values(array_diff(self::REPORT_CHAIN, ['pending_center']));
+
+        return [
+            // حالة الموجة لا مرحلة التقرير — مفرداتٌ أخرى بالاسم نفسه
+            $this->deskRow('waves_pending', 'موجات جدولة مُرسلة لم تُعتمد',
+                SchedulingPeriod::where('status', 'pending_center'), DB::raw('coalesce(submitted_at, updated_at)'),
+                '/scheduling-periods', null, Permissions::SCHEDULE_VIEW, ['owner' => 'مسؤول الجدولة']),
+            $this->deskRow('postponements', 'طلبات تأجيل لم يُبتّ فيها',
+                $this->inScope(PostponementRequest::where('status', PostponementRequest::PENDING), $allowed), 'created_at',
+                '/absentees', null, Permissions::SCHEDULE_VIEW, ['owner' => 'مسؤول الجدولة']),
+            $this->waitingRow($allowed, $today),
+            $this->deskRow('returned_reports', 'تقارير مُعادة للتعديل لم تُرسل بعد',
+                $this->inScope(FinalReport::where('status', 'returned'), $allowed), DB::raw('coalesce(last_returned_at, updated_at)'),
+                '/reports', ['status' => 'returned'], Permissions::REPORT_VIEW, ['owner' => 'كاتب التقرير']),
+            $this->deskRow('stalled_reports', 'تقارير متوقّفة في سلسلة الاعتماد أكثر من أسبوع',
+                $this->inScope(FinalReport::whereIn('status', $beforeCenter)->where('updated_at', '<', now()->subDays(7)), $allowed),
+                'updated_at', '/reports', ['status' => 'pending'], Permissions::REPORT_VIEW, ['owner' => 'أصحاب مراحل الاعتماد']),
+            $this->deskRow('stale_evaluation_drafts', 'مسودّات تقييم لم تُرسل منذ أكثر من ثلاثة أيام',
+                $this->inScope(Evaluation::where('status', 'draft')->where('updated_at', '<', now()->subDays(3)), $allowed),
+                'updated_at', '/assessment', null, Permissions::EVALUATION_VIEW, ['owner' => 'المستشارون']),
+            $this->deskRow('overdue_plans', 'بنود خطط تطوير تجاوزت موعدها',
+                $this->inScope(DevelopmentPlanItem::where('status', '!=', 'done')->whereNotNull('target_date')
+                    ->whereDate('target_date', '<', $today), $allowed),
+                'target_date', '/development-plans', null, Permissions::DEVELOPMENT_PLAN_VIEW, ['owner' => 'إدارة تطوير الكفاءات']),
+        ];
+    }
+
+    // إسنادٌ لم يبتّ فيه المستشار لزيارة اليوم — مشاركٌ واقفٌ في البهو
+    private function waitingOnEvaluator(array $allowed, string $today)
+    {
+        return ReceptionAssignment::where('status', ReceptionAssignment::PENDING)
+            ->whereHas('visit', fn ($q) => $q->whereDate('visit_date', $today)
+                ->whereHas('candidate', fn ($c) => $c->whereIn('classification', $allowed)));
+    }
+
+    private function waitingRow(array $allowed, string $today): array
+    {
+        $q = $this->waitingOnEvaluator($allowed, $today);
+        $oldest = (clone $q)->min('reception_assignments.created_at');
+
+        return [
+            'key' => 'waiting_evaluator',
+            'label' => 'مشاركون في البهو بانتظار قرار المستشار',
+            'count' => (clone $q)->count(),
+            'oldestDays' => null,
+            // البهو يُقاس بالدقائق لا بالأيام
+            'oldestMinutes' => $oldest ? (int) Carbon::parse($oldest)->diffInMinutes(now(), true) : null,
+            'route' => '/reception',
+            'query' => null,
+            'linkPerm' => Permissions::RECEPTION_VIEW,
+            'owner' => 'المستشار المُسنَد',
+        ];
+    }
+
     // ─────────────── مساعدات ───────────────
+
+    // عمرٌ بالأيام الصحيحة — diffInDays في Carbon 3 عشريٌّ بإشارة
+    private function ageDays($ts): ?int
+    {
+        return $ts ? (int) Carbon::parse($ts)->diffInDays(now(), true) : null;
+    }
+
+    // حصرُ صفوفٍ مربوطة بمشارك على التصنيفات المسموحة (fail-closed)
+    private function inScope($query, array $allowed)
+    {
+        return $query->whereHas('candidate', fn ($q) => $q->whereIn('classification', $allowed));
+    }
+
+    // صفٌّ موحّد في «بانتظار قرارك»: العدد، وعمر أقدمه، ووجهة فتحه وصلاحيتها
+    private function deskRow(string $key, string $label, $query, $ageColumn, ?string $route, ?array $routeQuery, ?string $linkPerm, array $extra = []): array
+    {
+        return array_merge([
+            'key' => $key,
+            'label' => $label,
+            'count' => (clone $query)->count(),
+            'oldestDays' => $this->ageDays((clone $query)->min($ageColumn)),
+            'route' => $route,
+            'query' => $routeQuery,
+            'linkPerm' => $linkPerm,
+        ], $extra);
+    }
 
     // عدّاد التقارير بالحالة ضمن التصنيفات المسموحة — يُقرأ في موضعين
     private function reportStatusCounts(array $allowed)

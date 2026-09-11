@@ -265,6 +265,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/analytics/executive', [AnalyticsController::class, 'executive']);
     Route::get('/analytics/executive/overview', [AnalyticsController::class, 'executiveOverview']);
     Route::get('/analytics/executive/reports', [AnalyticsController::class, 'executiveReports']);
+    Route::get('/analytics/executive/today', [AnalyticsController::class, 'executiveToday']);
     Route::get('/analytics/dashboard', [AnalyticsController::class, 'dashboard']);
     Route::get('/analytics/by-sector', [AnalyticsController::class, 'bySector']);
     Route::get('/analytics/competency-gaps', [AnalyticsController::class, 'competencyGaps']);
