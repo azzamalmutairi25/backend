@@ -254,6 +254,10 @@ class ReportController extends Controller
             'pendingEvaluator' => (clone $base)->where('status', 'pending_evaluator')->count(),
             'pendingManager' => (clone $base)->where('status', 'pending_manager')->count(),
             'pendingDev' => (clone $base)->where('status', 'pending_dev_approval')->count(),
+            'pendingCenter' => (clone $base)->where('status', 'pending_center')->count(),
+            // السلسلة المفعّلة بترتيبها — تعرف منها الشاشة آخر مرحلة («اعتماد نهائي»)
+            // وموضع كل تقرير فيها، بدل ثلاث مراحل محفورة تُسقط مرحلة مدير المركز
+            'chain' => WorkflowStage::chain()->pluck('status_key')->values()->all(),
         ]]);
     }
 
@@ -1002,7 +1006,8 @@ class ReportController extends Controller
             'draft' => 'مسودة',
             'pending_evaluator' => 'بانتظار اعتماد المقيّم',
             'pending_manager' => 'بانتظار اعتماد مدير التقييم',
-            'pending_dev_approval' => 'بانتظار الاعتماد النهائي',
+            'pending_dev_approval' => 'بانتظار اعتماد تطوير الكفاءات',
+            'pending_center' => 'بانتظار اعتماد مدير المركز',
             'returned' => 'مُعاد للتعديل',
             'approved' => 'معتمد',
         ][$s] ?? $s;

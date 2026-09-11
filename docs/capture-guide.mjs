@@ -323,7 +323,10 @@ async function shoot(page, s) {
   if (s.clip) {
     const el = page.locator(s.clip).first()
     await el.waitFor({ state: 'visible', timeout: 8000 })
-    await el.screenshot({ path })
+    // الشريط العلوي لاصقٌ (sticky): عنصرٌ أطول من النافذة يُلتقط بعد تمرير
+    // الصفحة، فيُرسم الشريطُ فوق أعلاه — كانت رؤوس أعمدة الخريطة الحرارية
+    // تختفي تحته. يُعاد إلى موضعه في التدفّق أثناء اللقطة وحدها.
+    await el.screenshot({ path, style: '.topbar { position: static !important; }' })
   } else {
     await page.screenshot({ path, fullPage: s.fullPage === true })
   }

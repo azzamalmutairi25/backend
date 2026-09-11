@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-23T05:28:02.040Z",
+  "updatedAt": "2026-09-11T16:49:16.985Z",
   "base": "http://localhost:5173",
   "screens": [
     {
@@ -88,7 +88,7 @@
       "file": "reports.png",
       "route": "/reports",
       "role": "admin",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-09-11T16:49:16.985Z"
     },
     {
       "id": "development-plans",
@@ -124,11 +124,11 @@
     },
     {
       "id": "executive",
-      "title": "لوحة القيادة التنفيذية",
+      "title": "القيادة التنفيذية للمركز — تفتح على «بانتظار قرارك»",
       "file": "executive.png",
       "route": "/executive",
       "role": "admin",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-09-11T16:49:16.985Z"
     },
     {
       "id": "daily-report",
@@ -216,7 +216,7 @@
       "file": "nav-center.png",
       "route": "/dashboard",
       "role": "center",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-09-11T16:49:16.985Z"
     },
     {
       "id": "nav-scheduler",
@@ -1096,7 +1096,7 @@
       "file": "reports-evaluator.png",
       "route": "/reports",
       "role": "evaluator",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-09-11T16:49:16.985Z"
     },
     {
       "id": "analytics-kpis",
@@ -1112,7 +1112,7 @@
       "file": "analytics-charts.png",
       "route": "/analytics",
       "role": "admin",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-09-11T16:49:16.985Z"
     },
     {
       "id": "analytics-attendance",
@@ -1132,11 +1132,11 @@
     },
     {
       "id": "executive-kpis",
-      "title": "بطاقات المؤشرات الأربع مع شارات فرق الفترة",
+      "title": "بطاقات المؤشرات الأربع مع سطر المقارنة تحت كلٍّ منها",
       "file": "executive-kpis.png",
       "route": "/executive",
       "role": "admin",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-09-11T16:49:16.985Z"
     },
     {
       "id": "executive-insights",
@@ -1144,15 +1144,15 @@
       "file": "executive-insights.png",
       "route": "/executive",
       "role": "admin",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-09-11T16:49:16.985Z"
     },
     {
       "id": "executive-heatmap",
-      "title": "الخريطة الحرارية لإتقان الكفاءات × القطاع مع وسيلة «أضعف ← أقوى»",
+      "title": "خريطة الكفاءات حسب القطاع بمقياس الإتقان مع وسيلة ٠٪–١٠٠٪",
       "file": "executive-heatmap.png",
       "route": "/executive",
       "role": "admin",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-09-11T16:49:16.985Z"
     },
     {
       "id": "executive-trend",
@@ -1160,15 +1160,15 @@
       "file": "executive-trend.png",
       "route": "/executive",
       "role": "admin",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-09-11T16:49:16.985Z"
     },
     {
       "id": "executive-period",
-      "title": "مجموعة نافذة الاتجاه وزرّ «تصدير PDF» بعد اختيار «آخر سنة»",
+      "title": "مجموعة نافذة الاتجاه في ترويسة «الاتجاه الشهري» بعد اختيار «آخر سنة»",
       "file": "executive-period.png",
       "route": "/executive",
       "role": "admin",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-09-11T16:49:16.985Z"
     },
     {
       "id": "executive-sectors",
@@ -1176,7 +1176,7 @@
       "file": "executive-sectors.png",
       "route": "/executive",
       "role": "admin",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-09-11T16:49:16.985Z"
     },
     {
       "id": "executive-tiers-dist",
@@ -1184,7 +1184,95 @@
       "file": "executive-tiers-dist.png",
       "route": "/executive",
       "role": "admin",
-      "capturedAt": "2026-08-18T11:33:52.680Z"
+      "capturedAt": "2026-09-11T16:49:16.985Z"
+    },
+    {
+      "id": "executive-today",
+      "title": "«اليوم في المركز»: جلسات اليوم وحضورها والبهو وبيان تصاريح اليوم",
+      "file": "executive-today.png",
+      "route": "/executive",
+      "role": "admin",
+      "capturedAt": "2026-09-11T16:49:16.985Z"
+    },
+    {
+      "id": "executive-queue",
+      "title": "«بانتظار قرارك»: صفٌّ لكل ما ينتظر التوقيع بعدده وعمره وزرّ «افتح»",
+      "file": "executive-queue.png",
+      "route": "/executive",
+      "role": "admin",
+      "capturedAt": "2026-09-11T16:49:16.985Z"
+    },
+    {
+      "id": "executive-blockers",
+      "title": "«ما تعطّل ويحتاج متابعتك»: ما توقّف عند غيره بعمره وصاحب قراره",
+      "file": "executive-blockers.png",
+      "route": "/executive",
+      "role": "admin",
+      "capturedAt": "2026-09-11T16:49:16.985Z"
+    },
+    {
+      "id": "executive-gap",
+      "title": "الخريطة بمقياس «الفجوة عن المستهدف» — الأحمر دون مستهدف الرتبة والأخضر فوقه",
+      "file": "executive-gap.png",
+      "route": "/executive",
+      "role": "admin",
+      "capturedAt": "2026-09-11T16:49:16.985Z"
+    },
+    {
+      "id": "executive-reports-kpis",
+      "title": "تبويب التقارير: البطاقات الخمس ومعها «معدّل الإعادة»",
+      "file": "executive-reports-kpis.png",
+      "route": "/executive",
+      "role": "admin",
+      "capturedAt": "2026-09-11T16:49:16.985Z"
+    },
+    {
+      "id": "executive-cycle",
+      "title": "«زمن الدورة»: الوسيط من الترشيح إلى الاعتماد النهائي وأشرطة المراحل",
+      "file": "executive-cycle.png",
+      "route": "/executive",
+      "role": "admin",
+      "capturedAt": "2026-09-11T16:49:16.985Z"
+    },
+    {
+      "id": "executive-exec-pending",
+      "title": "«معتمدة بلا ملخّص تنفيذي»: أقدم عشرة بالرمز ورابطٌ مفلتر",
+      "file": "executive-exec-pending.png",
+      "route": "/executive",
+      "role": "admin",
+      "capturedAt": "2026-09-11T16:49:16.985Z"
+    },
+    {
+      "id": "executive-overview-capacity",
+      "title": "نظرة شاملة: بطاقة «طاقة الجدولة» — المستهدف والمخطَّط والمجدول والمنعقد",
+      "file": "executive-overview-capacity.png",
+      "route": "/executive",
+      "role": "admin",
+      "capturedAt": "2026-09-11T16:49:16.985Z"
+    },
+    {
+      "id": "executive-overview-reports",
+      "title": "نظرة شاملة: عدّادات التقارير التي تُفتح مفلترةً (بسهمٍ بجانب تسميتها)",
+      "file": "executive-overview-reports.png",
+      "route": "/executive",
+      "role": "admin",
+      "capturedAt": "2026-09-11T16:49:16.985Z"
+    },
+    {
+      "id": "reports-center-filter",
+      "title": "شاشة التقارير بحساب مدير المركز: فلتر «مدير المركز» بين مراحل السلسلة",
+      "file": "reports-center-filter.png",
+      "route": "/reports",
+      "role": "center",
+      "capturedAt": "2026-09-11T16:49:16.985Z"
+    },
+    {
+      "id": "gate-manifest-center",
+      "title": "بيان تصاريح الدخول يُفتح لمدير المركز ليعتمده",
+      "file": "gate-manifest-center.png",
+      "route": "/gate-manifest",
+      "role": "center",
+      "capturedAt": "2026-09-11T16:49:16.985Z"
     },
     {
       "id": "daily-report-kpis",

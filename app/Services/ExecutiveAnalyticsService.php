@@ -12,7 +12,9 @@ use App\Models\DevelopmentPlanItem;
 use App\Models\DiscussionCircle;
 use App\Models\Evaluation;
 use App\Models\FinalReport;
+use App\Models\GateManifest;
 use App\Models\MeasurementResult;
+use App\Models\PostponementRequest;
 use App\Models\ReceptionAssignment;
 use App\Models\ReceptionVisit;
 use App\Models\Role;
@@ -21,6 +23,7 @@ use App\Models\ScheduleDispatch;
 use App\Models\SchedulingPeriod;
 use App\Models\Sector;
 use App\Models\User;
+use App\Security\Permissions;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -32,6 +35,15 @@ use Illuminate\Support\Facades\DB;
 
 class ExecutiveAnalyticsService
 {
+    // مراحل سلسلة اعتماد التقرير بترتيبها، ومنها مرحلة مدير المركز. كانت ثلاثاً
+    // هنا، فالتقرير الواقف عند مدير المركز يُحسب في «الإجمالي» ويختفي من خطّ
+    // الاعتماد وأطول انتظار و«في سلسلة الاعتماد».
+    private const REPORT_CHAIN = ['pending_evaluator', 'pending_manager', 'pending_dev_approval', 'pending_center'];
+
+    // الجاهزية من الدرجة الموجودة لا بصفرٍ مكان الناقصة: تقريرٌ سلوكيّه ٨٠ وفنّيه
+    // لم يُرصد كان يدخل المتوسط بـ٤٠. وحين تغيب الدرجتان معاً يُستبعد التقرير.
+    private const READINESS_SQL = '(coalesce(behavioral_fit, technical_fit) + coalesce(technical_fit, behavioral_fit)) / 2';
+
     // الحمولة الكاملة للوحة التنفيذية في نداء واحد
     public function executive(array $allowed, int $trendMonths = 6): array
     {
@@ -42,6 +54,7 @@ class ExecutiveAnalyticsService
         return [
             'kpis' => $this->kpis($allowed),
             'heatmap' => $heatmap,
+            'heatmapGap' => $this->competencyGapHeatmap($allowed),
             'sectorComparison' => $sectors,
             'tierComparison' => $this->tierComparison($allowed),
             'readinessDistribution' => $this->readinessDistribution($allowed),
@@ -74,7 +87,7 @@ class ExecutiveAnalyticsService
     // ── توزيع جاهزية التقارير المعتمدة على شرائح (صحّة خطّ الكفاءات) ──
     public function readinessDistribution(array $allowed): array
     {
-        $r = '(coalesce(behavioral_fit,0) + coalesce(technical_fit,0)) / 2';
+        $r = self::READINESS_SQL;
         $row = FinalReport::where('status', 'approved')
             ->whereHas('candidate', fn ($q) => $q->whereIn('classification', $allowed))
             ->selectRaw("
@@ -171,10 +184,57 @@ class ExecutiveAnalyticsService
         ];
     }
 
+    // ── الفجوة عن المستهدف: متوسط (الدرجة − مستهدف رتبة صاحبها) لكل كفاءة × قطاع ──
+    //
+    // نسبة الإتقان وحدها لا تقول «أهذا جيّد؟» — ٦٠٪ من لواء ليست ٦٠٪ من ملازم.
+    // مصفوفة المركز المعتمدة (rank_competency_targets) تعطي المستوى المطلوب من كل
+    // رتبة، فالفجوة بالمستويات: سالبةٌ دون المستهدف، وموجبةٌ فوقه.
+    // تُحسب على من رُبطت رتبته وحده، والتغطية تُعاد صراحةً كي لا تُقرأ الناقصةُ كاملة.
+    public function competencyGapHeatmap(array $allowed): array
+    {
+        $scores = fn () => DB::table('evaluation_scores as es')
+            ->join('evaluations as e', 'es.evaluation_id', '=', 'e.id')
+            ->join('candidates as c', 'e.candidate_id', '=', 'c.id')
+            ->whereIn('e.status', ['submitted', 'approved'])
+            ->whereIn('c.classification', $allowed);
+
+        $rows = $scores()
+            ->join('rank_competency_targets as t', fn ($j) => $j->on('t.rank_id', '=', 'c.rank_id')
+                ->on('t.competency_id', '=', 'es.competency_id'))
+            ->groupBy('es.competency_id', 'c.sector_id')
+            ->selectRaw('es.competency_id, c.sector_id, avg(es.score - t.target) as gap, count(*) as n')
+            ->get();
+
+        $cells = [];
+        $withTarget = 0;
+        foreach ($rows as $r) {
+            $cells[$r->competency_id.'-'.$r->sector_id] = ['gap' => round((float) $r->gap, 1), 'samples' => (int) $r->n];
+            $withTarget += (int) $r->n;
+        }
+
+        return [
+            'cells' => $cells,
+            // درجاتٌ لها مستهدف من كل الدرجات — المقام الذي تُقرأ عليه الفجوة
+            'coverage' => ['withTarget' => $withTarget, 'total' => $scores()->count()],
+        ];
+    }
+
     // ── مقارنة القطاعات: العدد، نسبة الإتمام، الجاهزية، الترتيب ──
     public function sectorComparison(array $allowed): array
     {
-        $rows = Sector::orderBy('name_ar')->get()->map(function ($sector) use ($allowed) {
+        // الحضور لكل قطاع بجملةٍ واحدة — على المرصود لا المجدول، كبطاقة الحضور. الغياب
+        // من جهةٍ بعينها رقمٌ يُراسَل به، لا مشكلةٌ داخل المركز.
+        $attendance = DB::table('attendance as at')
+            ->join('schedules as s', 'at.schedule_id', '=', 's.id')
+            ->join('candidates as c', 's.candidate_id', '=', 'c.id')
+            ->whereIn('c.classification', $allowed)
+            ->whereIn('at.status', ['present', 'absent_excused', 'absent_unexcused'])
+            ->groupBy('c.sector_id')
+            ->selectRaw("c.sector_id, count(*) filter (where at.status = 'present') as present,
+                         count(*) filter (where at.status <> 'present') as absent")
+            ->get()->keyBy('sector_id');
+
+        $rows = Sector::orderBy('name_ar')->get()->map(function ($sector) use ($allowed, $attendance) {
             $base = Candidate::where('sector_id', $sector->id)->whereIn('classification', $allowed);
             $total = (clone $base)->count();
             if ($total === 0) {
@@ -191,6 +251,7 @@ class ExecutiveAnalyticsService
                 'completed' => $completed,
                 'completionRate' => round($completed / $total * 100, 1),
                 'avgReadiness' => $this->avgReadiness($approved),
+                'absenceRate' => $this->absenceRate($attendance->get($sector->id)),
             ];
         })->filter()->values();
 
@@ -210,7 +271,7 @@ class ExecutiveAnalyticsService
             ->whereHas('candidate', fn ($q) => $q->whereIn('classification', $allowed))
             ->where('updated_at', '>=', $since)
             ->selectRaw("to_char(updated_at, 'YYYY-MM') ym, count(*) c,
-                         avg((coalesce(behavioral_fit,0) + coalesce(technical_fit,0)) / 2) readiness")
+                         avg(".self::READINESS_SQL.') readiness')
             ->groupBy('ym')->orderBy('ym')->get()
             ->keyBy('ym');
 
@@ -319,7 +380,9 @@ class ExecutiveAnalyticsService
             'sections' => [
                 $this->ovCandidates($allowed),
                 $this->ovWaves(),
+                $this->ovCapacity($allowed),
                 $this->ovSessions($allowed),
+                $this->ovDispatch($allowed),
                 $this->ovReception($allowed),
                 $this->ovAttendance($allowed),
                 $this->ovEvaluation($allowed),
@@ -327,8 +390,10 @@ class ExecutiveAnalyticsService
                 $this->ovReports($allowed),
                 $this->ovDevelopmentPlans($allowed),
                 $this->ovCompetencies(),
-                $this->ovUpdateRequests($allowed),
-                $this->ovPeople(),
+                // خرج قسما «طلبات تحديث البيانات» و«الفريق والأدوار» — ليسا من قرار مدير
+                // المركز: الأول شاشةٌ مُطفأة بمفتاح تشغيل وصلاحيتها لمسؤول الجدولة، والثاني
+                // أرقامُ إدارة الحسابات، سلطة مدير النظام. الدالّتان باقيتان، وإعادةُ أيٍّ
+                // منهما سطرٌ هنا.
                 $this->ovAudit(),
             ],
         ];
@@ -352,7 +417,8 @@ class ExecutiveAnalyticsService
             'metrics' => [
                 ['label' => 'الإجمالي', 'value' => (clone $cand())->count()],
                 ['label' => 'قيد التقييم', 'value' => (clone $cand())->whereIn('status', ['scheduled', 'assessed'])->count(), 'tone' => 'info'],
-                ['label' => 'مكتمل', 'value' => (int) ($byStatus['completed'] ?? 0), 'tone' => 'ok'],
+                ['label' => 'مكتمل', 'value' => (int) ($byStatus['completed'] ?? 0), 'tone' => 'ok',
+                    'to' => ['path' => '/candidates', 'query' => ['status' => 'completed']]],
                 ['label' => 'جدد (٣٠ يوماً)', 'value' => (clone $cand())->where('created_at', '>=', now()->subDays(30))->count()],
             ],
             'bars' => $this->bars($labels, $byStatus),
@@ -373,11 +439,50 @@ class ExecutiveAnalyticsService
             'metrics' => [
                 ['label' => 'الموجات', 'value' => (int) $byStatus->sum()],
                 ['label' => 'معتمَدة', 'value' => (int) ($byStatus['approved'] ?? 0), 'tone' => 'ok'],
-                // قرارٌ ينتظر مدير المركز نفسه — يُبرز لأنه الوحيد الذي يرفعه
-                ['label' => 'بانتظار اعتمادك', 'value' => $pending, 'tone' => $pending > 0 ? 'warn' : 'neutral'],
+                // اعتماد الموجة لمسؤول الجدولة (schedule.approve) منذ فُصل من يبني عمّن
+                // يعتمد. كانت تُسمّى «بانتظار اعتمادك» فتَعِد مدير المركز بقرارٍ ليس له.
+                ['label' => 'بانتظار اعتماد مسؤول الجدولة', 'value' => $pending, 'tone' => $pending > 0 ? 'info' : 'neutral'],
                 ['label' => 'مغلقة', 'value' => (int) ($byStatus['closed'] ?? 0)],
             ],
             'bars' => $this->bars(SchedulingPeriod::STATUS_LABEL, $byStatus),
+        ];
+    }
+
+    // ── طاقة الجدولة: المستهدف مقابل المخطَّط مقابل المجدول مقابل المنفَّذ ──
+    //
+    // الموجة تُعلن طاقةً يومية، والشبكة تخطّط لكل مستشار، ثم تُجدوَل جلسات ويحضر
+    // من يحضر. الفرق بين الأربعة هو المعنى: طاقةٌ لا تُملأ موجةٌ تُهدر، وجلساتٌ
+    // فوقها ضغطٌ على المستشارين. على الموجات غير المغلقة وحدها.
+    private function ovCapacity(array $allowed): array
+    {
+        $periods = SchedulingPeriod::whereIn('status', ['draft', 'pending_center', 'approved'])->get();
+        $ids = $periods->pluck('id');
+        $target = (int) $periods->sum(fn ($p) => $p->targetTotal() ?? 0);
+        $planned = (int) DB::table('period_grid_cells')->whereIn('period_id', $ids)->sum('planned');
+        $sessionIds = $this->inScope(Schedule::whereIn('period_id', $ids), $allowed)->pluck('id');
+        $held = Attendance::whereIn('schedule_id', $sessionIds)->where('status', 'present')->count();
+        // النسبة من المستهدف — ولا نسبة لموجاتٍ بلا طاقةٍ معلنة
+        $ofTarget = fn (int $v) => $target > 0 ? (int) round($v / $target * 100) : null;
+        $scheduledPct = $ofTarget($sessionIds->count());
+
+        return [
+            'key' => 'capacity',
+            'label' => 'طاقة الجدولة (الموجات المفتوحة)',
+            'icon' => 'calendar',
+            'route' => '/scheduling-periods',
+            'metrics' => [
+                ['label' => 'المستهدف', 'value' => $target],
+                ['label' => 'مخطَّط في الشبكة', 'value' => $planned, 'tone' => 'info'],
+                ['label' => 'مجدول من المستهدف', 'value' => $scheduledPct, 'suffix' => '%',
+                    'tone' => $scheduledPct === null ? 'neutral' : ($scheduledPct >= 80 ? 'ok' : 'warn')],
+                ['label' => 'انعقد من المستهدف', 'value' => $ofTarget($held), 'suffix' => '%'],
+            ],
+            'bars' => [
+                ['label' => 'المستهدف', 'value' => $target],
+                ['label' => 'مخطَّط', 'value' => $planned],
+                ['label' => 'مجدول', 'value' => $sessionIds->count()],
+                ['label' => 'انعقد', 'value' => $held],
+            ],
         ];
     }
 
@@ -400,6 +505,50 @@ class ExecutiveAnalyticsService
                 ['label' => 'تسليمات للجهات', 'value' => ScheduleDispatch::count()],
             ],
             'bars' => $this->bars(ReceptionAssignment::ACTIVITY_LABEL, $byActivity),
+        ];
+    }
+
+    // ── التسليم للجهات: ما وُعدت به الجهة مقابل ما انعقد فعلاً ──
+    //
+    // «تسليمات للجهات: ٧» عددُ مرّاتٍ لا عددُ وعود. هنا لكل تسليمٍ جلساتُه المُرسلة
+    // (rows_count) مقابل ما حضره أصحابها فعلاً في المدى نفسه ولفئات الجهة نفسها —
+    // وهو ما يُسأل عنه المركز في اجتماع الجهة. على تسليمات آخر ١٨٠ يوماً.
+    private function ovDispatch(array $allowed): array
+    {
+        $dispatches = ScheduleDispatch::with('authority')
+            ->whereDate('date_to', '>=', now()->subDays(180)->toDateString())->get();
+
+        $sent = 0;
+        $held = 0;
+        $byAuthority = [];
+        foreach ($dispatches as $d) {
+            $categories = $d->authority?->categoryList() ?: [];
+            $sessions = $this->inScope(Schedule::whereDate('schedule_date', '>=', $d->date_from->toDateString())
+                ->whereDate('schedule_date', '<=', $d->date_to->toDateString())
+                ->whereHas('candidate', fn ($c) => $c->whereIn('personnel_category', $categories)), $allowed);
+            if ($d->period_id) {
+                $sessions->where('period_id', $d->period_id);
+            }
+            $sent += (int) $d->rows_count;
+            $held += Attendance::whereIn('schedule_id', $sessions->pluck('id'))->where('status', 'present')->count();
+            $name = $d->authority?->name_ar ?? '—';
+            $byAuthority[$name] = ($byAuthority[$name] ?? 0) + (int) $d->rows_count;
+        }
+        $rate = $sent > 0 ? (int) round($held / $sent * 100) : null;
+
+        return [
+            'key' => 'dispatch',
+            'label' => 'التسليم للجهات (١٨٠ يوماً)',
+            'icon' => 'file',
+            'route' => '/dispatch',
+            'metrics' => [
+                ['label' => 'تسليمات', 'value' => $dispatches->count()],
+                ['label' => 'جلسات مُسلَّمة', 'value' => $sent, 'tone' => 'info'],
+                ['label' => 'انعقدت بحضور', 'value' => $held, 'tone' => 'ok'],
+                ['label' => 'نسبة الانعقاد', 'value' => $rate, 'suffix' => '%',
+                    'tone' => $rate === null ? 'neutral' : ($rate >= 85 ? 'ok' : 'warn')],
+            ],
+            'bars' => collect($byAuthority)->map(fn ($v, $k) => ['label' => $k, 'value' => $v])->values()->all(),
         ];
     }
 
@@ -513,8 +662,12 @@ class ExecutiveAnalyticsService
             'metrics' => [
                 ['label' => 'دورات لها نتائج', 'value' => $withResults, 'tone' => 'ok'],
                 ['label' => 'بلا نتائج', 'value' => $missing, 'tone' => $missing > 0 ? 'warn' : 'neutral'],
+                // المقياس الشخصي كان يُحسب في الجملة نفسها ويُرمى — أداةٌ من ثلاث بصورةٍ ناقصة
+                ['label' => 'متوسط المقياس الشخصي', 'value' => $r1($avg->p ?? null)],
                 ['label' => 'متوسط التحليلي', 'value' => $r1($avg->a ?? null)],
                 ['label' => 'متوسط الإنجليزي', 'value' => $r1($avg->e ?? null)],
+                ['label' => 'نتائج ٣٠ يوماً', 'value' => $scoped(MeasurementResult::query())
+                    ->where('created_at', '>=', now()->subDays(30))->count(), 'tone' => 'info'],
             ],
             'bars' => [],
         ];
@@ -524,7 +677,7 @@ class ExecutiveAnalyticsService
     private function ovReports(array $allowed): array
     {
         $byStatus = $this->reportStatusCounts($allowed);
-        $chain = ['pending_evaluator', 'pending_manager', 'pending_dev_approval'];
+        $chain = self::REPORT_CHAIN;
         $inChain = collect($chain)->sum(fn ($s) => (int) ($byStatus[$s] ?? 0));
         $returned = (int) ($byStatus['returned'] ?? 0);
 
@@ -535,9 +688,13 @@ class ExecutiveAnalyticsService
             'route' => '/reports',
             'metrics' => [
                 ['label' => 'الإجمالي', 'value' => (int) $byStatus->sum()],
-                ['label' => 'معتمدة', 'value' => (int) ($byStatus['approved'] ?? 0), 'tone' => 'ok'],
-                ['label' => 'في سلسلة الاعتماد', 'value' => $inChain, 'tone' => $inChain > 0 ? 'info' : 'neutral'],
-                ['label' => 'مُعادة للتعديل', 'value' => $returned, 'tone' => $returned > 0 ? 'warn' : 'neutral'],
+                // العدّاد الذي تقبل شاشتُه فلترَه يُفتح منه على صفوفه لا على الشاشة كلها
+                ['label' => 'معتمدة', 'value' => (int) ($byStatus['approved'] ?? 0), 'tone' => 'ok',
+                    'to' => ['path' => '/reports', 'query' => ['status' => 'approved']]],
+                ['label' => 'في سلسلة الاعتماد', 'value' => $inChain, 'tone' => $inChain > 0 ? 'info' : 'neutral',
+                    'to' => ['path' => '/reports', 'query' => ['status' => 'pending']]],
+                ['label' => 'مُعادة للتعديل', 'value' => $returned, 'tone' => $returned > 0 ? 'warn' : 'neutral',
+                    'to' => ['path' => '/reports', 'query' => ['status' => 'returned']]],
             ],
             'bars' => $this->bars(self::REPORT_STATUS_LABEL, $byStatus),
         ];
@@ -675,7 +832,9 @@ class ExecutiveAnalyticsService
         'draft' => 'مسودّة',
         'pending_evaluator' => 'بانتظار اعتماد المقيّم',
         'pending_manager' => 'بانتظار مدير التقييم',
-        'pending_dev_approval' => 'بانتظار الاعتماد النهائي',
+        // بصاحب المرحلة لا بموقعها: «النهائي» لم يعد تطوير الكفاءات حين تُفعَّل مرحلة المركز
+        'pending_dev_approval' => 'بانتظار تطوير الكفاءات',
+        'pending_center' => 'بانتظار مدير المركز',
         'returned' => 'مُعاد للتعديل',
         'approved' => 'معتمد',
         'cancelled' => 'ملغى',
@@ -689,7 +848,7 @@ class ExecutiveAnalyticsService
         $byStatus = $this->reportStatusCounts($allowed);
         $approved = (clone $scoped())->where('status', 'approved');
 
-        $chain = ['pending_evaluator', 'pending_manager', 'pending_dev_approval'];
+        $chain = self::REPORT_CHAIN;
         $inChain = collect($chain)->sum(fn ($s) => (int) ($byStatus[$s] ?? 0));
 
         // عمر أقدم تقرير في كل مرحلة — الرقم الذي يقول أين يقف الخطّ فعلاً
@@ -716,14 +875,21 @@ class ExecutiveAnalyticsService
             ->orderByDesc('c')->get()
             ->map(fn ($r) => ['label' => $r->recommendation, 'value' => (int) $r->c])->all();
 
+        // معدّل الإعادة: من التقارير التي دخلت السلسلة، كم أُعيد مرّةً على الأقل.
+        // مؤشّرُ جودة الكتابة لا بطء الاعتماد — يفرّق بين مشكلة الكاتب والمعتمِد.
+        $entered = (clone $scoped())->whereNotIn('status', ['draft', 'cancelled']);
+        $reworkBase = (clone $entered)->count();
+        $reworked = (clone $entered)->where('return_count', '>', 0)->count();
+
         $recent = (clone $scoped())->with(['candidate.sector', 'assessment'])
             ->orderByDesc('updated_at')->limit($limit)->get()
             ->map(function ($r) {
                 $behavioral = $r->behavioral_fit;
                 $technical = $r->technical_fit;
+                // كـREADINESS_SQL: الناقصة تأخذ قيمة الموجودة لا الصفر
                 $readiness = ($behavioral === null && $technical === null)
                     ? null
-                    : round(((float) ($behavioral ?? 0) + (float) ($technical ?? 0)) / 2, 1);
+                    : round(((float) ($behavioral ?? $technical) + (float) ($technical ?? $behavioral)) / 2, 1);
 
                 return [
                     'id' => $r->id,
@@ -751,6 +917,9 @@ class ExecutiveAnalyticsService
                 'avgReadiness' => $this->avgReadiness(clone $approved),
                 // الملخّص التنفيذي يكتبه مدير المركز — تغطيتُه مؤشّرُ عملِه هو
                 'execSummaries' => (clone $approved)->whereNotNull('executive_summary')->count(),
+                'reworked' => $reworked,
+                'reworkBase' => $reworkBase,
+                'reworkRate' => $reworkBase > 0 ? round($reworked / $reworkBase * 100, 1) : null,
             ],
             'pipeline' => collect(self::REPORT_STATUS_LABEL)
                 ->map(fn ($label, $status) => [
@@ -761,10 +930,303 @@ class ExecutiveAnalyticsService
             'aging' => $aging,
             'byRecommendation' => $byRecommendation,
             'recent' => $recent,
+            'pendingExecSummary' => $this->pendingExecSummary($allowed),
+            'cycleTime' => $this->cycleTime($allowed),
+        ];
+    }
+
+    // المعتمَد بلا ملخّص تنفيذي، الأقدم أولاً — قائمةٌ يُعمل عليها لا عدّادٌ في حاشية
+    private function pendingExecSummary(array $allowed, int $limit = 10): array
+    {
+        $q = $this->inScope(FinalReport::where('status', 'approved')->whereNull('executive_summary'), $allowed);
+
+        return [
+            'count' => (clone $q)->count(),
+            'rows' => (clone $q)->with(['candidate.sector', 'assessment'])->orderBy('updated_at')->limit($limit)->get()
+                ->map(fn ($r) => [
+                    'id' => $r->id,
+                    'code' => $r->assessment?->participant_code ?? $r->candidate?->participant_code ?? '—',
+                    'sector' => $r->candidate?->sector?->name_ar ?? '—',
+                    'recommendation' => $r->recommendation ?: '—',
+                    'days' => $this->ageDays($r->updated_at),
+                ])->all(),
+        ];
+    }
+
+    // ── زمن الدورة: من الترشيح إلى الاعتماد النهائي، وأين يذهب الوقت ──
+    //
+    // تقريبيٌّ بصدق: لا سجلّ انتقالاتٍ صريحاً على التقرير. الترشيح تاريخُ إنشاء
+    // الدورة، وأوّل جلسة من assessments.first_session_date، والاعتماد النهائي آخرُ
+    // اعتمادٍ انتقل إلى «معتمد» في سجل التدقيق (وإلا updated_at).
+    // الوسيط لا المتوسط: تقريرٌ منسيٌّ شهراً لا يسحب رقمَ تسعةٍ مرّت في أيام.
+    private function cycleTime(array $allowed): array
+    {
+        $since = now()->subMonths(12);
+        $rows = DB::table('final_reports as fr')
+            ->join('candidates as c', 'fr.candidate_id', '=', 'c.id')
+            ->leftJoin('assessments as a', 'fr.assessment_id', '=', 'a.id')
+            ->where('fr.status', 'approved')
+            ->whereIn('c.classification', $allowed)
+            ->selectRaw("a.created_at as nominated_at, a.first_session_date, fr.created_at as report_at,
+                coalesce((select max(al.created_at) from audit_logs al
+                    where al.entity_type = 'report' and al.entity_id = fr.id::text
+                      and al.action in ('APPROVE_REPORT', 'APPROVE_REPORT_SKIPPED_EVALUATOR')
+                      and al.details->>'to' = 'approved'), fr.updated_at) as approved_at")
+            ->get()
+            ->filter(fn ($r) => $r->approved_at && Carbon::parse($r->approved_at)->gte($since));
+
+        $span = function ($from, $to): ?int {
+            if (! $from || ! $to) {
+                return null;
+            }
+            $d = Carbon::parse($from)->startOfDay()->diffInDays(Carbon::parse($to)->startOfDay(), false);
+
+            // تاريخان مقلوبان خطأُ إدخالٍ لا زمنٌ سالب — يُستبعد من المقياس
+            return $d < 0 ? null : (int) $d;
+        };
+
+        $hops = [
+            'to_session' => ['label' => 'من الترشيح إلى أوّل جلسة', 'from' => 'nominated_at', 'to' => 'first_session_date'],
+            'to_report' => ['label' => 'من أوّل جلسة إلى كتابة التقرير', 'from' => 'first_session_date', 'to' => 'report_at'],
+            'to_approval' => ['label' => 'من كتابة التقرير إلى الاعتماد النهائي', 'from' => 'report_at', 'to' => 'approved_at'],
+        ];
+
+        $out = [];
+        foreach ($hops as $key => $h) {
+            $values = $rows->map(fn ($r) => $span($r->{$h['from']}, $r->{$h['to']}))
+                ->filter(fn ($v) => $v !== null)->values()->all();
+            $out[] = ['key' => $key, 'label' => $h['label']] + $this->spread($values);
+        }
+
+        $total = $rows->map(fn ($r) => $span($r->nominated_at, $r->approved_at))
+            ->filter(fn ($v) => $v !== null)->values()->all();
+
+        return [
+            'windowMonths' => 12,
+            'hops' => $out,
+            'total' => $this->spread($total),
+        ];
+    }
+
+    // وسيطٌ ومئينٌ تسعون وعدد — على قيمٍ بالأيام
+    private function spread(array $values): array
+    {
+        $n = count($values);
+        if ($n === 0) {
+            return ['medianDays' => null, 'p90Days' => null, 'n' => 0];
+        }
+        sort($values);
+        $median = $n % 2 ? $values[intdiv($n, 2)] : ($values[intdiv($n, 2) - 1] + $values[intdiv($n, 2)]) / 2;
+
+        return [
+            'medianDays' => round($median, 1),
+            'p90Days' => $values[(int) ceil(0.9 * $n) - 1],
+            'n' => $n,
+        ];
+    }
+
+    // ════════════════════════════════════════════════════════
+    //  بانتظار قرارك — ما يبتّ فيه القارئ، وما توقّف عند غيره، ويومُ المركز
+    // ════════════════════════════════════════════════════════
+    //
+    // النظرة الشاملة عدّاداتٌ لا يقول أيٌّ منها «هذا أنت من يبتّ فيه». هنا يُفصل
+    // ما يوقّعه القارئ (الطابور) عمّا وقف عند غيره ولا يرفعه إليه أحد (المتوقّف)،
+    // والعمرُ هو الخبر لا العدد: طلبان من أمس ليسا كطلبين من أسبوعين.
+    //
+    // صفوف الطابور تُبنى بصلاحية البتّ لا بالدور: من سُحبت منه صلاحيةٌ في شاشة
+    // الأدوار يختفي صفُّها، فلا يُعرض عليه قرارٌ سيرفضه الخادم.
+    public function decisionDesk(array $allowed, User $user): array
+    {
+        $today = now()->toDateString();
+
+        return [
+            'date' => $today,
+            'today' => $this->centerToday($allowed, $today),
+            'queue' => $this->decisionQueue($allowed, $user, $today),
+            'blockers' => $this->blockers($allowed, $today),
+        ];
+    }
+
+    // ── اليوم في المركز: الجلسات وحضورها، والبهو، وبيان البوّابة ──
+    private function centerToday(array $allowed, string $today): array
+    {
+        $sessionIds = $this->inScope(Schedule::whereDate('schedule_date', $today), $allowed)->pluck('id');
+        $att = Attendance::whereIn('schedule_id', $sessionIds)
+            ->selectRaw('status, count(*) c')->groupBy('status')->pluck('c', 'status');
+        $present = (int) ($att['present'] ?? 0);
+        $absent = (int) ($att['absent_excused'] ?? 0) + (int) ($att['absent_unexcused'] ?? 0);
+
+        $visits = $this->inScope(ReceptionVisit::whereDate('visit_date', $today), $allowed)
+            ->selectRaw('status, count(*) c')->groupBy('status')->pluck('c', 'status');
+
+        $manifest = GateManifest::whereDate('manifest_date', $today)->withCount('candidates')->first();
+
+        return [
+            'sessions' => $sessionIds->count(),
+            'present' => $present,
+            'absent' => $absent,
+            // جلسةٌ لم يُرصد حضورها بعد ليست غياباً
+            'notRecorded' => max(0, $sessionIds->count() - $present - $absent),
+            'visits' => (int) $visits->sum(),
+            'arrived' => (int) ($visits[ReceptionVisit::ARRIVED] ?? 0),
+            'distributed' => (int) ($visits[ReceptionVisit::DISTRIBUTED] ?? 0),
+            'approvedVisits' => (int) ($visits[ReceptionVisit::APPROVED] ?? 0),
+            'waitingOnEvaluator' => $this->waitingOnEvaluator($allowed, $today)->count(),
+            'gateManifest' => $manifest ? [
+                'status' => $manifest->status,
+                'label' => GateManifest::statusLabel($manifest->status),
+                'names' => (int) $manifest->candidates_count,
+            ] : null,
+        ];
+    }
+
+    // ── الطابور: ما يحمل توقيع القارئ ──
+    private function decisionQueue(array $allowed, User $user, string $today): array
+    {
+        $rows = [];
+
+        if ($user->hasPermission(Permissions::GATE_MANIFEST_APPROVE)) {
+            $pending = GateManifest::where('status', GateManifest::PENDING);
+            $next = (clone $pending)->orderBy('manifest_date')->withCount('candidates')->first();
+            $rows[] = $this->deskRow('gate_manifest', 'بيان تصاريح دخول بانتظار اعتمادك', $pending, 'updated_at',
+                '/gate-manifest', null, Permissions::GATE_MANIFEST_APPROVE, [
+                    'hint' => $next ? 'أقربها ليوم '.$next->manifest_date->toDateString().' — الأسماء: '.$next->candidates_count : null,
+                ]);
+        }
+
+        if ($user->hasPermission(Permissions::REPORT_APPROVE_CENTER)) {
+            $rows[] = $this->deskRow('reports_center', 'تقارير بانتظار اعتمادك النهائي',
+                $this->inScope(FinalReport::where('status', 'pending_center'), $allowed), 'updated_at',
+                '/reports', ['status' => 'pending_center'], Permissions::REPORT_VIEW);
+        }
+
+        if ($user->hasPermission(Permissions::REPORT_EXEC_SUMMARY)) {
+            // آخر ما يُكتب في التقرير قبل أن يخرج من المركز — ويكتبه القارئ نفسه
+            $rows[] = $this->deskRow('exec_summary', 'تقارير معتمدة بلا ملخّص تنفيذي',
+                $this->inScope(FinalReport::where('status', 'approved')->whereNull('executive_summary'), $allowed),
+                'updated_at', '/reports', ['status' => 'approved'], Permissions::REPORT_VIEW);
+        }
+
+        if ($user->hasPermission(Permissions::CANDIDATE_APPROVE)) {
+            $rows[] = $this->deskRow('candidates_draft', 'مشاركون بمسودّة بانتظار الاعتماد',
+                Candidate::where('status', 'draft')->whereIn('classification', $allowed), 'created_at',
+                '/candidates', ['status' => 'draft'], Permissions::CANDIDATE_VIEW);
+        }
+
+        if ($user->hasPermission(Permissions::RECEPTION_APPROVE)) {
+            // جاهزةٌ للاعتماد بشروط الخادم نفسها: موقَّعة ومُقَرّة، وسيرتها معتمدة،
+            // وفيها إسنادٌ مستلَم — لا كلُّ زيارةٍ لم تُعتمد بعد
+            $ready = $this->inScope(ReceptionVisit::whereDate('visit_date', $today)
+                ->where('status', '!=', ReceptionVisit::APPROVED)
+                ->whereNotNull('signature_enc')->where('attested', true)
+                ->whereNotNull('cv_approved_at')
+                ->whereHas('assignments', fn ($a) => $a->where('status', ReceptionAssignment::ACCEPTED)), $allowed);
+            $rows[] = $this->deskRow('reception_ready', 'زيارات اليوم جاهزة للاعتماد والترحيل', $ready, 'updated_at',
+                '/reception', null, Permissions::RECEPTION_VIEW);
+        }
+
+        if ($user->hasPermission(Permissions::EVALUATION_APPROVE)) {
+            $rows[] = $this->deskRow('evaluations_submitted', 'تقييمات مُرسلة بانتظار الاعتماد',
+                $this->inScope(Evaluation::where('status', 'submitted'), $allowed), DB::raw('coalesce(submitted_at, updated_at)'),
+                '/assessment', null, Permissions::EVALUATION_VIEW);
+        }
+
+        return $rows;
+    }
+
+    // ── المتوقّف: ليس قرار القارئ، لكنه وقف ولا أحد يرفعه إليه ──
+    private function blockers(array $allowed, string $today): array
+    {
+        $beforeCenter = array_values(array_diff(self::REPORT_CHAIN, ['pending_center']));
+
+        return [
+            // حالة الموجة لا مرحلة التقرير — مفرداتٌ أخرى بالاسم نفسه
+            $this->deskRow('waves_pending', 'موجات جدولة مُرسلة لم تُعتمد',
+                SchedulingPeriod::where('status', 'pending_center'), DB::raw('coalesce(submitted_at, updated_at)'),
+                '/scheduling-periods', null, Permissions::SCHEDULE_VIEW, ['owner' => 'مسؤول الجدولة']),
+            $this->deskRow('postponements', 'طلبات تأجيل لم يُبتّ فيها',
+                $this->inScope(PostponementRequest::where('status', PostponementRequest::PENDING), $allowed), 'created_at',
+                '/absentees', null, Permissions::SCHEDULE_VIEW, ['owner' => 'مسؤول الجدولة']),
+            $this->waitingRow($allowed, $today),
+            $this->deskRow('returned_reports', 'تقارير مُعادة للتعديل لم تُرسل بعد',
+                $this->inScope(FinalReport::where('status', 'returned'), $allowed), DB::raw('coalesce(last_returned_at, updated_at)'),
+                '/reports', ['status' => 'returned'], Permissions::REPORT_VIEW, ['owner' => 'كاتب التقرير']),
+            $this->deskRow('stalled_reports', 'تقارير متوقّفة في سلسلة الاعتماد أكثر من أسبوع',
+                $this->inScope(FinalReport::whereIn('status', $beforeCenter)->where('updated_at', '<', now()->subDays(7)), $allowed),
+                'updated_at', '/reports', ['status' => 'pending'], Permissions::REPORT_VIEW, ['owner' => 'أصحاب مراحل الاعتماد']),
+            $this->deskRow('stale_evaluation_drafts', 'مسودّات تقييم لم تُرسل منذ أكثر من ثلاثة أيام',
+                $this->inScope(Evaluation::where('status', 'draft')->where('updated_at', '<', now()->subDays(3)), $allowed),
+                'updated_at', '/assessment', null, Permissions::EVALUATION_VIEW, ['owner' => 'المستشارون']),
+            $this->deskRow('overdue_plans', 'بنود خطط تطوير تجاوزت موعدها',
+                $this->inScope(DevelopmentPlanItem::where('status', '!=', 'done')->whereNotNull('target_date')
+                    ->whereDate('target_date', '<', $today), $allowed),
+                'target_date', '/development-plans', null, Permissions::DEVELOPMENT_PLAN_VIEW, ['owner' => 'إدارة تطوير الكفاءات']),
+        ];
+    }
+
+    // إسنادٌ لم يبتّ فيه المستشار لزيارة اليوم — مشاركٌ واقفٌ في البهو
+    private function waitingOnEvaluator(array $allowed, string $today)
+    {
+        return ReceptionAssignment::where('status', ReceptionAssignment::PENDING)
+            ->whereHas('visit', fn ($q) => $q->whereDate('visit_date', $today)
+                ->whereHas('candidate', fn ($c) => $c->whereIn('classification', $allowed)));
+    }
+
+    private function waitingRow(array $allowed, string $today): array
+    {
+        $q = $this->waitingOnEvaluator($allowed, $today);
+        $oldest = (clone $q)->min('reception_assignments.created_at');
+
+        return [
+            'key' => 'waiting_evaluator',
+            'label' => 'مشاركون في البهو بانتظار قرار المستشار',
+            'count' => (clone $q)->count(),
+            'oldestDays' => null,
+            // البهو يُقاس بالدقائق لا بالأيام
+            'oldestMinutes' => $oldest ? (int) Carbon::parse($oldest)->diffInMinutes(now(), true) : null,
+            'route' => '/reception',
+            'query' => null,
+            'linkPerm' => Permissions::RECEPTION_VIEW,
+            'owner' => 'المستشار المُسنَد',
         ];
     }
 
     // ─────────────── مساعدات ───────────────
+
+    // عمرٌ بالأيام الصحيحة — diffInDays في Carbon 3 عشريٌّ بإشارة
+    private function ageDays($ts): ?int
+    {
+        return $ts ? (int) Carbon::parse($ts)->diffInDays(now(), true) : null;
+    }
+
+    // نسبة الغياب من الحضور المرصود لصفّ {present, absent} — ولا نسبةَ بلا مرصود
+    private function absenceRate($row): ?float
+    {
+        $present = (int) ($row->present ?? 0);
+        $absent = (int) ($row->absent ?? 0);
+
+        return ($present + $absent) > 0 ? round($absent / ($present + $absent) * 100, 1) : null;
+    }
+
+    // حصرُ صفوفٍ مربوطة بمشارك على التصنيفات المسموحة (fail-closed)
+    private function inScope($query, array $allowed)
+    {
+        return $query->whereHas('candidate', fn ($q) => $q->whereIn('classification', $allowed));
+    }
+
+    // صفٌّ موحّد في «بانتظار قرارك»: العدد، وعمر أقدمه، ووجهة فتحه وصلاحيتها
+    private function deskRow(string $key, string $label, $query, $ageColumn, ?string $route, ?array $routeQuery, ?string $linkPerm, array $extra = []): array
+    {
+        return array_merge([
+            'key' => $key,
+            'label' => $label,
+            'count' => (clone $query)->count(),
+            'oldestDays' => $this->ageDays((clone $query)->min($ageColumn)),
+            'route' => $route,
+            'query' => $routeQuery,
+            'linkPerm' => $linkPerm,
+        ], $extra);
+    }
 
     // عدّاد التقارير بالحالة ضمن التصنيفات المسموحة — يُقرأ في موضعين
     private function reportStatusCounts(array $allowed)
@@ -785,10 +1247,11 @@ class ExecutiveAnalyticsService
         return $out;
     }
 
-    // متوسط الجاهزية = متوسط (السلوكي + الفنّي) / ٢ على استعلام تقارير معتمدة
+    // متوسط الجاهزية = متوسط (السلوكي + الفنّي) / ٢ على استعلام تقارير معتمدة،
+    // والدرجة الناقصة تأخذ قيمة الموجودة (READINESS_SQL) لا الصفر
     private function avgReadiness($approvedQuery): ?float
     {
-        $v = $approvedQuery->selectRaw('avg((coalesce(behavioral_fit,0) + coalesce(technical_fit,0)) / 2) r')->value('r');
+        $v = $approvedQuery->selectRaw('avg('.self::READINESS_SQL.') r')->value('r');
 
         return $v === null ? null : round((float) $v, 1);
     }
@@ -830,6 +1293,7 @@ class ExecutiveAnalyticsService
             'pending_evaluator' => 'اعتماد المقيّم',
             'pending_manager' => 'اعتماد مدير التقييم',
             'pending_dev_approval' => 'اعتماد تطوير الكفاءات',
+            'pending_center' => 'اعتماد مدير المركز',
             'returned' => 'إعادة للتعديل',
         ];
         $counts = FinalReport::whereIn('status', array_keys($labels))

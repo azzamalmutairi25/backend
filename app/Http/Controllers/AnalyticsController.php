@@ -85,7 +85,7 @@ class AnalyticsController extends Controller
             ],
             'reports' => [
                 'byStatus' => $this->fill($reportsByStatus, [
-                    'draft', 'pending_evaluator', 'pending_manager', 'pending_dev_approval', 'returned', 'approved',
+                    'draft', 'pending_evaluator', 'pending_manager', 'pending_dev_approval', 'pending_center', 'returned', 'approved',
                 ]),
                 'avgBehavioralFit' => $this->round1((clone $approved)->avg('behavioral_fit')),
                 'avgTechnicalFit' => $this->round1((clone $approved)->avg('technical_fit')),
@@ -149,6 +149,19 @@ class AnalyticsController extends Controller
         $limit = (int) ($request->input('limit') ?: 25);
 
         return response()->json($svc->reportsBoard($this->allowedClassifications($request), $limit));
+    }
+
+    // GET /analytics/executive/today — بانتظار قرارك: الطابور والمتوقّف ويوم المركز
+    //
+    // نداءٌ مستقلّ لأنه التبويب الأوّل: يُفتح عليه كل صباح، فلا تُحمَّل معه
+    // الخريطة والاتجاه ومقارنة القطاعات. والطابور يُبنى بصلاحيات القارئ نفسه.
+    public function executiveToday(Request $request, ExecutiveAnalyticsService $svc)
+    {
+        if (! $this->executiveGate($request)) {
+            return response()->json(['error' => 'ليس لديك صلاحية عرض القيادة التنفيذية'], 403);
+        }
+
+        return response()->json($svc->decisionDesk($this->allowedClassifications($request), $request->user()));
     }
 
     private function executiveGate(Request $request): bool
