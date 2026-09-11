@@ -731,6 +731,12 @@ class ExecutiveAnalyticsService
             ->orderByDesc('c')->get()
             ->map(fn ($r) => ['label' => $r->recommendation, 'value' => (int) $r->c])->all();
 
+        // معدّل الإعادة: من التقارير التي دخلت السلسلة، كم أُعيد مرّةً على الأقل.
+        // مؤشّرُ جودة الكتابة لا بطء الاعتماد — يفرّق بين مشكلة الكاتب والمعتمِد.
+        $entered = (clone $scoped())->whereNotIn('status', ['draft', 'cancelled']);
+        $reworkBase = (clone $entered)->count();
+        $reworked = (clone $entered)->where('return_count', '>', 0)->count();
+
         $recent = (clone $scoped())->with(['candidate.sector', 'assessment'])
             ->orderByDesc('updated_at')->limit($limit)->get()
             ->map(function ($r) {
@@ -767,6 +773,9 @@ class ExecutiveAnalyticsService
                 'avgReadiness' => $this->avgReadiness(clone $approved),
                 // الملخّص التنفيذي يكتبه مدير المركز — تغطيتُه مؤشّرُ عملِه هو
                 'execSummaries' => (clone $approved)->whereNotNull('executive_summary')->count(),
+                'reworked' => $reworked,
+                'reworkBase' => $reworkBase,
+                'reworkRate' => $reworkBase > 0 ? round($reworked / $reworkBase * 100, 1) : null,
             ],
             'pipeline' => collect(self::REPORT_STATUS_LABEL)
                 ->map(fn ($label, $status) => [
@@ -777,6 +786,98 @@ class ExecutiveAnalyticsService
             'aging' => $aging,
             'byRecommendation' => $byRecommendation,
             'recent' => $recent,
+            'pendingExecSummary' => $this->pendingExecSummary($allowed),
+            'cycleTime' => $this->cycleTime($allowed),
+        ];
+    }
+
+    // المعتمَد بلا ملخّص تنفيذي، الأقدم أولاً — قائمةٌ يُعمل عليها لا عدّادٌ في حاشية
+    private function pendingExecSummary(array $allowed, int $limit = 10): array
+    {
+        $q = $this->inScope(FinalReport::where('status', 'approved')->whereNull('executive_summary'), $allowed);
+
+        return [
+            'count' => (clone $q)->count(),
+            'rows' => (clone $q)->with(['candidate.sector', 'assessment'])->orderBy('updated_at')->limit($limit)->get()
+                ->map(fn ($r) => [
+                    'id' => $r->id,
+                    'code' => $r->assessment?->participant_code ?? $r->candidate?->participant_code ?? '—',
+                    'sector' => $r->candidate?->sector?->name_ar ?? '—',
+                    'recommendation' => $r->recommendation ?: '—',
+                    'days' => $this->ageDays($r->updated_at),
+                ])->all(),
+        ];
+    }
+
+    // ── زمن الدورة: من الترشيح إلى الاعتماد النهائي، وأين يذهب الوقت ──
+    //
+    // تقريبيٌّ بصدق: لا سجلّ انتقالاتٍ صريحاً على التقرير. الترشيح تاريخُ إنشاء
+    // الدورة، وأوّل جلسة من assessments.first_session_date، والاعتماد النهائي آخرُ
+    // اعتمادٍ انتقل إلى «معتمد» في سجل التدقيق (وإلا updated_at).
+    // الوسيط لا المتوسط: تقريرٌ منسيٌّ شهراً لا يسحب رقمَ تسعةٍ مرّت في أيام.
+    private function cycleTime(array $allowed): array
+    {
+        $since = now()->subMonths(12);
+        $rows = DB::table('final_reports as fr')
+            ->join('candidates as c', 'fr.candidate_id', '=', 'c.id')
+            ->leftJoin('assessments as a', 'fr.assessment_id', '=', 'a.id')
+            ->where('fr.status', 'approved')
+            ->whereIn('c.classification', $allowed)
+            ->selectRaw("a.created_at as nominated_at, a.first_session_date, fr.created_at as report_at,
+                coalesce((select max(al.created_at) from audit_logs al
+                    where al.entity_type = 'report' and al.entity_id = fr.id::text
+                      and al.action in ('APPROVE_REPORT', 'APPROVE_REPORT_SKIPPED_EVALUATOR')
+                      and al.details->>'to' = 'approved'), fr.updated_at) as approved_at")
+            ->get()
+            ->filter(fn ($r) => $r->approved_at && Carbon::parse($r->approved_at)->gte($since));
+
+        $span = function ($from, $to): ?int {
+            if (! $from || ! $to) {
+                return null;
+            }
+            $d = Carbon::parse($from)->startOfDay()->diffInDays(Carbon::parse($to)->startOfDay(), false);
+
+            // تاريخان مقلوبان خطأُ إدخالٍ لا زمنٌ سالب — يُستبعد من المقياس
+            return $d < 0 ? null : (int) $d;
+        };
+
+        $hops = [
+            'to_session' => ['label' => 'من الترشيح إلى أوّل جلسة', 'from' => 'nominated_at', 'to' => 'first_session_date'],
+            'to_report' => ['label' => 'من أوّل جلسة إلى كتابة التقرير', 'from' => 'first_session_date', 'to' => 'report_at'],
+            'to_approval' => ['label' => 'من كتابة التقرير إلى الاعتماد النهائي', 'from' => 'report_at', 'to' => 'approved_at'],
+        ];
+
+        $out = [];
+        foreach ($hops as $key => $h) {
+            $values = $rows->map(fn ($r) => $span($r->{$h['from']}, $r->{$h['to']}))
+                ->filter(fn ($v) => $v !== null)->values()->all();
+            $out[] = ['key' => $key, 'label' => $h['label']] + $this->spread($values);
+        }
+
+        $total = $rows->map(fn ($r) => $span($r->nominated_at, $r->approved_at))
+            ->filter(fn ($v) => $v !== null)->values()->all();
+
+        return [
+            'windowMonths' => 12,
+            'hops' => $out,
+            'total' => $this->spread($total),
+        ];
+    }
+
+    // وسيطٌ ومئينٌ تسعون وعدد — على قيمٍ بالأيام
+    private function spread(array $values): array
+    {
+        $n = count($values);
+        if ($n === 0) {
+            return ['medianDays' => null, 'p90Days' => null, 'n' => 0];
+        }
+        sort($values);
+        $median = $n % 2 ? $values[intdiv($n, 2)] : ($values[intdiv($n, 2) - 1] + $values[intdiv($n, 2)]) / 2;
+
+        return [
+            'medianDays' => round($median, 1),
+            'p90Days' => $values[(int) ceil(0.9 * $n) - 1],
+            'n' => $n,
         ];
     }
 
