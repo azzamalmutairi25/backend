@@ -54,6 +54,7 @@ class ExecutiveAnalyticsService
         return [
             'kpis' => $this->kpis($allowed),
             'heatmap' => $heatmap,
+            'heatmapGap' => $this->competencyGapHeatmap($allowed),
             'sectorComparison' => $sectors,
             'tierComparison' => $this->tierComparison($allowed),
             'readinessDistribution' => $this->readinessDistribution($allowed),
@@ -183,10 +184,57 @@ class ExecutiveAnalyticsService
         ];
     }
 
+    // ── الفجوة عن المستهدف: متوسط (الدرجة − مستهدف رتبة صاحبها) لكل كفاءة × قطاع ──
+    //
+    // نسبة الإتقان وحدها لا تقول «أهذا جيّد؟» — ٦٠٪ من لواء ليست ٦٠٪ من ملازم.
+    // مصفوفة المركز المعتمدة (rank_competency_targets) تعطي المستوى المطلوب من كل
+    // رتبة، فالفجوة بالمستويات: سالبةٌ دون المستهدف، وموجبةٌ فوقه.
+    // تُحسب على من رُبطت رتبته وحده، والتغطية تُعاد صراحةً كي لا تُقرأ الناقصةُ كاملة.
+    public function competencyGapHeatmap(array $allowed): array
+    {
+        $scores = fn () => DB::table('evaluation_scores as es')
+            ->join('evaluations as e', 'es.evaluation_id', '=', 'e.id')
+            ->join('candidates as c', 'e.candidate_id', '=', 'c.id')
+            ->whereIn('e.status', ['submitted', 'approved'])
+            ->whereIn('c.classification', $allowed);
+
+        $rows = $scores()
+            ->join('rank_competency_targets as t', fn ($j) => $j->on('t.rank_id', '=', 'c.rank_id')
+                ->on('t.competency_id', '=', 'es.competency_id'))
+            ->groupBy('es.competency_id', 'c.sector_id')
+            ->selectRaw('es.competency_id, c.sector_id, avg(es.score - t.target) as gap, count(*) as n')
+            ->get();
+
+        $cells = [];
+        $withTarget = 0;
+        foreach ($rows as $r) {
+            $cells[$r->competency_id.'-'.$r->sector_id] = ['gap' => round((float) $r->gap, 1), 'samples' => (int) $r->n];
+            $withTarget += (int) $r->n;
+        }
+
+        return [
+            'cells' => $cells,
+            // درجاتٌ لها مستهدف من كل الدرجات — المقام الذي تُقرأ عليه الفجوة
+            'coverage' => ['withTarget' => $withTarget, 'total' => $scores()->count()],
+        ];
+    }
+
     // ── مقارنة القطاعات: العدد، نسبة الإتمام، الجاهزية، الترتيب ──
     public function sectorComparison(array $allowed): array
     {
-        $rows = Sector::orderBy('name_ar')->get()->map(function ($sector) use ($allowed) {
+        // الحضور لكل قطاع بجملةٍ واحدة — على المرصود لا المجدول، كبطاقة الحضور. الغياب
+        // من جهةٍ بعينها رقمٌ يُراسَل به، لا مشكلةٌ داخل المركز.
+        $attendance = DB::table('attendance as at')
+            ->join('schedules as s', 'at.schedule_id', '=', 's.id')
+            ->join('candidates as c', 's.candidate_id', '=', 'c.id')
+            ->whereIn('c.classification', $allowed)
+            ->whereIn('at.status', ['present', 'absent_excused', 'absent_unexcused'])
+            ->groupBy('c.sector_id')
+            ->selectRaw("c.sector_id, count(*) filter (where at.status = 'present') as present,
+                         count(*) filter (where at.status <> 'present') as absent")
+            ->get()->keyBy('sector_id');
+
+        $rows = Sector::orderBy('name_ar')->get()->map(function ($sector) use ($allowed, $attendance) {
             $base = Candidate::where('sector_id', $sector->id)->whereIn('classification', $allowed);
             $total = (clone $base)->count();
             if ($total === 0) {
@@ -203,6 +251,7 @@ class ExecutiveAnalyticsService
                 'completed' => $completed,
                 'completionRate' => round($completed / $total * 100, 1),
                 'avgReadiness' => $this->avgReadiness($approved),
+                'absenceRate' => $this->absenceRate($attendance->get($sector->id)),
             ];
         })->filter()->values();
 
@@ -1053,6 +1102,15 @@ class ExecutiveAnalyticsService
     private function ageDays($ts): ?int
     {
         return $ts ? (int) Carbon::parse($ts)->diffInDays(now(), true) : null;
+    }
+
+    // نسبة الغياب من الحضور المرصود لصفّ {present, absent} — ولا نسبةَ بلا مرصود
+    private function absenceRate($row): ?float
+    {
+        $present = (int) ($row->present ?? 0);
+        $absent = (int) ($row->absent ?? 0);
+
+        return ($present + $absent) > 0 ? round($absent / ($present + $absent) * 100, 1) : null;
     }
 
     // حصرُ صفوفٍ مربوطة بمشارك على التصنيفات المسموحة (fail-closed)
